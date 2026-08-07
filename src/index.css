@@ -1,0 +1,132 @@
+@import 'tailwindcss';
+@import './theme/tokens.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Was hardcoded to the old pre-rebrand template's dark colors regardless of
+   the app's actual light/dark theme (see ThemeContext.tsx) — every page
+   load flashed that dark gradient before AppShell's own themed background
+   painted over it. Using the same --color-surface/--color-text tokens
+   every other surface in the app already uses instead. */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@keyframes badge-glow {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.55;
+  }
+}
+
+/* Each badge's own icon (analytics, accounting, banking, CRM, ...) pops in
+   sync with that badge's glow peak (badge-glow peaks at 50%), then fades —
+   staggered per-badge via the same animationDelay values, so icons appear
+   one by one around the ring rather than all at once. */
+@keyframes badge-pop {
+  0%, 38%, 78%, 100% {
+    transform: scale(0) rotate(-20deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.25) rotate(10deg);
+    opacity: 1;
+  }
+  62% {
+    transform: scale(1) rotate(-6deg);
+    opacity: 1;
+  }
+}
+
+/* Thin, modern scrollbar for the Sidebar/Navbar panels — ported from
+   ecuenta-react10-dolibar so the ported chrome matches its source look. */
+.soft-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+.soft-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.soft-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+.soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.65);
+}
+.dark .soft-scrollbar {
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+}
+.dark .soft-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.5);
+}
+.dark .soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.75);
+}
+
+/* Minimal Bootstrap-lookalike rules for legacy HTML fragments embedded
+   verbatim from the real ecuenta9 ZRA AJAX endpoints (see
+   AsycudaImportList.tsx) — this app doesn't load Bootstrap, so those
+   fragments' own `.btn`/`.badge`/utility classes render as plain text
+   without this. Only the classes those specific fragments actually use. */
+.legacy-html .d-flex { display: flex; }
+.legacy-html .flex-wrap { flex-wrap: wrap; }
+.legacy-html .gap-1 { gap: 0.25rem; }
+.legacy-html .me-1 { margin-right: 0.25rem; }
+.legacy-html .px-0 { padding-left: 0; padding-right: 0; }
+.legacy-html .nowrap { white-space: nowrap; }
+.legacy-html .text-light { color: #fff; }
+.legacy-html .text-muted { color: var(--color-text-faint); }
+.legacy-html .badge {
+  display: inline-block;
+  padding: 0.2em 0.55em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+}
+.legacy-html .badge-warning { background: var(--color-warning-bg); color: var(--color-warning-fg); }
+.legacy-html .btn {
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  line-height: 1.2;
+}
+.legacy-html .btn:hover { opacity: 0.9; }
+.legacy-html .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.7rem; }
+.legacy-html .btn-success { background: var(--color-success); }
+.legacy-html .btn-danger { background: var(--color-danger); }
+.legacy-html .btn-warning,
+.legacy-html .bg-warning { background: #d97706; }
+.legacy-html .btn-primary { background: var(--color-brand); }
+.legacy-html .btn-info { background: #0891b2; }

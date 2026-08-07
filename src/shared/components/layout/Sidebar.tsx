@@ -1,0 +1,227 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
+import { UsersRound, Receipt, Archive, MessageCircle, Plus, ChevronDown } from 'lucide-react'
+import { nav as homeNav } from '../../../features/home/home.nav'
+import { nav as zraNav } from '../../../features/zra/zra.nav'
+import { nav as billingNav } from '../../../features/billing/billing.nav'
+import { nav as purchasesNav } from '../../../features/purchases/purchases.nav'
+import { nav as productsNav } from '../../../features/products/products.nav'
+import { nav as warehousesNav } from '../../../features/warehouses/warehouses.nav'
+import { nav as projectsNav } from '../../../features/projects/projects.nav'
+import { nav as bankingNav } from '../../../features/banking/banking.nav'
+import { nav as loansNav } from '../../../features/loans/loans.nav'
+import { nav as usersNav } from '../../../features/users/users.nav'
+import { nav as payrollNav } from '../../../features/payroll/payroll.nav'
+import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
+import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
+import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
+import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
+import { nav as settingsNav } from '../../../features/settings/settings.nav'
+import { nav as reportsNav } from '../../../features/reports/reports.nav'
+import type { NavLeafItem, NavSection } from '../../../features/navTypes'
+
+// Kept as one pair so the rail's width and the collapsed flyout's left-offset
+// (which must butt up against the rail) can never drift out of sync.
+const RAIL_WIDTH_CLASS = 'w-14'
+const RAIL_WIDTH_OFFSET_CLASS = 'left-14'
+
+// Rail icon -> flyout panel of section items, in the exact order and with
+// the exact content of the real app's left menu (read from its llx_menu
+// table). Sections confirmed genuinely empty there (Expenses, Budget,
+// Members, Chat) are kept empty here too, rather than guessed at.
+const SECTIONS: NavSection[] = [
+  homeNav,
+  zraNav,
+  billingNav,
+  purchasesNav,
+  productsNav,
+  warehousesNav,
+  projectsNav,
+  bankingNav,
+  loansNav,
+  usersNav,
+  payrollNav,
+  { key: 'expenses', label: 'Expenses', icon: Receipt, items: [] },
+  { key: 'budget', label: 'Budget', icon: Archive, items: [] },
+  kitchenNav,
+  fixedAssetNav,
+  generalLedgerNav,
+  ticketNav,
+  settingsNav,
+  { key: 'members', label: 'Members', icon: UsersRound, items: [] },
+  reportsNav,
+  { key: 'chat', label: 'Chat', icon: MessageCircle, items: [] },
+]
+
+// "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
+// a soft tint + a barely-there rightward nudge + soft shadow, eased over a
+// longer duration so the flyout feels calm rather than snappy.
+function SidebarItem({
+  item,
+  indent = false,
+  navigate,
+  location,
+}: {
+  item: NavLeafItem
+  indent?: boolean
+  navigate: NavigateFunction
+  location: Location
+}) {
+  const isLink = Boolean(item.path)
+  const isCurrent = isLink && location.pathname === item.path
+  return (
+    <button
+      type="button"
+      disabled={!isLink}
+      onClick={isLink ? () => navigate(item.path!) : undefined}
+      className={`w-full flex items-center gap-2 text-left px-2 py-1 rounded-lg text-sm transition-all duration-300 ease-out ${indent ? 'pl-4' : ''} ${
+        isCurrent
+          ? 'bg-brand/10 text-brand font-semibold shadow-sm'
+          : isLink
+            ? 'text-text-muted hover:bg-surface-alt/70 hover:text-text hover:translate-x-0.5 hover:shadow-sm cursor-pointer'
+            : 'text-text-faint cursor-default'
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${isCurrent ? 'bg-brand' : 'bg-transparent'}`} />
+      {item.label}
+    </button>
+  )
+}
+
+export function Sidebar({ open = true }: { open?: boolean }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [activeKey, setActiveKey] = useState('home')
+  const [hovering, setHovering] = useState(false)
+  // At most one key here at a time — only one group is pinned open; clicking
+  // a header pins it (and closes whichever other group was pinned) — stays
+  // open, highlighted, ignoring mouse-leave — until it's clicked again or a
+  // different header takes over. Hovering is a separate, temporary preview
+  // (hoverGroup) that never touches this pinned state, so moving the mouse
+  // away only closes groups that were never actually clicked.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [hoverGroup, setHoverGroup] = useState<string | null>(null)
+  const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
+
+  // Whichever group holds the current page becomes the one pinned open (same
+  // as a header click) — covers both clicking a sub-menu link (which
+  // navigates here) and landing on a URL directly, so the active item is
+  // never hidden inside a collapsed group.
+  useEffect(() => {
+    for (const item of active.items) {
+      if ('items' in item && item.items) {
+        const containsCurrent = item.items.some((sub) => sub.path && sub.path === location.pathname)
+        if (containsCurrent) {
+          const groupKey = `${active.key}:${item.label}`
+          setOpenGroups((prev) => (prev[groupKey] ? prev : { [groupKey]: true }))
+          break
+        }
+      }
+    }
+  }, [active, location.pathname])
+
+  function toggleGroup(groupKey: string) {
+    setOpenGroups((prev) => (prev[groupKey] ? {} : { [groupKey]: true }))
+  }
+
+  // Pinned-open (`open` prop, toggled by Navbar's collapse button) keeps the
+  // flyout in normal flex flow, pushing <main> over. When collapsed,
+  // hovering the rail temporarily reveals the same flyout as a floating
+  // overlay instead (so it doesn't reflow page content on every hover), and
+  // hides it again on mouse-leave — the "expand and shrink on hover" behavior.
+  const expanded = open || hovering
+
+  return (
+    <div className="relative flex h-full shrink-0" onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
+      <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center border-r border-black/10 dark:border-white/10`}>
+        <div className="flex flex-col items-center gap-0.5 pt-1 pb-10">
+        {SECTIONS.map((section) => {
+          const Icon = section.icon
+          const isActive = section.key === activeKey
+          return (
+            <button
+              key={section.key}
+              type="button"
+              title={section.label}
+              onClick={() => setActiveKey(section.key)}
+              onMouseEnter={() => setActiveKey(section.key)}
+              className={`group/rail relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 ${
+                isActive ? 'bg-brand text-white shadow-sm shadow-brand/40' : 'text-text hover:bg-surface hover:text-(--color-accent-teal-2) hover:-translate-y-0.5'
+              }`}
+            >
+              <Icon
+                size={22}
+                className={
+                  isActive
+                    ? '[filter:drop-shadow(0_0_6px_var(--color-accent-teal-2))_drop-shadow(0_0_10px_var(--color-accent-cyan-2))]'
+                    : 'group-hover/rail:[filter:drop-shadow(0_0_5px_var(--color-accent-teal-2))_drop-shadow(0_0_9px_var(--color-accent-cyan-2))]'
+                }
+              />
+            </button>
+          )
+        })}
+        </div>
+      </aside>
+
+      <div
+        className={`h-full bg-rail-bg border-r border-border overflow-hidden transition-all duration-300 ease-in-out ${
+          open ? 'relative w-52' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 z-30 shadow-xl ${expanded ? 'w-52' : 'w-0'}`
+        }`}
+        onMouseEnter={() => !open && setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        <div className="soft-scrollbar w-52 h-full overflow-y-auto overflow-x-hidden pt-9 pb-4 px-3">
+          <div className="flex items-center justify-between mb-2 px-1 pb-2 border-b border-border">
+            <span className="text-xs font-bold tracking-wide text-brand uppercase">{active.label}</span>
+            <button type="button" title={`Add to ${active.label}`} className="p-1 rounded-md text-brand hover:bg-surface-alt">
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="space-y-0">
+            {active.items.length === 0 && <p className="text-xs italic text-text-muted px-2 py-1">Nothing here yet.</p>}
+            {active.items.map((item) => {
+              if (!('items' in item) || !item.items) {
+                return <SidebarItem key={item.label} item={item} navigate={navigate} location={location} />
+              }
+              const groupKey = `${active.key}:${item.label}`
+              const isPinned = Boolean(openGroups[groupKey])
+              const isOpen = isPinned || hoverGroup === groupKey
+              return (
+                <div
+                  key={item.label}
+                  className="pt-0.5 first:pt-0"
+                  onMouseEnter={() => setHoverGroup(groupKey)}
+                  onMouseLeave={() => setHoverGroup((cur) => (cur === groupKey ? null : cur))}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(groupKey)}
+                    className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide transition-colors ${
+                      isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <ChevronDown
+                      size={13}
+                      strokeWidth={2.5}
+                      className={`shrink-0 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
+                    />
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                  >
+                    <div className="overflow-hidden">
+                      {item.items.map((sub) => (
+                        <SidebarItem key={sub.label} item={sub} indent navigate={navigate} location={location} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

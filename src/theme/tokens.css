@@ -1,0 +1,119 @@
+/**
+ * Central color tokens ported from the ecuenta-react10-dolibar sidebar/navbar
+ * design system. Every color used by the Sidebar/Navbar/AppShell chrome comes
+ * from one of these `--color-*` variables (each becomes a real Tailwind
+ * utility generator, e.g. `--color-brand` -> `bg-brand`, `text-brand`,
+ * `border-brand`, `ring-brand`, and supports opacity modifiers like
+ * `bg-brand/10` the same as any built-in Tailwind color).
+ *
+ * Dark mode is handled by overriding the same variable under `.dark`
+ * (matching the `@custom-variant dark` selector in index.css) rather than
+ * components branching on `dark:` per color.
+ */
+@theme {
+  /* Brand */
+  --color-brand: #397db9;
+  --color-brand-hover: #2c6291;
+
+  /* Solid status colors, for filled buttons (as opposed to the pastel
+     badge -bg/-fg pairs below) — kept constant across themes, same as
+     brand, since a saturated fill reads fine on both light and dark. */
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-info: #0ea5e9;
+  --color-info-hover: #0284c7;
+
+  /* Status: light-mode pastel-bg/dark-text pairs, matching the badge
+     pattern used across list pages. */
+  --color-success-bg: #dcfce7;
+  --color-success-fg: #15803d;
+  --color-warning-bg: #fef3c7;
+  --color-warning-fg: #92400e;
+  --color-warning-border: #fde68a;
+  --color-danger-bg: #fee2e2;
+  --color-danger-fg: #b91c1c;
+  --color-info-bg: #e0f2fe;
+  --color-info-fg: #0369a1;
+  --color-neutral-bg: #f3f4f6;
+  --color-neutral-fg: #4b5563;
+
+  /* Surface / text / border: the "every card looks like this" pattern. */
+  --color-surface: #ffffff;
+  --color-surface-alt: #f9fafb;
+  --color-surface-hover: #e5e7eb;
+  --color-input-bg: #ffffff;
+  --color-border: #e5e7eb;
+  --color-input-border: #d1d5db;
+  /* Darkened 40% off the original light-mode values (#111827/#6b7280/#9ca3af)
+     project-wide, for stronger text contrast. */
+  --color-text: #0a0e17;
+  --color-text-muted: #40444d;
+  --color-text-faint: #5e6269;
+
+  /* Sidebar icon-rail background — distinct from card surfaces. */
+  --color-rail-bg: #eef1f6;
+
+  /* Accent tokens referenced by the Navbar/Sidebar "spooky" glow effect —
+     the teal-to-cyan gradient that echoes the Ecuenta logo mark. */
+  --color-accent-cyan-2: #22d3ee;
+  --color-accent-teal-2: #0097a7;
+
+  /* Chart/data-visualization palette (Home dashboard's donut/bar/line
+     charts and confetti dots) — decorative, kept constant across themes. */
+  --color-chart-1: #3b82f6;
+  --color-chart-2: #60a5fa;
+  --color-chart-3: #93c5fd;
+  --color-chart-4: #22c55e;
+  --color-chart-5: #fbbf24;
+  --color-chart-6: #34d399;
+  --color-chart-7: #f472b6;
+  --color-chart-8: #1f2937;
+
+  /* Home dashboard's "shop" skyline illustration — a single bespoke
+     graphic, kept constant across themes. */
+  --color-illust-1: #bcd6f0;
+  --color-illust-2: #8fb8e8;
+  --color-illust-3: #e8f0fb;
+  --color-illust-4: #dce9f8;
+  --color-illust-5: #5c86b8;
+  --color-illust-6: #eef6ff;
+
+  /* Home dashboard hero banner. */
+  --color-hero-from: #eef6ff;
+  --color-hero-via: #f7fbff;
+  --color-hero-heading: #0c1d45;
+}
+
+.dark {
+  --color-success-bg: #14532d66;
+  --color-success-fg: #4ade80;
+  --color-warning-bg: #78350f66;
+  --color-warning-fg: #fcd34d;
+  --color-warning-border: #92400e;
+  --color-danger-bg: #7f1d1d66;
+  --color-danger-fg: #f87171;
+  --color-info-bg: #0c4a6e66;
+  --color-info-fg: #7dd3fc;
+  --color-neutral-bg: #37415166;
+  --color-neutral-fg: #d1d5db;
+
+  --color-surface: #111827;
+  --color-surface-alt: #1f2937;
+  --color-surface-hover: #374151;
+  --color-input-bg: #1f2937;
+  --color-border: #1f2937;
+  --color-input-border: #374151;
+  --color-text: #ffffff;
+  --color-text-muted: #9ca3af;
+  --color-text-faint: #6b7280;
+
+  --color-rail-bg: #030712;
+
+  --color-hero-from: #0f2942;
+  --color-hero-via: #0c1d45;
+  --color-hero-heading: #e2e8f0;
+}

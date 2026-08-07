@@ -1,0 +1,338 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ShoppingCart, Check, X, Plus, Trash2, LoaderCircle } from 'lucide-react'
+import { ROUTES } from '../../../routes'
+import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
+import { api } from '../../../api/axios'
+import { formatMoney } from '../../../utils/format'
+import { useCustomerOptions } from '../../customers/customerOptions'
+import { useProductOptions } from '../../products/products.queries'
+import { useLogActivity } from '../../agenda/agenda.queries'
+import { useAuth } from '../../auth/AuthContext'
+
+interface ProjectOption {
+  id: number
+  ref: string
+  title: string
+}
+
+// GET /api/salesorder/?action=get_projects&socid=X — confirmed real
+// endpoint (read directly from api/salesorder/index.php's
+// handleGetProjects()), scoped to the selected customer's projects.
+function useCustomerProjects(socid: string) {
+  return useQuery({
+    queryKey: ['salesorder', 'projects', socid],
+    queryFn: async () => {
+      const { data } = await api.get<{ success: boolean; data: ProjectOption[] }>('/salesorder/?action=get_projects', { params: { socid } })
+      return data.data ?? []
+    },
+    enabled: socid !== '',
+    staleTime: 1000 * 60,
+  })
+}
+
+interface OrderLine {
+  key: number
+  productId: string
+  description: string
+  qty: number
+  unitPrice: number
+}
+
+let lineKeySeq = 0
+function newLine(): OrderLine {
+  return { key: lineKeySeq++, productId: '', description: '', qty: 1, unitPrice: 0 }
+}
+
+interface CreateOrderResponse {
+  success: boolean
+  error?: string
+  message?: string
+  details?: Record<string, string>
+}
+
+export function OrderCreateForm() {
+  const today = new Date().toISOString().slice(0, 10)
+  const [customerId, setCustomerId] = useState('')
+  const [refCustomer, setRefCustomer] = useState('')
+  const [date, setDate] = useState(today)
+  const [lines, setLines] = useState<OrderLine[]>([newLine()])
+  const [projectId, setProjectId] = useState('')
+  const [formError, setFormError] = useState('')
+
+  const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: products } = useProductOptions()
+  const { data: projects, isLoading: projectsLoading } = useCustomerProjects(customerId)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const logActivity = useLogActivity()
+  const { user } = useAuth()
+
+  function updateLine(key: number, patch: Partial<OrderLine>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+  }
+
+  function pickProduct(key: number, productId: string) {
+    const product = products?.find((p) => String(p.id) === productId)
+    updateLine(key, {
+      productId,
+      description: product?.label ?? '',
+      unitPrice: product ? product.priceExclTax : 0,
+    })
+  }
+
+  const total = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
+
+  // POST /api/salesorder/?action=create — confirmed contract (verified
+  // against the live backend with a deliberately-invalid customer id, so
+  // nothing was actually created): { socid, lines: [{ product_id, desc,
+  // subprice, qty }] }. NOTE: the live backend currently 500s while
+  // inserting order lines ("Unknown column 'stock_reserve' in 'field
+  // list'") — a server-side schema bug, not something this form can work
+  // around. Submission is wired correctly; it just can't succeed until
+  // that column is fixed on the backend.
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const body = {
+        action: 'create',
+        socid: Number(customerId),
+        date,
+        ref_client: refCustomer || undefined,
+        fk_project: projectId ? Number(projectId) : undefined,
+        lines: lines
+          .filter((l) => l.description.trim() && l.qty > 0)
+          .map((l) => ({
+            product_id: l.productId ? Number(l.productId) : undefined,
+            desc: l.description,
+            subprice: l.unitPrice,
+            qty: l.qty,
+          })),
+      }
+      const { data } = await api.post<CreateOrderResponse>('/salesorder/?action=create', body)
+      if (!data.success) {
+        const detail = data.details ? Object.values(data.details).join(' ') : undefined
+        throw new Error(detail ?? data.error ?? data.message ?? 'Failed to create order')
+      }
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salesOrders'] })
+      const customerName = customers?.find((c) => c.id === customerId)?.name ?? 'a customer'
+      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
+      logActivity({ label: `New sales order for ${customerName}`, category: 'orders', authorName })
+      navigate(ROUTES.orderList)
+    },
+    onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create order'),
+  })
+
+  function handleSubmit() {
+    setFormError('')
+    if (!customerId) {
+      setFormError('Customer is required.')
+      return
+    }
+    if (!lines.some((l) => l.description.trim() && l.qty > 0)) {
+      setFormError('At least one line is required.')
+      return
+    }
+    createMutation.mutate()
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+        <ShoppingCart size={20} className="text-brand" /> Create Order
+      </h2>
+
+      <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          <Field label="Ref.">
+            <input disabled defaultValue="Draft" className={`${inputClasses} text-text-faint`} />
+          </Field>
+          <Field label="Ref. customer">
+            <input type="text" value={refCustomer} onChange={(e) => setRefCustomer(e.target.value)} className={inputClasses} />
+          </Field>
+
+          <Field label="Customer" required>
+            <select
+              value={customerId}
+              onChange={(e) => {
+                setCustomerId(e.target.value)
+                setProjectId('')
+              }}
+              className={inputClasses}
+            >
+              <option value="">{customersLoading ? 'Loading…' : 'Select a customer'}</option>
+              {customers?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Date" required>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
+          </Field>
+
+          <Field label="Planned date of delivery">
+            <input type="date" className={inputClasses} />
+          </Field>
+          <Field label="Payment Terms">
+            <Select options={[]} />
+          </Field>
+
+          <Field label="Payment Type" required>
+            <Select options={[]} />
+          </Field>
+          <Field label="Bank account">
+            <Select options={[]} />
+          </Field>
+
+          <Field label="Availability delay">
+            <Select options={[]} />
+          </Field>
+          <Field label="Shipping method">
+            <Select options={[]} />
+          </Field>
+
+          <Field label="Channel">
+            <Select options={[]} />
+          </Field>
+          <Field label="Project">
+            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClasses}>
+              <option value="">{!customerId ? 'Select a customer first' : projectsLoading ? 'Loading…' : 'No project'}</option>
+              {projects?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.ref} — {p.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Default doc template">
+            <Select defaultValue="einstein" options={['einstein']} />
+          </Field>
+          <Field label="Currency">
+            <Select defaultValue="Zambian Kwacha (ZMW)" options={['Zambian Kwacha (ZMW)']} />
+          </Field>
+
+          <Field label="Incoterms">
+            <Select options={[]} />
+          </Field>
+          <Field label="Note (public)">
+            <input type="text" className={inputClasses} />
+          </Field>
+
+          <Field label="Note (private)">
+            <input type="text" className={inputClasses} />
+          </Field>
+        </div>
+      </Card>
+
+      <Card className="!p-0 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold text-text!">Lines</h3>
+          <button
+            type="button"
+            onClick={() => setLines((prev) => [...prev, newLine()])}
+            className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-text hover:bg-surface-hover"
+          >
+            <Plus size={13} /> Add line
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <th className="font-medium px-4 py-2.5">Product</th>
+                <th className="font-medium px-4 py-2.5">Description</th>
+                <th className="font-medium px-4 py-2.5 w-24">Qty</th>
+                <th className="font-medium px-4 py-2.5 w-32">Unit Price</th>
+                <th className="font-medium px-4 py-2.5 w-32 text-right">Total</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line) => (
+                <tr key={line.key} className="border-b border-border">
+                  <td className="px-4 py-2">
+                    <select value={line.productId} onChange={(e) => pickProduct(line.key, e.target.value)} className={inputClasses}>
+                      <option value="">Custom line</option>
+                      {products?.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      value={line.description}
+                      onChange={(e) => updateLine(line.key, { description: e.target.value })}
+                      className={inputClasses}
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      value={line.qty}
+                      onChange={(e) => updateLine(line.key, { qty: Number(e.target.value) })}
+                      className={inputClasses}
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={line.unitPrice}
+                      onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
+                      className={inputClasses}
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text!">{formatMoney(line.qty * line.unitPrice)}</td>
+                  <td className="px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      title="Remove line"
+                      disabled={lines.length === 1}
+                      onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                      className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-border text-sm">
+          <span className="text-text-muted">Total (excl. tax)</span>
+          <span className="font-semibold text-text! tabular-nums">{formatMoney(total)} ZMW</span>
+        </div>
+      </Card>
+
+      {formError && <p className="text-sm text-danger">{formError}</p>}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={createMutation.isPending}
+          onClick={handleSubmit}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          {createMutation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
+          {createMutation.isPending ? 'Creating…' : 'Create draft'}
+        </button>
+        <Link to={ROUTES.orderList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+      </div>
+    </div>
+  )
+}
