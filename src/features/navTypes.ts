@@ -7,7 +7,7 @@ export interface NavLeafItem {
 
 export interface NavGroupItem {
   label: string
-  items: NavLeafItem[]
+  items: NavItem[]
 }
 
 export type NavItem = NavLeafItem | NavGroupItem

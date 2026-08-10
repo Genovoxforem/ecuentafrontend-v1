@@ -90,6 +90,18 @@ body {
   background-color: rgba(100, 116, 139, 0.75);
 }
 
+/* Keeps a region scrollable (wheel/trackpad/touch/keyboard all still work)
+   but hides the visible scrollbar track/thumb entirely — used where a
+   scrollbar would visually clutter a clean panel, e.g. the modern sidebar's
+   nav list. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Minimal Bootstrap-lookalike rules for legacy HTML fragments embedded
    verbatim from the real ecuenta9 ZRA AJAX endpoints (see
    AsycudaImportList.tsx) — this app doesn't load Bootstrap, so those

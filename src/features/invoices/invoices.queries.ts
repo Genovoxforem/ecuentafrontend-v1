@@ -56,7 +56,7 @@ interface InvoicesResponse {
 // (STATUS_VALIDATED) and not already paid — confirmed by reading their
 // source directly — so the UI only offers these actions when that's true,
 // rather than letting the request round-trip just to fail.
-function toRow(raw: RawInvoice): InvoiceRow {
+export function toRow(raw: RawInvoice): InvoiceRow {
   return {
     id: raw.id,
     ref: raw.ref ?? '',

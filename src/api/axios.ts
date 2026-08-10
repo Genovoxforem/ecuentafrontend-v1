@@ -39,6 +39,15 @@ export function registerUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler
 }
 
+// POS's own fetch-based requests (src/pos/services/axios.js and friends)
+// don't go through this axios instance, so they can't hit the 401
+// interceptor below — this lets them trigger the exact same
+// logout-and-redirect-to-login flow on their own 401s.
+export function notifyUnauthorized() {
+  setStoredToken(null)
+  onUnauthorized?.()
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {

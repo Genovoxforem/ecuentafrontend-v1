@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
-import { UsersRound, Receipt, Archive, MessageCircle, Plus, ChevronDown } from 'lucide-react'
+import { LayoutGrid, Plus, ChevronDown } from 'lucide-react'
 import { nav as homeNav } from '../../../features/home/home.nav'
 import { nav as zraNav } from '../../../features/zra/zra.nav'
 import { nav as billingNav } from '../../../features/billing/billing.nav'
@@ -18,18 +18,21 @@ import { nav as generalLedgerNav } from '../../../features/generalLedger/general
 import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
 import { nav as settingsNav } from '../../../features/settings/settings.nav'
 import { nav as reportsNav } from '../../../features/reports/reports.nav'
-import type { NavLeafItem, NavSection } from '../../../features/navTypes'
+import type { NavItem, NavLeafItem, NavSection } from '../../../features/navTypes'
+import { useAppMenu } from '../../nav/appMenu.queries'
+import { buildNavSections } from '../../nav/buildNavSections'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
 const RAIL_WIDTH_CLASS = 'w-14'
 const RAIL_WIDTH_OFFSET_CLASS = 'left-14'
 
-// Rail icon -> flyout panel of section items, in the exact order and with
-// the exact content of the real app's left menu (read from its llx_menu
-// table). Sections confirmed genuinely empty there (Expenses, Budget,
-// Members, Chat) are kept empty here too, rather than guessed at.
-const SECTIONS: NavSection[] = [
+// Used only as a label->path lookup by buildNavSections now (see there) —
+// the actual section list, order, and item hierarchy come from GET
+// /api/menu/ (the real backend's own llx_menu data for this user), not from
+// this array. Kept as a fallback so the rail isn't empty for the one frame
+// before that request resolves.
+const PATH_SOURCE_SECTIONS: NavSection[] = [
   homeNav,
   zraNav,
   billingNav,
@@ -41,29 +44,25 @@ const SECTIONS: NavSection[] = [
   loansNav,
   usersNav,
   payrollNav,
-  { key: 'expenses', label: 'Expenses', icon: Receipt, items: [] },
-  { key: 'budget', label: 'Budget', icon: Archive, items: [] },
   kitchenNav,
   fixedAssetNav,
   generalLedgerNav,
   ticketNav,
   settingsNav,
-  { key: 'members', label: 'Members', icon: UsersRound, items: [] },
   reportsNav,
-  { key: 'chat', label: 'Chat', icon: MessageCircle, items: [] },
 ]
 
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a
 // longer duration so the flyout feels calm rather than snappy.
-function SidebarItem({
+function SidebarLeaf({
   item,
-  indent = false,
+  depth,
   navigate,
   location,
 }: {
   item: NavLeafItem
-  indent?: boolean
+  depth: number
   navigate: NavigateFunction
   location: Location
 }) {
@@ -74,7 +73,8 @@ function SidebarItem({
       type="button"
       disabled={!isLink}
       onClick={isLink ? () => navigate(item.path!) : undefined}
-      className={`w-full flex items-center gap-2 text-left px-2 py-1 rounded-lg text-sm transition-all duration-300 ease-out ${indent ? 'pl-4' : ''} ${
+      style={{ paddingLeft: `${depth * 0.75 + 0.5}rem` }}
+      className={`w-full flex items-center gap-2 text-left py-1 pr-2 rounded-lg text-sm transition-all duration-300 ease-out ${
         isCurrent
           ? 'bg-brand/10 text-brand font-semibold shadow-sm'
           : isLink
@@ -88,9 +88,85 @@ function SidebarItem({
   )
 }
 
+// Recursive: a group can itself contain groups (real depth varies by module
+// — most are 2 levels, a few like Employee/General Ledger go to 3), each
+// independently pinned open/closed the same way top-level groups are.
+function SidebarNavItem({
+  item,
+  depth,
+  sectionKey,
+  navigate,
+  location,
+  openGroups,
+  toggleGroup,
+  hoverGroup,
+  setHoverGroup,
+}: {
+  item: NavItem
+  depth: number
+  sectionKey: string
+  navigate: NavigateFunction
+  location: Location
+  openGroups: Record<string, boolean>
+  toggleGroup: (key: string) => void
+  hoverGroup: string | null
+  setHoverGroup: (key: string | null) => void
+}) {
+  if (!('items' in item) || !item.items) {
+    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} />
+  }
+  const groupKey = `${sectionKey}:${depth}:${item.label}`
+  const isPinned = Boolean(openGroups[groupKey])
+  const isOpen = isPinned || hoverGroup === groupKey
+  return (
+    <div className="pt-0.5 first:pt-0" onMouseEnter={() => setHoverGroup(groupKey)} onMouseLeave={() => setHoverGroup(hoverGroup === groupKey ? null : hoverGroup)}>
+      <button
+        type="button"
+        onClick={() => toggleGroup(groupKey)}
+        style={{ paddingLeft: `${depth * 0.75 + 0.5}rem` }}
+        className={`w-full flex items-center justify-between pr-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide transition-colors ${
+          isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
+        }`}
+      >
+        <span>{item.label}</span>
+        <ChevronDown size={13} strokeWidth={2.5} className={`shrink-0 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`} />
+      </button>
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="overflow-hidden">
+          {item.items.map((sub) => (
+            <SidebarNavItem
+              key={sub.label}
+              item={sub}
+              depth={depth + 1}
+              sectionKey={sectionKey}
+              navigate={navigate}
+              location={location}
+              openGroups={openGroups}
+              toggleGroup={toggleGroup}
+              hoverGroup={hoverGroup}
+              setHoverGroup={setHoverGroup}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function itemContainsPath(item: NavItem, pathname: string): boolean {
+  if ('items' in item) return item.items.some((sub) => itemContainsPath(sub, pathname))
+  return item.path === pathname
+}
+
 export function Sidebar({ open = true }: { open?: boolean }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { data: menu } = useAppMenu()
+  // GET /api/menu/'s real backend response drives the section list itself;
+  // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
+  // React path (see buildNavSections) and covers the one frame before the
+  // request resolves.
+  const SECTIONS = useMemo(() => (menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : PATH_SOURCE_SECTIONS), [menu])
   const [activeKey, setActiveKey] = useState('home')
   const [hovering, setHovering] = useState(false)
   // At most one key here at a time — only one group is pinned open; clicking
@@ -103,25 +179,34 @@ export function Sidebar({ open = true }: { open?: boolean }) {
   const [hoverGroup, setHoverGroup] = useState<string | null>(null)
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
 
-  // Whichever group holds the current page becomes the one pinned open (same
-  // as a header click) — covers both clicking a sub-menu link (which
-  // navigates here) and landing on a URL directly, so the active item is
-  // never hidden inside a collapsed group.
+  // Whichever chain of groups holds the current page gets pinned open (same
+  // as clicking each header down the chain) — covers both clicking a
+  // sub-menu link (which navigates here) and landing on a URL directly, so
+  // the active item is never hidden inside a collapsed group at any depth.
   useEffect(() => {
-    for (const item of active.items) {
-      if ('items' in item && item.items) {
-        const containsCurrent = item.items.some((sub) => sub.path && sub.path === location.pathname)
-        if (containsCurrent) {
-          const groupKey = `${active.key}:${item.label}`
-          setOpenGroups((prev) => (prev[groupKey] ? prev : { [groupKey]: true }))
-          break
+    function findOpenChain(items: NavItem[], depth: number): string[] | null {
+      for (const item of items) {
+        if (!('items' in item) || !item.items) continue
+        if (itemContainsPath(item, location.pathname)) {
+          const groupKey = `${active.key}:${depth}:${item.label}`
+          const nested = findOpenChain(item.items, depth + 1)
+          return nested ? [groupKey, ...nested] : [groupKey]
         }
       }
+      return null
     }
+    const chain = findOpenChain(active.items, 0)
+    if (chain && chain.some((k) => !openGroups[k])) {
+      setOpenGroups(Object.fromEntries(chain.map((k) => [k, true])))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, location.pathname])
 
+  // Each group toggles independently (a nested tree can't collapse to "only
+  // one open" the way a flat 2-level list could) — opening a child no
+  // longer force-closes its parent.
   function toggleGroup(groupKey: string) {
-    setOpenGroups((prev) => (prev[groupKey] ? {} : { [groupKey]: true }))
+    setOpenGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }))
   }
 
   // Pinned-open (`open` prop, toggled by Navbar's collapse button) keeps the
@@ -179,46 +264,20 @@ export function Sidebar({ open = true }: { open?: boolean }) {
           </div>
           <div className="space-y-0">
             {active.items.length === 0 && <p className="text-xs italic text-text-muted px-2 py-1">Nothing here yet.</p>}
-            {active.items.map((item) => {
-              if (!('items' in item) || !item.items) {
-                return <SidebarItem key={item.label} item={item} navigate={navigate} location={location} />
-              }
-              const groupKey = `${active.key}:${item.label}`
-              const isPinned = Boolean(openGroups[groupKey])
-              const isOpen = isPinned || hoverGroup === groupKey
-              return (
-                <div
-                  key={item.label}
-                  className="pt-0.5 first:pt-0"
-                  onMouseEnter={() => setHoverGroup(groupKey)}
-                  onMouseLeave={() => setHoverGroup((cur) => (cur === groupKey ? null : cur))}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupKey)}
-                    className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide transition-colors ${
-                      isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    <ChevronDown
-                      size={13}
-                      strokeWidth={2.5}
-                      className={`shrink-0 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
-                    />
-                  </button>
-                  <div
-                    className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
-                  >
-                    <div className="overflow-hidden">
-                      {item.items.map((sub) => (
-                        <SidebarItem key={sub.label} item={sub} indent navigate={navigate} location={location} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+            {active.items.map((item) => (
+              <SidebarNavItem
+                key={item.label}
+                item={item}
+                depth={0}
+                sectionKey={active.key}
+                navigate={navigate}
+                location={location}
+                openGroups={openGroups}
+                toggleGroup={toggleGroup}
+                hoverGroup={hoverGroup}
+                setHoverGroup={setHoverGroup}
+              />
+            ))}
           </div>
         </div>
       </div>

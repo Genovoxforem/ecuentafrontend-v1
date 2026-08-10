@@ -1,0 +1,389 @@
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Landmark, User, X } from "lucide-react";
+import useAuthStore from "../../../stores/authStore";
+import usePosStore from "../../pos/stores/posStore";
+import { getActiveSession, getSummary, getTheoreticalAmount, openSession, closeSession } from "../services/cashApi";
+
+const toUtcDate = (dateCreation) => {
+    if (!dateCreation) return null;
+    let normalized = String(dateCreation).includes("T") ? dateCreation : String(dateCreation).replace(" ", "T");
+    if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) normalized += "Z";
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const toPeriod = (dateCreation) => {
+    const date = toUtcDate(dateCreation);
+    return date ? date.toLocaleDateString("en-CA") : "";
+};
+
+const toCreationDateTime = (dateCreation) => {
+    const date = toUtcDate(dateCreation);
+    return date ? date.toLocaleString() : String(dateCreation || "");
+};
+
+const cashDeskQueryKey = (terminal) => ["cashDesk", terminal];
+
+const fetchCashDesk = async (terminal) => {
+    const res = await getActiveSession(terminal);
+    if (!res.success) throw new Error(res.error || "Failed to load cash session");
+    if (res.session) {
+       
+        const summaryRes = await getSummary(res.session.id, terminal);
+        return { session: res.session, summary: summaryRes.success ? summaryRes.summary : null, theoreticalAmount: null };
+    }
+    const theoRes = await getTheoreticalAmount(terminal);
+    return {
+        session: null,
+        summary: null,
+        theoreticalAmount: theoRes.success ? theoRes.theoretical_amount : 0,
+    };
+};
+
+function CashDeskModal({ open, onClose, onLogout }) {
+    const terminalNumber = useAuthStore((state) => state.terminalConfig?.terminalNumber) || 1;
+    const user = useAuthStore((state) => state.user);
+    const setCashSessionOpen = usePosStore((state) => state.setCashSessionOpen);
+    const showToast = usePosStore((state) => state.showToast);
+    const queryClient = useQueryClient();
+
+    const { data, isLoading, error: queryError } = useQuery({
+        queryKey: cashDeskQueryKey(terminalNumber),
+        queryFn: () => fetchCashDesk(terminalNumber),
+        enabled: open,
+    });
+
+    const session = data?.session ?? null;
+    const summary = data?.summary ?? null;
+
+    const [openingAmount, setOpeningAmount] = useState("");
+    const [closingCash, setClosingCash] = useState("0.00");
+    const [closingCheque, setClosingCheque] = useState("0.00");
+    const [closingCard, setClosingCard] = useState("0.00");
+    const [error, setError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    // Only re-seed the editable fields when the underlying session changes
+    // (not on every background refetch), so in-progress edits aren't clobbered.
+    const seededSessionId = useRef(null);
+    useEffect(() => {
+        if (!data) return;
+        const sessionId = session?.id ?? null;
+        if (seededSessionId.current === sessionId) return;
+        seededSessionId.current = sessionId;
+
+        if (session && summary) {
+            setClosingCash(summary.expected_amount.toFixed(2));
+            setClosingCheque(summary.cheque_sales.toFixed(2));
+            setClosingCard(summary.card_sales.toFixed(2));
+        }
+    }, [data, session, summary]);
+
+    useEffect(() => {
+        if (open) setError("");
+    }, [open]);
+
+    if (!open) return null;
+
+    const handleOpenSession = async () => {
+        setSubmitting(true);
+        setError("");
+        try {
+            const res = await openSession(terminalNumber, parseFloat(openingAmount) || 0);
+            if (!res.success) throw new Error(res.error || "Failed to open cash session");
+            setCashSessionOpen(true);
+            await queryClient.invalidateQueries({ queryKey: cashDeskQueryKey(terminalNumber) });
+            onClose();
+            showToast("💰 Cash drawer opened successfully - POS is now active");
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleCloseSession = async () => {
+        setSubmitting(true);
+        setError("");
+        try {
+            const res = await closeSession(session.id, terminalNumber, {
+                closingCash: parseFloat(closingCash) || 0,
+                closingCheque: parseFloat(closingCheque) || 0,
+                closingCard: parseFloat(closingCard) || 0,
+            });
+            if (!res.success) throw new Error(res.error || "Failed to close cash session");
+            setCashSessionOpen(false);
+            await queryClient.invalidateQueries({ queryKey: cashDeskQueryKey(terminalNumber) });
+            onClose();
+            showToast("Cash drawer closed - POS operations disabled");
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // Skeleton only on the very first load for this terminal (no cached data yet).
+    // Reopening with cached data renders instantly while react-query refetches quietly.
+    const showSkeleton = isLoading && !data;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto soft-scrollbar rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xl">
+                <div
+                    className={`flex items-center justify-between px-5 py-2.5 rounded-t-xl ${
+                        session
+                            ? "bg-[#2c6291] text-white uppercase tracking-wide"
+                            : "bg-gray-50 dark:bg-slate-800 text-[var(--text-navy)] dark:text-white border-b border-gray-200 dark:border-slate-700"
+                    }`}
+                >
+                    <div className="flex items-center gap-2 text-base font-semibold">
+                        <Landmark size={18} />
+                        {session ? "POS Cash Desk Control" : "POS Cash Desk Control - New"}
+                    </div>
+                    {session && (
+                        <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/20">
+                            <X size={20} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                    {(error || queryError) && (
+                        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 rounded-lg px-3 py-2">
+                            {error || queryError.message}
+                        </p>
+                    )}
+
+                    {showSkeleton ? (
+                        <CashDeskSkeleton />
+                    ) : session ? (
+                        <>
+                            <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-3 text-sm space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="font-semibold">Ref.: {session.id}</span>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500 text-white">
+                                        {session.status === 1 ? "Validated" : "Draft"}
+                                    </span>
+                                </div>
+                                {session.posmodule && (
+                                    <Row label="Module/Application:" value={session.posmodule === "takepos" ? "Takepos" : session.posmodule} />
+                                )}
+                                <Row label="Terminal:" value={session.terminal} />
+                                <Row label="Period:" value={toPeriod(session.date_creation)} />
+                                <Row label="Creat. Date:" value={toCreationDateTime(session.date_creation)} />
+                                <Row label="Initial Balance - Cash:" value={`${session.opening.toFixed(2)} ZMW`} />
+                                {summary && (
+                                    <>
+                                        {/* Mirrors legacy's populateClosingForm(): these rows bind to the
+                                            live computed sales-to-date (summary.*_sales), not the raw
+                                            session.cash/cheque/card columns — those stay 0 until the
+                                            session is actually closed. */}
+                                        <Row label="Cash:" value={`${summary.cash_sales.toFixed(2)} ZMW`} />
+                                        <Row label="Cheque:" value={`${summary.cheque_sales.toFixed(2)} ZMW`} />
+                                        <Row label="Credit Card:" value={`${summary.card_sales.toFixed(2)} ZMW`} />
+                                    </>
+                                )}
+                            </div>
+
+                            {summary && (
+                                <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+                                    <div className="bg-gray-50 dark:bg-slate-800 px-3 py-2 text-sm font-medium">
+                                        Amount At End Of Period (Day, Month Or Year)
+                                    </div>
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-gray-200 dark:border-slate-700">
+                                                <th className="text-left px-3 py-2 font-medium"></th>
+                                                <th className="text-center px-2 py-2 font-medium">Initial Balance Cash</th>
+                                                <th className="text-center px-2 py-2 font-medium">Cash</th>
+                                                <th className="text-center px-2 py-2 font-medium">Cheque</th>
+                                                <th className="text-center px-2 py-2 font-medium">Credit Card</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr className="border-b border-gray-100 dark:border-slate-800">
+                                                <td className="px-3 py-2 font-medium">N° Of Invoices</td>
+                                                <td className="text-center px-2 py-2">-</td>
+                                                <td className="text-center px-2 py-2">{summary.cash_invoices ?? "-"}</td>
+                                                <td className="text-center px-2 py-2">{summary.cheque_invoices ?? "-"}</td>
+                                                <td className="text-center px-2 py-2">{summary.card_invoices ?? "-"}</td>
+                                            </tr>
+                                            <tr className="border-b border-gray-100 dark:border-slate-800">
+                                                <td className="px-3 py-2 font-medium">Theorical Amount</td>
+                                                <td className="text-center px-2 py-2">{summary.opening_amount.toFixed(2)}</td>
+                                                <td className="text-center px-2 py-2">{summary.expected_amount.toFixed(2)}</td>
+                                                <td className="text-center px-2 py-2">{summary.cheque_sales.toFixed(2)}</td>
+                                                <td className="text-center px-2 py-2">{summary.card_sales.toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="px-3 py-2 font-medium">Real Amount</td>
+                                                <td className="text-center px-2 py-2">-</td>
+                                                <td className="px-2 py-2">
+                                                    <input
+                                                        type="number"
+                                                        value={closingCash}
+                                                        onChange={(e) => setClosingCash(e.target.value)}
+                                                        className="w-full text-center rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1 py-1 outline-none focus:border-blue-500"
+                                                    />
+                                                </td>
+                                                <td className="px-2 py-2">
+                                                    <input
+                                                        type="number"
+                                                        value={closingCheque}
+                                                        onChange={(e) => setClosingCheque(e.target.value)}
+                                                        className="w-full text-center rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1 py-1 outline-none focus:border-blue-500"
+                                                    />
+                                                </td>
+                                                <td className="px-2 py-2">
+                                                    <input
+                                                        type="number"
+                                                        value={closingCard}
+                                                        onChange={(e) => setClosingCard(e.target.value)}
+                                                        className="w-full text-center rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1 py-1 outline-none focus:border-blue-500"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Terminal</label>
+                                    <input
+                                        disabled
+                                        value={`Terminal ${terminalNumber}`}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Date</label>
+                                    <input
+                                        readOnly
+                                        value={new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-1.5">
+                                <User size={14} /> User: <span className="font-semibold text-gray-700 dark:text-slate-200">{user?.fullname || user?.login}</span>
+                            </p>
+
+                            <div>
+                                <h3 className="text-sm font-bold text-[var(--text-navy)] dark:text-white mb-3">Initial Balance</h3>
+                                <label className="block text-sm mb-2">Cash</label>
+
+                                <div className="grid grid-cols-3 items-center gap-2 mb-2">
+                                    <span className="text-sm text-gray-600 dark:text-slate-300">Theorical Amount</span>
+                                    <div className="col-span-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white text-right px-3 py-2 text-sm">
+                                        {(data?.theoreticalAmount ?? 0).toFixed(2)}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 items-center gap-2">
+                                    <span className="text-sm text-gray-600 dark:text-slate-300">Real Amount</span>
+                                    <input
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={openingAmount}
+                                        onChange={(e) => setOpeningAmount(e.target.value)}
+                                        className="col-span-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-slate-700">
+                    {session ? (
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700"
+                        >
+                            Cancel
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onLogout}
+                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#397db9] text-white hover:bg-[#2c6291]"
+                        >
+                            Logout
+                        </button>
+                    )}
+                    {!showSkeleton && (
+                        <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={session ? handleCloseSession : handleOpenSession}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${
+                                session ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#397db9] hover:bg-[#2c6291]"
+                            }`}
+                        >
+                            {session ? "Close" : "Save"}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Bar({ className = "" }) {
+    return <div className={`animate-pulse rounded bg-gray-200 dark:bg-slate-700 ${className}`} />;
+}
+
+function CashDeskSkeleton() {
+    return (
+        <>
+            <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+                <div className="flex justify-between">
+                    <Bar className="h-4 w-16" />
+                    <Bar className="h-4 w-14" />
+                </div>
+                {Array.from({ length: 7 }).map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                        <Bar className="h-3.5 w-28" />
+                        <Bar className="h-3.5 w-20" />
+                    </div>
+                ))}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+                <div className="bg-gray-50 dark:bg-slate-800 px-3 py-2">
+                    <Bar className="h-4 w-52" />
+                </div>
+                <div className="px-3 py-3 space-y-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex justify-between gap-3">
+                            <Bar className="h-3.5 w-24" />
+                            <Bar className="h-3.5 flex-1" />
+                            <Bar className="h-3.5 flex-1" />
+                            <Bar className="h-3.5 flex-1" />
+                            <Bar className="h-3.5 flex-1" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </>
+    );
+}
+
+function Row({ label, value }) {
+    return (
+        <div className="flex justify-between">
+            <span className="text-gray-500 dark:text-slate-400">{label}</span>
+            <span className="font-medium">{value}</span>
+        </div>
+    );
+}
+
+export default CashDeskModal;

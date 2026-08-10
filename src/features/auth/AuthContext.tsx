@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getStoredToken, setStoredToken, registerUnauthorizedHandler } from '../../api/axios'
 import { loginRequest, fetchMe, type LoginCredentials } from './auth.api'
+import { establishLegacySession } from './legacySession'
 
 export interface AuthUser {
   firstname: string
@@ -60,6 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (credentials: LoginCredentials) => {
     const data = await loginRequest(credentials)
     setStoredToken(data.bearer_token ?? data.api_key ?? data.token ?? null)
+    // Fire-and-forget: optional, never blocks/fails the real login below.
+    void establishLegacySession(credentials.login, credentials.password)
     const me = await fetchMe()
     setUser(me.user)
     setRights(me.permissions)

@@ -113,8 +113,13 @@ export function ThirdPartyList({
                   </td>
                 </tr>
               ) : (
-                pageRows.map((r) => (
-                  <tr key={r.name} className="border-b border-border">
+                pageRows.map((r, i) => (
+                  // r.name isn't guaranteed unique (backend data can have
+                  // two rows with the same display name, e.g. duplicate
+                  // "customer5" entries) and there's no real id field on
+                  // ThirdPartyRow — index within this read-only, paginated
+                  // slice is stable and always unique.
+                  <tr key={i} className="border-b border-border">
                     <td className="px-4 py-3 text-brand">{r.name}</td>
                     <td className="px-4 py-3 text-text-muted">{r.country}</td>
                     <td className="px-4 py-3 text-text! tabular-nums">{formatMoney(r.outstandingBalance)} ZMW</td>

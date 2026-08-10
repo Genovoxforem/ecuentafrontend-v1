@@ -3,7 +3,11 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "es2023",
     "lib": ["ES2023"],
-    "types": ["node"],
+    /* vite/client alongside node: vite.config.ts imports src/api/backends.ts,
+       which references import.meta.env (guarded to only run in the browser,
+       never called from here — see backends.ts's getActiveBackend() comment)
+       — tsc still type-checks that function body under this project. */
+    "types": ["node", "vite/client"],
     "skipLibCheck": true,
 
     /* Bundler mode */

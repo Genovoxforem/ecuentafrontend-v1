@@ -1,18 +1,38 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, CalendarDays } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { formatMoney } from '../../../utils/format'
-import type { QuotationsSummary } from '../quotations.queries'
+import type { QuotationRow, QuotationsSummary } from '../quotations.queries'
 
 const COLUMNS = ['Ref', 'Ref. Customer', 'Project Ref', 'Third-Party', 'City', 'Zip Code', 'Date', 'End Date', 'Amount (Excl. Tax)', 'Author', 'Sales Representatives Of Third Party', 'Status']
-const PER_PAGE = 15
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function matchesSearch(quotation: QuotationRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [quotation.ref, quotation.refCustomer, quotation.thirdParty, quotation.city].some((field) => field.toLowerCase().includes(q))
+}
 
 export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   const [page, setPage] = useState(1)
-  const pageQuotations = summary.quotations.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const [perPage, setPerPage] = useState(15)
+  const [search, setSearch] = useState('')
+
+  const filteredQuotations = useMemo(() => summary.quotations.filter((q) => matchesSearch(q, search)), [summary.quotations, search])
+  const pageQuotations = filteredQuotations.slice((page - 1) * perPage, page * perPage)
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
 
   return (
     <div className="space-y-4">
@@ -61,12 +81,26 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-          <select disabled defaultValue="15" className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            <option value="15">15</option>
+          <select
+            value={perPage}
+            onChange={(e) => handlePerPageChange(Number(e.target.value))}
+            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
           </select>
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input disabled type="text" placeholder="Search" className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search"
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+            />
           </div>
           <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
             <CalendarDays size={14} />
@@ -88,6 +122,12 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
                 <tr>
                   <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
                     No Data Available In Table
+                  </td>
+                </tr>
+              ) : filteredQuotations.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    No quotations match "{search}".
                   </td>
                 </tr>
               ) : (
@@ -112,7 +152,7 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
           </table>
         </div>
       </Card>
-      <ListPagination page={page} perPage={PER_PAGE} total={summary.quotations.length} onPageChange={setPage} />
+      <ListPagination page={page} perPage={perPage} total={filteredQuotations.length} onPageChange={setPage} />
     </div>
   )
 }

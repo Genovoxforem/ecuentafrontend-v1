@@ -16,20 +16,24 @@ interface FieldSpec {
   required?: boolean
 }
 
-// Dolibarr's societe/card.php?type=c|f — same "New Third Party" wizard for
-// both customers and vendors, just with the Prospect/Customer + Vendor
-// dropdown defaults flipped, and vendors getting an extra Branch Code field.
-type Variant = 'customer' | 'vendor'
+// Dolibarr's societe/card.php?type=c|f|p — same "New Third Party" wizard for
+// customers, vendors, and prospects, just with the Prospect/Customer +
+// Vendor dropdown defaults flipped, and vendors getting an extra Branch
+// Code field. Prospects behave exactly like customers on the backend (no
+// separate prospect flag exists in the create payload — see the mutationFn
+// below); the only difference is which value this dropdown starts on.
+type Variant = 'customer' | 'vendor' | 'prospect'
 
 function buildStep1(variant: Variant): FieldSpec[] {
   const isVendor = variant === 'vendor'
+  const prospectCustomerDefault = isVendor ? 'Not prospect, Not customer' : variant === 'prospect' ? 'Prospect' : 'Customer'
   const fields: FieldSpec[] = [
     // Not part of the original ported wizard — added because the live
     // backend's create endpoint rejects the request outright without a
     // name ("Customer name is required"), and Dolibarr's own equivalent
     // form always leads with this field too.
     { key: 'name', label: isVendor ? 'Vendor Name' : 'Third-Party Name', type: 'text', required: true },
-    { key: 'prospectCustomer', label: 'Prospect / Customer', type: 'select', options: ['Customer', 'Prospect', 'Not prospect, Not customer'], defaultValue: isVendor ? 'Not prospect, Not customer' : 'Customer' },
+    { key: 'prospectCustomer', label: 'Prospect / Customer', type: 'select', options: ['Customer', 'Prospect', 'Not prospect, Not customer'], defaultValue: prospectCustomerDefault },
     { key: 'tpin', label: 'Tpin', type: 'text', required: true },
     { key: 'trackingId', label: 'Tracking Id', type: 'text' },
     { key: 'aliasName', label: 'Alias name (commercial, trademark, ...)', type: 'text' },

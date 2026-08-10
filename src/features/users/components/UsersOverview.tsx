@@ -1,13 +1,30 @@
-import { useState, type ComponentType } from 'react'
+import { useMemo, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { UserRound, Plus, Filter, Users, ShieldCheck, Crown, UserCheck, CalendarCheck, Search } from 'lucide-react'
+import { UserRound, Plus, Filter, Users, ShieldCheck, Crown, UserCheck, CalendarCheck, Search, ShoppingCart, ChefHat } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
-import type { UsersSummary } from '../users.queries'
+import { Avatar } from '../../../shared/components/Avatar'
+import type { UserRow, UsersSummary } from '../users.queries'
 
 const COLUMNS = ['Login', 'Name', 'Employee', 'Phone', 'Email', 'Gender', 'Designation', 'Last Login', 'Status', 'Type']
-const PER_PAGE = 15
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+// Deterministic (hash of login, not random) so the same user always gets the
+// same color across renders/reloads, cycling through a fixed palette rather
+// than every avatar being the same flat teal.
+const AVATAR_COLORS = ['bg-purple-500', 'bg-teal-500', 'bg-rose-500', 'bg-blue-500', 'bg-amber-500', 'bg-emerald-500', 'bg-indigo-500', 'bg-pink-500']
+function avatarColorFor(login: string) {
+  let hash = 0
+  for (let i = 0; i < login.length; i++) hash = (hash * 31 + login.charCodeAt(i)) | 0
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+function matchesSearch(user: UserRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [user.login, user.name, user.email, user.designation].some((field) => field.toLowerCase().includes(q))
+}
 
 function StatCard({ label, value, caption, icon: Icon, color }: { label: string; value: string | number; caption: string; icon: ComponentType<{ size?: number }>; color: IconColor }) {
   return (
@@ -46,7 +63,21 @@ function AdminsStatCard({ admins, adminsPos, adminsKot }: { admins: number; admi
 
 export function UsersOverview({ summary }: { summary: UsersSummary }) {
   const [page, setPage] = useState(1)
-  const pageUsers = summary.users.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const [perPage, setPerPage] = useState(15)
+  const [search, setSearch] = useState('')
+
+  const filteredUsers = useMemo(() => summary.users.filter((u) => matchesSearch(u, search)), [summary.users, search])
+  const pageUsers = filteredUsers.slice((page - 1) * perPage, page * perPage)
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
 
   return (
     <div className="space-y-4">
@@ -74,12 +105,26 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-          <select disabled defaultValue="15" className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            <option value="15">15</option>
+          <select
+            value={perPage}
+            onChange={(e) => handlePerPageChange(Number(e.target.value))}
+            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
           </select>
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input disabled type="text" placeholder="Search" className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search"
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+            />
           </div>
         </div>
         <div className="overflow-auto max-h-[60vh]">
@@ -100,10 +145,21 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
                     No users found.
                   </td>
                 </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    No users match "{search}".
+                  </td>
+                </tr>
               ) : (
                 pageUsers.map((u) => (
                   <tr key={u.login} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{u.login}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Avatar name={u.name || u.login} color={avatarColorFor(u.login)} size={28} className="text-xs" />
+                        <span className="text-brand">{u.login}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-text!">{u.name}</td>
                     <td className="px-4 py-3 text-text-muted">{u.employee ? 'Yes' : 'No'}</td>
                     <td className="px-4 py-3 text-text-muted">{u.phone}</td>
@@ -116,7 +172,30 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
                         {u.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">{u.isAdmin && <Crown size={14} className="text-danger" />}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {u.isAdmin && (
+                          <span title="Admin">
+                            <Crown size={14} className="text-danger" />
+                          </span>
+                        )}
+                        {u.isPos && (
+                          <span title="POS access">
+                            <ShoppingCart size={14} className="text-success" />
+                          </span>
+                        )}
+                        {u.isKot && (
+                          <span title="KOT access">
+                            <ChefHat size={14} className="text-warning" />
+                          </span>
+                        )}
+                        {!u.isAdmin && !u.isPos && !u.isKot && (
+                          <span title="Standard user">
+                            <UserCheck size={14} className="text-text-faint" />
+                          </span>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -124,7 +203,7 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
           </table>
         </div>
       </Card>
-      <ListPagination page={page} perPage={PER_PAGE} total={summary.users.length} onPageChange={setPage} />
+      <ListPagination page={page} perPage={perPage} total={filteredUsers.length} onPageChange={setPage} />
     </div>
   )
 }

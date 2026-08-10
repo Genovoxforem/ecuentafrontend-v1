@@ -46,7 +46,7 @@ interface ProductsResponse {
   currency: string
 }
 
-function toRow(raw: RawProduct): ProductRow {
+export function toRow(raw: RawProduct): ProductRow {
   return {
     id: String(raw.id ?? ''),
     ref: raw.ref ?? '',

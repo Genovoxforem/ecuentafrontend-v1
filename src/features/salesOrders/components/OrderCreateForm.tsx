@@ -39,11 +39,19 @@ interface OrderLine {
   description: string
   qty: number
   unitPrice: number
+  // Visual-only — the confirmed POST /api/salesorder/?action=create contract
+  // (see the mutationFn below) only accepts { product_id, desc, subprice,
+  // qty } per line, nothing for VAT/discount/cost price, so these three
+  // never leave the browser. Shown because the reference lines table has
+  // them; computed for display only.
+  vatRate: number
+  discountPct: number
+  costPrice: number
 }
 
 let lineKeySeq = 0
 function newLine(): OrderLine {
-  return { key: lineKeySeq++, productId: '', description: '', qty: 1, unitPrice: 0 }
+  return { key: lineKeySeq++, productId: '', description: '', qty: 1, unitPrice: 0, vatRate: 0, discountPct: 0, costPrice: 0 }
 }
 
 interface CreateOrderResponse {
@@ -61,6 +69,10 @@ export function OrderCreateForm() {
   const [lines, setLines] = useState<OrderLine[]>([newLine()])
   const [projectId, setProjectId] = useState('')
   const [formError, setFormError] = useState('')
+  // Visual-only, like the per-line VAT/discount/cost-price fields above —
+  // not part of the confirmed create-order request shape.
+  const [warehouse, setWarehouse] = useState('MAIN_BRANCH')
+  const [reserveStock, setReserveStock] = useState(true)
 
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: products } = useProductOptions()
@@ -83,7 +95,9 @@ export function OrderCreateForm() {
     })
   }
 
-  const total = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
+  const total = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100), 0)
+  const totalTax = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100) * (l.vatRate / 100), 0)
+  const totalQty = lines.reduce((sum, l) => sum + l.qty, 0)
 
   // POST /api/salesorder/?action=create — confirmed contract (verified
   // against the live backend with a deliberately-invalid customer id, so
@@ -143,7 +157,7 @@ export function OrderCreateForm() {
   return (
     <div className="space-y-4">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ShoppingCart size={20} className="text-brand" /> Create Order
+        <ShoppingCart size={20} className="text-brand" /> New Sales Order
       </h2>
 
       <Card>
@@ -173,31 +187,45 @@ export function OrderCreateForm() {
             </select>
           </Field>
           <Field label="Date" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
+            <div className="flex items-center gap-2">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
+              <button type="button" onClick={() => setDate(today)} className="shrink-0 rounded-md border border-input-border px-3 py-2 text-sm text-text-muted hover:bg-surface-hover">
+                Now
+              </button>
+            </div>
           </Field>
 
           <Field label="Planned date of delivery">
             <input type="date" className={inputClasses} />
+          </Field>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm text-text">Warehouse</span>
+            <div className="flex items-center gap-4">
+              <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)} className={`${inputClasses} flex-1`}>
+                <option value="MAIN_BRANCH">MAIN_BRANCH</option>
+              </select>
+              <label className="flex items-center gap-1.5 text-sm text-text-muted whitespace-nowrap">
+                <input type="checkbox" checked={reserveStock} onChange={(e) => setReserveStock(e.target.checked)} className="rounded border-input-border text-brand focus:ring-brand/30" />
+                Reserve Stock
+              </label>
+            </div>
+          </div>
+
+          <Field label="Bank account">
+            <Select options={[]} />
+          </Field>
+          <Field label="Availability delay">
+            <Select options={[]} />
+          </Field>
+
+          <Field label="Shipping method">
+            <Select options={[]} />
           </Field>
           <Field label="Payment Terms">
             <Select options={[]} />
           </Field>
 
           <Field label="Payment Type" required>
-            <Select options={[]} />
-          </Field>
-          <Field label="Bank account">
-            <Select options={[]} />
-          </Field>
-
-          <Field label="Availability delay">
-            <Select options={[]} />
-          </Field>
-          <Field label="Shipping method">
-            <Select options={[]} />
-          </Field>
-
-          <Field label="Channel">
             <Select options={[]} />
           </Field>
           <Field label="Project">
@@ -246,80 +274,141 @@ export function OrderCreateForm() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                <th className="font-medium px-4 py-2.5">Product</th>
-                <th className="font-medium px-4 py-2.5">Description</th>
-                <th className="font-medium px-4 py-2.5 w-24">Qty</th>
-                <th className="font-medium px-4 py-2.5 w-32">Unit Price</th>
-                <th className="font-medium px-4 py-2.5 w-32 text-right">Total</th>
+                <th className="font-medium px-4 py-2.5">Product / Service</th>
+                <th className="font-medium px-4 py-2.5 w-20">VAT</th>
+                <th className="font-medium px-4 py-2.5 w-28">Unit Price (Excl.)</th>
+                <th className="font-medium px-4 py-2.5 w-28">Unit Price (Incl.)</th>
+                <th className="font-medium px-4 py-2.5 w-20">Qty</th>
+                <th className="font-medium px-4 py-2.5 w-20">Disc.</th>
+                <th className="font-medium px-4 py-2.5 w-28">Cost Price</th>
+                <th className="font-medium px-4 py-2.5 w-32 text-right">Total (Incl.)</th>
                 <th className="w-10" />
               </tr>
             </thead>
             <tbody>
-              {lines.map((line) => (
-                <tr key={line.key} className="border-b border-border">
-                  <td className="px-4 py-2">
-                    <select value={line.productId} onChange={(e) => pickProduct(line.key, e.target.value)} className={inputClasses}>
-                      <option value="">Custom line</option>
-                      {products?.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={line.description}
-                      onChange={(e) => updateLine(line.key, { description: e.target.value })}
-                      className={inputClasses}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      value={line.qty}
-                      onChange={(e) => updateLine(line.key, { qty: Number(e.target.value) })}
-                      className={inputClasses}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.unitPrice}
-                      onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
-                      className={inputClasses}
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-text!">{formatMoney(line.qty * line.unitPrice)}</td>
-                  <td className="px-2 py-2 text-center">
-                    <button
-                      type="button"
-                      title="Remove line"
-                      disabled={lines.length === 1}
-                      onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
-                      className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {lines.map((line) => {
+                const lineExclDiscount = line.qty * line.unitPrice * (1 - line.discountPct / 100)
+                const lineIncl = lineExclDiscount * (1 + line.vatRate / 100)
+                const unitPriceIncl = line.unitPrice * (1 + line.vatRate / 100)
+                return (
+                  <tr key={line.key} className="border-b border-border align-top">
+                    <td className="px-4 py-2 space-y-1">
+                      <select value={line.productId} onChange={(e) => pickProduct(line.key, e.target.value)} className={inputClasses}>
+                        <option value="">Custom line</option>
+                        {products?.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={line.description}
+                        onChange={(e) => updateLine(line.key, { description: e.target.value })}
+                        placeholder="Description"
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={line.vatRate}
+                        onChange={(e) => updateLine(line.key, { vatRate: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={line.unitPrice}
+                        onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-text-muted tabular-nums">{formatMoney(unitPriceIncl)}</td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={line.qty}
+                        onChange={(e) => updateLine(line.key, { qty: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={line.discountPct}
+                        onChange={(e) => updateLine(line.key, { discountPct: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={line.costPrice}
+                        onChange={(e) => updateLine(line.key, { costPrice: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-text!">{formatMoney(lineIncl)}</td>
+                    <td className="px-2 py-2 text-center">
+                      <button
+                        type="button"
+                        title="Remove line"
+                        disabled={lines.length === 1}
+                        onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                        className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border text-sm">
-          <span className="text-text-muted">Total (excl. tax)</span>
-          <span className="font-semibold text-text! tabular-nums">{formatMoney(total)} ZMW</span>
+        <div className="p-4 border-t border-border">
+          <h3 className="font-semibold text-text! mb-2">Payment Details</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div>
+              <p className="text-text-muted">Total (Excl. Tax):</p>
+              <p className="font-semibold text-text! tabular-nums">{formatMoney(total)} ZMW</p>
+            </div>
+            <div>
+              <p className="text-text-muted">Total Tax:</p>
+              <p className="font-semibold text-text! tabular-nums">{formatMoney(totalTax)} ZMW</p>
+            </div>
+            <div>
+              <p className="text-text-muted">Total Amount:</p>
+              <p className="font-semibold text-text! tabular-nums">{formatMoney(total + totalTax)} ZMW</p>
+            </div>
+            <div>
+              <p className="text-text-muted">Total Quantity:</p>
+              <p className="font-semibold text-text! tabular-nums">{totalQty}</p>
+            </div>
+          </div>
         </div>
       </Card>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}
 
       <div className="flex items-center gap-3">
+        <Link to={ROUTES.orderList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+        <button type="button" disabled title="Same request as Create Order below — this backend has no separate draft-save action" className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted cursor-default opacity-60">
+          Save Draft
+        </button>
         <button
           type="button"
           disabled={createMutation.isPending}
@@ -327,11 +416,8 @@ export function OrderCreateForm() {
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
           {createMutation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
-          {createMutation.isPending ? 'Creating…' : 'Create draft'}
+          {createMutation.isPending ? 'Creating…' : 'Create Order'}
         </button>
-        <Link to={ROUTES.orderList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
       </div>
     </div>
   )

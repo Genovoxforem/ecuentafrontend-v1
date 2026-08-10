@@ -13,6 +13,8 @@ export interface UserRow {
   lastLogin: string
   status: 'Enabled' | 'Disabled'
   isAdmin: boolean
+  isPos: boolean
+  isKot: boolean
 }
 
 export interface UsersSummary {
@@ -67,6 +69,8 @@ export interface NewUserInput {
   gender?: string
   designation?: string
   isAdmin: boolean
+  isPos?: boolean
+  isKot?: boolean
 }
 
 export function useCreateUser() {
@@ -85,11 +89,15 @@ export function useCreateUser() {
       lastLogin: todayIso(),
       status: 'Enabled',
       isAdmin: input.isAdmin,
+      isPos: input.isPos ?? false,
+      isKot: input.isKot ?? false,
     }
     update((current) => ({
       ...current,
       totalUsers: current.totalUsers + 1,
       admins: current.admins + (input.isAdmin ? 1 : 0),
+      adminsPos: current.adminsPos + (input.isPos ? 1 : 0),
+      adminsKot: current.adminsKot + (input.isKot ? 1 : 0),
       activeUsers: current.activeUsers + 1,
       todayLoginUsers: current.todayLoginUsers,
       users: [row, ...current.users],

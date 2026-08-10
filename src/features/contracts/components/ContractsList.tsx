@@ -1,19 +1,39 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileEdit, Plus, FileCheck2, PlayCircle, TriangleAlert, MessagesSquare, Search, CalendarDays } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, TwoValueStatCard } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
-import type { ContractsSummary } from '../contracts.queries'
+import type { ContractRow, ContractsSummary } from '../contracts.queries'
 
 const COLUMNS = ['Ref.', 'Ref. Customer', 'Ref. Vendor', 'Third-Party', 'Sales Representatives Of Third Party', 'Contract Date', 'End Date Of Active Services', 'Not Running', 'In Progress', 'Expired', 'Closed']
-const PER_PAGE = 15
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 const dash = (n: number) => (n === 0 ? '-' : String(n))
 
+function matchesSearch(contract: ContractRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [contract.ref, contract.refCustomer, contract.refVendor, contract.thirdParty].some((field) => field.toLowerCase().includes(q))
+}
+
 export function ContractsList({ summary }: { summary: ContractsSummary }) {
   const [page, setPage] = useState(1)
-  const pageContracts = summary.contracts.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const [perPage, setPerPage] = useState(15)
+  const [search, setSearch] = useState('')
+
+  const filteredContracts = useMemo(() => summary.contracts.filter((c) => matchesSearch(c, search)), [summary.contracts, search])
+  const pageContracts = filteredContracts.slice((page - 1) * perPage, page * perPage)
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
 
   return (
     <div className="space-y-4">
@@ -35,12 +55,26 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-          <select disabled defaultValue="15" className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            <option value="15">15</option>
+          <select
+            value={perPage}
+            onChange={(e) => handlePerPageChange(Number(e.target.value))}
+            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
           </select>
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input disabled type="text" placeholder="Search" className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search"
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+            />
           </div>
           <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
             <CalendarDays size={14} />
@@ -64,6 +98,12 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
                     No Data Available In Table
                   </td>
                 </tr>
+              ) : filteredContracts.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    No contracts match "{search}".
+                  </td>
+                </tr>
               ) : (
                 pageContracts.map((c) => (
                   <tr key={c.ref} className="border-b border-border">
@@ -85,7 +125,7 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
           </table>
         </div>
       </Card>
-      <ListPagination page={page} perPage={PER_PAGE} total={summary.contracts.length} onPageChange={setPage} />
+      <ListPagination page={page} perPage={perPage} total={filteredContracts.length} onPageChange={setPage} />
     </div>
   )
 }

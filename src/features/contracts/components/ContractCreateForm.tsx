@@ -1,14 +1,34 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FileEdit, Check, X, LoaderCircle } from 'lucide-react'
+import { FileEdit, Check, X, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useCustomerOptions } from '../../customers/customerOptions'
+import { useProductOptions } from '../../products/products.queries'
 import { useAuth } from '../../auth/AuthContext'
 import { useCreateContract } from '../contracts.queries'
 import { todayIso } from '../../../shared/localCollection'
+import { formatMoney } from '../../../utils/format'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
+
+// Visual-only line items — useCreateContract's local-collection model (see
+// contracts.queries.ts) has no line/total fields at all, so these never
+// leave this component. Shown because the reference's Item Table has them.
+interface ContractLine {
+  key: number
+  productId: string
+  description: string
+  qty: number
+  vatRate: number
+  unitPrice: number
+  discountPct: number
+}
+
+let lineKeySeq = 0
+function newLine(): ContractLine {
+  return { key: lineKeySeq++, productId: '', description: '', qty: 1, vatRate: 0, unitPrice: 0, discountPct: 0 }
+}
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -39,6 +59,7 @@ export function ContractCreateForm() {
   const today = todayIso()
   const { user } = useAuth()
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: products } = useProductOptions()
   const createContract = useCreateContract()
   const navigate = useNavigate()
   const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
@@ -47,8 +68,21 @@ export function ContractCreateForm() {
   const [refCustomer, setRefCustomer] = useState('')
   const [refVendor, setRefVendor] = useState('')
   const [date, setDate] = useState(today)
+  const [lines, setLines] = useState<ContractLine[]>([newLine()])
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
+
+  function updateLine(key: number, patch: Partial<ContractLine>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+  }
+
+  function pickProduct(key: number, productId: string) {
+    const product = products?.find((p) => String(p.id) === productId)
+    updateLine(key, { productId, description: product?.label ?? '', unitPrice: product ? product.priceExclTax : 0 })
+  }
+
+  const totalExclTax = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100), 0)
+  const totalTax = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100) * (l.vatRate / 100), 0)
 
   function handleSubmit() {
     setFormError('')
@@ -66,7 +100,7 @@ export function ContractCreateForm() {
   return (
     <div className="space-y-4">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FileEdit size={20} className="text-brand" /> Create contract
+        <FileEdit size={20} className="text-brand" /> New Contract
       </h2>
 
       <Card>
@@ -95,15 +129,20 @@ export function ContractCreateForm() {
           <Field label="Sales representative following-up contract" required>
             <RepChip name={authorName} />
           </Field>
-          <Field label="Customer support representative" required>
-            <RepChip name={authorName} />
-          </Field>
-
           <Field label="Sales representative signing contract" required>
             <RepChip name={authorName} />
           </Field>
+
+          <Field label="Sales representative following-up contract (Support)">
+            <RepChip name={authorName} />
+          </Field>
           <Field label="Date" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
+            <div className="flex items-center gap-2">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
+              <button type="button" onClick={() => setDate(today)} className="shrink-0 rounded-md border border-input-border px-3 py-2 text-sm text-text-muted hover:bg-surface-hover">
+                Now
+              </button>
+            </div>
           </Field>
 
           <Field label="Project">
@@ -121,20 +160,132 @@ export function ContractCreateForm() {
         </div>
       </Card>
 
+      <Card className="!p-0 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold text-text!">Item Table</h3>
+          <button
+            type="button"
+            onClick={() => setLines((prev) => [...prev, newLine()])}
+            className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-text hover:bg-surface-hover"
+          >
+            <Plus size={13} /> Add line
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <th className="font-medium px-4 py-2.5">Product/Service</th>
+                <th className="font-medium px-4 py-2.5 w-20">Qty</th>
+                <th className="font-medium px-4 py-2.5 w-20">VAT %</th>
+                <th className="font-medium px-4 py-2.5 w-28">Unit Price (Excl.)</th>
+                <th className="font-medium px-4 py-2.5 w-20">Disc.</th>
+                <th className="font-medium px-4 py-2.5 w-28 text-right">Total TTC</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line) => {
+                const lineTtc = line.qty * line.unitPrice * (1 - line.discountPct / 100) * (1 + line.vatRate / 100)
+                return (
+                  <tr key={line.key} className="border-b border-border align-top">
+                    <td className="px-4 py-2 space-y-1">
+                      <select value={line.productId} onChange={(e) => pickProduct(line.key, e.target.value)} className={inputClasses}>
+                        <option value="">Custom line</option>
+                        {products?.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={line.description}
+                        onChange={(e) => updateLine(line.key, { description: e.target.value })}
+                        placeholder="Description"
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input type="number" min={0} value={line.qty} onChange={(e) => updateLine(line.key, { qty: Number(e.target.value) })} className={inputClasses} />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input type="number" min={0} max={100} value={line.vatRate} onChange={(e) => updateLine(line.key, { vatRate: Number(e.target.value) })} className={inputClasses} />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={line.unitPrice}
+                        onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={line.discountPct}
+                        onChange={(e) => updateLine(line.key, { discountPct: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-text!">{formatMoney(lineTtc)}</td>
+                    <td className="px-2 py-2 text-center">
+                      <button
+                        type="button"
+                        title="Remove line"
+                        disabled={lines.length === 1}
+                        onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                        className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="p-4 border-t border-border">
+          <h3 className="font-semibold text-text! mb-2">Totals</h3>
+          <div className="grid grid-cols-3 gap-3 text-sm max-w-md">
+            <div>
+              <p className="text-text-muted">Total (Excl. Tax):</p>
+              <p className="font-semibold text-text! tabular-nums">{formatMoney(totalExclTax)}</p>
+            </div>
+            <div>
+              <p className="text-text-muted">Total Tax:</p>
+              <p className="font-semibold text-text! tabular-nums">{formatMoney(totalTax)}</p>
+            </div>
+            <div>
+              <p className="text-text-muted">Total (Inc. Tax):</p>
+              <p className="font-semibold text-text! tabular-nums">{formatMoney(totalExclTax + totalTax)}</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {formError && <p className="text-sm text-danger">{formError}</p>}
 
       <div className="flex items-center gap-3">
+        <Link to={ROUTES.contractList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+        <button type="button" disabled title="Same request as Create Contract below — this backend has no separate draft-save action" className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted cursor-default opacity-60">
+          Save As Draft
+        </button>
         <button
           type="button"
           disabled={pending}
           onClick={handleSubmit}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
-          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create
+          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create Contract
         </button>
-        <Link to={ROUTES.contractList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
       </div>
     </div>
   )

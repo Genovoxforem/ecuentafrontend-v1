@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, Search, Sun, Moon, BarChart3, CreditCard, ChefHat, Settings, Bell, CalendarDays, LogIn, LogOut, ChevronDown } from 'lucide-react'
+import { Menu, Search, Sun, Moon, BarChart3, CreditCard, ChefHat, Settings, Bell, CalendarDays, LogIn, LogOut, ChevronDown, PanelLeft, LayoutList } from 'lucide-react'
 import { useTheme } from '../../../context/ThemeContext'
+import { useSidebarStyle } from '../../../context/SidebarStyleContext'
 import { useAuth, type AuthUser } from '../../../features/auth/AuthContext'
 import { ROUTES } from '../../../routes'
 import { AccountPanel } from './navbar/AccountPanel'
@@ -13,7 +14,7 @@ import { useAttendanceStatus } from '../../../features/attendance/attendance.que
 import { Avatar } from '../Avatar'
 import logoIcon from '../../../assets/log3.png'
 import logoFull from '../../../assets/Ecuenta_logo.png'
-
+import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | null
 
 // Custom styled tooltip (replaces the native `title` attribute), shown below
@@ -79,11 +80,15 @@ function displayName(user: AuthUser | null) {
 
 // Icon row ported from the legacy htdocs/main.inc.php navbar, left to
 // right: Daily Summary, POS, Kitchen, Settings, Notifications, Events
-// (agenda), Clock In/Out. POS has no module built yet so it stays a plain
-// non-interactive icon rather than fabricating a panel for it.
+// (agenda), Clock In/Out. POS used to be a separate standalone app
+// (pos_standalone - v1, its own repo/build/dev server), opened in a new tab
+// with a bearer-token/backend/returnTo handoff — it's now merged into this
+// app as an in-app route (src/pos/**, mounted at /pos in src/App.tsx), so it
+// shares this session directly and just needs an SPA navigation.
 export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen: boolean; onToggleSidebar: () => void; onLogout: () => void }) {
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
+  const { sidebarStyle, setSidebarStyle } = useSidebarStyle()
   const { user } = useAuth()
   const { data: attendance } = useAttendanceStatus()
   const [openPanel, setOpenPanel] = useState<PanelName>(null)
@@ -106,9 +111,26 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
     setOpenPanel(null)
   }
 
+  const isModern = sidebarStyle === 'modern'
+
   return (
-    <nav className="flex items-center justify-between h-14 px-4 gap-4 bg-rail-bg border-b border-black/10 dark:border-white/10">
-      <div className="flex items-center gap-3 shrink-0">
+    <nav
+      className={`relative h-14 px-4 ${isModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg border-b border-black/10 dark:border-white/10'}`}
+    >
+      {isModern && (
+        <>
+          {/* Flat translucent tint, no blur — plain glass, matching ModernSidebar. Kept on its own childless layer,
+              separate from the content below, so the content's drop-shadow never touches this tint. Flat color
+              (not a gradient) lines up seamlessly with the sidebar's identical tint at their shared edge. */}
+          <div className="absolute inset-0" style={{ backgroundColor: MODERN_GLASS_BG, backgroundImage: MODERN_GLASS_SHEEN }} />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+        </>
+      )}
+      <div
+        className="relative z-10 flex items-center justify-between gap-4 h-full w-full"
+        style={isModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
+      >
+      <div className="relative z-10 flex items-center gap-3 shrink-0">
         {sidebarOpen ? (
           <span className="flex h-8 items-center rounded-md dark:bg-white/90 dark:px-2 dark:py-1">
             <img src={logoFull} alt="ECUENTA" className="h-full w-auto object-contain" />
@@ -133,7 +155,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         </IconButton>
       </div>
 
-      <div className="flex-1 flex items-center gap-3 max-w-xl min-w-0">
+      <div className="relative z-10 flex-1 flex items-center gap-3 max-w-xl min-w-0">
         <div className="flex-1 min-w-[110px] flex items-center gap-2 h-9 px-3 rounded-full bg-surface-alt text-text-faint">
           <Search size={16} className="shrink-0" />
           <input type="text" placeholder="Search anythings" className="flex-1 min-w-0 bg-transparent outline-none text-sm text-text placeholder-text-faint" />
@@ -144,7 +166,32 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="relative z-10 flex items-center gap-1 shrink-0">
+        <div className="hidden md:flex items-center rounded-full bg-surface-alt p-1 mr-1" title="Sidebar style">
+          <button
+            type="button"
+            onClick={() => setSidebarStyle('legacy')}
+            title="Legacy sidebar"
+            className={`flex items-center gap-1 h-7 px-2 rounded-full text-xs font-medium transition-colors ${
+              sidebarStyle === 'legacy' ? 'bg-white shadow text-brand dark:bg-gray-900' : 'text-text-faint'
+            }`}
+          >
+            <PanelLeft size={14} />
+            <span className="hidden xl:inline">Legacy</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarStyle('modern')}
+            title="Modern sidebar"
+            className={`flex items-center gap-1 h-7 px-2 rounded-full text-xs font-medium transition-colors ${
+              sidebarStyle === 'modern' ? 'bg-white shadow text-brand dark:bg-gray-900' : 'text-text-faint'
+            }`}
+          >
+            <LayoutList size={14} />
+            <span className="hidden xl:inline">Modern</span>
+          </button>
+        </div>
+
         <div className="flex items-center rounded-full bg-surface-alt p-1 mr-1">
           <button
             type="button"
@@ -163,40 +210,63 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         </div>
 
         <div className="relative hidden lg:block" ref={openPanel === 'daily-summary' ? panelRef : undefined}>
-          <IconButton title="Daily Summary" glow active={openPanel === 'daily-summary'} onClick={() => togglePanel('daily-summary')}>
+          <IconButton
+            title="Daily Summary"
+            glow
+            active={openPanel === 'daily-summary'}
+            onClick={() => togglePanel('daily-summary')}
+            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+          >
             <BarChart3 size={19} />
           </IconButton>
           {openPanel === 'daily-summary' && <DailySummaryPanel onClose={closePanel} />}
         </div>
 
         <div className="hidden lg:block">
-          <IconButton title="POS" glow>
+          <IconButton
+            title="POS"
+            glow
+            onClick={() => navigate('/pos')}
+            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+          >
             <CreditCard size={19} />
           </IconButton>
         </div>
 
         <div className="hidden lg:block">
-          <IconButton title="Kitchen" glow onClick={() => navigate(ROUTES.kitchenDashboard)}>
+          <IconButton title="Kitchen" glow onClick={() => navigate(ROUTES.kitchenDashboard)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
             <ChefHat size={19} />
           </IconButton>
         </div>
 
         <div className="relative" ref={openPanel === 'settings' ? panelRef : undefined}>
-          <IconButton title="Settings" glow active={openPanel === 'settings'} onClick={() => togglePanel('settings')}>
+          <IconButton
+            title="Settings"
+            glow
+            active={openPanel === 'settings'}
+            onClick={() => togglePanel('settings')}
+            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+          >
             <Settings size={19} />
           </IconButton>
           {openPanel === 'settings' && <SettingsMegaMenu onClose={closePanel} />}
         </div>
 
         <div className="relative" ref={openPanel === 'notifications' ? panelRef : undefined}>
-          <IconButton title="Notifications" glow active={openPanel === 'notifications'} onClick={() => togglePanel('notifications')}>
+          <IconButton
+            title="Notifications"
+            glow
+            active={openPanel === 'notifications'}
+            onClick={() => togglePanel('notifications')}
+            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+          >
             <Bell size={19} />
             <Badge count={2} color="bg-danger" />
           </IconButton>
           {openPanel === 'notifications' && <NotificationsPanel onClose={closePanel} />}
         </div>
 
-        <IconButton title="Events" glow onClick={() => navigate(ROUTES.agenda)}>
+        <IconButton title="Events" glow onClick={() => navigate(ROUTES.agenda)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
           <CalendarDays size={19} />
         </IconButton>
 
@@ -230,6 +300,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
 
           {openPanel === 'account' && <AccountPanel user={user} onClose={closePanel} onLogout={onLogout} />}
         </div>
+      </div>
       </div>
     </nav>
   )

@@ -15,12 +15,16 @@ export function Avatar({
   size = 36,
   rounded = 'full',
   className = '',
+  color = 'bg-teal-500',
 }: {
   photo?: string
   name: string
   size?: number
   rounded?: 'full' | 'lg'
   className?: string
+  // Tailwind bg-* class for the initials-fallback badge, e.g. for giving
+  // each row in a user list a distinct, deterministic color.
+  color?: string
 }) {
   const [failed, setFailed] = useState(false)
   const showPhoto = Boolean(photo) && !failed
@@ -40,7 +44,7 @@ export function Avatar({
 
   return (
     <span
-      className={`${roundedClass} bg-teal-500 text-white font-semibold flex items-center justify-center shrink-0 ${className}`}
+      className={`${roundedClass} ${color} text-white font-semibold flex items-center justify-center shrink-0 ${className}`}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}
     >
       {initialsOf(name)}

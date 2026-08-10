@@ -1,18 +1,41 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FileBadge, Check, X, LoaderCircle } from 'lucide-react'
+import { FileBadge, Check, X, LoaderCircle, Plus, Trash2, Upload, Download } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
 import { useCustomerOptions } from '../../customers/customerOptions'
+import { useProductOptions } from '../../products/products.queries'
 import { useAuth } from '../../auth/AuthContext'
 import { useCreateQuotation } from '../quotations.queries'
 import { todayIso } from '../../../shared/localCollection'
+import { formatMoney } from '../../../utils/format'
+
+// Visual-only line items — useCreateQuotation's local-collection model (see
+// quotations.queries.ts) only tracks one flat amountExclTax, not per-line
+// data, so these never leave this component. Shown because the reference's
+// Item Table has them.
+interface QuotationLine {
+  key: number
+  productId: string
+  description: string
+  qty: number
+  vatRate: number
+  unitPrice: number
+  discountPct: number
+  buyingPrice: number
+}
+
+let lineKeySeq = 0
+function newLine(): QuotationLine {
+  return { key: lineKeySeq++, productId: '', description: '', qty: 1, vatRate: 0, unitPrice: 0, discountPct: 0, buyingPrice: 0 }
+}
 
 export function QuotationCreateForm() {
   const today = todayIso()
   const { user } = useAuth()
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: products } = useProductOptions()
   const createQuotation = useCreateQuotation()
   const navigate = useNavigate()
 
@@ -20,7 +43,7 @@ export function QuotationCreateForm() {
   const [refCustomer, setRefCustomer] = useState('')
   const [validityDays, setValidityDays] = useState(15)
   const [date, setDate] = useState(today)
-  const [amount, setAmount] = useState(0)
+  const [lines, setLines] = useState<QuotationLine[]>([newLine()])
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -29,6 +52,18 @@ export function QuotationCreateForm() {
     d.setDate(d.getDate() + days)
     return d.toISOString().slice(0, 10)
   }
+
+  function updateLine(key: number, patch: Partial<QuotationLine>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+  }
+
+  function pickProduct(key: number, productId: string) {
+    const product = products?.find((p) => String(p.id) === productId)
+    updateLine(key, { productId, description: product?.label ?? '', unitPrice: product ? product.priceExclTax : 0 })
+  }
+
+  const amount = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100), 0)
+  const validityEndDate = addDays(date, validityDays)
 
   function handleSubmit() {
     setFormError('')
@@ -42,7 +77,7 @@ export function QuotationCreateForm() {
       thirdParty: customer.name,
       refCustomer,
       date,
-      endDate: addDays(date, validityDays),
+      endDate: validityEndDate,
       amountExclTax: amount,
       author: user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown',
     })
@@ -75,15 +110,27 @@ export function QuotationCreateForm() {
               ))}
             </select>
           </Field>
-          <Field label="Validity duration" required>
-            <input type="number" value={validityDays} onChange={(e) => setValidityDays(Number(e.target.value))} className={inputClasses} />
+          <Field label="Date" required>
+            <div className="flex items-center gap-2">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
+              <button type="button" onClick={() => setDate(today)} className="shrink-0 rounded-md border border-input-border px-3 py-2 text-sm text-text-muted hover:bg-surface-hover">
+                Now
+              </button>
+            </div>
           </Field>
 
-          <Field label="Date" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Estimated amount (excl. tax)">
-            <input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} className={inputClasses} />
+          <Field label="Validity ending date" required>
+            <div className="flex items-center gap-2">
+              <input disabled value={validityEndDate} className={`${inputClasses} flex-1 min-w-0 text-text-faint`} />
+              <input
+                type="number"
+                min={1}
+                value={validityDays}
+                onChange={(e) => setValidityDays(Number(e.target.value))}
+                title="Validity duration (days)"
+                className={`${inputClasses} w-20 shrink-0`}
+              />
+            </div>
           </Field>
 
           <Field label="Payment Terms">
@@ -96,7 +143,7 @@ export function QuotationCreateForm() {
           <Field label="Bank account">
             <Select options={[]} />
           </Field>
-          <Field label="Source">
+          <Field label="SourceOfProjectTask">
             <Select options={[]} />
           </Field>
 
@@ -128,22 +175,142 @@ export function QuotationCreateForm() {
             <input type="text" className={inputClasses} />
           </Field>
         </div>
+
+        <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-border">
+          <input disabled type="file" className={`${inputClasses} max-w-xs file:mr-3 file:rounded file:border-0 file:bg-surface-hover file:px-2 file:py-1`} />
+          <button type="button" disabled title="Not built yet" className="flex items-center gap-1.5 rounded-md border border-input-border bg-input-bg px-3 py-1.5 text-sm text-text-faint cursor-default">
+            <Upload size={14} /> Upload Products
+          </button>
+          <button type="button" disabled title="Not built yet" className="flex items-center gap-1.5 rounded-md border border-input-border bg-input-bg px-3 py-1.5 text-sm text-text-faint cursor-default">
+            <Download size={14} /> Download Sample
+          </button>
+        </div>
+      </Card>
+
+      <Card className="!p-0 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold text-text!">Item Table</h3>
+          <button
+            type="button"
+            onClick={() => setLines((prev) => [...prev, newLine()])}
+            className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-text hover:bg-surface-hover"
+          >
+            <Plus size={13} /> Add line
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <th className="font-medium px-4 py-2.5">Product Or Service</th>
+                <th className="font-medium px-4 py-2.5 w-20">VAT</th>
+                <th className="font-medium px-4 py-2.5 w-28">Unit Price (Excl.)</th>
+                <th className="font-medium px-4 py-2.5 w-20">Qty</th>
+                <th className="font-medium px-4 py-2.5 w-20">Discount</th>
+                <th className="font-medium px-4 py-2.5 w-28">Buying Price</th>
+                <th className="font-medium px-4 py-2.5 w-28 text-right">Total (Inc.)</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line) => {
+                const lineTotalIncl = line.qty * line.unitPrice * (1 - line.discountPct / 100) * (1 + line.vatRate / 100)
+                return (
+                  <tr key={line.key} className="border-b border-border align-top">
+                    <td className="px-4 py-2 space-y-1">
+                      <select value={line.productId} onChange={(e) => pickProduct(line.key, e.target.value)} className={inputClasses}>
+                        <option value="">Custom line</option>
+                        {products?.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={line.description}
+                        onChange={(e) => updateLine(line.key, { description: e.target.value })}
+                        placeholder="Description"
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input type="number" min={0} max={100} value={line.vatRate} onChange={(e) => updateLine(line.key, { vatRate: Number(e.target.value) })} className={inputClasses} />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={line.unitPrice}
+                        onChange={(e) => updateLine(line.key, { unitPrice: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input type="number" min={0} value={line.qty} onChange={(e) => updateLine(line.key, { qty: Number(e.target.value) })} className={inputClasses} />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={line.discountPct}
+                        onChange={(e) => updateLine(line.key, { discountPct: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={line.buyingPrice}
+                        onChange={(e) => updateLine(line.key, { buyingPrice: Number(e.target.value) })}
+                        className={inputClasses}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-text!">{formatMoney(lineTotalIncl)}</td>
+                    <td className="px-2 py-2 text-center">
+                      <button
+                        type="button"
+                        title="Remove line"
+                        disabled={lines.length === 1}
+                        onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                        className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-border text-sm">
+          <span className="text-text-muted">Total (Excl. Tax)</span>
+          <span className="font-semibold text-text! tabular-nums">{formatMoney(amount)} ZMW</span>
+        </div>
       </Card>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}
 
       <div className="flex items-center gap-3">
+        <Link to={ROUTES.quotationList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+        <button type="button" disabled title="Same request as Validate & Create below — this backend has no separate draft-save action" className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted cursor-default opacity-60">
+          Save Draft
+        </button>
         <button
           type="button"
           disabled={pending}
           onClick={handleSubmit}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
-          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create draft
+          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Validate & Create
         </button>
-        <Link to={ROUTES.quotationList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
       </div>
     </div>
   )

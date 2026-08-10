@@ -30,7 +30,7 @@ interface CustomersResponse {
   total_count: number
 }
 
-function toRow(raw: RawCustomer): ThirdPartyRow {
+export function toRow(raw: RawCustomer): ThirdPartyRow {
   return {
     name: raw.name ?? '',
     country: '',

@@ -8,6 +8,12 @@
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
+    /* src/pos/** (POS, ported from pos_standalone - v1) is plain JS, not TS —
+       lets .tsx files import it without a declaration file. checkJs stays
+       off so that untyped code isn't held to this project's stricter TS bar. */
+    "allowJs": true,
+    "checkJs": false,
+
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -15,6 +21,13 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+
+    /* Path aliases (mirrors vite.config.ts's resolve.alias). No baseUrl —
+       deprecated in this TS version; "paths" resolves relative to this file
+       without it under moduleResolution: "bundler". */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
 
     /* Linting */
     "noUnusedLocals": true,

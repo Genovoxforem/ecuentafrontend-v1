@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 
 export interface ZraSyncStat {
@@ -160,5 +160,137 @@ export function useVsdcStatus() {
     },
     staleTime: 1000 * 30,
     retry: false,
+  })
+}
+
+// POST /api/zra/sales-lookup/ — real, proxies custom/zra/saleszralist.php's
+// own live lookup against the ZRA gateway's /trnsSales/selectInvoice
+// endpoint. Read-only query (not a filing), safe to call and retry.
+export interface SalesInvoiceLookup {
+  found: boolean
+  invoiceNumber?: string
+  receiptNumber?: string
+  receiptDate?: string
+  internalData?: string
+  receiptSignature?: string
+  sdcId?: string
+  mrcNumber?: string
+  qrCodeUrl?: string
+}
+export function useSalesInvoiceLookup() {
+  return useMutation({
+    mutationFn: async (cisInvcNo: string) => {
+      const { data } = await api.post<{ success: boolean; data: SalesInvoiceLookup }>('/zra/sales-lookup/', { cisInvcNo })
+      return data.data
+    },
+  })
+}
+
+// POST /api/zra/customer-lookup/ — real, proxies custom/zra/customer.php's
+// own live lookup against the ZRA gateway's /customers/selectCustomer
+// endpoint, by customer TPIN. Read-only query, safe to call and retry.
+export interface ZraCustomerRecord {
+  tpin: string
+  branchId: string
+  customerNo: string
+  taxpayerName: string
+  customerTpin: string
+  phone: string
+  email: string
+  address: string
+}
+export function useZraCustomerLookup() {
+  return useMutation({
+    mutationFn: async (tpin: string) => {
+      const { data } = await api.post<{ success: boolean; data: { customers: ZraCustomerRecord[] } }>('/zra/customer-lookup/', { tpin })
+      return data.data.customers
+    },
+  })
+}
+
+// GET /api/zra/item-details/ — real, proxies custom/zra/selectItems.php's
+// own live lookup against the ZRA gateway's /items/selectItems endpoint —
+// this business's own registered item master list. Real quirk preserved:
+// the page's only filter field is labelled "Item Code" but is actually
+// posted to ZRA as lastReqDt (format YYYYMMDDHHmmss), not an item code
+// filter — see selectItems.php. Read-only, safe to call and retry.
+export interface ZraItemDetail {
+  itemName: string
+  itemCode: string
+  itemClassCode: string
+  itemTypeCode: string
+  originCountry: string
+  packageUnit: string
+  quantityUnit: string
+  batchNumber: string
+  price: number | null
+  safetyQuantity: number | null
+  vat: string
+  ipl: string
+  tl: string
+  excise: string
+}
+export function useZraItemDetails(lastReqDt?: string) {
+  return useQuery({
+    queryKey: ['zra', 'item-details', lastReqDt ?? ''],
+    queryFn: async (): Promise<{ resultCode: string | null; resultMessage: string | null; items: ZraItemDetail[] }> => {
+      const { data } = await api.get<{ success: boolean; data: { resultCode: string | null; resultMessage: string | null; items: ZraItemDetail[] } }>(
+        '/zra/item-details/',
+        { params: lastReqDt ? { lastReqDt } : undefined },
+      )
+      return data.data
+    },
+    staleTime: 1000 * 30,
+  })
+}
+
+// GET /api/zra/stock-list/ — real, proxies custom/zra/stocklist.php's own
+// live lookup against the ZRA gateway's /stock/selectStockItems endpoint —
+// this business's own reported stock movement history, grouped/aggregated
+// by item code server-side exactly like the real page's own client-side
+// groupAndAggregateItems(). Read-only, safe to call and retry.
+export interface ZraStockMovementDetail {
+  sno: number
+  sarNo: string
+  occurrenceDate: string
+  itemSeq: number | null
+  itemCode: string
+  itemClassCode: string
+  itemName: string
+  packageUnit: string
+  package: number | null
+  quantityUnit: string
+  quantity: number | null
+  price: number | null
+  supplyAmount: number | null
+  totalDiscountAmount: number | null
+  taxableAmount: number | null
+  vat: string
+  vatAmount: number | null
+  totalAmount: number | null
+}
+export interface ZraStockListItem {
+  sno: number
+  itemCode: string
+  itemClassCode: string
+  itemName: string
+  packageUnit: string
+  quantityUnit: string
+  quantity: number
+  price: number | null
+  supplyAmount: number
+  vat: string
+  details: ZraStockMovementDetail[]
+}
+export function useZraStockList() {
+  return useQuery({
+    queryKey: ['zra', 'stock-list'],
+    queryFn: async (): Promise<{ resultCode: string | null; resultMessage: string | null; items: ZraStockListItem[] }> => {
+      const { data } = await api.get<{ success: boolean; data: { resultCode: string | null; resultMessage: string | null; items: ZraStockListItem[] } }>(
+        '/zra/stock-list/',
+      )
+      return data.data
+    },
+    staleTime: 1000 * 30,
   })
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Users } from 'lucide-react'
-import { useUnuploadedCustomersList } from '../zraLists.queries'
-import { ListHeader, ListPagination, SearchBox, TableShell, EmptyRow, PER_PAGE, notWiredYet } from './ZraListChrome'
+import { Users, LoaderCircle } from 'lucide-react'
+import { useUnuploadedCustomersList, useUploadCustomersToZra } from '../zraLists.queries'
+import { ListHeader, ListPagination, SearchBox, TableShell, EmptyRow, PER_PAGE } from './ZraListChrome'
 
 export function UnuploadedCustomersList() {
   const [page, setPage] = useState(1)
@@ -10,6 +10,7 @@ export function UnuploadedCustomersList() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
   const { data, isLoading, isError } = useUnuploadedCustomersList({ page, perPage: PER_PAGE, search })
+  const upload = useUploadCustomersToZra()
   const rows = data?.items ?? []
   const total = data?.total ?? 0
 
@@ -22,6 +23,21 @@ export function UnuploadedCustomersList() {
     })
   }
 
+  function handleUpload() {
+    if (selected.size === 0) return
+    const confirmed = window.confirm(
+      `This will submit ${selected.size} customer/vendor record(s) to the live ZRA government tax gateway. This is a real, non-repeatable filing. Continue?`,
+    )
+    if (!confirmed) return
+    upload.mutate(Array.from(selected), {
+      onSuccess: (result) => {
+        if (result.succeeded) {
+          setSelected(new Set())
+        }
+      },
+    })
+  }
+
   return (
     <div className="space-y-4">
       <ListHeader
@@ -31,14 +47,22 @@ export function UnuploadedCustomersList() {
         action={
           <button
             type="button"
-            onClick={notWiredYet}
-            disabled={selected.size === 0}
-            className="px-3 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-50"
+            onClick={handleUpload}
+            disabled={selected.size === 0 || upload.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-50"
           >
+            {upload.isPending ? <LoaderCircle size={14} className="animate-spin" /> : null}
             Upload Selected ({selected.size})
           </button>
         }
       />
+
+      {upload.isSuccess && (
+        <p className={`text-sm ${upload.data.succeeded ? 'text-success-fg' : 'text-danger'}`}>
+          {upload.data.succeeded ? "Customer's Uploaded In ZRA Server Successfully" : 'Server Error! Please Contact Administrator'}
+        </p>
+      )}
+      {upload.isError && <p className="text-sm text-danger">{upload.error instanceof Error ? upload.error.message : 'Upload failed — please try again.'}</p>}
 
       <div className="max-w-sm">
         <SearchBox

@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Its own separate git repo (its own remotes/history) — must never be
+# git-added from here, or it becomes a broken gitlink instead of real
+# content. POS itself now lives in src/pos/, bundled into this app; this
+# directory (renamed from pos_standalone - v1/) is dormant. Leading slash
+# anchors this to the repo root only — without it, "pos/" would also match
+# (and wrongly hide) the real, tracked src/pos/.
+/pos/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,4 +30,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-ecuentafrontend-v1.zip

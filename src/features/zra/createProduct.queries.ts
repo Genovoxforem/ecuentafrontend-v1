@@ -49,6 +49,7 @@ export interface ProductFormOptions {
   warehouses: FormOption[]
   barcodeTypes: FormOption[]
   categories: FormOption[]
+  accountingAccounts: FormOption[]
 }
 export function useProductFormOptions() {
   return useQuery({
@@ -82,6 +83,29 @@ export function useProductClassificationSearch(term: string) {
   })
 }
 
+// POST /api/zra/product-categories/create/ — real, proxies THIS install's
+// own product/ajax/products.php action=save_categories (session-login
+// proxy) — the exact target of product_off.php's "Create tag/category"
+// modal (Name/Is Sub Category/Description -> cat_label/prod_cat/
+// cat_description). Reuses that action's own dedupe-by-label + insert logic.
+export interface CreateCategoryInput {
+  label: string
+  description?: string
+  parentId?: string
+}
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateCategoryInput) => {
+      const { data } = await api.post<{ success: boolean; data: { categoryId: string; label: string } }>('/zra/product-categories/create/', input)
+      return data.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['zra', 'product-form-options'] })
+    },
+  })
+}
+
 // POST /api/products/create-full/ — real, proxies THIS install's own
 // custom/zra/ajax_products.php addproducts action (session-login proxy,
 // api/_local_zra_proxy.php) — the actual legacy "Add Products" form target,
@@ -97,7 +121,7 @@ export interface CreateProductFullInput {
   finished: string
   itemClassification: string
   countryId: string
-  warehouseId?: string
+  warehouseId?: string 
   stockAlertLimit?: string
   desiredStock?: string
   units: string

@@ -13,18 +13,18 @@ export const nav: NavSection = {
   items: [
     {
       label: 'Users',
-      items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'User Tags/Categories' }],
+      items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'User Tags/Categories', path: ROUTES.userTags }],
     },
-    { label: 'User Groups', items: [{ label: 'Add User Group' }, { label: 'User Groups List' }] },
+    { label: 'User Groups', items: [{ label: 'Add User Group', path: ROUTES.userGroupCreate }, { label: 'User Groups List', path: ROUTES.userGroupList }] },
     {
       label: 'Leave Management',
-      items: [{ label: 'HRM Area' }, { label: 'List Leave' }, { label: 'Leave' }, { label: 'Time Spent' }],
+      items: [{ label: 'HRM Area', path: ROUTES.hrmArea }, { label: 'List Leave' }, { label: 'Leave' }, { label: 'Time Spent' }],
     },
     { label: 'Activities List' },
     {
       label: 'Events',
       items: [{ label: 'New Action' }, { label: 'List' }, { label: 'Calendar' }, { label: 'Reportings' }, { label: 'Categories' }],
     },
-    { label: 'Documents', items: [{ label: 'DMS/ECM Area' }, { label: 'Manual Tree' }, { label: 'Automatic Tree' }] },
+    { label: 'Documents', items: [{ label: 'DMS/ECM Area', path: ROUTES.userDocuments }, { label: 'Manual Tree' }, { label: 'Automatic Tree' }] },
   ],
 }

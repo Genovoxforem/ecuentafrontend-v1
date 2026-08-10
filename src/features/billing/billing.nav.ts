@@ -21,7 +21,7 @@ export const nav: NavSection = {
       ],
     },
     {
-      label: 'Customer Orders',
+      label: 'Sales Orders',
       items: [
         { label: 'New Order', path: ROUTES.orderCreate },
         { label: 'List', path: ROUTES.orderList },
