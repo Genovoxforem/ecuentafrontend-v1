@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, CalendarDays, CreditCard, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -8,7 +8,13 @@ import { formatMoney } from '../../../utils/format'
 import { useMarkInvoicePaid, useRecordInvoicePayment, type InvoiceRow, type InvoicesSummary } from '../invoices.queries'
 
 const COLUMNS = ['Ref', 'Invoice No', 'Invoice Date', 'Third-Party', 'City', 'Payment Type', 'Amount (Incl. Tax)', 'Author', 'Status', 'Zra Status', 'Actions']
-const PER_PAGE = 15
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function matchesSearch(row: InvoiceRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [row.ref, row.invoiceNo, row.thirdParty, row.city, row.paymentType, row.author, row.status, row.zraStatus].some((field) => field.toLowerCase().includes(q))
+}
 
 function RecordPaymentForm({ row, onClose }: { row: InvoiceRow; onClose: () => void }) {
   const recordPayment = useRecordInvoicePayment()
@@ -98,11 +104,26 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   const [payingRef, setPayingRef] = useState<string | null>(null)
   const payingRow = summary.rows.find((r) => r.ref === payingRef)
   const [page, setPage] = useState(1)
-  const pageRows = summary.rows.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const [perPage, setPerPage] = useState(15)
+  const [search, setSearch] = useState('')
+
+  const filteredRows = useMemo(() => summary.rows.filter((r) => matchesSearch(r, search)), [summary.rows, search])
+  const pageRows = filteredRows.slice((page - 1) * perPage, page * perPage)
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <ShoppingCart size={20} className="text-brand" /> Sales Invoices
         </h2>
@@ -116,106 +137,128 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Clients</p>
-            <p className="text-2xl font-bold text-text! mt-1">{summary.clients}</p>
-            <p className="text-xs text-text-faint mt-1">Customer records</p>
-          </div>
-          <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
-            <User size={18} />
-          </span>
-        </Card>
-        <Card className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Invoices</p>
-            <p className="text-2xl font-bold text-text! mt-1">{summary.invoices}</p>
-            <p className="text-xs text-text-faint mt-1">Sales invoices</p>
-          </div>
-          <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
-            <FileText size={18} />
-          </span>
-        </Card>
-        <Card className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Paid</p>
-            <p className="text-2xl font-bold text-text! mt-1">{fmtZMW(summary.paidAmount)}</p>
-            <p className="text-xs text-text-faint mt-1">Collected amount</p>
-          </div>
-          <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES.green}`}>
-            <Check size={18} />
-          </span>
-        </Card>
-        <Card className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Unpaid</p>
-            <p className="text-2xl font-bold text-text! mt-1">{fmtZMW(summary.unpaidAmount)}</p>
-            <p className="text-xs text-text-faint mt-1">Outstanding amount</p>
-          </div>
-          <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES.rose}`}>
-            <TriangleAlert size={18} />
-          </span>
-        </Card>
-      </div>
-
-      {payingRow && <RecordPaymentForm row={payingRow} onClose={() => setPayingRef(null)} />}
-
-      <Card className="!p-0 overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-          <select disabled defaultValue="15" className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            <option value="15">15</option>
-          </select>
-          <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input disabled type="text" placeholder="Search" className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5" />
-          </div>
-          <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-            <CalendarDays size={14} />
-          </button>
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Clients</p>
+              <p className="text-xl font-bold text-text! mt-1">{summary.clients}</p>
+              <p className="text-xs text-text-faint mt-0.5">Customer records</p>
+            </div>
+            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
+              <User size={20} />
+            </span>
+          </Card>
+          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Invoices</p>
+              <p className="text-xl font-bold text-text! mt-1">{summary.invoices}</p>
+              <p className="text-xs text-text-faint mt-0.5">Sales invoices</p>
+            </div>
+            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
+              <FileText size={20} />
+            </span>
+          </Card>
+          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Paid</p>
+              <p className="text-xl font-bold text-text! mt-1">{fmtZMW(summary.paidAmount)}</p>
+              <p className="text-xs text-text-faint mt-0.5">Collected amount</p>
+            </div>
+            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.green}`}>
+              <Check size={20} />
+            </span>
+          </Card>
+          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Unpaid</p>
+              <p className="text-xl font-bold text-text! mt-1">{fmtZMW(summary.unpaidAmount)}</p>
+              <p className="text-xs text-text-faint mt-0.5">Outstanding amount</p>
+            </div>
+            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.rose}`}>
+              <TriangleAlert size={20} />
+            </span>
+          </Card>
         </div>
-        <div className="overflow-auto max-h-[60vh]">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {summary.rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
-                    No Data Available In Table
-                  </td>
+
+        {payingRow && <RecordPaymentForm row={payingRow} onClose={() => setPayingRef(null)} />}
+
+        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+            <select
+              value={perPage}
+              onChange={(e) => handlePerPageChange(Number(e.target.value))}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search"
+                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+              />
+            </div>
+            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
+              <CalendarDays size={14} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                  {COLUMNS.map((col) => (
+                    <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
                 </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.ref} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{r.ref}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.invoiceNo}</td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.invoiceDate}</td>
-                    <td className="px-4 py-3 text-text!">{r.thirdParty}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.city}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.paymentType}</td>
-                    <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(r.amountInclTax)} ZMW</td>
-                    <td className="px-4 py-3 text-text-muted">{r.author}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.status}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.zraStatus}</td>
-                    <td className="px-4 py-3">
-                      <RowActions row={r} payingRef={payingRef} onTogglePay={setPayingRef} />
+              </thead>
+              <tbody>
+                {summary.rows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                      No Data Available In Table
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-      <ListPagination page={page} perPage={PER_PAGE} total={summary.rows.length} onPageChange={setPage} />
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                      No invoices match "{search}".
+                    </td>
+                  </tr>
+                ) : (
+                  pageRows.map((r) => (
+                    <tr key={r.ref} className="border-b border-border">
+                      <td className="px-4 py-3 text-brand">{r.ref}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.invoiceNo}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.invoiceDate}</td>
+                      <td className="px-4 py-3 text-text!">{r.thirdParty}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.city}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.paymentType}</td>
+                      <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(r.amountInclTax)} ZMW</td>
+                      <td className="px-4 py-3 text-text-muted">{r.author}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.status}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.zraStatus}</td>
+                      <td className="px-4 py-3">
+                        <RowActions row={r} payingRef={payingRef} onTogglePay={setPayingRef} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+      <ListPagination page={page} perPage={perPage} total={filteredRows.length} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }

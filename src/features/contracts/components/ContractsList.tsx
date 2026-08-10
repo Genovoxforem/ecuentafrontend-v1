@@ -36,8 +36,9 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileEdit size={20} className="text-brand" /> Contracts
         </h2>
@@ -46,42 +47,43 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <TwoValueStatCard label="Contract Overview" primary={summary.totalContracts} primaryLabel="Total contracts" secondary={summary.createdThisMonth} secondaryLabel="Created this month" icon={FileCheck2} color="blue" />
-        <TwoValueStatCard label="Running Status" primary={summary.runningTotal} primaryLabel="Running total" secondary={summary.startedThisMonth} secondaryLabel="Started this month" icon={PlayCircle} color="green" />
-        <TwoValueStatCard label="Expiry Status" primary={summary.expiredCount} primaryLabel="Expired" secondary={summary.expiredThisMonth} secondaryLabel="Expired this month" icon={TriangleAlert} color="amber" />
-        <TwoValueStatCard label="Closure And Followup" primary={summary.closedCount} primaryLabel="Closed" secondary={summary.followupsThisMonth} secondaryLabel="This month followups" icon={MessagesSquare} color="violet" />
-      </div>
-
-      <Card className="!p-0 overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-          <select
-            value={perPage}
-            onChange={(e) => handlePerPageChange(Number(e.target.value))}
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search"
-              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
-            />
-          </div>
-          <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-            <CalendarDays size={14} />
-          </button>
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <TwoValueStatCard label="Contract Overview" primary={summary.totalContracts} primaryLabel="Total contracts" secondary={summary.createdThisMonth} secondaryLabel="Created this month" icon={FileCheck2} color="blue" />
+          <TwoValueStatCard label="Running Status" primary={summary.runningTotal} primaryLabel="Running total" secondary={summary.startedThisMonth} secondaryLabel="Started this month" icon={PlayCircle} color="green" />
+          <TwoValueStatCard label="Expiry Status" primary={summary.expiredCount} primaryLabel="Expired" secondary={summary.expiredThisMonth} secondaryLabel="Expired this month" icon={TriangleAlert} color="amber" />
+          <TwoValueStatCard label="Closure And Followup" primary={summary.closedCount} primaryLabel="Closed" secondary={summary.followupsThisMonth} secondaryLabel="This month followups" icon={MessagesSquare} color="violet" />
         </div>
-        <div className="overflow-auto max-h-[60vh]">
-          <table className="w-full text-sm">
+
+        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+            <select
+              value={perPage}
+              onChange={(e) => handlePerPageChange(Number(e.target.value))}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <div className="relative flex-1 min-w-48">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search"
+                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+              />
+            </div>
+            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
+              <CalendarDays size={14} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
                 {COLUMNS.map((col) => (
@@ -123,9 +125,10 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
               )}
             </tbody>
           </table>
-        </div>
-      </Card>
-      <ListPagination page={page} perPage={perPage} total={filteredContracts.length} onPageChange={setPage} />
+          </div>
+        </Card>
+      </div>
+      <ListPagination page={page} perPage={perPage} total={filteredContracts.length} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }

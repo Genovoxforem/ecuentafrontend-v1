@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { FileText, Check, X, Info } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
 
 const INVOICE_TYPES = ['Standard invoice', 'Lpo', 'Export', 'Template invoice', 'Credit note']
@@ -12,11 +13,23 @@ export function InvoiceCreateForm() {
   const today = new Date().toISOString().slice(0, 10)
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FileText size={20} className="text-brand" /> New invoice
-      </h2>
-
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <FileText size={20} className="text-brand" /> New invoice
+        </h2>
+      }
+      footerLeft={
+        <Link to={ROUTES.invoiceList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+      }
+      footerRight={
+        <button type="button" disabled title="Not built yet" className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-80 cursor-default">
+          <Check size={14} /> Create draft
+        </button>
+      }
+    >
       <Card className="bg-surface-hover! grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Customer" required>
           <select defaultValue="" className={inputClasses}>
@@ -79,15 +92,6 @@ export function InvoiceCreateForm() {
           </Field>
         </div>
       </Card>
-
-      <div className="flex items-center justify-end gap-3 sticky bottom-0 bg-surface border-t border-border py-3 -mx-4 px-4 sm:mx-0 sm:px-0 sm:border-0 sm:bg-transparent sm:static">
-        <button type="button" disabled title="Not built yet" className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-80 cursor-default">
-          <Check size={14} /> Create draft
-        </button>
-        <Link to={ROUTES.invoiceList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
-      </div>
-    </div>
+    </StickyFormShell>
   )
 }

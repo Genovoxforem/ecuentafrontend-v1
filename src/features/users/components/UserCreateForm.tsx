@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { UserRound, Check, X, LoaderCircle, RefreshCcw } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useCreateUser } from '../users.queries'
 
@@ -61,12 +62,29 @@ export function UserCreateForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <UserRound size={20} className="text-brand" /> New User
-      </h2>
-
-      <Card>
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <UserRound size={20} className="text-brand" /> New User
+        </h2>
+      }
+      footerLeft={
+        <Link to={ROUTES.usersDashboard} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+      }
+      footerRight={
+        <button
+          type="button"
+          disabled={pending}
+          onClick={handleSubmit}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create user
+        </button>
+      }
+    >
+      <Card className="flex-1">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
           <SectionHeading>Identity</SectionHeading>
           <Field label="Title">
@@ -173,20 +191,6 @@ export function UserCreateForm() {
       </Card>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={handleSubmit}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create user
-        </button>
-        <Link to={ROUTES.usersDashboard} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
-      </div>
-    </div>
+    </StickyFormShell>
   )
 }

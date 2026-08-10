@@ -11,76 +11,87 @@ export interface CustomersSummary {
   customers: ThirdPartyRow[]
 }
 
-// GET /api/customers/ (api/customers/index.php on the real backend, read
-// directly — see buildCustomerRow()). This confirms the row shape exactly:
-// id, name, name_alias, code_client, email, phone, address, zip, town,
-// tpin, currency, client, type ('customer'|'customer_prospect'|'prospect'),
-// is_supplier. Notably absent: country, outstanding balance, sales rep, and
-// creation date aren't returned by this endpoint at all (balance requires a
-// separate per-customer facture join the list doesn't do) — those stats
-// below stay honest zeros rather than the wrong guesses this used to compute
-// from fields that were never actually in the response.
-interface RawCustomer {
+// GET /api/customers/summary/ (api/customers/summary/index.php) — purpose-built
+// for this exact stat-card row (Total, Created This Month, Outstanding Balance,
+// Default/Other Country counts), computed server-side straight from
+// llx_societe/llx_facture rather than derived client-side from a row list that
+// doesn't carry enough fields for it.
+interface SummaryPayload {
+  total: number
+  createdThisMonth: number
+  outstandingBalance: number
+  defaultCountryCount: number
+  otherCountryCount: number
+}
+
+// GET /api/customers/list/ (api/customers/list/index.php) — the React-app-
+// specific list endpoint (distinct from api/customers/index.php, which serves
+// the mobile app with a narrower row shape missing country/balance/sales
+// rep/creation date entirely). Both endpoints wrap their payload as
+// {success, data: ...}, unlike the mobile endpoint's flat {success, customers, ...}.
+interface ListItem {
   id: number
   name: string
-  name_alias: string | null
-  code_client: string | null
+  tpin: string | null
+  trackingId: string | null
+  isCustomer: boolean
+  isProspect: boolean
+  isVendor: boolean
+  statusLabel: 'Open' | 'Closed'
   email: string
   phone: string
-  address: string
-  zip: string
-  town: string
-  tpin: string | null
-  currency: string | null
-  client: number
-  type: 'customer' | 'customer_prospect' | 'prospect'
-  is_supplier: number
+  countryLabel: string | null
+  currencyCode: string
+  outstandingBalance: number
+  salesReps: string | null
+  createdAt: string
+  creatorName: string
 }
 
-interface CustomersResponse {
+interface WebEnvelope<T> {
   success: boolean
-  customers: RawCustomer[]
-  total_count: number
+  data: T
 }
 
-export function toRow(raw: RawCustomer): ThirdPartyRow {
+export function toRow(item: ListItem): ThirdPartyRow {
   return {
-    name: raw.name ?? '',
-    // Not returned by this endpoint — see comment above.
-    country: '',
-    outstandingBalance: 0,
-    tpin: raw.tpin ?? '',
-    salesRep: '',
-    email: raw.email ?? '',
-    phone: raw.phone ?? '',
-    nature: raw.type === 'prospect' ? 'Prospect' : 'Customer',
-    trackingId: raw.code_client ?? '',
-    creationDate: '',
-    // No status/closed flag on this endpoint's row either — everything
-    // returned is by definition an active record, so this isn't a guess.
-    status: 'Active',
+    name: item.name ?? '',
+    country: item.countryLabel ?? '',
+    outstandingBalance: item.outstandingBalance,
+    tpin: item.tpin ?? '',
+    salesRep: item.salesReps ?? '',
+    email: item.email ?? '',
+    phone: item.phone ?? '',
+    nature: item.isCustomer && item.isProspect ? 'Customer, Prospect' : item.isProspect ? 'Prospect' : 'Customer',
+    trackingId: item.trackingId ?? '',
+    // Raw MySQL datetime, not pre-formatted — ThirdPartyList both displays
+    // this (via formatDateTimeAmPm) and parses it for the date-range filter,
+    // so it needs to stay a real parseable timestamp, not display text.
+    creationDate: item.createdAt ?? '',
+    creatorName: item.creatorName ?? '',
+    status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
   }
 }
 
-// GET /api/customers/?type=customer — real, confirmed live. Vendors reuse
-// this same endpoint (client-side filtered on is_supplier) — see
-// vendors.queries.ts for why type=supplier doesn't work server-side.
+// limit: 500 — web_pagination()'s own clamp ceiling (see api/_web_common.php)
+// — fetched once and paginated client-side by ThirdPartyList, same pattern
+// used for every other list page in this app.
 export function useCustomersSummary() {
   return useQuery({
     queryKey: ['customers', 'summary'],
     queryFn: async (): Promise<CustomersSummary> => {
-      const { data } = await api.get<CustomersResponse>('/customers/', { params: { type: 'customer', limit: 250 } })
-      const rows = (data.customers ?? []).map(toRow)
+      const [summaryRes, listRes] = await Promise.all([
+        api.get<WebEnvelope<SummaryPayload>>('/customers/summary/'),
+        api.get<WebEnvelope<{ items: ListItem[]; total: number }>>('/customers/list/', { params: { type: 'c', page: 1, limit: 500 } }),
+      ])
+      const s = summaryRes.data.data
+      const rows = listRes.data.data.items.map(toRow)
       return {
-        totalCustomers: data.total_count ?? rows.length,
-        // Not computable — no creation date on this endpoint.
-        createdThisMonth: 0,
-        // Not computable — no balance on this endpoint (would need a
-        // separate facture-join call per customer).
-        outstandingBalance: 0,
-        // Not computable — no country field on this endpoint at all.
-        defaultCountryCustomers: 0,
-        otherCountryCustomers: 0,
+        totalCustomers: s.total,
+        createdThisMonth: s.createdThisMonth,
+        outstandingBalance: s.outstandingBalance,
+        defaultCountryCustomers: s.defaultCountryCount,
+        otherCountryCustomers: s.otherCountryCount,
         customers: rows,
       }
     },

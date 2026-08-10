@@ -67,14 +67,14 @@ export function StatCard({
   extraLink?: StatCardLink
 }) {
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="!p-3 flex flex-col gap-2">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-          <p className="text-3xl font-bold text-text! mt-1">{count}</p>
+          <p className="text-2xl font-bold text-text! mt-1">{count}</p>
         </div>
-        <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-          <Icon size={20} />
+        <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
+          <Icon size={18} />
         </span>
       </div>
       <div className="flex items-center gap-3 text-xs">
@@ -112,11 +112,11 @@ export function TodayStatCard({
   color: IconColor
 }) {
   return (
-    <Card className="flex items-start justify-between gap-3">
+    <Card className="!p-3 !flex-row items-center justify-between gap-3">
       <div>
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold text-text! mt-1">{value}</p>
-        <p className="text-xs text-text-faint mt-1">{caption}</p>
+        <p className="text-xl font-bold text-text! mt-1">{value}</p>
+        <p className="text-xs text-text-faint mt-0.5">{caption}</p>
       </div>
       <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
         <Icon size={20} />
@@ -147,18 +147,18 @@ export function TwoValueStatCard({
   color: IconColor
 }) {
   return (
-    <Card className="flex items-start justify-between gap-3">
+    <Card className="!p-3 !flex-row items-center justify-between gap-3">
       <div>
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold text-text! mt-1">
+        <p className="text-xl font-bold text-text! mt-1">
           {primary} <span className="text-xs font-normal text-text-faint">{primaryLabel}</span>
         </p>
         <p className="text-sm font-semibold text-text! mt-0.5">
           {secondary} <span className="text-xs font-normal text-text-faint">{secondaryLabel}</span>
         </p>
       </div>
-      <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-        <Icon size={18} />
+      <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <Icon size={20} />
       </span>
     </Card>
   )

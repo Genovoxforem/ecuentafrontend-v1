@@ -26,11 +26,26 @@ export function getPageNumbers(current: number, total: number, windowSize = 5): 
 }
 
 // Renders as a sibling AFTER a list's scrollable table container (never
-// nested inside it), so `sticky bottom-0` sticks correctly to AppShell's
-// <main> — nesting it inside an overflow-auto/max-h wrapper stops the
-// stickiness from working, since it'd stick to that wrapper's own bounds
-// instead (which end exactly where the table ends).
-export function ListPagination({ page, perPage, total, onPageChange }: { page: number; perPage: number; total: number; onPageChange: (page: number) => void }) {
+// nested inside it), so `sticky` sticks correctly to AppShell's <main> —
+// nesting it inside an overflow-auto/max-h wrapper stops the stickiness from
+// working, since it'd stick to that wrapper's own bounds instead (which end
+// exactly where the table ends).
+export function ListPagination({
+  page,
+  perPage,
+  total,
+  onPageChange,
+  edgeToEdge = false,
+}: {
+  page: number
+  perPage: number
+  total: number
+  onPageChange: (page: number) => void
+  // Set when the parent page already bleeds edge-to-edge via its own -m-6 wrapper (see
+  // ThirdPartyList.tsx) — skips this component's own -mx-3 bleed so it doesn't double up,
+  // using px-6 (matching AppShell main's own p-6) for internal padding instead of px-3.
+  edgeToEdge?: boolean
+}) {
   if (total === 0) return null
   const totalPages = Math.max(1, Math.ceil(total / perPage))
   const rangeStart = (page - 1) * perPage + 1
@@ -40,7 +55,16 @@ export function ListPagination({ page, perPage, total, onPageChange }: { page: n
   const navBtnCls = 'p-1.5 rounded-md hover:bg-surface-alt disabled:opacity-40 disabled:hover:bg-transparent'
 
   return (
-    <div className="sticky bottom-0 -mx-3 px-3 py-3 border-t border-border bg-white dark:bg-gray-950 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
+    // -bottom-6 (not bottom-0): position:sticky's offset is always measured from main's own
+    // PADDING edge (24px inset, AppShell's p-6), not main's true bottom edge — confirmed on
+    // the create-form pages (see StickyFormShell.tsx), where bottom-0 left a 24px gap under
+    // the footer whenever the list was shorter than the viewport. -24px shifts the stick
+    // point by exactly that inset so it clamps flush against main's true bottom instead.
+    <div
+      className={`sticky -bottom-6 py-3 border-t border-border bg-white dark:bg-gray-950 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted ${
+        edgeToEdge ? 'px-6' : '-mx-3 px-3'
+      }`}
+    >
       <span>
         Showing {rangeStart} to {rangeEnd} of {total.toLocaleString()} entries
       </span>

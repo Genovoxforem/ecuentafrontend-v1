@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { FileBadge, Check, X, LoaderCircle, Plus, Trash2, Upload, Download } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useProductOptions } from '../../products/products.queries'
@@ -86,11 +87,33 @@ export function QuotationCreateForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FileBadge size={20} className="text-brand" /> New Quotation
-      </h2>
-
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <FileBadge size={20} className="text-brand" /> New Quotation
+        </h2>
+      }
+      footerLeft={
+        <Link to={ROUTES.quotationList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+      }
+      footerRight={
+        <>
+          <button type="button" disabled title="Same request as Validate & Create below — this backend has no separate draft-save action" className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted cursor-default opacity-60">
+            Save Draft
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={handleSubmit}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          >
+            {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Validate & Create
+          </button>
+        </>
+      }
+    >
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
           <Field label="Ref.">
@@ -295,23 +318,6 @@ export function QuotationCreateForm() {
       </Card>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}
-
-      <div className="flex items-center gap-3">
-        <Link to={ROUTES.quotationList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
-        <button type="button" disabled title="Same request as Validate & Create below — this backend has no separate draft-save action" className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted cursor-default opacity-60">
-          Save Draft
-        </button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={handleSubmit}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Validate & Create
-        </button>
-      </div>
-    </div>
+    </StickyFormShell>
   )
 }
