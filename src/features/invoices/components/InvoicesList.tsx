@@ -4,6 +4,7 @@ import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, Calen
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
 import { useMarkInvoicePaid, useRecordInvoicePayment, type InvoiceRow, type InvoicesSummary } from '../invoices.queries'
 
@@ -120,6 +121,23 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
     setPage(1)
   }
 
+  function getExportData() {
+    const headers = COLUMNS.slice(0, -1)
+    const rows = filteredRows.map((r) => [
+      r.ref,
+      r.invoiceNo,
+      r.invoiceDate,
+      r.thirdParty,
+      r.city,
+      r.paymentType,
+      `${formatMoney(r.amountInclTax)} ZMW`,
+      r.author,
+      r.status,
+      r.zraStatus,
+    ])
+    return { headers, rows }
+  }
+
   return (
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
@@ -196,7 +214,7 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
                 </option>
               ))}
             </select>
-            <div className="relative w-64">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -206,6 +224,7 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="Sales Invoices" getExportData={getExportData} />
             <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
               <CalendarDays size={14} />
             </button>

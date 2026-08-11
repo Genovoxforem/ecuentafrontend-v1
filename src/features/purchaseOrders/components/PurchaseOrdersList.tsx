@@ -4,6 +4,7 @@ import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Searc
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
 import type { PurchaseOrderRow, PurchaseOrdersSummary } from '../purchaseOrders.queries'
 
@@ -32,6 +33,23 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
   function handlePerPageChange(value: number) {
     setPerPage(value)
     setPage(1)
+  }
+
+  function getExportData() {
+    const rows = filteredOrders.map((o) => [
+      o.ref,
+      o.refOrderVendor,
+      o.requestAuthor,
+      o.thirdParty,
+      o.city,
+      o.zipCode,
+      o.orderDate,
+      o.plannedDelivery,
+      `${formatMoney(o.amountExclTax)} ZMW`,
+      o.status,
+      o.billed ? 'Yes' : 'No',
+    ])
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -94,7 +112,7 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
                 </option>
               ))}
             </select>
-            <div className="relative w-64">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -104,6 +122,7 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="List Of Purchase Orders" getExportData={getExportData} />
             <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
               <CalendarDays size={14} />
             </button>

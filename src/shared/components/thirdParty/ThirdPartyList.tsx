@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, CalendarRange, List, ChevronDown, FileSpreadsheet, Printer, FileText } from 'lucide-react'
+import { Plus, Search, CalendarRange } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../dashboard/DashboardKit'
 import { ListPagination } from '../ListPagination'
+import { TableExportButtons } from '../TableExportButtons'
 import { Avatar } from '../Avatar'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
+import { ROUTES } from '../../../routes'
+import { useUserIdByName } from '../../../features/users/users.queries'
 
 const COLUMNS = ['Third-Party Name', 'Country', 'Outstanding Balance', 'Tpin', 'Sales Representatives', 'Email & Phone', 'Nature Of Third Party', 'Tracking Id', 'Creation Date', 'Status']
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -55,6 +58,32 @@ function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
         <Icon size={20} />
       </span>
     </Card>
+  )
+}
+
+// "Creation Date" column's creator name — resolved to a real user id
+// on a best-effort basis (see useUserIdByName's own doc comment) and only
+// rendered as a link to that user's detail page when the match is
+// unambiguous; otherwise falls back to plain text so it never links to the
+// wrong profile. Split into its own component (not inlined in the row map)
+// because useUserIdByName is a hook and can't be called from inside .map().
+function CreatorCell({ name, date }: { name: string; date: string }) {
+  const userId = useUserIdByName(name)
+  if (!name) return null
+  return (
+    <div className="flex items-center gap-2">
+      <Avatar name={name} size={28} color="bg-teal-500" className="text-xs" />
+      <div className="min-w-0">
+        {userId !== undefined ? (
+          <Link to={ROUTES.userDetail.replace(':id', String(userId))} className="block truncate text-brand hover:underline">
+            {name}
+          </Link>
+        ) : (
+          <div className="truncate text-brand">{name}</div>
+        )}
+        <div className="whitespace-nowrap text-xs text-text-faint">On : {formatDateTimeAmPm(date)}</div>
+      </div>
+    </div>
   )
 }
 
@@ -131,22 +160,6 @@ function computeRange(key: RangeKey, customFrom: string, customTo: string): { fr
   }
 }
 
-function escapeHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function downloadBlob(filename: string, mime: string, content: string) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
-
 export function ThirdPartyList({
   icon: HeaderIcon,
   title,
@@ -165,10 +178,6 @@ export function ThirdPartyList({
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
-
-  const [exportOpen, setExportOpen] = useState(false)
-  const exportRef = useRef<HTMLDivElement>(null)
-  useClickOutside(exportRef, () => setExportOpen(false), exportOpen)
 
   const [dateMenuOpen, setDateMenuOpen] = useState(false)
   const [dateRangeKey, setDateRangeKey] = useState<RangeKey | null>(null)
@@ -195,9 +204,8 @@ export function ThirdPartyList({
   const pageRows = filteredRows.slice((page - 1) * perPage, page * perPage)
   const activeRangeLabel = RANGE_OPTIONS.find((o) => o.key === dateRangeKey)?.label ?? 'Select Date Range'
 
-  function exportTable() {
-    const headers = COLUMNS
-    const data = filteredRows.map((r) => [
+  function getExportData() {
+    const rows = filteredRows.map((r) => [
       r.name,
       r.country,
       `${formatMoney(r.outstandingBalance)} ZMW`,
@@ -209,52 +217,7 @@ export function ThirdPartyList({
       r.creationDate ? formatDateTimeAmPm(r.creationDate) : '',
       r.status,
     ])
-    return { headers, data }
-  }
-
-  function handleExportCsv() {
-    const { headers, data } = exportTable()
-    const toCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
-    const csv = [headers, ...data].map((row) => row.map(toCell).join(',')).join('\r\n')
-    downloadBlob(`${title.replace(/\s+/g, '-').toLowerCase()}.csv`, 'text/csv;charset=utf-8;', csv)
-    setExportOpen(false)
-  }
-
-  // .xls extension + application/vnd.ms-excel MIME on a plain HTML table —
-  // Excel opens this natively (a common lightweight export trick), no xlsx
-  // library dependency needed for a real, working "Excel" export.
-  function handleExportExcel() {
-    const { headers, data } = exportTable()
-    const html = `<table><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${data
-      .map((row) => `<tr>${row.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`)
-      .join('')}</tbody></table>`
-    downloadBlob(`${title.replace(/\s+/g, '-').toLowerCase()}.xls`, 'application/vnd.ms-excel', html)
-    setExportOpen(false)
-  }
-
-  // Print and PDF share the same print-friendly popup: every modern browser's
-  // print dialog offers "Save as PDF" as a destination, so this gives a real,
-  // working PDF export with no extra library.
-  function handlePrint() {
-    const { headers, data } = exportTable()
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write(`<html><head><title>${escapeHtml(title)}</title><style>
-      body { font-family: sans-serif; padding: 24px; color: #111; }
-      h2 { margin: 0 0 16px; }
-      table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-      th { background: #f3f4f6; }
-    </style></head><body>
-    <h2>${escapeHtml(title)}</h2>
-    <table><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${data
-      .map((row) => `<tr>${row.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`)
-      .join('')}</tbody></table>
-    </body></html>`)
-    win.document.close()
-    win.focus()
-    win.print()
-    setExportOpen(false)
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -296,7 +259,7 @@ export function ThirdPartyList({
                 </option>
               ))}
             </select>
-            <div className="relative w-64">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -306,33 +269,7 @@ export function ThirdPartyList({
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
-            <div className="relative" ref={exportRef}>
-              <button
-                type="button"
-                onClick={() => setExportOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-text-muted hover:bg-surface-hover"
-                title="Export"
-              >
-                <List size={16} />
-                <ChevronDown size={14} className={exportOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
-              </button>
-              {exportOpen && (
-                <div className="absolute left-0 top-full z-20 mt-1 w-36 rounded-lg border border-border bg-white py-1 shadow-lg dark:bg-gray-900">
-                  <button type="button" onClick={handleExportCsv} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-surface-hover">
-                    <FileSpreadsheet size={16} className="text-emerald-500" /> CSV
-                  </button>
-                  <button type="button" onClick={handleExportExcel} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-surface-hover">
-                    <FileSpreadsheet size={16} className="text-green-600" /> Excel
-                  </button>
-                  <button type="button" onClick={handlePrint} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-surface-hover">
-                    <Printer size={16} className="text-text-muted" /> Print
-                  </button>
-                  <button type="button" onClick={handlePrint} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-surface-hover">
-                    <FileText size={16} className="text-rose-500" /> PDF
-                  </button>
-                </div>
-              )}
-            </div>
+            <TableExportButtons title={title} getExportData={getExportData} />
             <div className="relative ml-auto" ref={dateMenuRef}>
               <button
                 type="button"
@@ -444,15 +381,7 @@ export function ThirdPartyList({
                     <td className="px-4 py-3 text-text-muted">{r.nature}</td>
                     <td className="px-4 py-3 text-text-muted">{r.trackingId}</td>
                     <td className="px-4 py-3">
-                      {r.creatorName && (
-                        <div className="flex items-center gap-2">
-                          <Avatar name={r.creatorName} size={28} color="bg-teal-500" className="text-xs" />
-                          <div className="min-w-0">
-                            <div className="truncate text-brand">{r.creatorName}</div>
-                            <div className="whitespace-nowrap text-xs text-text-faint">On : {formatDateTimeAmPm(r.creationDate)}</div>
-                          </div>
-                        </div>
-                      )}
+                      <CreatorCell name={r.creatorName} date={r.creationDate} />
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.status === 'Active' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>

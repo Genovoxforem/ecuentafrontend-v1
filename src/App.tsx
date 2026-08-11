@@ -50,6 +50,7 @@ const KitchenModule = lazy(() => import('./modules/kitchen/KitchenModule').then(
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
 const UsersDashboardModule = lazy(() => import('./modules/usersDashboard/UsersDashboardModule').then((m) => ({ default: m.UsersDashboardModule })))
 const UserCreateModule = lazy(() => import('./modules/usersDashboard/UserCreateModule').then((m) => ({ default: m.UserCreateModule })))
+const UserDetailModule = lazy(() => import('./modules/usersDashboard/UserDetailModule').then((m) => ({ default: m.UserDetailModule })))
 const GroupsListModule = lazy(() => import('./modules/usersDashboard/GroupsListModule').then((m) => ({ default: m.GroupsListModule })))
 const GroupCreateModule = lazy(() => import('./modules/usersDashboard/GroupCreateModule').then((m) => ({ default: m.GroupCreateModule })))
 const TagsListModule = lazy(() => import('./modules/usersDashboard/TagsListModule').then((m) => ({ default: m.TagsListModule })))
@@ -60,6 +61,7 @@ const CustomerCreateModule = lazy(() => import('./modules/customers/CustomerCrea
 const ProspectsListModule = lazy(() => import('./modules/customers/ProspectsListModule').then((m) => ({ default: m.ProspectsListModule })))
 const ProspectCreateModule = lazy(() => import('./modules/customers/ProspectCreateModule').then((m) => ({ default: m.ProspectCreateModule })))
 const CustomerGroupListModule = lazy(() => import('./modules/customers/CustomerGroupListModule').then((m) => ({ default: m.CustomerGroupListModule })))
+const CustomerGroupCreateModule = lazy(() => import('./modules/customers/CustomerGroupCreateModule').then((m) => ({ default: m.CustomerGroupCreateModule })))
 const VendorsListModule = lazy(() => import('./modules/vendors/VendorsListModule').then((m) => ({ default: m.VendorsListModule })))
 const VendorCreateModule = lazy(() => import('./modules/vendors/VendorCreateModule').then((m) => ({ default: m.VendorCreateModule })))
 const OrdersListModule = lazy(() => import('./modules/salesOrders/OrdersListModule').then((m) => ({ default: m.OrdersListModule })))
@@ -148,6 +150,7 @@ function App() {
                   <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
                   <Route path={ROUTES.usersDashboard} element={<RouteBoundary><UsersDashboardModule /></RouteBoundary>} />
                   <Route path={ROUTES.userCreate} element={<RouteBoundary><UserCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.userDetail} element={<RouteBoundary><UserDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.userGroupList} element={<RouteBoundary><GroupsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.userGroupCreate} element={<RouteBoundary><GroupCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.userTags} element={<RouteBoundary><TagsListModule /></RouteBoundary>} />
@@ -158,6 +161,8 @@ function App() {
                   <Route path={ROUTES.prospectList} element={<RouteBoundary><ProspectsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.prospectsCreate} element={<RouteBoundary><ProspectCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.customerGroupList} element={<RouteBoundary><CustomerGroupListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.customerGroupCreate} element={<RouteBoundary><CustomerGroupCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.customerGroupEdit} element={<RouteBoundary><CustomerGroupCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorList} element={<RouteBoundary><VendorsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorCreate} element={<RouteBoundary><VendorCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.orderList} element={<RouteBoundary><OrdersListModule /></RouteBoundary>} />

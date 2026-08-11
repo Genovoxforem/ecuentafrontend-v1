@@ -1,193 +1,400 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { UserRound, Check, X, LoaderCircle, RefreshCcw } from 'lucide-react'
+import {
+  UserRound,
+  Check,
+  X,
+  LoaderCircle,
+  ChevronLeft,
+  ChevronRight,
+  Contact,
+  Briefcase,
+  Share2,
+  User,
+  Shield,
+  UserCheck,
+  UserCog,
+  Globe,
+  Phone,
+  Mail,
+  IdCard,
+  Hash,
+  MapPin,
+  Map as MapIcon,
+  Server,
+  RefreshCcw,
+  Palette,
+  Tags,
+  Languages,
+  FileText,
+  PenLine,
+  CalendarClock,
+} from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
-import { Field, inputClasses } from '../../../shared/components/forms/FormField'
-import { useCreateUser } from '../users.queries'
+import { type FieldSpec, type IconType, inputClasses, StepFields } from '../../../shared/components/forms/StepFormFields'
+import { SocialLinksStep } from '../../../shared/components/forms/SocialLinksStep'
+import { todayIso } from '../../../shared/localCollection'
+import { useCreateUser, useUsersSummary, useLanguageOptions } from '../users.queries'
+
+const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
+const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
 
 function randomApiKey() {
   return Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('')
 }
 
-function SectionHeading({ children }: { children: string }) {
-  return <h3 className="col-span-full text-xs font-semibold uppercase tracking-wide text-text-faint pb-1 border-b border-border first:pt-0 pt-2">{children}</h3>
+// Dolibarr auto-derives a login from the name when none is typed explicitly
+// — the reference "New user" wizard (user/card.php) shown to build this
+// doesn't surface a separate Login field at all, so this stands in for that
+// same behavior rather than inventing a field that isn't in the reference.
+function deriveLogin(firstName: string, lastName: string) {
+  return `${firstName}.${lastName}`.toLowerCase().replace(/[^a-z0-9.]/g, '')
+}
+
+function PosKotField({ isPos, isKot, onChange }: { isPos: boolean; isKot: boolean; onChange: (next: { isPos: boolean; isKot: boolean }) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-text-muted">POS/KOT User Token</span>
+      <div className="flex items-center gap-4 h-[34px]">
+        <label className="flex items-center gap-1.5 text-sm text-text-muted">
+          <input type="checkbox" checked={isPos} onChange={(e) => onChange({ isPos: e.target.checked, isKot })} className="rounded border-input-border text-brand focus:ring-brand/30" />
+          POS User
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-text-muted">
+          <input type="checkbox" checked={isKot} onChange={(e) => onChange({ isPos, isKot: e.target.checked })} className="rounded border-input-border text-brand focus:ring-brand/30" />
+          KOT User
+        </label>
+      </div>
+    </div>
+  )
+}
+
+function ApiKeyField({ value, onRegenerate }: { value: string; onRegenerate: () => void }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-text-muted">Key for API</span>
+      <div className="flex items-center gap-2">
+        <input type="text" readOnly value={value} className={`${inputClasses} font-mono text-xs`} />
+        <button type="button" onClick={onRegenerate} title="Regenerate" className="shrink-0 p-2 rounded-md border border-input-border text-text-muted hover:bg-surface-hover">
+          <RefreshCcw size={14} />
+        </button>
+      </div>
+    </label>
+  )
+}
+
+function ColorField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-text-muted">Color of the user</span>
+      <div className="flex items-center gap-2">
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="h-[34px] w-12 shrink-0 rounded-md border border-input-border bg-input-bg p-1" />
+        <input type="text" readOnly value={value} className={`${inputClasses} font-mono text-xs`} />
+      </div>
+    </label>
+  )
+}
+
+function DateRangeField({
+  label,
+  icon: Icon,
+  from,
+  to,
+  onFromChange,
+  onToChange,
+}: {
+  label: string
+  icon: IconType
+  from: string
+  to: string
+  onFromChange: (value: string) => void
+  onToChange: (value: string) => void
+}) {
+  const nowBtnCls = 'shrink-0 rounded-md border border-input-border px-2 py-1.5 text-xs font-medium text-text-muted hover:bg-surface-hover'
+  return (
+    <div className="flex flex-col gap-1.5 sm:col-span-2">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <Icon size={13} /> {label}
+      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="date" value={from} onChange={(e) => onFromChange(e.target.value)} className={`${inputClasses} w-auto`} />
+        <button type="button" onClick={() => onFromChange(todayIso())} className={nowBtnCls}>
+          Now
+        </button>
+        <span className="text-text-faint">-</span>
+        <input type="date" value={to} onChange={(e) => onToChange(e.target.value)} className={`${inputClasses} w-auto`} />
+        <button type="button" onClick={() => onToChange(todayIso())} className={nowBtnCls}>
+          Now
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export function UserCreateForm() {
+  const { data: usersSummary } = useUsersSummary()
+  const { data: languageOptions } = useLanguageOptions()
   const createUser = useCreateUser()
   const navigate = useNavigate()
 
-  const [login, setLogin] = useState('')
-  const [firstname, setFirstname] = useState('')
-  const [lastname, setLastname] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [gender, setGender] = useState('')
-  const [designation, setDesignation] = useState('')
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [step, setStep] = useState(0)
+  const [values, setValues] = useState<Record<string, string>>({
+    title: 'Mr',
+    firstName: '',
+    lastName: '',
+    isAdmin: 'No',
+    designation: '',
+    gender: '',
+    employee: 'Yes',
+    supervisor: '',
+    expenseValidator: '',
+    externalUser: 'Internal',
+    address: '',
+    zipCode: '',
+    city: '',
+    country: 'Zambia (ZM)',
+    stateProvince: '',
+    tpin: '',
+    mobile: '',
+    employeeId: '',
+    email: '',
+    timeSheetDevice: '',
+    employeeNrc: '',
+    tagsCategories: '',
+    languageDefault: '',
+    note: '',
+    signature: '',
+    dateOfBirth: '',
+  })
   const [isPos, setIsPos] = useState(false)
   const [isKot, setIsKot] = useState(false)
+  const [apiKey, setApiKey] = useState(randomApiKey)
+  const [userColor, setUserColor] = useState('#397db9')
+  const [employmentFrom, setEmploymentFrom] = useState('')
+  const [employmentTo, setEmploymentTo] = useState('')
+  const [loginValidityFrom, setLoginValidityFrom] = useState('')
+  const [loginValidityTo, setLoginValidityTo] = useState('')
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
 
-  // Everything below is visual-scaffold only, matching the reference "New
-  // user" screen's field set — none of it is sent to createUser() or
-  // reflected in the users list, same as this feature's local-only data
-  // (see users.queries.ts) not persisting anywhere to begin with.
-  const [title, setTitle] = useState('')
-  const [isEmployee, setIsEmployee] = useState(true)
-  const [apiKey, setApiKey] = useState(randomApiKey)
-  const [supervisor, setSupervisor] = useState('')
-  const [employeeId, setEmployeeId] = useState('')
-  const [timeSheetDevice, setTimeSheetDevice] = useState('')
-  const [address, setAddress] = useState('')
-  const [zipCode, setZipCode] = useState('')
-  const [city, setCity] = useState('')
-  const [country, setCountry] = useState('')
-  const [stateProvince, setStateProvince] = useState('')
-  const [tpin, setTpin] = useState('')
+  const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
+
+  // Real names from the live GET /api/users/ list (see users.queries.ts) —
+  // same data backing the Users list page, reused here so Supervisor and
+  // Force expense report validator pick from actual users instead of a
+  // fake/empty list.
+  const userOptions = (usersSummary?.users ?? []).map((u) => u.name || u.login)
+  const languageSelectOptions = (languageOptions ?? []).map((l) => l.label)
+
+  const IDENTITY_FIELDS: FieldSpec[] = [
+    { key: 'title', label: 'Title', type: 'select', options: TITLE_OPTIONS, defaultValue: 'Mr', icon: User },
+    { key: 'firstName', label: 'First name', type: 'text', required: true, icon: User },
+    { key: 'lastName', label: 'Last name', type: 'text', required: true, icon: User },
+    { key: 'isAdmin', label: 'Is Admin User?', type: 'select', options: ['No', 'Yes'], defaultValue: 'No', icon: Shield },
+    { key: 'posKotToken', label: 'POS/KOT User Token', type: 'text', icon: Shield },
+    { key: 'apiKey', label: 'Key for API', type: 'text', icon: Shield },
+    { key: 'designation', label: 'Designation', type: 'text', required: true, icon: Briefcase },
+    { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female'], icon: UserCheck },
+    { key: 'employee', label: 'Employee', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: UserCheck },
+    { key: 'supervisor', label: 'Supervisor', type: 'select', options: userOptions, icon: UserCog, placeholder: 'Select a users' },
+    { key: 'expenseValidator', label: 'Force expense report validator', type: 'select', options: userOptions, icon: UserCheck, placeholder: 'Select a users' },
+    { key: 'externalUser', label: 'External user?', type: 'select', options: ['Internal', 'External'], defaultValue: 'Internal', icon: Globe },
+    { key: 'address', label: 'Address', type: 'text', icon: MapPin },
+    { key: 'zipCode', label: 'Zip Code', type: 'text', icon: MapPin },
+    { key: 'city', label: 'City', type: 'text', icon: MapPin },
+    { key: 'country', label: 'Country', type: 'select', options: ['Zambia (ZM)'], defaultValue: 'Zambia (ZM)', icon: Globe },
+    { key: 'stateProvince', label: 'State/Province', type: 'select', options: [], icon: MapIcon, placeholder: 'Select a state' },
+    { key: 'tpin', label: 'Tpin/Aadhar', type: 'text', icon: IdCard },
+    { key: 'mobile', label: 'Mobile', type: 'text', icon: Phone },
+    { key: 'employeeId', label: 'Employee Id', type: 'text', icon: Hash },
+    { key: 'email', label: 'EMail', type: 'text', icon: Mail },
+    { key: 'timeSheetDevice', label: 'Time Sheet Device', type: 'select', options: [], icon: Server, placeholder: 'Select a device' },
+  ]
+
+  const WORK_FIELDS: FieldSpec[] = [
+    { key: 'employeeNrc', label: 'Employee NRC', type: 'text', icon: IdCard },
+    { key: 'userColor', label: 'Color of the user', type: 'text', icon: Palette },
+    { key: 'tagsCategories', label: 'Tags/categories', type: 'text', icon: Tags },
+    { key: 'languageDefault', label: 'Language default', type: 'select', options: languageSelectOptions, icon: Languages, placeholder: 'Select a language' },
+    { key: 'note', label: 'Note', type: 'text', icon: FileText },
+    { key: 'signature', label: 'Signature', type: 'text', icon: PenLine },
+    { key: 'employment', label: 'Employment', type: 'text', icon: CalendarClock },
+    { key: 'loginValidity', label: 'Date range of login validity', type: 'text', icon: CalendarClock },
+    { key: 'dateOfBirth', label: 'Date of birth', type: 'date', icon: CalendarClock },
+  ]
+
+  const steps = [
+    { title: 'Identity', fields: IDENTITY_FIELDS },
+    { title: 'Work profile', fields: WORK_FIELDS },
+    { title: 'Links', fields: [] as FieldSpec[] },
+  ]
+  const isLastStep = step === steps.length - 1
 
   function handleSubmit() {
     setFormError('')
-    if (!login.trim() || !firstname.trim() || !lastname.trim()) {
-      setFormError('Login, first name, and last name are required.')
+    if (!values.firstName.trim() || !values.lastName.trim()) {
+      setFormError('First name and last name are required.')
+      setStep(0)
+      return
+    }
+    if (!values.designation.trim()) {
+      setFormError('Designation is required.')
+      setStep(0)
       return
     }
     setPending(true)
-    createUser({ login: login.trim(), firstname, lastname, email, phone, gender, designation, isAdmin, isPos, isKot })
+    createUser({
+      login: deriveLogin(values.firstName, values.lastName),
+      firstname: values.firstName,
+      lastname: values.lastName,
+      email: values.email,
+      phone: values.mobile,
+      gender: values.gender,
+      designation: values.designation,
+      isAdmin: values.isAdmin === 'Yes',
+    })
     setPending(false)
     navigate(ROUTES.usersDashboard)
   }
 
   return (
     <StickyFormShell
+      headerClassName="pt-1.5 pb-2.5"
       header={
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <UserRound size={20} className="text-brand" /> New User
-        </h2>
+        <>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center justify-center w-11 h-10 rounded-xl bg-brand/10 text-brand shrink-0">
+              <UserRound size={22} />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-text!">New User</h2>
+              <p className="text-xs text-text-faint">Create an internal user in your company/organization.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            {steps.map((s, i) => {
+              const StepIcon = STEP_ICONS[i]
+              const isDone = i < step
+              const isActive = i === step
+              return (
+                <div key={s.title} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : ''}`}>
+                  <button type="button" onClick={() => setStep(i)} title={s.title} className="flex flex-col items-center gap-2 group">
+                    <span
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        isDone
+                          ? 'bg-success border-success text-white'
+                          : isActive
+                            ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
+                            : 'bg-surface border-border text-text-faint group-hover:border-brand/40 group-hover:text-brand'
+                      }`}
+                    >
+                      {isDone ? <Check size={16} /> : <StepIcon size={16} />}
+                    </span>
+                    <span className={`hidden sm:block text-xs whitespace-nowrap ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
+                  </button>
+                  {i < steps.length - 1 && <div className={`h-0.5 flex-1 mx-2 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
+                </div>
+              )
+            })}
+          </div>
+        </>
       }
       footerLeft={
-        <Link to={ROUTES.usersDashboard} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+        <Link to={ROUTES.usersDashboard} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text hover:bg-surface-hover transition-colors">
           <X size={14} /> Cancel
         </Link>
       }
       footerRight={
-        <button
-          type="button"
-          disabled={pending}
-          onClick={handleSubmit}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create user
-        </button>
+        <>
+          {step > 0 && (
+            <button
+              type="button"
+              onClick={() => setStep((s) => s - 1)}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+            >
+              <ChevronLeft size={14} /> Back
+            </button>
+          )}
+          {isLastStep ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleSubmit}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 transition-colors"
+            >
+              {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create user
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setStep((s) => s + 1)}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover transition-colors"
+            >
+              Continue <ChevronRight size={14} />
+            </button>
+          )}
+        </>
       }
     >
-      <Card className="flex-1">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-          <SectionHeading>Identity</SectionHeading>
-          <Field label="Title">
-            <select value={title} onChange={(e) => setTitle(e.target.value)} className={inputClasses}>
-              <option value="">Select a title</option>
-              <option value="Mr">Mr</option>
-              <option value="Mrs">Mrs</option>
-              <option value="Ms">Ms</option>
-              <option value="Dr">Dr</option>
-            </select>
-          </Field>
-          <Field label="First name" required>
-            <input type="text" value={firstname} onChange={(e) => setFirstname(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Last name" required>
-            <input type="text" value={lastname} onChange={(e) => setLastname(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Login" required>
-            <input type="text" value={login} onChange={(e) => setLogin(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Gender">
-            <select value={gender} onChange={(e) => setGender(e.target.value)} className={inputClasses}>
-              <option value="">Not specified</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-          </Field>
-          <Field label="Designation">
-            <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} className={inputClasses} placeholder="e.g. Cashier, Accountant" />
-          </Field>
-
-          <SectionHeading>Access</SectionHeading>
-          <Field label="Admin access">
-            <select value={isAdmin ? 'Yes' : 'No'} onChange={(e) => setIsAdmin(e.target.value === 'Yes')} className={inputClasses}>
-              <option value="No">No</option>
-              <option value="Yes">Yes</option>
-            </select>
-          </Field>
-          <Field label="Employee">
-            <select value={isEmployee ? 'Yes' : 'No'} onChange={(e) => setIsEmployee(e.target.value === 'Yes')} className={inputClasses}>
-              <option value="No">No</option>
-              <option value="Yes">Yes</option>
-            </select>
-          </Field>
-          <div className="flex flex-col gap-1">
-            <span className="text-sm text-text">POS/KOT User Token</span>
-            <div className="flex items-center gap-4 h-[38px]">
-              <label className="flex items-center gap-1.5 text-sm text-text-muted">
-                <input type="checkbox" checked={isPos} onChange={(e) => setIsPos(e.target.checked)} className="rounded border-input-border text-brand focus:ring-brand/30" />
-                POS User
-              </label>
-              <label className="flex items-center gap-1.5 text-sm text-text-muted">
-                <input type="checkbox" checked={isKot} onChange={(e) => setIsKot(e.target.checked)} className="rounded border-input-border text-brand focus:ring-brand/30" />
-                KOT User
-              </label>
-            </div>
-          </div>
-          <Field label="Key for API">
-            <div className="flex items-center gap-2">
-              <input type="text" readOnly value={apiKey} className={`${inputClasses} font-mono text-xs`} />
-              <button type="button" onClick={() => setApiKey(randomApiKey())} title="Regenerate" className="shrink-0 p-2 rounded-md border border-input-border text-text-muted hover:bg-surface-hover">
-                <RefreshCcw size={14} />
-              </button>
-            </div>
-          </Field>
-
-          <SectionHeading>Work profile</SectionHeading>
-          <Field label="Supervisor">
-            <input type="text" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className={inputClasses} placeholder="Select a user" />
-          </Field>
-          <Field label="Employee Id">
-            <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Time Sheet Device">
-            <input type="text" value={timeSheetDevice} onChange={(e) => setTimeSheetDevice(e.target.value)} className={inputClasses} placeholder="Select a device" />
-          </Field>
-
-          <SectionHeading>Contact</SectionHeading>
-          <Field label="Email">
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Phone">
-            <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Tpin/Aadhar">
-            <input type="text" value={tpin} onChange={(e) => setTpin(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Address">
-            <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="City">
-            <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Zip Code">
-            <input type="text" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className={inputClasses} />
-          </Field>
-          <Field label="Country">
-            <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} className={inputClasses} placeholder="Select country" />
-          </Field>
-          <Field label="State/Province">
-            <input type="text" value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} className={inputClasses} />
-          </Field>
-        </div>
+      <Card className="!h-auto flex-1 min-h-0">
+        {step === 2 ? (
+          <SocialLinksStep values={values} onChange={setField} />
+        ) : (
+          <StepFields
+            fields={steps[step].fields}
+            values={values}
+            setValues={setValues}
+            renderField={(field) => {
+              switch (field.key) {
+                case 'posKotToken':
+                  return (
+                    <PosKotField
+                      key={field.key}
+                      isPos={isPos}
+                      isKot={isKot}
+                      onChange={({ isPos: p, isKot: k }) => {
+                        setIsPos(p)
+                        setIsKot(k)
+                      }}
+                    />
+                  )
+                case 'apiKey':
+                  return <ApiKeyField key={field.key} value={apiKey} onRegenerate={() => setApiKey(randomApiKey())} />
+                case 'userColor':
+                  return <ColorField key={field.key} value={userColor} onChange={setUserColor} />
+                case 'employment':
+                  return (
+                    <DateRangeField
+                      key={field.key}
+                      label="Employment"
+                      icon={CalendarClock}
+                      from={employmentFrom}
+                      to={employmentTo}
+                      onFromChange={setEmploymentFrom}
+                      onToChange={setEmploymentTo}
+                    />
+                  )
+                case 'loginValidity':
+                  return (
+                    <DateRangeField
+                      key={field.key}
+                      label="Date range of login validity"
+                      icon={CalendarClock}
+                      from={loginValidityFrom}
+                      to={loginValidityTo}
+                      onFromChange={setLoginValidityFrom}
+                      onToChange={setLoginValidityTo}
+                    />
+                  )
+                default:
+                  return undefined
+              }
+            }}
+          />
+        )}
       </Card>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}

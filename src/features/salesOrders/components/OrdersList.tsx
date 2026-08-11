@@ -4,6 +4,7 @@ import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Searc
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Avatar } from '../../../shared/components/Avatar'
 import { formatMoney } from '../../../utils/format'
 import type { OrderRow, SalesOrdersSummary } from '../salesOrders.queries'
@@ -44,6 +45,25 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
   function handlePerPageChange(value: number) {
     setPerPage(value)
     setPage(1)
+  }
+
+  function getExportData() {
+    const rows = filteredOrders.map((o) => [
+      o.ref,
+      o.refCustomer,
+      o.projectRef,
+      o.thirdParty,
+      o.city,
+      o.zipCode,
+      o.orderDate,
+      o.plannedDelivery,
+      `${formatMoney(o.amountExclTax)} ZMW`,
+      o.author,
+      o.shippable ? 'Yes' : 'No',
+      o.billed ? 'Yes' : 'No',
+      o.status,
+    ])
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -121,7 +141,7 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
                 </option>
               ))}
             </select>
-            <div className="relative flex-1 min-w-48">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -131,6 +151,7 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="Orders" getExportData={getExportData} />
             <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
               <CalendarDays size={14} />
             </button>

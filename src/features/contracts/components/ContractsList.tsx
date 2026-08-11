@@ -4,6 +4,7 @@ import { FileEdit, Plus, FileCheck2, PlayCircle, TriangleAlert, MessagesSquare, 
 import { ROUTES } from '../../../routes'
 import { Card, TwoValueStatCard } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import type { ContractRow, ContractsSummary } from '../contracts.queries'
 
 const COLUMNS = ['Ref.', 'Ref. Customer', 'Ref. Vendor', 'Third-Party', 'Sales Representatives Of Third Party', 'Contract Date', 'End Date Of Active Services', 'Not Running', 'In Progress', 'Expired', 'Closed']
@@ -33,6 +34,23 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
   function handlePerPageChange(value: number) {
     setPerPage(value)
     setPage(1)
+  }
+
+  function getExportData() {
+    const rows = filteredContracts.map((c) => [
+      c.ref,
+      c.refCustomer,
+      c.refVendor,
+      c.thirdParty,
+      c.salesRep,
+      c.contractDate,
+      c.endDateOfServices,
+      dash(c.notRunning),
+      dash(c.inProgress),
+      dash(c.expired),
+      dash(c.closed),
+    ])
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -68,7 +86,7 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
                 </option>
               ))}
             </select>
-            <div className="relative flex-1 min-w-48">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -78,6 +96,7 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="Contracts" getExportData={getExportData} />
             <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
               <CalendarDays size={14} />
             </button>

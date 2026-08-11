@@ -4,6 +4,7 @@ import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
 import type { QuotationRow, QuotationsSummary } from '../quotations.queries'
 
@@ -32,6 +33,24 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   function handlePerPageChange(value: number) {
     setPerPage(value)
     setPage(1)
+  }
+
+  function getExportData() {
+    const rows = filteredQuotations.map((q) => [
+      q.ref,
+      q.refCustomer,
+      q.projectRef,
+      q.thirdParty,
+      q.city,
+      q.zipCode,
+      q.date,
+      q.endDate,
+      `${formatMoney(q.amountExclTax)} ZMW`,
+      q.author,
+      q.salesRep,
+      q.status,
+    ])
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -96,7 +115,7 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
                 </option>
               ))}
             </select>
-            <div className="relative flex-1 min-w-48">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -106,6 +125,7 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="List Of Quotations" getExportData={getExportData} />
             <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
               <CalendarDays size={14} />
             </button>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Box, Package, Wrench, Search } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
 import type { ProductRow, ProductsSummary } from '../products.queries'
 
@@ -24,6 +25,20 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   function handleSearchChange(value: string) {
     setSearch(value)
     setPage(1)
+  }
+
+  function getExportData() {
+    const rows = filteredProducts.map((p) => [
+      p.ref,
+      p.label,
+      `${formatMoney(p.priceExclTax)} ${summary.currency}`,
+      `${formatMoney(p.priceInclTax)} ${summary.currency}`,
+      p.vatRate,
+      String(p.stock),
+      p.type === 'service' ? 'Service' : 'Product',
+      p.barcode,
+    ])
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -59,7 +74,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-            <div className="relative w-64">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -69,6 +84,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="Product List" getExportData={getExportData} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentType, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -7,7 +7,6 @@ import {
   X,
   LoaderCircle,
   TriangleAlert,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Contact,
@@ -46,47 +45,14 @@ import {
   ScanLine,
   Paperclip,
   Share2,
-  Camera,
-  Ghost,
-  Play,
-  Code2,
-  MessageCircle,
-  Search,
 } from 'lucide-react'
-import { Card, ICON_STYLES } from '../dashboard/DashboardKit'
+import { Card } from '../dashboard/DashboardKit'
 import { StickyFormShell } from '../layout/StickyFormShell'
+import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
+import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
 import { api } from '../../../api/axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
-
-type IconType = ComponentType<{ size?: number; className?: string }>
-
-interface FieldSpec {
-  key: string
-  label: string
-  type: 'text' | 'select' | 'file' | 'name'
-  options?: string[]
-  defaultValue?: string
-  required?: boolean
-  icon?: IconType
-  section?: string
-  // Overrides the auto-generated "Select {label}" empty-option text — the
-  // reference Dolibarr wizard (societe/card.php) reads "Select a group" for
-  // Customer Group specifically, not "Select customer group".
-  placeholder?: string
-  // Renders a filterable combobox instead of a native <select> — the
-  // reference wizard's Prospect/Customer, Country, and Currency pickers are
-  // all searchable, unlike its plain dropdowns (Vendor, Status, ...).
-  searchable?: boolean
-  // Live format check, run against the trimmed value; returns an error
-  // string or null. Only shown once the field is non-empty, so it never
-  // nags an untouched field.
-  validate?: (value: string) => string | null
-  // Restricts keystrokes to digits only (e.g. Tpin) — stripped on every
-  // change rather than merely flagged after the fact by `validate`.
-  digitsOnly?: boolean
-  maxLength?: number
-}
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 
@@ -197,97 +163,7 @@ const STEP2_FIELDS: FieldSpec[] = [
   { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
 ]
 
-const STEP3_FIELDS: FieldSpec[] = [
-  { key: 'facebook', label: 'Facebook', type: 'text' },
-  { key: 'skype', label: 'Skype', type: 'text' },
-  { key: 'twitter', label: 'Twitter', type: 'text' },
-  { key: 'linkedin', label: 'LinkedIn', type: 'text' },
-  { key: 'instagram', label: 'Instagram', type: 'text' },
-  { key: 'snapchat', label: 'Snapchat', type: 'text' },
-  { key: 'googlePlus', label: 'GooglePlus', type: 'text' },
-  { key: 'youtube', label: 'Youtube', type: 'text' },
-  { key: 'whatsapp', label: 'Whatsapp', type: 'text' },
-  { key: 'diaspora', label: 'Diaspora', type: 'text' },
-  { key: 'viber', label: 'Viber', type: 'text' },
-  { key: 'github', label: 'Github', type: 'text' },
-]
-
-// lucide-react ships no brand/logo icons (removed project-wide for
-// trademark reasons), so social platforms get a colored letter/glyph badge
-// instead — closest available stand-in for brand recognition.
-const SOCIAL_META: Record<string, { badge?: string; icon?: IconType; className: string }> = {
-  facebook: { badge: 'f', className: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' },
-  linkedin: { badge: 'in', className: 'bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400' },
-  twitter: { badge: 'X', className: 'bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300' },
-  skype: { icon: Phone, className: ICON_STYLES.cyan },
-  instagram: { icon: Camera, className: ICON_STYLES.rose },
-  snapchat: { icon: Ghost, className: ICON_STYLES.amber },
-  googlePlus: { badge: 'G+', className: 'bg-red-50 text-red-500 dark:bg-red-500/15 dark:text-red-400' },
-  youtube: { icon: Play, className: 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' },
-  whatsapp: { icon: MessageCircle, className: ICON_STYLES.green },
-  diaspora: { icon: Share2, className: ICON_STYLES.indigo },
-  viber: { icon: Phone, className: ICON_STYLES.violet },
-  github: { icon: Code2, className: 'bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-gray-300' },
-}
-
 const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
-
-const inputClasses =
-  'w-full text-sm rounded-lg border border-input-border bg-input-bg text-text px-2.5 py-1.5 transition-shadow focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand'
-
-function Field({ field, value, onChange }: { field: FieldSpec; value: string; onChange: (value: string) => void }) {
-  const Icon = field.icon
-  // Only runs once the field is non-empty, so an untouched required field
-  // doesn't get nagged with a format error before the user's typed anything.
-  const error = field.validate && value.trim() ? field.validate(value.trim()) : null
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-muted">
-        {field.label}
-        {field.required && <span className="text-danger ml-0.5">*</span>}
-      </span>
-      <div className="relative flex items-center">
-        {Icon && <Icon size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />}
-        {field.type === 'select' ? (
-          <>
-            <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClasses} ${Icon ? 'pl-9' : ''} appearance-none pr-9`}>
-              {!value && <option value="">{field.placeholder ?? `Select ${field.label.toLowerCase()}`}</option>}
-              {field.options?.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-faint" />
-          </>
-        ) : field.type === 'file' ? (
-          // No upload endpoint confirmed on the backend — stays visual-only.
-          <input
-            type="file"
-            disabled
-            className={`${inputClasses} ${Icon ? 'pl-9' : ''} file:mr-3 file:rounded-md file:border-0 file:bg-surface-hover file:px-2.5 file:py-1 file:text-xs`}
-          />
-        ) : (
-          <input
-            type="text"
-            inputMode={field.digitsOnly ? 'numeric' : undefined}
-            maxLength={field.maxLength}
-            value={value}
-            onChange={(e) => {
-              const raw = field.digitsOnly ? e.target.value.replace(/\D/g, '') : e.target.value
-              onChange(field.maxLength ? raw.slice(0, field.maxLength) : raw)
-            }}
-            className={`${inputClasses} ${Icon ? 'pl-9' : ''} ${error ? 'border-danger focus:border-danger focus:ring-danger/30' : ''}`}
-          />
-        )}
-      </div>
-      {/* Reserves its line whether or not `error` is currently set, so a
-          validated field (e.g. Tpin) doesn't shift the grid row below it
-          every time the message appears/disappears mid-typing. */}
-      {field.validate && <span className="block min-h-[14px] text-xs text-danger">{error}</span>}
-    </label>
-  )
-}
 
 // Matches the reference wizard's compound Title + First Name + Last Name
 // row — the two name parts are joined into `values.name` on every keystroke
@@ -348,82 +224,6 @@ function NameField({
   )
 }
 
-function SocialField({ field, value, onChange }: { field: FieldSpec; value: string; onChange: (value: string) => void }) {
-  const meta = SOCIAL_META[field.key]
-  const BadgeIcon = meta?.icon
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-muted">{field.label}</span>
-      <div className="flex items-center gap-2.5 w-full rounded-lg border border-input-border bg-input-bg pl-1.5 pr-3 py-1.5 transition-shadow focus-within:outline-none focus-within:ring-2 focus-within:ring-brand/30 focus-within:border-brand">
-        <span className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold ${meta?.className ?? 'bg-surface-hover text-text-muted'}`}>
-          {BadgeIcon ? <BadgeIcon size={14} /> : meta?.badge}
-        </span>
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={`${field.label} username or link`}
-          className="w-full bg-transparent text-sm text-text placeholder:text-text-faint focus:outline-none"
-        />
-      </div>
-    </label>
-  )
-}
-
-// Groups a step's fields under their `section` heading, preserving first-seen
-// section order — purely a display grouping, doesn't touch submitted values.
-function groupFields(fields: FieldSpec[]): { section: string; fields: FieldSpec[] }[] {
-  const order: string[] = []
-  const bySection = new Map<string, FieldSpec[]>()
-  for (const field of fields) {
-    const section = field.section ?? ''
-    if (!bySection.has(section)) {
-      bySection.set(section, [])
-      order.push(section)
-    }
-    bySection.get(section)!.push(field)
-  }
-  return order.map((section) => ({ section, fields: bySection.get(section)! }))
-}
-
-function StepFields({
-  fields,
-  values,
-  setValues,
-}: {
-  fields: FieldSpec[]
-  values: Record<string, string>
-  setValues: Dispatch<SetStateAction<Record<string, string>>>
-}) {
-  const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
-  return (
-    <div className="space-y-6">
-      {groupFields(fields).map(({ section, fields: sectionFields }) => {
-        const SectionIcon = SECTION_ICONS[section]
-        return (
-          <div key={section || 'default'}>
-            {section && (
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
-                {SectionIcon && <SectionIcon size={14} className="text-brand" />}
-                <h4 className="text-xs font-semibold text-text-faint uppercase tracking-wide">{section}</h4>
-              </div>
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-4">
-              {sectionFields.map((field) =>
-                field.type === 'name' ? (
-                  <NameField key={field.key} values={values} setValues={setValues} required={field.required} />
-                ) : (
-                  <Field key={field.key} field={field} value={values[field.key]} onChange={setField(field.key)} />
-                ),
-              )}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 interface CreateThirdPartyResponse {
   success: boolean
   error?: string
@@ -435,15 +235,18 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const steps = [
     { title: 'Setup basic details', fields: buildStep1(variant) },
     { title: 'Add professional info', fields: STEP2_FIELDS },
-    { title: 'Add social links', fields: STEP3_FIELDS },
+    { title: 'Add social links', fields: [] as FieldSpec[] },
   ]
 
   const [values, setValues] = useState<Record<string, string>>(() => {
     // firstName/lastName/nameTitle back the compound NameField below; `name`
     // itself is kept in sync as their combined value on every keystroke.
     const init: Record<string, string> = { firstName: '', lastName: '', nameTitle: 'Mr' }
-    for (const f of [...buildStep1(variant), ...STEP2_FIELDS, ...STEP3_FIELDS]) {
+    for (const f of [...buildStep1(variant), ...STEP2_FIELDS]) {
       init[f.key] = f.defaultValue ?? ''
+    }
+    for (const f of SOCIAL_LINK_FIELDS) {
+      init[f.key] = ''
     }
     return init
   })
@@ -620,22 +423,15 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
           stick early and cover the last couple of rows. */}
       <Card className="!h-auto flex-1 min-h-0">
         {step === 2 ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-2 pb-2 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Share2 size={14} className="text-brand" />
-                <h4 className="text-xs font-semibold text-text-faint uppercase tracking-wide">Social Profiles</h4>
-              </div>
-              <span className="text-xs text-text-faint">All fields optional</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-4">
-              {STEP3_FIELDS.map((field) => (
-                <SocialField key={field.key} field={field} value={values[field.key]} onChange={setField(field.key)} />
-              ))}
-            </div>
-          </div>
+          <SocialLinksStep values={values} onChange={setField} />
         ) : (
-          <StepFields fields={steps[step].fields} values={values} setValues={setValues} />
+          <StepFields
+            fields={steps[step].fields}
+            values={values}
+            setValues={setValues}
+            sectionIcons={SECTION_ICONS}
+            renderField={(field) => (field.type === 'name' ? <NameField key={field.key} values={values} setValues={setValues} required={field.required} /> : undefined)}
+          />
         )}
       </Card>
 

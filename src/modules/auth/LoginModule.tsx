@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type SubmitEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { isAxiosError } from 'axios'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useEntities } from '../../features/settings/settings.queries'
 import logo from '../../assets/Ecuenta_logo.png'
@@ -185,8 +186,21 @@ export function LoginModule() {
     try {
       await login({ login: username, password, entity: masterEntity })
       navigate('/dashboard', { replace: true })
-    } catch {
-      setError('Invalid login or password.')
+    } catch (err) {
+      // An AxiosError with no `response` means the browser never got a
+      // response back at all (CORS block, DNS failure, backend down, ...) —
+      // not the backend actually rejecting the credentials. Reporting that
+      // as "Invalid login or password" is actively misleading (confirmed
+      // live: login itself was succeeding, but the very next call, GET
+      // /api/user/, was CORS-blocked, and this catch-all made that look
+      // like a wrong password). Login/fetchMe throwing a plain Error (with
+      // a message) means the backend did respond and reject it — surface
+      // its actual message when there is one.
+      if (isAxiosError(err) && !err.response) {
+        setError('Unable to reach the server. This may be a network or server configuration issue — please try again shortly.')
+      } else {
+        setError(err instanceof Error && err.message ? err.message : 'Invalid login or password.')
+      }
     } finally {
       setSubmitting(false)
     }

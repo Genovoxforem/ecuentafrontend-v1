@@ -4,6 +4,7 @@ import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
 import type { SupplierProposalRow, SupplierProposalsSummary } from '../supplierProposals.queries'
 
@@ -32,6 +33,20 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
   function handlePerPageChange(value: number) {
     setPerPage(value)
     setPage(1)
+  }
+
+  function getExportData() {
+    const rows = filteredProposals.map((p) => [
+      p.ref,
+      p.thirdParty,
+      p.validationDate,
+      p.plannedDelivery,
+      `${formatMoney(p.amountExclTax)} ZMW`,
+      `${formatMoney(p.amountInclTax)} ZMW`,
+      p.author,
+      p.status,
+    ])
+    return { headers: COLUMNS, rows }
   }
 
   return (
@@ -94,7 +109,7 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
                 </option>
               ))}
             </select>
-            <div className="relative w-64">
+            <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -104,6 +119,7 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <TableExportButtons title="Vendor Quotation" getExportData={getExportData} />
             <button type="button" disabled title="Not built yet" className="flex items-center gap-1.5 rounded-md border border-input-border bg-input-bg px-3 py-1.5 text-sm text-text-muted cursor-default ml-auto">
               <CalendarDays size={14} /> Select Date Range
             </button>
