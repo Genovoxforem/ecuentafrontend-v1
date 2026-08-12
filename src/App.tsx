@@ -46,6 +46,7 @@ const PurchasesModule = lazy(() => import('./modules/purchases/PurchasesModule')
 const WarehousesModule = lazy(() => import('./modules/warehouses/WarehousesModule').then((m) => ({ default: m.WarehousesModule })))
 const PayrollModule = lazy(() => import('./modules/payroll/PayrollModule').then((m) => ({ default: m.PayrollModule })))
 const LedgerModule = lazy(() => import('./modules/ledger/LedgerModule').then((m) => ({ default: m.LedgerModule })))
+const JournalsModule = lazy(() => import('./modules/ledger/JournalsModule').then((m) => ({ default: m.JournalsModule })))
 const KitchenModule = lazy(() => import('./modules/kitchen/KitchenModule').then((m) => ({ default: m.KitchenModule })))
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
 const UsersDashboardModule = lazy(() => import('./modules/usersDashboard/UsersDashboardModule').then((m) => ({ default: m.UsersDashboardModule })))
@@ -80,6 +81,17 @@ const SupplierProposalsListModule = lazy(() => import('./modules/supplierProposa
 const SupplierProposalCreateModule = lazy(() => import('./modules/supplierProposals/SupplierProposalCreateModule').then((m) => ({ default: m.SupplierProposalCreateModule })))
 const ProductsListModule = lazy(() => import('./modules/products/ProductsListModule').then((m) => ({ default: m.ProductsListModule })))
 const ServicesListModule = lazy(() => import('./modules/products/ServicesListModule').then((m) => ({ default: m.ServicesListModule })))
+const ProductAreaModule = lazy(() => import('./modules/products/ProductAreaModule').then((m) => ({ default: m.ProductAreaModule })))
+const ProductCreateModule = lazy(() => import('./modules/products/ProductCreateModule').then((m) => ({ default: m.ProductCreateModule })))
+const ServiceCreateModule = lazy(() => import('./modules/products/ServiceCreateModule').then((m) => ({ default: m.ServiceCreateModule })))
+const ProductStatisticsModule = lazy(() => import('./modules/products/ProductStatisticsModule').then((m) => ({ default: m.ProductStatisticsModule })))
+const ServiceStatisticsModule = lazy(() => import('./modules/products/ServiceStatisticsModule').then((m) => ({ default: m.ServiceStatisticsModule })))
+const ProductStocksModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductStocksModule })))
+const ProductStocksByLotModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductStocksByLotModule })))
+const LotsSerialsModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.LotsSerialsModule })))
+const VariantAttributesModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.VariantAttributesModule })))
+const ProductPriceListModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductPriceListModule })))
+const ProductTagsModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductTagsModule })))
 const AgendaModule = lazy(() => import('./modules/agenda/AgendaModule').then((m) => ({ default: m.AgendaModule })))
 
 const PosLayout = lazy(() => import('./pos/layouts/DashboardLayout'))
@@ -146,6 +158,7 @@ function App() {
                   <Route path={ROUTES.warehouseDashboard} element={<RouteBoundary><WarehousesModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollDashboard} element={<RouteBoundary><PayrollModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerDashboard} element={<RouteBoundary><LedgerModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ledgerList} element={<RouteBoundary><JournalsModule /></RouteBoundary>} />
                   <Route path={ROUTES.kitchenDashboard} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
                   <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
                   <Route path={ROUTES.usersDashboard} element={<RouteBoundary><UsersDashboardModule /></RouteBoundary>} />
@@ -181,6 +194,17 @@ function App() {
                   <Route path={ROUTES.supplierProposalCreate} element={<RouteBoundary><SupplierProposalCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.productList} element={<RouteBoundary><ProductsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.serviceList} element={<RouteBoundary><ServicesListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productArea} element={<RouteBoundary><ProductAreaModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productCreate} element={<RouteBoundary><ProductCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.serviceCreate} element={<RouteBoundary><ServiceCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productStats} element={<RouteBoundary><ProductStatisticsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.serviceStats} element={<RouteBoundary><ServiceStatisticsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productStocks} element={<RouteBoundary><ProductStocksModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productStocksByLot} element={<RouteBoundary><ProductStocksByLotModule /></RouteBoundary>} />
+                  <Route path={ROUTES.lotsSerials} element={<RouteBoundary><LotsSerialsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.variantAttributes} element={<RouteBoundary><VariantAttributesModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productPriceList} element={<RouteBoundary><ProductPriceListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productTags} element={<RouteBoundary><ProductTagsModule /></RouteBoundary>} />
                   <Route path={ROUTES.agenda} element={<RouteBoundary><AgendaModule /></RouteBoundary>} />
                   <Route path="/reports" element={<RouteBoundary><ReportsModule /></RouteBoundary>} />
                   <Route path="/settings" element={<RouteBoundary><SettingsModule /></RouteBoundary>} />

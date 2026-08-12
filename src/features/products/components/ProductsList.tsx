@@ -1,12 +1,19 @@
 import { useMemo, useState } from 'react'
-import { Box, Package, Wrench, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Box, Package, Wrench, Search, Plus } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
-import type { ProductRow, ProductsSummary } from '../products.queries'
+import { ROUTES } from '../../../routes'
+import { useAllProductsRich, type ProductRow, type ProductsSummary, type RichProductRow } from '../products.queries'
+import { ProductAvatar } from './ProductAvatar'
 
-const COLUMNS = ['Ref', 'Label', 'Price (Excl. Tax)', 'Price (Incl. Tax)', 'VAT', 'Stock', 'Type', 'Barcode']
+// Extra columns beyond the base /api/products/ fields mirror the legacy
+// "All Products" report (product/allproducts.php) — see useAllProductsRich.
+// Best-effort enrichment: falls back to "—" per row when that fetch hasn't
+// resolved yet or a ref isn't found in it, rather than blocking the table.
+const COLUMNS = ['Ref', 'Label', 'Category', 'Price (Excl. Tax)', 'Price (Incl. Tax)', 'VAT', 'Stock', 'ZRA Status', 'Lot Status', 'Country', 'Created']
 const PER_PAGE = 15
 
 function matchesSearch(product: ProductRow, query: string) {
@@ -15,9 +22,28 @@ function matchesSearch(product: ProductRow, query: string) {
   return [product.ref, product.label, product.barcode].some((field) => field.toLowerCase().includes(q))
 }
 
+function RichCell({ value }: { value: string | undefined }) {
+  return <span className={value ? undefined : 'text-text-faint'}>{value || '—'}</span>
+}
+
+function StatusBadge({ value }: { value: string | undefined }) {
+  if (!value) return <span className="text-text-faint">—</span>
+  const isPositive = /succeeded|lot/i.test(value) && !/disabled/i.test(value)
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${isPositive ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>{value}</span>
+  )
+}
+
 export function ProductsList({ summary }: { summary: ProductsSummary }) {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const { data: richRows } = useAllProductsRich(0)
+
+  const richByRef = useMemo(() => {
+    const map = new Map<string, RichProductRow>()
+    richRows?.forEach((r) => map.set(r.ref, r))
+    return map
+  }, [richRows])
 
   const filteredProducts = useMemo(() => summary.products.filter((p) => matchesSearch(p, search)), [summary.products, search])
   const pageProducts = filteredProducts.slice((page - 1) * PER_PAGE, page * PER_PAGE)
@@ -28,16 +54,22 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   }
 
   function getExportData() {
-    const rows = filteredProducts.map((p) => [
-      p.ref,
-      p.label,
-      `${formatMoney(p.priceExclTax)} ${summary.currency}`,
-      `${formatMoney(p.priceInclTax)} ${summary.currency}`,
-      p.vatRate,
-      String(p.stock),
-      p.type === 'service' ? 'Service' : 'Product',
-      p.barcode,
-    ])
+    const rows = filteredProducts.map((p) => {
+      const rich = richByRef.get(p.ref)
+      return [
+        p.ref,
+        p.label,
+        rich?.category ?? '',
+        `${formatMoney(p.priceExclTax)} ${summary.currency}`,
+        `${formatMoney(p.priceInclTax)} ${summary.currency}`,
+        p.vatRate,
+        String(p.stock),
+        rich?.zraStatus ?? '',
+        rich?.lotStatus ?? '',
+        rich?.country ?? '',
+        rich?.createdDate ?? '',
+      ]
+    })
     return { headers: COLUMNS, rows }
   }
 
@@ -48,6 +80,9 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Box size={20} className="text-brand" /> Product List
         </h2>
+        <Link to={ROUTES.productCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          <Plus size={14} /> New
+        </Link>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
@@ -111,22 +146,52 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                     </td>
                   </tr>
                 ) : (
-                  pageProducts.map((p) => (
-                    <tr key={p.ref} className="border-b border-border">
-                      <td className="px-4 py-3 text-brand">{p.ref}</td>
-                      <td className="px-4 py-3 text-text!">{p.label}</td>
-                      <td className="px-4 py-3 text-text-muted text-right tabular-nums">{formatMoney(p.priceExclTax)} {summary.currency}</td>
-                      <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(p.priceInclTax)} {summary.currency}</td>
-                      <td className="px-4 py-3 text-text-muted">{p.vatRate}</td>
-                      <td className="px-4 py-3 text-text-muted text-right tabular-nums">{p.stock}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${p.type === 'service' ? 'bg-info-bg text-info-fg' : 'bg-success-bg text-success-fg'}`}>
-                          {p.type === 'service' ? 'Service' : 'Product'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-text-muted">{p.barcode}</td>
-                    </tr>
-                  ))
+                  pageProducts.map((p) => {
+                    const rich = richByRef.get(p.ref)
+                    return (
+                      <tr key={p.ref} className="border-b border-border">
+                        <td className="px-4 py-3 text-brand">{p.ref}</td>
+                        <td className="px-4 py-3 text-text!">
+                          <span className="flex items-center gap-2">
+                            <ProductAvatar bg={rich?.avatarBg} color={rich?.avatarColor} />
+                            {p.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-text-muted">
+                          <RichCell value={rich?.category} />
+                        </td>
+                        <td className="px-4 py-3 text-text-muted text-right tabular-nums">{formatMoney(p.priceExclTax)} {summary.currency}</td>
+                        <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(p.priceInclTax)} {summary.currency}</td>
+                        <td className="px-4 py-3 text-text-muted">{p.vatRate}</td>
+                        <td className="px-4 py-3 text-text-muted text-right tabular-nums whitespace-nowrap">
+                          {rich ? (
+                            <span className="inline-flex flex-col items-end leading-tight">
+                              <span className={rich.stockPhysical > 0 ? 'text-success font-medium' : 'text-warning-fg font-medium'}>{rich.stockPhysical}</span>
+                              {(rich.stockDesired > 0 || rich.stockReserved > 0) && (
+                                <span className="text-[10px] text-text-faint">
+                                  D:{rich.stockDesired} R:{rich.stockReserved}
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            p.stock
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge value={rich?.zraStatus} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge value={rich?.lotStatus} />
+                        </td>
+                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                          <RichCell value={rich?.country} />
+                        </td>
+                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                          <RichCell value={rich?.createdDate} />
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>

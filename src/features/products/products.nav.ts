@@ -24,7 +24,7 @@ export const nav: NavSection = {
     {
       label: 'Services',
       items: [
-        { label: 'Services Area' },
+        { label: 'Services Area', path: ROUTES.productArea },
         { label: 'New Service', path: ROUTES.serviceCreate },
         { label: 'Service List', path: ROUTES.serviceList },
         { label: 'Service Statistics', path: ROUTES.serviceStats },

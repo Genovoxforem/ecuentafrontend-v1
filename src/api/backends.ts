@@ -8,13 +8,14 @@ export const BACKEND_URLS = {
   demoV2: 'https://demov2.ecuenta.app',
   demo1: 'https://demo1.ecuenta.online',
   live: 'http://192.168.1.10',
+  demo2: 'https://demo2.ecuenta.online',
 } as const
 
 export type BackendName = keyof typeof BACKEND_URLS
 
 // Falls back here if VITE_ACTIVE_BACKEND is unset or names something not in
 // BACKEND_URLS above.
-export const DEFAULT_BACKEND: BackendName = 'demo1'
+export const DEFAULT_BACKEND: BackendName = 'demo2'
 
 export function resolveActiveBackend(raw: string | undefined): BackendName {
   return raw !== undefined && raw in BACKEND_URLS ? (raw as BackendName) : DEFAULT_BACKEND

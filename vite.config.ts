@@ -18,7 +18,7 @@ const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
 // Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
 // one list so the dev proxy below and the generated production .htaccess
 // (see htaccessPlugin) can never drift apart from each other.
-const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php'] as const
+const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants'] as const
 
 // Production deploys this build's dist/ output onto the backend's own
 // origin (e.g. https://demo1.ecuenta.online), alongside its existing PHP
@@ -103,6 +103,23 @@ export default defineConfig({
       // app has no route of its own at this path, so carving it out here is
       // safe the same way '/custom' and '/takeposnew' already are.
       '^/index\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Legacy accounting/bookkeeping reports (Ledger, Journals) have no
+      // REST API — generalLedger.queries.ts fetches these PHP-rendered pages
+      // directly (same-origin, DOLSESSID-cookie-authenticated via
+      // legacySession.ts) and parses the HTML client-side. See
+      // ledgerHtmlParser.ts.
+      '/accountancy': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Warehouse stats (Shipments/Receptions/Inventories/Reservations
+      // counts) have no REST API either — same client-side scrape pattern,
+      // see warehouseHtmlParser.ts. Regex-anchored for the same reason as
+      // '/custom' above: a bare '/product' string also prefix-matched this
+      // app's own /products/*, /products (productArea), etc. routes.
+      '^/product(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Variant attributes list (variants/list.php) — same no-REST-API
+      // scrape pattern, lives outside /product so it needs its own rule.
+      // No React route starts with /variants, so a plain prefix is safe,
+      // but anchored anyway to match the rest of this list.
+      '^/variants(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

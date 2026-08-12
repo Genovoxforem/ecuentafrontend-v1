@@ -235,24 +235,36 @@ export function InvoiceStatusTable({ title, rows }: { title: string; rows: Invoi
 export interface ActionTileSpec {
   icon: ComponentType<{ size?: number }>
   label: string
+  color?: IconColor
 }
+
+// Cycled when an action doesn't specify its own color, so every
+// ActionGroupCard gets varied, legible icon badges (matching the reference
+// app's colorful per-action icons) without every call site needing to pick
+// one explicitly.
+const ACTION_TILE_COLORS: IconColor[] = ['blue', 'green', 'amber', 'violet', 'rose', 'cyan', 'indigo']
 
 // A stub-safe action button: disabled/inert until a real route exists for it,
 // so pages can show the full reference layout without inventing fake links.
 // Pass `path` once the corresponding page is built.
-export function ActionTile({ icon: Icon, label, path }: ActionTileSpec & { path?: string }) {
-  const className = 'flex flex-col items-center justify-center gap-1.5 rounded-lg bg-surface border border-border p-3 text-center text-xs'
+export function ActionTile({ icon: Icon, label, path, color = 'blue' }: ActionTileSpec & { path?: string }) {
+  const className = 'group flex flex-col items-center justify-center gap-2 rounded-lg bg-surface border border-border p-3 text-center text-xs transition-all'
+  const badge = (
+    <span className={`w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 ${ICON_STYLES[color]}`}>
+      <Icon size={18} />
+    </span>
+  )
   if (path) {
     return (
-      <Link to={path} className={`${className} text-text hover:border-brand/40 hover:text-brand`}>
-        <Icon size={16} />
+      <Link to={path} className={`${className} text-text hover:border-brand/40 hover:shadow-sm hover:-translate-y-0.5`}>
+        {badge}
         {label}
       </Link>
     )
   }
   return (
-    <button type="button" disabled title="Not built yet" className={`${className} text-text-muted cursor-default`}>
-      <Icon size={16} />
+    <button type="button" disabled title="Not built yet" className={`${className} text-text-muted cursor-default opacity-70`}>
+      {badge}
       {label}
     </button>
   )
@@ -273,8 +285,8 @@ export function ActionGroupCard({
     <Card>
       <SectionHeading icon={icon}>{title}</SectionHeading>
       <div className={`grid ${columns === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-2 mt-3`}>
-        {actions.map((a) => (
-          <ActionTile key={a.label} icon={a.icon} label={a.label} path={a.path} />
+        {actions.map((a, i) => (
+          <ActionTile key={a.label} icon={a.icon} label={a.label} path={a.path} color={a.color ?? ACTION_TILE_COLORS[i % ACTION_TILE_COLORS.length]} />
         ))}
       </div>
     </Card>

@@ -1,4 +1,5 @@
 import { BookText } from 'lucide-react'
+import { ROUTES } from '../../routes'
 import type { NavSection } from '../navTypes'
 
 // Mirrors the real app's "General Ledger" left menu (llx_menu, mainmenu=generalledger).
@@ -19,7 +20,7 @@ export const nav: NavSection = {
         { label: 'Bookkeeping' },
         { label: 'Create Financial Closure' },
         { label: 'Financial Closure List' },
-        { label: 'Journals' },
+        { label: 'Journals', path: ROUTES.ledgerList },
         { label: 'Accountant Files' },
         { label: 'Reportings' },
       ],
@@ -28,7 +29,7 @@ export const nav: NavSection = {
       label: 'Accounting',
       items: [
         { label: 'Accounting Area' },
-        { label: 'Ledger' },
+        { label: 'Ledger', path: ROUTES.ledgerDashboard },
         { label: 'Account Balance' },
         { label: 'Closure' },
         { label: 'Validate Movements' },
