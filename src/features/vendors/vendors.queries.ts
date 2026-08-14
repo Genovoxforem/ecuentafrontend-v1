@@ -11,66 +11,81 @@ export interface VendorsSummary {
   vendors: ThirdPartyRow[]
 }
 
-// Same row shape as customers.queries.ts's RawCustomer — see there for the
-// full field-by-field confirmation against api/customers/index.php.
-interface RawCustomer {
+// GET /api/vendors/summary/ and /api/vendors/list/ (api/vendors/summary|list/index.php)
+// — dedicated vendor endpoints, filtered on s.fournisseur = 1 rather than a
+// client flag, so pure-vendor companies (client=0, fournisseur=1 — 26 of the
+// 28 real vendor rows in this DB) are actually included. The old approach of
+// reusing the customer list endpoint's client-based WHERE clause could never
+// return those rows no matter what filter was applied client-side, since
+// fournisseur is an independent flag, not a third client value — a real
+// backend gap, now fixed by giving vendors their own endpoint. Outstanding
+// balance here is open *purchase* payables (llx_facture_fourn) — money owed
+// TO this vendor — not sales receivables.
+interface SummaryPayload {
+  total: number
+  createdThisMonth: number
+  outstandingBalance: number
+  defaultCountryCount: number
+  otherCountryCount: number
+}
+
+interface ListItem {
   id: number
   name: string
-  code_client: string | null
+  tpin: string | null
+  trackingId: string | null
+  isCustomer: boolean
+  isProspect: boolean
+  isVendor: boolean
+  statusLabel: 'Open' | 'Closed'
   email: string
   phone: string
-  tpin: string | null
-  type: 'customer' | 'customer_prospect' | 'prospect'
-  is_supplier: number
+  countryLabel: string | null
+  currencyCode: string
+  outstandingBalance: number
+  salesReps: string | null
+  createdAt: string
+  creatorName: string
 }
 
-interface CustomersResponse {
+interface WebEnvelope<T> {
   success: boolean
-  customers: RawCustomer[]
-  total_count: number
+  data: T
 }
 
-export function toRow(raw: RawCustomer): ThirdPartyRow {
+export function toRow(item: ListItem): ThirdPartyRow {
   return {
-    name: raw.name ?? '',
-    country: '',
-    outstandingBalance: 0,
-    tpin: raw.tpin ?? '',
-    salesRep: '',
-    email: raw.email ?? '',
-    phone: raw.phone ?? '',
-    nature: 'Vendor',
-    trackingId: raw.code_client ?? '',
-    creationDate: '',
-    status: 'Active',
+    name: item.name ?? '',
+    country: item.countryLabel ?? '',
+    outstandingBalance: item.outstandingBalance,
+    tpin: item.tpin ?? '',
+    salesRep: item.salesReps ?? '',
+    email: item.email ?? '',
+    phone: item.phone ?? '',
+    nature: item.isCustomer ? 'Vendor, Customer' : 'Vendor',
+    trackingId: item.trackingId ?? '',
+    creationDate: item.createdAt ?? '',
+    creatorName: item.creatorName ?? '',
+    status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
   }
 }
 
-// GET /api/customers/ has no server-side supplier filter despite accepting
-// a `type` param — reading api/customers/index.php's handleCustomerList()
-// directly: `type` only branches on 'customer' or 'prospect', anything
-// else (including 'supplier') falls through to the same "client IN
-// (1,2,3)" clause as no filter at all. So this fetches broadly and filters
-// client-side on the row's real `is_supplier` flag instead.
-//
-// Bigger caveat from the same source read: that WHERE clause is always
-// "client IN (1,2,3)" (customer/prospect flags), with no OR for
-// fournisseur — so a company that is *purely* a supplier (not also a
-// customer or prospect) is invisible through this endpoint, full stop.
-// This list can only ever show suppliers who are also a customer/prospect.
-// That's a real backend gap, not something fixable from here.
 export function useVendorsSummary() {
   return useQuery({
     queryKey: ['vendors', 'summary'],
     queryFn: async (): Promise<VendorsSummary> => {
-      const { data } = await api.get<CustomersResponse>('/customers/', { params: { type: 'all', limit: 250 } })
-      const rows = (data.customers ?? []).filter((c) => c.is_supplier === 1).map(toRow)
+      const [summaryRes, listRes] = await Promise.all([
+        api.get<WebEnvelope<SummaryPayload>>('/vendors/summary/'),
+        api.get<WebEnvelope<{ items: ListItem[]; total: number }>>('/vendors/list/', { params: { page: 1, limit: 500 } }),
+      ])
+      const s = summaryRes.data.data
+      const rows = listRes.data.data.items.map(toRow)
       return {
-        totalVendors: rows.length,
-        createdThisMonth: 0,
-        outstandingBalance: 0,
-        defaultCountryVendors: 0,
-        otherCountryVendors: 0,
+        totalVendors: s.total,
+        createdThisMonth: s.createdThisMonth,
+        outstandingBalance: s.outstandingBalance,
+        defaultCountryVendors: s.defaultCountryCount,
+        otherCountryVendors: s.otherCountryCount,
         vendors: rows,
       }
     },

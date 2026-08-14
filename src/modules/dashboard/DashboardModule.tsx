@@ -7,10 +7,10 @@ export function DashboardModule() {
   const { data: summary, isError } = useDashboardSummary()
 
   return (
-    <div>
+    <>
       {isError && <p className="text-sm text-danger">Could not load the dashboard.</p>}
       {!summary && !isError && <p className="text-sm text-text-muted">Loading…</p>}
       {summary && <HomeOverview username={user?.login || 'User'} summary={summary} />}
-    </div>
+    </>
   )
 }

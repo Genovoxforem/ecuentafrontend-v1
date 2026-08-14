@@ -1,5 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
+import { fetchAllProductsRich, type RichProductRow } from './productAjax'
+import { fetchLegacyDocument, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import {
+  parseProductStocks,
+  parseProductStocksByLot,
+  parseLotSerials,
+  parseVariantAttributes,
+  parseProductStats,
+  looksLikeLegacyLoginPage,
+  type StockLocationRow,
+  type StockByLotRow,
+  type LotSerialRow,
+  type VariantAttributeRow,
+  type ProductStatSeries,
+} from './productLegacyParsers'
 
 export interface ProductRow {
   id: string
@@ -11,6 +26,12 @@ export interface ProductRow {
   stock: number
   type: 'product' | 'service'
   barcode: string
+  // Real `tosell` field, confirmed present on every row from this
+  // endpoint. There's no matching `tobuy` field in this API's response
+  // (checked live) — see ProductArea.tsx's DashboardTab for how that's
+  // handled honestly (for-sale split only, not the legacy page's full
+  // for-sale/for-purchase/neither breakdown).
+  forSale: boolean
 }
 
 export interface ProductsSummary {
@@ -37,6 +58,7 @@ interface RawProduct {
   fk_product_type: number
   stock: number | string
   barcode: string
+  tosell?: number
 }
 
 interface ProductsResponse {
@@ -58,6 +80,7 @@ export function toRow(raw: RawProduct): ProductRow {
     // fk_product_type: 0 = product, 1 = service (standard Dolibarr convention).
     type: raw.fk_product_type === 1 ? 'service' : 'product',
     barcode: raw.barcode ?? '',
+    forSale: raw.tosell === 1,
   }
 }
 
@@ -65,7 +88,7 @@ export function toRow(raw: RawProduct): ProductRow {
 // services share this one endpoint (fk_product_type distinguishes them),
 // so both hooks below query the same cache key and split client-side
 // rather than each making their own request.
-function useProductRows() {
+export function useProductRows() {
   return useQuery({
     queryKey: ['products', 'all'],
     queryFn: async () => {
@@ -111,6 +134,64 @@ export function useProductSearch(query: string) {
     enabled: query.trim().length > 1,
     staleTime: 1000 * 30,
   })
+}
+
+// The "All Products" report (product/allproducts.php) shows several columns
+// /api/products/ doesn't have (Category, Desired/Reserved/Physical stock
+// breakdown, ZRA status, Classification, Country, Lot status) — these have
+// no REST equivalent, so this replays Dolibarr's own DataTables AJAX
+// endpoint directly (see productAjax.ts). Best-effort: ProductsList.tsx
+// falls back to "—" per-cell if this fails rather than blocking the page,
+// same pattern as useWarehouseLegacyStats.
+export function useAllProductsRich(type: 0 | 1) {
+  return useQuery({
+    queryKey: ['products', 'ajaxRich', type],
+    queryFn: () => fetchAllProductsRich(type),
+    staleTime: 1000 * 30,
+    retry: false,
+  })
+}
+export type { RichProductRow }
+
+// Shared shape for the five report pages below (Stocks, Stocks By Lot,
+// Lots/Serials, Variant Attributes, Statistics) — none have a REST
+// equivalent, so all of them scrape the real legacy page client-side, same
+// approach as useWarehouseLegacyStats/useLedgerReport. See
+// productLegacyParsers.ts for how each page's markup was verified.
+function useLegacyProductReport<T>(queryKey: unknown[], path: string, parse: (doc: Document) => T, params?: URLSearchParams) {
+  return useQuery({
+    queryKey: ['products', 'legacy', ...queryKey],
+    queryFn: async (): Promise<T> => {
+      const doc = await fetchLegacyDocument(path, params)
+      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      return parse(doc)
+    },
+    staleTime: 1000 * 30,
+    retry: false,
+  })
+}
+
+export function useProductStocksReport() {
+  return useLegacyProductReport<StockLocationRow[]>(['stocks'], '/product/reassort.php', parseProductStocks, new URLSearchParams({ type: '0' }))
+}
+
+export function useProductStocksByLotReport() {
+  return useLegacyProductReport<StockByLotRow[]>(['stocksByLot'], '/product/reassortlot.php', parseProductStocksByLot, new URLSearchParams({ type: '0' }))
+}
+
+export function useLotSerialsReport() {
+  return useLegacyProductReport<LotSerialRow[]>(['lotSerials'], '/product/stock/productlot_list.php', parseLotSerials)
+}
+
+export function useVariantAttributesReport() {
+  return useLegacyProductReport<VariantAttributeRow[]>(['variantAttributes'], '/variants/list.php', parseVariantAttributes)
+}
+
+// type: 0 = Products, 1 = Services — the legacy report itself splits on
+// this (confirmed live: Products and Services return genuinely different
+// numbers), matching fk_product_type's convention everywhere else here.
+export function useProductStatsReport(type: 0 | 1) {
+  return useLegacyProductReport<ProductStatSeries[]>(['stats', type], '/product/stats/card.php', parseProductStats, new URLSearchParams({ id: 'all', type: String(type) }))
 }
 
 export function useServicesSummary() {

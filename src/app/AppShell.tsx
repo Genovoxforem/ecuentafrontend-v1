@@ -28,14 +28,21 @@ export function AppShell({ children }: AppShellProps) {
     navigate(ROUTES.login)
   }
 
-  return (
+  return ( 
     <div className="h-screen flex flex-col overflow-hidden">
       <Navbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} onLogout={handleLogout} />
       {/* -mt-px only for the modern shell: pulls the sidebar/navbar boundary into a 1px overlap so it paints over
           whatever faint seam independently-computed backdrop-blur leaves at that edge (see ModernSidebar/Navbar). */}
       <div className={`flex flex-1 overflow-hidden ${sidebarStyle === 'modern' ? 'relative -mt-px' : ''}`}>
         {sidebarStyle === 'modern' ? <ModernSidebar open={sidebarOpen} onLogout={handleLogout} /> : <Sidebar open={sidebarOpen} />}
-        <main className="flex-1 overflow-y-auto soft-scrollbar p-6 bg-white dark:bg-gray-950">{children}</main>
+        {/* flex flex-col here lets a page's root opt into flex-1 (fill-or-overflow the
+            scrollport) using flexbox's own algorithm instead of percentage min-height, which
+            doesn't reliably resolve against this element's content-box height through the
+            ancestor chain — confirmed empirically (came up ~27px short on a real viewport).
+            No visual effect on pages that don't opt in: a single non-growing flex child sizes
+            to its own content along the column axis exactly like normal block flow, and
+            stretches to fill the width either way. */}
+        <main className="flex flex-col flex-1 overflow-y-auto soft-scrollbar p-6 bg-white dark:bg-gray-950">{children}</main>
       </div>
     </div>
   )

@@ -11,40 +11,57 @@ export interface ProspectsSummary {
   customers: ThirdPartyRow[]
 }
 
-// Same row shape and same real endpoint as customers.queries.ts's
-// RawCustomer/toRow — see there for the full field-by-field confirmation.
-// Prospects aren't a separate backend resource; they're customer records
-// with type === 'prospect', so this reuses /customers/ and filters
-// client-side, same pattern as vendors.queries.ts's is_supplier filter.
-interface RawCustomer {
+// Same real endpoints as customers.queries.ts, just with type=p — prospects
+// aren't a separate backend resource, they're societe rows with client=2 (or
+// 3 for customer+prospect), and both api/customers/summary/ and
+// api/customers/list/ already branch on this same type param. See
+// customers.queries.ts for the full field-by-field confirmation.
+interface SummaryPayload {
+  total: number
+  createdThisMonth: number
+  outstandingBalance: number
+  defaultCountryCount: number
+  otherCountryCount: number
+}
+
+interface ListItem {
   id: number
   name: string
-  code_client: string | null
+  tpin: string | null
+  trackingId: string | null
+  isCustomer: boolean
+  isProspect: boolean
+  isVendor: boolean
+  statusLabel: 'Open' | 'Closed'
   email: string
   phone: string
-  tpin: string | null
-  type: 'customer' | 'customer_prospect' | 'prospect'
+  countryLabel: string | null
+  currencyCode: string
+  outstandingBalance: number
+  salesReps: string | null
+  createdAt: string
+  creatorName: string
 }
 
-interface CustomersResponse {
+interface WebEnvelope<T> {
   success: boolean
-  customers: RawCustomer[]
-  total_count: number
+  data: T
 }
 
-function toRow(raw: RawCustomer): ThirdPartyRow {
+function toRow(item: ListItem): ThirdPartyRow {
   return {
-    name: raw.name ?? '',
-    country: '',
-    outstandingBalance: 0,
-    tpin: raw.tpin ?? '',
-    salesRep: '',
-    email: raw.email ?? '',
-    phone: raw.phone ?? '',
-    nature: 'Prospect',
-    trackingId: raw.code_client ?? '',
-    creationDate: '',
-    status: 'Active',
+    name: item.name ?? '',
+    country: item.countryLabel ?? '',
+    outstandingBalance: item.outstandingBalance,
+    tpin: item.tpin ?? '',
+    salesRep: item.salesReps ?? '',
+    email: item.email ?? '',
+    phone: item.phone ?? '',
+    nature: item.isCustomer && item.isProspect ? 'Customer, Prospect' : 'Prospect',
+    trackingId: item.trackingId ?? '',
+    creationDate: item.createdAt ?? '',
+    creatorName: item.creatorName ?? '',
+    status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
   }
 }
 
@@ -52,14 +69,18 @@ export function useProspectsSummary() {
   return useQuery({
     queryKey: ['customers', 'summary', 'prospects'],
     queryFn: async (): Promise<ProspectsSummary> => {
-      const { data } = await api.get<CustomersResponse>('/customers/', { params: { type: 'all', limit: 250 } })
-      const rows = (data.customers ?? []).filter((c) => c.type === 'prospect').map(toRow)
+      const [summaryRes, listRes] = await Promise.all([
+        api.get<WebEnvelope<SummaryPayload>>('/customers/summary/', { params: { type: 'p' } }),
+        api.get<WebEnvelope<{ items: ListItem[]; total: number }>>('/customers/list/', { params: { type: 'p', page: 1, limit: 500 } }),
+      ])
+      const s = summaryRes.data.data
+      const rows = listRes.data.data.items.map(toRow)
       return {
-        totalCustomers: rows.length,
-        createdThisMonth: 0,
-        outstandingBalance: 0,
-        defaultCountryCustomers: 0,
-        otherCountryCustomers: 0,
+        totalCustomers: s.total,
+        createdThisMonth: s.createdThisMonth,
+        outstandingBalance: s.outstandingBalance,
+        defaultCountryCustomers: s.defaultCountryCount,
+        otherCountryCustomers: s.otherCountryCount,
         customers: rows,
       }
     },

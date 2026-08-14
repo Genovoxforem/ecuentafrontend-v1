@@ -5,10 +5,10 @@ export function SalesModule() {
   const { data: summary, isError } = useSalesSummary()
 
   return (
-    <div>
+    <>
       {isError && <p className="text-sm text-danger">Could not load the sales dashboard.</p>}
       {!summary && !isError && <p className="text-sm text-text-muted">Loading…</p>}
       {summary && <SalesOverview summary={summary} />}
-    </div>
+    </>
   )
 }

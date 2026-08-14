@@ -30,3 +30,16 @@ export function formatDateTime(value: string | number | Date | null | undefined)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
+// ISO datetime -> "MM/DD/YYYY hh:mm AM/PM", matching the legacy app's "On :
+// <date>" byline under a record's creator name (e.g. "04/30/2026 12:49 PM").
+export function formatDateTimeAmPm(value: string | number | Date | null | undefined) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const hours24 = d.getHours()
+  const hours12 = hours24 % 12 || 12
+  const ampm = hours24 < 12 ? 'AM' : 'PM'
+  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()} ${pad(hours12)}:${pad(d.getMinutes())} ${ampm}`
+}

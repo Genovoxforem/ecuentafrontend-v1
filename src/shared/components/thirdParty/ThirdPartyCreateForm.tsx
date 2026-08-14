@@ -1,20 +1,66 @@
-import { useState } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users2, Check, X, LoaderCircle, TriangleAlert } from 'lucide-react'
+import {
+  Users2,
+  Check,
+  X,
+  LoaderCircle,
+  TriangleAlert,
+  ChevronLeft,
+  ChevronRight,
+  Contact,
+  Phone,
+  Mail,
+  Tag,
+  Tags,
+  Hash,
+  Globe,
+  Link2,
+  MapPin,
+  Coins,
+  Layers,
+  IdCard,
+  Truck,
+  User,
+  UserCheck,
+  Users,
+  Building2,
+  CircleDot,
+  UserCog,
+  UserRound,
+  BadgeCheck,
+  Shield,
+  Map as MapIcon,
+  Printer,
+  Briefcase,
+  FileText,
+  FileUp,
+  Percent,
+  Receipt,
+  Languages,
+  Landmark,
+  Ship,
+  Server,
+  ScanLine,
+  Paperclip,
+  Share2,
+} from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
+import { StickyFormShell } from '../layout/StickyFormShell'
+import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
+import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
 import { api } from '../../../api/axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
 
-interface FieldSpec {
-  key: string
-  label: string
-  type: 'text' | 'select' | 'file'
-  options?: string[]
-  defaultValue?: string
-  required?: boolean
-}
+const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
+
+// No TPIN format is documented or enforced anywhere in this codebase or its
+// backend (only presence is checked server-side — see the mutationFn
+// comment below) — this is Zambia's published ZRA TPIN format (10 digits),
+// applied here as a client-side format hint, not a verified backend rule.
+const TPIN_PATTERN = /^\d{10}$/
 
 // Dolibarr's societe/card.php?type=c|f|p — same "New Third Party" wizard for
 // customers, vendors, and prospects, just with the Prospect/Customer +
@@ -24,105 +70,156 @@ interface FieldSpec {
 // below); the only difference is which value this dropdown starts on.
 type Variant = 'customer' | 'vendor' | 'prospect'
 
+// Icon shown next to each subsection heading — grouping is presentational
+// only, fields still submit the same as one flat set.
+const SECTION_ICONS: Record<string, IconType> = {
+  Identity: Contact,
+  'Contact Info': Phone,
+  Classification: Tags,
+  'Location & Currency': MapPin,
+  'Status & Assignment': Briefcase,
+  'Address Details': MapPin,
+  'Business & Tax': Landmark,
+  'Tags & Documents': Paperclip,
+}
+
 function buildStep1(variant: Variant): FieldSpec[] {
   const isVendor = variant === 'vendor'
   const prospectCustomerDefault = isVendor ? 'Not prospect, Not customer' : variant === 'prospect' ? 'Prospect' : 'Customer'
   const fields: FieldSpec[] = [
-    // Not part of the original ported wizard — added because the live
-    // backend's create endpoint rejects the request outright without a
-    // name ("Customer name is required"), and Dolibarr's own equivalent
-    // form always leads with this field too.
-    { key: 'name', label: isVendor ? 'Vendor Name' : 'Third-Party Name', type: 'text', required: true },
-    { key: 'prospectCustomer', label: 'Prospect / Customer', type: 'select', options: ['Customer', 'Prospect', 'Not prospect, Not customer'], defaultValue: prospectCustomerDefault },
-    { key: 'tpin', label: 'Tpin', type: 'text', required: true },
-    { key: 'trackingId', label: 'Tracking Id', type: 'text' },
-    { key: 'aliasName', label: 'Alias name (commercial, trademark, ...)', type: 'text' },
-    { key: 'customerGroup', label: 'Customer Group', type: 'select', options: [] },
-    { key: 'phone', label: 'Phone', type: 'text' },
-    { key: 'customerCode', label: 'Customer Code', type: 'text', defaultValue: 'CU2608-00001' },
-    { key: 'email', label: 'EMail', type: 'text' },
-    { key: 'vendor', label: 'Vendor', type: 'select', options: ['No', 'Yes'], defaultValue: isVendor ? 'Yes' : 'No' },
-    { key: 'country', label: 'Country', type: 'select', options: ['Zambia (ZM)'], defaultValue: 'Zambia (ZM)' },
-    { key: 'vendorCode', label: 'Vendor Code', type: 'text', defaultValue: 'SU2608-00001' },
+    // Matches the reference Dolibarr wizard's compound Title/First/Last name
+    // row (see NameField below) — the combined value still submits as the
+    // single `name` the live backend's create endpoint requires.
+    { key: 'name', label: 'First Name', type: 'name', required: true, section: 'Identity' },
+    {
+      key: 'prospectCustomer',
+      label: 'Prospect / Customer',
+      type: 'select',
+      options: ['Customer', 'Prospect', 'Not prospect, Not customer'],
+      defaultValue: prospectCustomerDefault,
+      icon: UserCheck,
+      section: 'Identity',
+    },
+    {
+      key: 'tpin',
+      label: 'Tpin',
+      type: 'text',
+      required: true,
+      icon: IdCard,
+      section: 'Identity',
+      digitsOnly: true,
+      maxLength: 10,
+      validate: (v) => (TPIN_PATTERN.test(v) ? null : 'Must be exactly 10 digits'),
+    },
+    { key: 'trackingId', label: 'Tracking Id', type: 'text', icon: Hash, section: 'Identity' },
+    { key: 'aliasName', label: 'Alias name (commercial, trademark, ...)', type: 'text', icon: Tag, section: 'Identity' },
+    { key: 'customerGroup', label: 'Customer Group', type: 'select', options: [], icon: Users, placeholder: 'Select a group', section: 'Identity' },
+    { key: 'phone', label: 'Phone', type: 'text', icon: Phone, section: 'Contact Info' },
+    { key: 'email', label: 'EMail', type: 'text', icon: Mail, section: 'Contact Info' },
+    { key: 'customerCode', label: 'Customer Code', type: 'text', defaultValue: 'CU2608-00001', icon: Hash, section: 'Classification' },
+    { key: 'vendor', label: 'Vendor', type: 'select', options: ['No', 'Yes'], defaultValue: isVendor ? 'Yes' : 'No', icon: Truck, section: 'Classification' },
+    { key: 'vendorCode', label: 'Vendor Code', type: 'text', defaultValue: 'SU2608-00001', icon: Hash, section: 'Classification' },
   ]
   if (isVendor) {
-    fields.push({ key: 'branchCode', label: 'Branch Code', type: 'text' })
+    fields.push({ key: 'branchCode', label: 'Branch Code', type: 'text', icon: Building2, section: 'Classification' })
   }
   fields.push(
-    { key: 'address', label: 'Address', type: 'text' },
-    { key: 'currency', label: 'Currency', type: 'select', options: ['Zambian Kwacha (ZMW)'], defaultValue: 'Zambian Kwacha (ZMW)' },
-    { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: [] },
+    { key: 'country', label: 'Country', type: 'select', options: ['Zambia (ZM)'], defaultValue: 'Zambia (ZM)', icon: Globe, section: 'Location & Currency' },
+    { key: 'address', label: 'Address', type: 'text', icon: MapPin, section: 'Location & Currency' },
+    { key: 'currency', label: 'Currency', type: 'select', options: ['Zambian Kwacha (ZMW)'], defaultValue: 'Zambian Kwacha (ZMW)', icon: Coins, section: 'Location & Currency' },
+    { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: [], icon: Layers, section: 'Location & Currency' },
   )
   return fields
 }
 
 const STEP2_FIELDS: FieldSpec[] = [
-  { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open' },
-  { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text' },
-  { key: 'employerName', label: 'Employer Name', type: 'text' },
-  { key: 'employeeNumber', label: 'Employee Number', type: 'text' },
-  { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged' },
-  { key: 'salesRep', label: 'Assigned to sales representative', type: 'text' },
-  { key: 'zipCode', label: 'Zip Code', type: 'text' },
-  { key: 'city', label: 'City', type: 'text' },
-  { key: 'stateProvince', label: 'State/Province', type: 'select', options: [] },
-  { key: 'fax', label: 'Fax', type: 'text' },
-  { key: 'businessEntityType', label: 'Business entity type', type: 'select', options: [] },
-  { key: 'nrc', label: 'NRC', type: 'select', options: [] },
-  { key: 'nrcNumber', label: 'NRC Number', type: 'text' },
-  { key: 'documentUpload', label: 'Document upload', type: 'file' },
-  { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes' },
-  { key: 'vatId', label: 'VAT ID', type: 'text' },
-  { key: 'workforce', label: 'Workforce', type: 'select', options: [] },
-  { key: 'languageDefault', label: 'Language default', type: 'select', options: [] },
-  { key: 'capital', label: 'Capital', type: 'text' },
-  { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'text' },
-  { key: 'vendorTags', label: 'Vendors tags/categories', type: 'text' },
-  { key: 'incoterms', label: 'Incoterms', type: 'select', options: [] },
-  { key: 'environment', label: 'Environment', type: 'select', options: ['Master entity'], defaultValue: 'Master entity' },
-  { key: 'barcode', label: 'Barcode', type: 'text' },
-  { key: 'web', label: 'Web', type: 'text' },
+  { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
+  { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
+  { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text', icon: UserCog, section: 'Status & Assignment' },
+  { key: 'salesRep', label: 'Assigned to sales representative', type: 'text', icon: UserRound, section: 'Status & Assignment' },
+  { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
+  { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
+
+  { key: 'zipCode', label: 'Zip Code', type: 'text', icon: MapPin, section: 'Address Details' },
+  { key: 'city', label: 'City', type: 'text', icon: MapPin, section: 'Address Details' },
+  { key: 'stateProvince', label: 'State/Province', type: 'select', options: [], icon: MapIcon, section: 'Address Details' },
+  { key: 'fax', label: 'Fax', type: 'text', icon: Printer, section: 'Address Details' },
+
+  { key: 'businessEntityType', label: 'Business entity type', type: 'select', options: [], icon: Briefcase, section: 'Business & Tax' },
+  { key: 'nrc', label: 'NRC', type: 'select', options: [], icon: FileText, section: 'Business & Tax' },
+  { key: 'nrcNumber', label: 'NRC Number', type: 'text', icon: Hash, section: 'Business & Tax' },
+  { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
+  { key: 'vatId', label: 'VAT ID', type: 'text', icon: Receipt, section: 'Business & Tax' },
+  { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
+  { key: 'workforce', label: 'Workforce', type: 'select', options: [], icon: Users, section: 'Business & Tax' },
+  { key: 'languageDefault', label: 'Language default', type: 'select', options: [], icon: Languages, section: 'Business & Tax' },
+  { key: 'incoterms', label: 'Incoterms', type: 'select', options: [], icon: Ship, section: 'Business & Tax' },
+  { key: 'environment', label: 'Environment', type: 'select', options: ['Master entity'], defaultValue: 'Master entity', icon: Server, section: 'Business & Tax' },
+  { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
+  { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
+
+  { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
+  { key: 'vendorTags', label: 'Vendors tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
+  { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
 ]
 
-const STEP3_FIELDS: FieldSpec[] = [
-  { key: 'facebook', label: 'Facebook', type: 'text' },
-  { key: 'skype', label: 'Skype', type: 'text' },
-  { key: 'twitter', label: 'Twitter', type: 'text' },
-  { key: 'linkedin', label: 'LinkedIn', type: 'text' },
-  { key: 'instagram', label: 'Instagram', type: 'text' },
-  { key: 'snapchat', label: 'Snapchat', type: 'text' },
-  { key: 'googlePlus', label: 'GooglePlus', type: 'text' },
-  { key: 'youtube', label: 'Youtube', type: 'text' },
-  { key: 'whatsapp', label: 'Whatsapp', type: 'text' },
-  { key: 'diaspora', label: 'Diaspora', type: 'text' },
-  { key: 'viber', label: 'Viber', type: 'text' },
-  { key: 'github', label: 'Github', type: 'text' },
-]
+const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
 
-const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
-
-function Field({ field, value, onChange }: { field: FieldSpec; value: string; onChange: (value: string) => void }) {
+// Matches the reference wizard's compound Title + First Name + Last Name
+// row — the two name parts are joined into `values.name` on every keystroke
+// so the rest of the form (validation, submission) keeps reading a single
+// combined name field, same as before this was split out.
+function NameField({
+  values,
+  setValues,
+  required,
+}: {
+  values: Record<string, string>
+  setValues: Dispatch<SetStateAction<Record<string, string>>>
+  required?: boolean
+}) {
+  const updateNamePart = (part: 'firstName' | 'lastName') => (value: string) =>
+    setValues((prev) => {
+      const next = { ...prev, [part]: value }
+      next.name = `${next.firstName} ${next.lastName}`.trim()
+      return next
+    })
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm text-text">
-        {field.label}
-        {field.required && <span className="text-danger">*</span>}
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-text-muted">
+        First Name
+        {required && <span className="text-danger ml-0.5">*</span>}
       </span>
-      {field.type === 'select' ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClasses}>
-          {!value && <option value="">{field.options?.length ? `Select ${field.label.toLowerCase()}` : '—'}</option>}
-          {field.options?.map((o) => (
+      <div className="flex items-stretch w-full rounded-lg border border-input-border bg-input-bg overflow-hidden transition-shadow focus-within:outline-none focus-within:ring-2 focus-within:ring-brand/30 focus-within:border-brand">
+        <span className="flex items-center pl-2.5 pr-1 text-text-faint">
+          <User size={15} />
+        </span>
+        <select
+          value={values.nameTitle}
+          onChange={(e) => setValues((prev) => ({ ...prev, nameTitle: e.target.value }))}
+          className="shrink-0 w-11 appearance-none border-r border-input-border bg-transparent pl-1 pr-1 text-sm text-text focus:outline-none"
+        >
+          {TITLE_OPTIONS.map((o) => (
             <option key={o} value={o}>
               {o}
             </option>
           ))}
         </select>
-      ) : field.type === 'file' ? (
-        // No upload endpoint confirmed on the backend — stays visual-only.
-        <input type="file" disabled className={`${inputClasses} file:mr-3 file:rounded file:border-0 file:bg-surface-hover file:px-2 file:py-1`} />
-      ) : (
-        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className={inputClasses} />
-      )}
+        <input
+          type="text"
+          value={values.firstName}
+          onChange={(e) => updateNamePart('firstName')(e.target.value)}
+          placeholder="First Name"
+          className="min-w-0 flex-1 border-r border-input-border bg-transparent px-2 py-1.5 text-sm text-text placeholder:text-text-faint focus:outline-none"
+        />
+        <input
+          type="text"
+          value={values.lastName}
+          onChange={(e) => updateNamePart('lastName')(e.target.value)}
+          placeholder="Last Name"
+          className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm text-text placeholder:text-text-faint focus:outline-none"
+        />
+      </div>
     </label>
   )
 }
@@ -138,13 +235,18 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const steps = [
     { title: 'Setup basic details', fields: buildStep1(variant) },
     { title: 'Add professional info', fields: STEP2_FIELDS },
-    { title: 'Add social links', fields: STEP3_FIELDS },
+    { title: 'Add social links', fields: [] as FieldSpec[] },
   ]
 
   const [values, setValues] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {}
-    for (const f of [...buildStep1(variant), ...STEP2_FIELDS, ...STEP3_FIELDS]) {
+    // firstName/lastName/nameTitle back the compound NameField below; `name`
+    // itself is kept in sync as their combined value on every keystroke.
+    const init: Record<string, string> = { firstName: '', lastName: '', nameTitle: 'Mr' }
+    for (const f of [...buildStep1(variant), ...STEP2_FIELDS]) {
       init[f.key] = f.defaultValue ?? ''
+    }
+    for (const f of SOCIAL_LINK_FIELDS) {
+      init[f.key] = ''
     }
     return init
   })
@@ -192,7 +294,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   function handleSubmit() {
     setFormError('')
     if (!values.name.trim()) {
-      setFormError(`${variant === 'vendor' ? 'Vendor' : 'Third-party'} name is required.`)
+      setFormError('First name is required.')
       setStep(0)
       return
     }
@@ -201,71 +303,139 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
       setStep(0)
       return
     }
+    if (!TPIN_PATTERN.test(values.tpin.trim())) {
+      setFormError('Tpin must be exactly 10 digits.')
+      setStep(0)
+      return
+    }
+    // Matches the reference wizard: Third-party type only turns mandatory
+    // (red label) once Prospect/Customer is set to "Prospect" — confirmed
+    // by comparing societe/card.php?type=c vs type=p directly.
+    if (values.prospectCustomer === 'Prospect' && !values.thirdPartyType) {
+      setFormError('Third-party type is required for prospects.')
+      setStep(0)
+      return
+    }
     createMutation.mutate()
   }
 
+  const isLastStep = step === steps.length - 1
+
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Users2 size={20} className="text-brand" /> New Third Party (prospect, customer, vendor)
-      </h2>
-
-      {variant === 'vendor' && (
-        <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
-          <TriangleAlert size={18} className="text-warning-fg shrink-0 mt-0.5" />
-          <p className="text-xs text-warning-fg">
-            The backend's create endpoint has no way to flag a record as a supplier — reading its source directly confirms it always creates a plain customer record
-            regardless of what's submitted here. This will save as a customer, not a vendor, in the real database.
-          </p>
-        </Card>
-      )}
-
-      <div className="flex items-center">
-        {steps.map((s, i) => (
-          <div key={s.title} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : ''}`}>
-            <button type="button" onClick={() => setStep(i)} title={s.title} className={`flex flex-col items-center gap-2 ${i === step ? '' : 'opacity-80'}`}>
-              <span
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                  i <= step ? 'bg-brand text-white' : 'bg-surface-hover text-text-muted border border-border'
-                }`}
-              >
-                {i + 1}
-              </span>
-              {/* Hidden below sm: three whitespace-nowrap labels ("Setup basic
-                  details", ...) don't fit a narrow viewport, and main has no
-                  horizontal-scroll fallback — the step number + title
-                  attribute carry it on mobile instead. */}
-              <span className={`hidden sm:block text-xs whitespace-nowrap ${i === step ? 'text-text! font-medium' : 'text-text-faint'}`}>{s.title}</span>
-            </button>
-            {i < steps.length - 1 && <div className={`h-px flex-1 mx-2 ${i < step ? 'bg-brand' : 'bg-border'}`} />}
+    <StickyFormShell
+      headerClassName="pt-1.5 pb-2.5"
+      header={
+        <>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center justify-center w-11 h-10 rounded-xl bg-brand/10 text-brand shrink-0">
+              <Users2 size={22} />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-text!">New Third Party</h2>
+              {/* <p className="text-xs text-text-faint">Add a new prospect, customer, or vendor to your records</p> */}
+            </div>
           </div>
-        ))}
-      </div>
 
-      <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-4">
-          {steps[step].fields.map((field) => (
-            <Field key={field.key} field={field} value={values[field.key]} onChange={setField(field.key)} />
-          ))}
-        </div>
+          {variant === 'vendor' && (
+            <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
+              <TriangleAlert size={18} className="text-warning-fg shrink-0 mt-0.5" />
+              <p className="text-xs text-warning-fg">
+                The backend's create endpoint has no way to flag a record as a supplier — reading its source directly confirms it always creates a plain customer record
+                regardless of what's submitted here. This will save as a customer, not a vendor, in the real database.
+              </p>
+            </Card>
+          )}
+
+          <div className="flex items-center">
+            {steps.map((s, i) => {
+              const StepIcon = STEP_ICONS[i]
+              const isDone = i < step
+              const isActive = i === step
+              return (
+                <div key={s.title} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : ''}`}>
+                  <button type="button" onClick={() => setStep(i)} title={s.title} className="flex flex-col items-center gap-2 group">
+                    <span
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        isDone
+                          ? 'bg-success border-success text-white'
+                          : isActive
+                            ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
+                            : 'bg-surface border-border text-text-faint group-hover:border-brand/40 group-hover:text-brand'
+                      }`}
+                    >
+                      {isDone ? <Check size={16} /> : <StepIcon size={16} />}
+                    </span>
+                    {/* Hidden below sm: three whitespace-nowrap labels ("Setup basic
+                        details", ...) don't fit a narrow viewport, and main has no
+                        horizontal-scroll fallback — the step icon + title
+                        attribute carry it on mobile instead. */}
+                    <span className={`hidden sm:block text-xs whitespace-nowrap ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
+                  </button>
+                  {i < steps.length - 1 && <div className={`h-0.5 flex-1 mx-2 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      }
+      footerLeft={
+        <Link to={cancelPath} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text hover:bg-surface-hover transition-colors">
+          <X size={14} /> Cancel
+        </Link>
+      }
+      footerRight={
+        <>
+          {step > 0 && (
+            <button
+              type="button"
+              onClick={() => setStep((s) => s - 1)}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+            >
+              <ChevronLeft size={14} /> Back
+            </button>
+          )}
+          {isLastStep ? (
+            <button
+              type="button"
+              disabled={createMutation.isPending}
+              onClick={handleSubmit}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 transition-colors"
+            >
+              {createMutation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
+              {createMutation.isPending ? 'Creating…' : 'Create third party'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setStep((s) => s + 1)}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover transition-colors"
+            >
+              Continue <ChevronRight size={14} />
+            </button>
+          )}
+        </>
+      }
+    >
+      {/* !h-auto overrides Card's default h-full — inside this flex-1 wrapper (a flex
+          item with a real computed height), h-full would actually apply and clip this
+          card to that height, letting its field grid visually overflow past the box
+          without affecting the scroll height, which is what let the sticky footer below
+          stick early and cover the last couple of rows. */}
+      <Card className="!h-auto flex-1 min-h-0">
+        {step === 2 ? (
+          <SocialLinksStep values={values} onChange={setField} />
+        ) : (
+          <StepFields
+            fields={steps[step].fields}
+            values={values}
+            setValues={setValues}
+            sectionIcons={SECTION_ICONS}
+            renderField={(field) => (field.type === 'name' ? <NameField key={field.key} values={values} setValues={setValues} required={field.required} /> : undefined)}
+          />
+        )}
       </Card>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}
-
-      <div className="flex items-center gap-3">
-        <Link to={cancelPath} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
-        <button
-          type="button"
-          disabled={createMutation.isPending}
-          onClick={handleSubmit}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {createMutation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
-          {createMutation.isPending ? 'Creating…' : 'Create third party'}
-        </button>
-      </div>
-    </div>
+    </StickyFormShell>
   )
 }

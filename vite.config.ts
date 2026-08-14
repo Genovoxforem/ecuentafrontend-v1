@@ -1,5 +1,6 @@
+import fs from 'node:fs'
 import path from 'node:path'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { BACKEND_URLS, resolveActiveBackend } from './src/api/backends.ts'
@@ -14,9 +15,61 @@ import { BACKEND_URLS, resolveActiveBackend } from './src/api/backends.ts'
 const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), 'VITE_')
 const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
 
+// Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
+// one list so the dev proxy below and the generated production .htaccess
+// (see htaccessPlugin) can never drift apart from each other.
+const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants'] as const
+
+// Production deploys this build's dist/ output onto the backend's own
+// origin (e.g. https://demo1.ecuenta.online), alongside its existing PHP
+// routes — see the deployment notes for the required Apache/vhost wiring.
+// That makes every request genuinely same-origin (not proxied — there is
+// no separate origin to proxy *to*), so the only thing still needed at the
+// static-file level is this: React Router client-side routes need an
+// index.html fallback, or a hard refresh/direct link to e.g.
+// /customer-groups 404s (Apache looks for a literal file at that path by
+// default). BACKEND_OWNED_PATHS are excluded from that fallback so
+// requests to /api/*, /custom/*, etc. keep falling through to the real PHP
+// files already sitting there instead of being swallowed by the SPA
+// fallback.
+function htaccessPlugin(): Plugin {
+  return {
+    name: 'generate-production-htaccess',
+    apply: 'build',
+    closeBundle() {
+      const excludeFromSpaFallback = BACKEND_OWNED_PATHS.map((p) => p.replace('.', '\\.').replace(/^\//, '')).join('|')
+
+      const htaccess = `# Auto-generated at build time by vite.config.ts — do not hand-edit.
+# This file assumes dist/ is deployed onto the backend's own origin
+# (alongside its existing /api, /custom, /takeposnew, /takepos, index.php
+# routes) rather than a separate origin — see the deployment notes for the
+# required web-server wiring. Same-origin means no proxying is needed here
+# at all; this only adds React Router's SPA fallback.
+#
+# Without this, a hard refresh or direct link/bookmark to any in-app route
+# (e.g. /customer-groups) 404s, since Apache looks for a literal file at
+# that path by default. Falls back to index.html for anything that isn't a
+# real file on disk and isn't one of the backend's own routes above; real
+# assets (JS/CSS/images) and the backend's own PHP routes still resolve
+# normally, untouched.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_URI} !^/(${excludeFromSpaFallback})
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+`
+      const outDir = path.resolve(import.meta.dirname, 'dist')
+      fs.writeFileSync(path.join(outDir, '.htaccess'), htaccess)
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), htaccessPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
@@ -50,6 +103,23 @@ export default defineConfig({
       // app has no route of its own at this path, so carving it out here is
       // safe the same way '/custom' and '/takeposnew' already are.
       '^/index\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Legacy accounting/bookkeeping reports (Ledger, Journals) have no
+      // REST API — generalLedger.queries.ts fetches these PHP-rendered pages
+      // directly (same-origin, DOLSESSID-cookie-authenticated via
+      // legacySession.ts) and parses the HTML client-side. See
+      // ledgerHtmlParser.ts.
+      '/accountancy': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Warehouse stats (Shipments/Receptions/Inventories/Reservations
+      // counts) have no REST API either — same client-side scrape pattern,
+      // see warehouseHtmlParser.ts. Regex-anchored for the same reason as
+      // '/custom' above: a bare '/product' string also prefix-matched this
+      // app's own /products/*, /products (productArea), etc. routes.
+      '^/product(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Variant attributes list (variants/list.php) — same no-REST-API
+      // scrape pattern, lives outside /product so it needs its own rule.
+      // No React route starts with /variants, so a plain prefix is safe,
+      // but anchored anyway to match the rest of this list.
+      '^/variants(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

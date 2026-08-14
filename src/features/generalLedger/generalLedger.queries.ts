@@ -1,80 +1,77 @@
-import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
+import { useQuery } from '@tanstack/react-query'
+import { parseLedgerDocument, parseJournalsDocument, looksLikeLegacyLoginPage, type LedgerReport, type JournalsReport } from './ledgerHtmlParser'
 
-export interface LedgerEntry {
-  transactionNum: string
-  journal: string
-  date: string
-  accountingDoc: string
-  label: string
-  currencyCode: string
-  debit: number
-  credit: number
+// No REST API exists for accounting/bookkeeping data on this app's backend
+// (only the old PHP-rendered Ledger/Journals report pages do) — so these
+// hooks fetch those pages directly, same-origin, relying on the DOLSESSID
+// cookie established by establishLegacySession at login time (see
+// legacySession.ts), and parse the returned HTML client-side via
+// ledgerHtmlParser.ts. See that file's header comment for how the selectors
+// were derived (verified against real fetched HTML, not guessed).
+
+export interface LedgerFilters {
+  dateStart: string // yyyy-mm-dd
+  dateEnd: string // yyyy-mm-dd
+  accountCode: string
 }
 
-export interface LedgerMovement {
-  debit: number
-  credit: number
-  balance: number
-  balanceSide: 'Dr' | 'Cr'
+export function defaultLedgerFilters(): LedgerFilters {
+  const year = new Date().getFullYear()
+  return { dateStart: `${year}-01-01`, dateEnd: `${year}-12-31`, accountCode: '' }
 }
 
-export interface LedgerSummary {
-  year: number
-  entries: LedgerEntry[]
-  periodMovements: LedgerMovement
-  closingBalance: LedgerMovement
+function dateParams(prefix: 'start' | 'end', iso: string): [string, string][] {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return []
+  return [
+    [`search_date_${prefix}day`, String(d)],
+    [`search_date_${prefix}month`, String(m)],
+    [`search_date_${prefix}year`, String(y)],
+  ]
 }
 
-function toMovement(entries: LedgerEntry[]): LedgerMovement {
-  const debit = entries.reduce((sum, e) => sum + e.debit, 0)
-  const credit = entries.reduce((sum, e) => sum + e.credit, 0)
-  const balance = debit - credit
-  return { debit, credit, balance: Math.abs(balance), balanceSide: balance >= 0 ? 'Dr' : 'Cr' }
+function buildParams(filters: LedgerFilters): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [k, v] of dateParams('start', filters.dateStart)) params.set(k, v)
+  for (const [k, v] of dateParams('end', filters.dateEnd)) params.set(k, v)
+  if (filters.accountCode.trim()) params.set('search_accountancy_code_start', filters.accountCode.trim())
+  return params
 }
 
-const KEY = ['local', 'ledgerEntries'] as const
-const SEED: LedgerEntry[] = []
+const NOT_SIGNED_IN_MESSAGE =
+  'Not signed into the legacy accounting backend. This report has no REST API and reads the real Dolibarr page directly — log out and back in to refresh that session, then retry.'
 
-// No accountancy/bookkeeping endpoint exists on this app's server — this is
-// real double-entry accounting data, and a convincing-looking fake ledger
-// balance risks being mistaken for a real one in a way a fake room booking
-// or stock count isn't. So this is explicitly demo/sandbox: entries typed
-// in here are held in react-query's cache only (never sent anywhere, never
-// persisted past a refresh) purely to show what the report layout looks
-// like with data in it. See LedgerOverview.tsx's demo-mode banner.
-export function useLedgerSummary() {
-  const [entries] = useLocalCollection(KEY, SEED)
-  const summary: LedgerSummary = {
-    year: new Date().getFullYear(),
-    entries,
-    periodMovements: toMovement(entries),
-    closingBalance: toMovement(entries),
-  }
-  return { data: summary, isError: false, isLoading: false }
+async function fetchLegacyDoc(path: string, params: URLSearchParams): Promise<Document> {
+  const res = await fetch(`${path}?${params.toString()}`, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy accounting backend returned ${res.status}.`)
+  const html = await res.text()
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+  return doc
 }
 
-export interface NewLedgerEntryInput {
-  journal: string
-  date: string
-  accountingDoc: string
-  label: string
-  debit: number
-  credit: number
+export function useLedgerReport(filters: LedgerFilters) {
+  return useQuery({
+    queryKey: ['generalLedger', 'byAccount', filters],
+    queryFn: async (): Promise<LedgerReport> => {
+      const doc = await fetchLegacyDoc('/accountancy/bookkeeping/listbyaccount.php', buildParams(filters))
+      return parseLedgerDocument(doc)
+    },
+    staleTime: 1000 * 30,
+    retry: false,
+  })
 }
 
-export function useRecordDemoLedgerEntry() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  return (input: NewLedgerEntryInput) => {
-    const entry: LedgerEntry = {
-      transactionNum: nextLocalRef('DEMO-TX'),
-      journal: input.journal,
-      date: input.date || todayIso(),
-      accountingDoc: input.accountingDoc,
-      label: input.label,
-      currencyCode: 'ZMW',
-      debit: input.debit,
-      credit: input.credit,
-    }
-    update((current) => [entry, ...current])
-  }
+export function useJournalsReport(filters: LedgerFilters) {
+  return useQuery({
+    queryKey: ['generalLedger', 'journals', filters],
+    queryFn: async (): Promise<JournalsReport> => {
+      const doc = await fetchLegacyDoc('/accountancy/bookkeeping/list.php', buildParams(filters))
+      return parseJournalsDocument(doc)
+    },
+    staleTime: 1000 * 30,
+    retry: false,
+  })
 }
+
+export type { LedgerReport, LedgerAccountGroup, LedgerRow, LedgerMovement, JournalsReport, JournalRow } from './ledgerHtmlParser'

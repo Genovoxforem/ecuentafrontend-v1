@@ -1,4 +1,25 @@
-import { Landmark, TrendingUp, TrendingDown, FileText } from 'lucide-react'
+import {
+  Landmark,
+  TrendingUp,
+  TrendingDown,
+  FileText,
+  ShoppingCart,
+  Package,
+  ClipboardList,
+  FileSignature,
+  Wallet,
+  CheckCircle2,
+  Scale,
+  RotateCcw,
+  BarChart3,
+  Users,
+  FileEdit,
+  BadgeCheck,
+  XCircle,
+  Globe,
+  Receipt,
+  type LucideIcon,
+} from 'lucide-react'
 import {
   PieChart,
   Pie,
@@ -6,7 +27,6 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Bar,
-  Area,
   Line,
   XAxis,
   YAxis,
@@ -23,11 +43,11 @@ import type { DashboardSummary } from '../home.queries'
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DONUT_COLORS = ['var(--color-chart-1)', 'var(--color-chart-2)', 'var(--color-chart-8)']
-const STATUS_STYLES: Record<number, { label: string; cls: string }> = {
-  0: { label: 'Draft', cls: 'bg-neutral-bg text-neutral-fg' },
-  1: { label: 'Validated', cls: 'bg-warning-bg text-warning-fg' },
-  2: { label: 'Paid', cls: 'bg-info-bg text-info-fg' },
-  3: { label: 'Abandoned', cls: 'bg-danger-bg text-danger-fg' },
+const STATUS_STYLES: Record<number, { label: string; cls: string; icon: LucideIcon }> = {
+  0: { label: 'Draft', cls: 'bg-neutral-bg text-neutral-fg', icon: FileEdit },
+  1: { label: 'Validated', cls: 'bg-warning-bg text-warning-fg', icon: CheckCircle2 },
+  2: { label: 'Paid', cls: 'bg-info-bg text-info-fg', icon: BadgeCheck },
+  3: { label: 'Abandoned', cls: 'bg-danger-bg text-danger-fg', icon: XCircle },
 }
 
 const fmtMoney = (n: number | string) => `${formatMoney(n)} ZMW`
@@ -59,6 +79,37 @@ function fmtInvoiceDate(iso: string | null) {
 
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`bg-surface-alt border border-border rounded-xl p-4 ${className}`}>{children}</div>
+}
+
+const TONE_CLS = {
+  brand: 'bg-brand/10 text-brand',
+  success: 'bg-success-bg text-success-fg',
+  warning: 'bg-warning-bg text-warning-fg',
+  info: 'bg-info-bg text-info-fg',
+} as const
+
+function IconStat({
+  icon: Icon,
+  value,
+  label,
+  tone = 'brand',
+}: {
+  icon: LucideIcon
+  value: ReactNode
+  label: string
+  tone?: keyof typeof TONE_CLS
+}) {
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <span className={`shrink-0 w-8 h-8 rounded-lg grid place-items-center ${TONE_CLS[tone]}`}>
+        <Icon size={15} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-base font-bold text-text! leading-tight truncate">{value}</p>
+        <p className="text-[11px] text-text-muted leading-tight truncate">{label}</p>
+      </div>
+    </div>
+  )
 }
 
 function ShopIllustration() {
@@ -132,7 +183,7 @@ export function HomeOverview({ username, summary }: { username: string; summary:
   const todayStats = [
     { label: "Today's Invoices", value: String(today.invoices_count) },
     { label: "Today's sales Amount", value: fmtMoney(today.sales_amount) },
-    { label: "Today's Refund", value: fmtMoney(0) },
+    { label: "Today's Refund", value: fmtMoney(today.refund_amount) },
     { label: "Today's Purchase", value: String(today.purchases_count) },
     { label: "Today's Purchase Amount", value: fmtMoney(today.purchases_amount) },
   ]
@@ -171,7 +222,7 @@ export function HomeOverview({ username, summary }: { username: string; summary:
   const currencyMax = Math.max(...salesByCurrency.map((row) => Number(row.total)), 0)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
         <div className="@container xl:col-span-5 relative overflow-hidden rounded-xl p-4 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)]">
           <ConfettiDots />
@@ -246,161 +297,170 @@ export function HomeOverview({ username, summary }: { username: string; summary:
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="md:col-span-2 !p-3">
-          <div className="flex items-center justify-between mb-2">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <Card className="xl:col-start-1 xl:col-span-3 xl:row-start-1 xl:row-span-2 flex flex-col h-full @container">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              {(['Sales', 'Purchase'] as const).map((t) => (
+              {([
+                ['Sales', ShoppingCart],
+                ['Purchase', Package],
+              ] as const).map(([t, TabIcon]) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTab(t)}
-                  className={`px-3 py-1 rounded-md text-sm ${tab === t ? 'bg-brand! text-white!' : 'text-text-muted hover:bg-surface-hover'}`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-sm font-medium ${tab === t ? 'bg-brand! text-white!' : 'text-text-muted hover:bg-surface-hover'}`}
                 >
+                  <TabIcon size={13} />
                   {t}
                 </button>
               ))}
             </div>
-            <span className="text-xs px-3 py-1 rounded-full bg-surface-alt text-text-muted">Whole Year</span>
+            <span className="text-xs px-3 py-1 rounded-full bg-surface-hover text-text-muted">Whole Year</span>
           </div>
 
-          <div className="flex flex-col gap-2 items-center">
-            <div className="w-20 h-20 relative shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={donutData} dataKey="value" innerRadius={30} outerRadius={40} paddingAngle={2}>
-                    {donutData.map((entry, i) => (
-                      <Cell key={entry.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-[10px] text-text-muted">Total {tab}</p>
-                <p className="text-base font-bold text-text!">{donutTotal}</p>
+          <div className="flex-1 flex flex-col justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 relative shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={donutData} dataKey="value" innerRadius={30} outerRadius={40} paddingAngle={2}>
+                      {donutData.map((entry, i) => (
+                        <Cell key={entry.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-[10px] text-text-muted">Total {tab}</p>
+                  <p className="text-base font-bold text-text!">{donutTotal}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 @xs:grid-cols-2 gap-3 flex-1 min-w-0">
+                <IconStat icon={FileEdit} value={breakdown.draft_count} label="Draft" tone="warning" />
+                <IconStat icon={CheckCircle2} value={breakdown.validated_count} label="Validated" tone="success" />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 w-full text-center">
-              <div>
-                <p className="text-lg font-bold text-text!">{breakdown.draft_count}</p>
-                <p className="text-xs text-text-muted">Draft</p>
+            {tab === 'Sales' && (
+              <div className="grid grid-cols-1 @xs:grid-cols-3 gap-3 pt-4 border-t border-border">
+                <IconStat icon={ClipboardList} value={legacyCounts.salesOrders.value} label="Sales Orders" tone="brand" />
+                <IconStat icon={FileText} value={legacyCounts.quotationsCount} label="Quotations" tone="info" />
+                <IconStat icon={FileSignature} value={legacyCounts.contracts.value} label="Contracts" tone="brand" />
               </div>
-              <div>
-                <p className="text-lg font-bold text-text!">{breakdown.validated_count}</p>
-                <p className="text-xs text-text-muted">Validated</p>
-              </div>
-            </div>
-          </div>
+            )}
 
-          {tab === 'Sales' && (
-            <div className="grid grid-cols-3 gap-2 w-full text-center mt-2 pt-2 border-t border-border">
-              <div>
-                <p className="text-lg font-bold text-text!">{legacyCounts.salesOrders.value}</p>
-                <p className="text-xs text-text-muted">Total Sales Orders</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold text-text!">{legacyCounts.quotationsCount}</p>
-                <p className="text-xs text-text-muted">Total Quotations</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold text-text!">{legacyCounts.contracts.value}</p>
-                <p className="text-xs text-text-muted">Total Contract</p>
-              </div>
+            <div className="pt-4 border-t border-border space-y-2.5 text-sm">
+              {(
+                [
+                  [Wallet, tab === 'Sales' ? 'Total Sale Amount' : 'Total Purchase Amount', fmtMoney(breakdown.total_amount)],
+                  [CheckCircle2, 'Paid Amount', fmtMoney(breakdown.paid_amount)],
+                  [Scale, 'Balance Amount', fmtMoney(balanceAmount)],
+                  // Real credit-note sum (see home.queries.ts's totalRefund)
+                  // — only computed from sales-side invoices, so honestly 0
+                  // under the Purchase tab (no purchase-invoice endpoint).
+                  [RotateCcw, 'Total Refund', fmtMoney(tab === 'Sales' ? summary.totalRefund : 0)],
+                ] as const
+              ).map(([RowIcon, label, value]) => (
+                <div key={label} className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-2 text-text-muted">
+                    <RowIcon size={13} className="text-text-faint" />
+                    {label}
+                  </span>
+                  <span className="text-text! font-medium tabular-nums">{value}</span>
+                </div>
+              ))}
             </div>
-          )}
-
-          <div className="mt-3 space-y-1 text-sm">
-            {(
-              [
-                [tab === 'Sales' ? 'Total Sale Amount' : 'Total Purchase Amount', fmtMoney(breakdown.total_amount)],
-                ['Paid Amount', fmtMoney(breakdown.paid_amount)],
-                ['Balance Amount', fmtMoney(balanceAmount)],
-                // No refund total in the API yet — shown as 0 to match the
-                // legacy layout until a backend field exists to wire this to.
-                ['Total Refund', fmtMoney(0)],
-              ] as const
-            ).map(([label, value]) => (
-              <div key={label} className="flex justify-between">
-                <span className="text-text-muted">{label}</span>
-                <span className="text-text!">{value}</span>
-              </div>
-            ))}
           </div>
         </Card>
 
-        <Card className="md:col-span-3">
+        <Card className="xl:col-start-4 xl:col-span-6 xl:row-start-1">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <div>
-              <h3 className="font-semibold text-text!">Sales Analytics</h3>
-              <p className="text-xs text-text-faint">
-                {fmtDate(period.dateStart)} - {fmtDate(addYears(period.dateStart, 1))}
-              </p>
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-brand/10 text-brand">
+                <BarChart3 size={17} />
+              </span>
+              <div>
+                <h3 className="font-semibold text-text!">Sales Analytics</h3>
+                <p className="text-xs text-text-faint">
+                  {fmtDate(period.dateStart)} - {fmtDate(addYears(period.dateStart, 1))}
+                </p>
+              </div>
             </div>
-            <div className="flex gap-4">
-              <div>
-                <p className="text-base font-bold text-text!">{fmtMoney(yearIncome)}</p>
-                <p className="text-xs text-text-faint">Income</p>
-              </div>
-              <div>
-                <p className="text-base font-bold text-text!">{yearSales}</p>
-                <p className="text-xs text-text-faint">Sales</p>
-              </div>
-              <div>
-                <p className="text-base font-bold text-text!">{yearCustomers}</p>
-                <p className="text-xs text-text-faint">Customers</p>
-              </div>
+            <div className="flex gap-5">
+              <IconStat icon={Wallet} value={fmtMoney(yearIncome)} label="Income" tone="brand" />
+              <IconStat icon={ShoppingCart} value={yearSales} label="Sales" tone="info" />
+              <IconStat icon={Users} value={yearCustomers} label="Customers" tone="success" />
             </div>
           </div>
 
-          {/* Two single-axis charts, not one dual-axis chart: Income (currency,
-              ~millions) and Sales/Customers (counts, 0-200) don't share a scale —
-              overlaying them on a shared plot with two y-axes lets the axis
-              alignment invent a correlation that isn't in the data. */}
-          <p className="text-xs font-medium text-text-muted mb-1">Income</p>
-          <ResponsiveContainer width="100%" height={80}>
-            <ComposedChart data={analyticsData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.03} />
-                </linearGradient>
-              </defs>
+          <ResponsiveContainer width="100%" height={210}>
+            <ComposedChart data={analyticsData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="none" stroke="var(--color-border)" vertical={false} />
               <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} />
-              <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} width={32} tickFormatter={fmtAxisMoney} />
-              <Tooltip formatter={(v) => fmtMoney(Number(v))} contentStyle={{ fontSize: 12 }} />
-              <Area type="monotone" dataKey="income" name="Income" stroke="var(--color-chart-1)" fill="url(#incomeFill)" strokeWidth={2} dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-
-          <p className="text-xs font-medium text-text-muted mt-3 mb-1">Sales &amp; Customers</p>
-          <ResponsiveContainer width="100%" height={90}>
-            <ComposedChart data={analyticsData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="none" stroke="var(--color-border)" vertical={false} />
-              <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} />
-              <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} width={28} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <YAxis
+                yAxisId="income"
+                stroke="var(--color-text-faint)"
+                fontSize={11}
+                tickLine={false}
+                width={48}
+                tickFormatter={fmtAxisMoney}
+                label={{ value: 'Income', angle: -90, position: 'insideLeft', fontSize: 11, fill: 'var(--color-text-faint)' }}
+              />
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                stroke="var(--color-text-faint)"
+                fontSize={11}
+                tickLine={false}
+                width={40}
+                allowDecimals={false}
+                label={{ value: 'Sales / Customers', angle: 90, position: 'insideRight', fontSize: 11, fill: 'var(--color-text-faint)' }}
+              />
+              <Tooltip
+                cursor={{ stroke: 'var(--color-border)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                contentStyle={{
+                  fontSize: 12,
+                  background: 'var(--color-surface-alt)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                }}
+                labelStyle={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4 }}
+                itemStyle={{ padding: '1px 0' }}
+                formatter={(value, name) => (name === 'Income' ? fmtMoney(Number(value)) : Number(value))}
+              />
               <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
-              <Bar dataKey="sales" name="Sales" fill="var(--color-chart-1)" radius={[3, 3, 0, 0]} barSize={16} />
-              <Line type="monotone" dataKey="customers" name="Customers" stroke="var(--color-chart-4)" strokeWidth={2} dot={false} />
+              <Bar yAxisId="income" dataKey="income" name="Income" fill="var(--color-chart-1)" radius={[3, 3, 0, 0]} barSize={14} />
+              <Bar yAxisId="counts" dataKey="sales" name="Sales" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} barSize={14} />
+              <Line yAxisId="counts" type="monotone" dataKey="customers" name="Customers" stroke="var(--color-chart-4)" strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </Card>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-        <Card>
+        <Card className="xl:col-start-4 xl:col-span-6 xl:row-start-2 flex flex-col h-full">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-text!">Last 7 Sales</h3>
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-brand/10 text-brand">
+                <Receipt size={17} />
+              </span>
+              <h3 className="font-semibold text-text!">Last 7 Sales</h3>
+            </div>
             <Link to={ROUTES.reports} className="text-sm text-brand hover:underline">
               View All
             </Link>
           </div>
           {recentSales.length === 0 ? (
-            <p className="text-xs text-text-faint">No sales yet.</p>
+            <div className="flex-1 min-h-40 flex flex-col items-center justify-center gap-2 text-center">
+              <span className="w-11 h-11 rounded-full grid place-items-center bg-surface-hover text-text-faint">
+                <Receipt size={18} />
+              </span>
+              <p className="text-xs text-text-faint">No sales yet.</p>
+            </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto flex-1">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[11px] text-text-faint uppercase tracking-wide border-b border-border">
@@ -416,17 +476,20 @@ export function HomeOverview({ username, summary }: { username: string; summary:
                     const status = STATUS_STYLES[sale.fk_statut] ?? STATUS_STYLES[0]
                     return (
                       <tr key={sale.id} className="border-t border-border hover:bg-surface-hover">
-                        <td className="py-2 pr-2">
+                        <td className="py-1.5 pr-2">
                           <span className="flex items-center gap-1.5 text-brand">
                             <FileText size={13} />
                             {sale.ref || '(draft)'}
                           </span>
                         </td>
-                        <td className="py-2 pr-2 text-text-muted whitespace-nowrap">{fmtInvoiceDate(sale.datef)}</td>
-                        <td className="py-2 pr-2 text-brand">{sale.company_name}</td>
-                        <td className="py-2 pr-2 text-text! text-right tabular-nums">{fmtNumber(sale.total_ttc)}</td>
-                        <td className="py-2 text-right">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${status.cls}`}>{status.label}</span>
+                        <td className="py-1.5 pr-2 text-text-muted whitespace-nowrap">{fmtInvoiceDate(sale.datef)}</td>
+                        <td className="py-1.5 pr-2 text-brand">{sale.company_name}</td>
+                        <td className="py-1.5 pr-2 text-text! text-right tabular-nums">{fmtNumber(sale.total_ttc)}</td>
+                        <td className="py-1.5 text-right">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${status.cls}`}>
+                            <status.icon size={11} />
+                            {status.label}
+                          </span>
                         </td>
                       </tr>
                     )
@@ -437,21 +500,32 @@ export function HomeOverview({ username, summary }: { username: string; summary:
           )}
         </Card>
 
-        <Card>
-          <h3 className="font-semibold mb-3 text-text!">Sales by Country</h3>
-          <WorldMapDecoration />
-          <div className="space-y-3 mt-4">
+        <Card className="xl:col-start-10 xl:col-span-3 xl:row-start-1 xl:row-span-2 flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-info-bg text-info-fg">
+              <Globe size={17} />
+            </span>
+            <h3 className="font-semibold text-text!">Sales by Country</h3>
+          </div>
+          <div className="-mx-4 -mt-1 mb-1 overflow-hidden rounded-t-xl bg-[linear-gradient(180deg,var(--color-surface-hover)_0%,transparent_100%)] px-4 pt-2 pb-1">
+            <WorldMapDecoration />
+          </div>
+          <div className="space-y-4 mt-4 flex-1 flex flex-col justify-center">
             {salesByCurrency.length === 0 && <p className="text-xs text-text-faint">No sales yet.</p>}
             {salesByCurrency.map((row) => {
-              const widthPct = currencyMax > 0 ? (Number(row.total) / currencyMax) * 100 : 0
+              const rawPct = currencyMax > 0 ? (Number(row.total) / currencyMax) * 100 : 0
+              const widthPct = rawPct > 0 ? Math.max(rawPct, 2) : 0
               return (
                 <div key={row.currency}>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-text! font-medium">{row.currency}</span>
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="text-text! font-semibold tracking-wide">{row.currency}</span>
                     <span className="text-xs text-text-faint tabular-nums">{fmtNumber(row.total)}</span>
                   </div>
-                  <div className="h-2 bg-surface-hover rounded-full overflow-hidden">
-                    <div className="h-full bg-brand rounded-full" style={{ width: `${widthPct}%` }} />
+                  <div className="h-2.5 bg-surface-hover rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-brand)_0%,var(--color-brand-hover)_100%)] transition-[width] duration-500"
+                      style={{ width: `${widthPct}%` }}
+                    />
                   </div>
                 </div>
               )

@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   BatteryLow,
   ArrowLeftRight,
+  ArrowUpRight,
+  ArrowDownRight,
   Zap,
   ClipboardList,
   Truck,
@@ -24,11 +26,18 @@ import {
   Plus,
   X,
   History,
+  AlertOctagon,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, SectionHeading, ICON_STYLES, ActionGroupCard, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney } from '../../../utils/format'
 import { useStockRows, useRecentMovements, useRecordStockMovement, type WarehouseSummary } from '../warehouses.queries'
+
+const HERO_WASH: Record<string, string> = {
+  blue: 'bg-gradient-to-br from-blue-50 dark:from-blue-500/10',
+  indigo: 'bg-gradient-to-br from-indigo-50 dark:from-indigo-500/10',
+  cyan: 'bg-gradient-to-br from-cyan-50 dark:from-cyan-500/10',
+}
 
 function MetricCard({
   label,
@@ -38,6 +47,8 @@ function MetricCard({
   color,
   listPath,
   newPath,
+  alert,
+  hero,
 }: {
   label: string
   value: string | number
@@ -46,16 +57,24 @@ function MetricCard({
   color: IconColor
   listPath?: string
   newPath?: string
+  alert?: boolean
+  hero?: boolean
 }) {
   return (
-    <Card className="flex flex-col gap-3">
+    <Card
+      className={`group flex flex-col gap-2 !p-3 transition-all hover:shadow-md hover:-translate-y-0.5 ${
+        alert ? 'border-l-4 border-l-danger bg-danger-bg/30' : hero ? `${HERO_WASH[color] ?? ''} to-transparent` : ''
+      }`}
+    >
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-text-muted">{label}</p>
-          <p className="text-2xl font-bold text-text! mt-1">{value}</p>
+        <div className="min-w-0">
+          <p className="text-sm text-text-muted truncate">{label}</p>
+          <p className={`font-bold text-text! mt-1 ${hero ? 'text-3xl' : 'text-2xl'}`}>{value}</p>
           {caption && <p className="text-xs text-text-faint mt-0.5">{caption}</p>}
         </div>
-        <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <span
+          className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3 ${ICON_STYLES[color]}`}
+        >
           <Icon size={20} />
         </span>
       </div>
@@ -83,17 +102,31 @@ function MetricCard({
 
 function ReservationCard({ label, value, icon: Icon, color, links }: { label: string; value: number; icon: ComponentType<{ size?: number }>; color: IconColor; links?: ReactNode }) {
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="group flex flex-col gap-2 !p-3 transition-all hover:shadow-md hover:-translate-y-0.5">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-text-muted">{label}</p>
           <p className="text-2xl font-bold text-text! mt-1">{value}</p>
         </div>
-        <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3 ${ICON_STYLES[color]}`}>
           <Icon size={20} />
         </span>
       </div>
       {links}
+    </Card>
+  )
+}
+
+function LegacyStatsWarning({ message }: { message: string }) {
+  return (
+    <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
+      <AlertOctagon size={18} className="text-warning-fg shrink-0 mt-0.5" />
+      <div>
+        <p className="text-sm font-semibold text-warning-fg">Some stats couldn't load from the live backend</p>
+        <p className="text-xs text-warning-fg/80 mt-0.5">
+          Inventories, Shipments, Receptions, Reservations and Movements Today are showing 0 as a fallback. {message}
+        </p>
+      </div>
     </Card>
   )
 }
@@ -172,8 +205,18 @@ function timeLabel(iso: string) {
 
 function RecentMovements() {
   const movements = useRecentMovements()
+  if (movements.length === 0) {
+    return (
+      <Card className="!h-auto items-center justify-center gap-2 py-10 text-center">
+        <span className="w-11 h-11 rounded-full grid place-items-center bg-surface-hover text-text-faint">
+          <History size={18} />
+        </span>
+        <p className="text-sm text-text-faint">No stock movements recorded yet</p>
+      </Card>
+    )
+  }
   return (
-    <Card className="!p-0 overflow-hidden">
+    <Card className="!p-0 !h-auto overflow-hidden">
       <div className="overflow-auto max-h-[60vh]">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
@@ -186,26 +229,29 @@ function RecentMovements() {
             </tr>
           </thead>
           <tbody>
-            {movements.length === 0 ? (
-              <tr>
-                <td className="px-4 py-4 text-center text-text-faint italic" colSpan={5}>
-                  No stock movements recorded yet
-                </td>
-              </tr>
-            ) : (
-              movements.map((m) => (
-                <tr key={m.ref} className="border-t border-border">
-                  <td className="px-4 py-3 text-brand">{m.ref}</td>
+            {movements.map((m) => {
+              const DeltaIcon = m.delta >= 0 ? ArrowUpRight : ArrowDownRight
+              return (
+                <tr key={m.ref} className="border-t border-border hover:bg-surface-hover">
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1.5 text-brand">
+                      <History size={13} />
+                      {m.ref}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-text!">{m.productLabel}</td>
                   <td className={`px-4 py-3 text-right tabular-nums font-medium ${m.delta >= 0 ? 'text-success' : 'text-danger'}`}>
-                    {m.delta >= 0 ? '+' : ''}
-                    {m.delta}
+                    <span className="inline-flex items-center gap-1 justify-end">
+                      <DeltaIcon size={13} />
+                      {m.delta >= 0 ? '+' : ''}
+                      {m.delta}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-text-muted">{m.reason || '-'}</td>
                   <td className="px-4 py-3 text-text-muted whitespace-nowrap">{timeLabel(m.date)}</td>
                 </tr>
-              ))
-            )}
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -217,11 +263,14 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
   const [showRecordMovement, setShowRecordMovement] = useState(false)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Warehouse size={20} className="text-brand" /> Warehouses area
-        </h2>
+        <div className="flex items-center gap-3">
+          <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-brand/10 text-brand">
+            <Warehouse size={17} />
+          </span>
+          <h2 className="text-lg font-bold text-text!">Warehouses area</h2>
+        </div>
         <button
           type="button"
           onClick={() => setShowRecordMovement((v) => !v)}
@@ -233,11 +282,13 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
 
       {showRecordMovement && <RecordMovementForm onClose={() => setShowRecordMovement(false)} />}
 
+      {summary.legacyStatsError && <LegacyStatsWarning message={summary.legacyStatsError} />}
+
       <SectionHeading icon={BarChart2}>Statistics</SectionHeading>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard label="Total Products In Stock" value={summary.totalProductsInStock} icon={Package} color="blue" />
-        <MetricCard label="Total Stock Quantity" value={summary.totalStockQuantity} icon={Boxes} color="indigo" />
-        <MetricCard label="Total Stock Value" value={formatMoney(summary.totalStockValue)} icon={Banknote} color="cyan" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <MetricCard label="Total Products In Stock" value={summary.totalProductsInStock} icon={Package} color="blue" hero />
+        <MetricCard label="Total Stock Quantity" value={summary.totalStockQuantity} icon={Boxes} color="indigo" hero />
+        <MetricCard label="Total Stock Value" value={formatMoney(summary.totalStockValue)} icon={Banknote} color="cyan" hero />
         <MetricCard
           label="Warehouses"
           value={`${summary.warehousesActive} / ${summary.warehousesTotal}`}
@@ -248,7 +299,13 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           newPath={ROUTES.warehouseDashboard}
         />
 
-        <MetricCard label="Products Out of Stock" value={summary.productsOutOfStock} icon={AlertTriangle} color="rose" />
+        <MetricCard
+          label="Products Out of Stock"
+          value={summary.productsOutOfStock}
+          icon={AlertTriangle}
+          color="rose"
+          alert={summary.productsOutOfStock > 0}
+        />
         <MetricCard label="Products Low Stock" value={summary.productsLowStock} icon={BatteryLow} color="cyan" />
         <MetricCard label="Movements Today" value={summary.movementsToday} caption="View All Movements" icon={ArrowLeftRight} color="violet" />
         <ActionGroupCard
@@ -279,7 +336,7 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
       <RecentMovements />
 
       <SectionHeading icon={Bookmark}>Stock Reservations</SectionHeading>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <ReservationCard label="Active Reservations" value={summary.reservations.active} icon={Bookmark} color="amber" />
         <ReservationCard label="Total Reserved Qty" value={summary.reservations.totalReservedQty} icon={Boxes} color="violet" />
         <ReservationCard label="Released" value={summary.reservations.released} icon={CheckCircle2} color="green" />

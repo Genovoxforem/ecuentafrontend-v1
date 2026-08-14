@@ -7,10 +7,10 @@ export function ZraModule() {
   const { data: summary, isError } = useZraSummary(year ?? undefined)
 
   return (
-    <div>
+    <>
       {isError && <p className="text-sm text-danger">Could not load the ZRA dashboard.</p>}
       {!summary && !isError && <p className="text-sm text-text-muted">Loading…</p>}
       {summary && <ZraOverview summary={summary} year={year} onYearChange={setYear} />}
-    </div>
+    </>
   )
 }

@@ -145,16 +145,48 @@ const MARKERS = [
 
 export function WorldMapDecoration() {
   return (
-    <svg viewBox="0 0 372 242" className="w-[70%] h-auto mx-auto block" aria-hidden="true">
-      <g transform="scale(0.413333) translate(0, 1.201809)" className="text-text-faint" fill="currentColor" opacity="0.35">
+    <svg viewBox="0 0 372 242" className="w-full h-auto block" aria-hidden="true">
+      <g transform="scale(0.413333) translate(0, 1.201809)" className="text-text-faint" fill="currentColor" opacity="0.4">
         {CONTINENT_PATHS.map((d, i) => (
           <path key={i} d={d} />
         ))}
       </g>
-      <line x1={MARKERS[1].cx} y1={MARKERS[1].cy} x2={MARKERS[0].cx} y2={MARKERS[0].cy} stroke="#808080" strokeWidth="1" strokeLinecap="round" strokeDasharray="6 3 6" />
-      <line x1={MARKERS[2].cx} y1={MARKERS[2].cy} x2={MARKERS[0].cx} y2={MARKERS[0].cy} stroke="#808080" strokeWidth="1" strokeLinecap="round" strokeDasharray="6 3 6" />
+      <line
+        x1={MARKERS[1].cx}
+        y1={MARKERS[1].cy}
+        x2={MARKERS[0].cx}
+        y2={MARKERS[0].cy}
+        stroke="var(--color-brand)"
+        strokeOpacity="0.5"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeDasharray="0.5 5"
+      />
+      <line
+        x1={MARKERS[2].cx}
+        y1={MARKERS[2].cy}
+        x2={MARKERS[0].cx}
+        y2={MARKERS[0].cy}
+        stroke="var(--color-brand)"
+        strokeOpacity="0.5"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeDasharray="0.5 5"
+      />
       {MARKERS.map((m, i) => (
-        <circle key={i} cx={m.cx} cy={m.cy} r="7" fill="#374151" stroke="#FFF" strokeWidth="5" strokeOpacity="0.5" />
+        <g key={i}>
+          <circle cx={m.cx} cy={m.cy} r="10" fill="var(--color-brand)" opacity="0.15" />
+          <circle
+            cx={m.cx}
+            cy={m.cy}
+            r="6"
+            fill="var(--color-brand)"
+            opacity="0.35"
+            className="animate-ping"
+            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+          />
+          <circle cx={m.cx} cy={m.cy} r="4.5" fill="var(--color-brand)" stroke="var(--color-surface-alt)" strokeWidth="2" />
+        </g>
       ))}
     </svg>
   )

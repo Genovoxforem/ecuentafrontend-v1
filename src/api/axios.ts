@@ -14,13 +14,23 @@ export function setStoredToken(token: string | null) {
   }
 }
 
-// Relative path only — never an absolute backend URL here. In dev, Vite's
-// proxy (see vite.config.ts, driven by the same backends.ts this file would
-// otherwise duplicate) forwards "/api/*" to whichever backend is selected;
-// in production, this build must be deployed behind a host/reverse-proxy
-// that does the same. Either way every request stays same-origin with the
-// page, which is what avoids CORS entirely — see backends.ts to switch
-// which backend that proxy actually points at.
+// Relative path only — never an absolute backend URL here, in dev or prod.
+//
+// Dev: Vite's dev-server proxy (vite.config.ts, driven by the same
+// backends.ts this would otherwise duplicate) forwards "/api/*" same-origin
+// to whichever backend VITE_ACTIVE_BACKEND selects.
+//
+// Prod: this build is deployed onto the backend's own origin (e.g. the
+// dist/ output served from https://demo1.ecuenta.online alongside its
+// existing PHP/api/* routes — see deploy/vhost-frontend.conf.example for
+// the reverse-proxy variant if the frontend instead lives on its own
+// domain), so "/api" already resolves to the real backend with zero
+// cross-origin request involved. Either way every request stays
+// same-origin with the page, which is what avoids CORS entirely — this was
+// deliberately reverted from a direct-call version (see git history) once
+// that version confirmed live what the CORS-CSRF-Fix-Report.pdf diagnosis
+// predicted: the backend's incomplete CORS headers block the
+// authenticated follow-up calls when requests are genuinely cross-origin.
 export const api = axios.create({
   baseURL: '/api',
   timeout: 15000,

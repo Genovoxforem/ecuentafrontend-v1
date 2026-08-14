@@ -198,7 +198,7 @@ export function HotelOverview({ summary }: { summary: HotelSummary }) {
       <h3 className="flex items-center gap-2 font-semibold text-text!">
         <History size={16} className="text-brand" /> Recent Bookings
       </h3>
-      <Card className="!p-0 overflow-hidden">
+      <Card className="!p-0 !h-auto overflow-hidden">
         <div className="overflow-auto max-h-[60vh]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">

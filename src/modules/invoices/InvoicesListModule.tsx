@@ -5,10 +5,10 @@ export function InvoicesListModule() {
   const { data: summary, isError } = useInvoicesSummary()
 
   return (
-    <div>
+    <>
       {isError && <p className="text-sm text-danger">Could not load the invoices list.</p>}
       {!summary && !isError && <p className="text-sm text-text-muted">Loading…</p>}
       {summary && <InvoicesList summary={summary} />}
-    </div>
+    </>
   )
 }

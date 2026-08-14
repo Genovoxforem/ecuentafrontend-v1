@@ -44,6 +44,8 @@ export const ROUTES = {
   prospectList: '/prospects',
   prospectsCreate: '/prospects/create',
   customerGroupList: '/customer-groups',
+  customerGroupCreate: '/customer-groups/create',
+  customerGroupEdit: '/customer-groups/:id/edit',
   orderList: '/orders',
   orderCreate: '/orders/create',
   orderStats: '/orders/statistics',

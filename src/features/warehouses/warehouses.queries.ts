@@ -1,5 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
+import { fetchLegacyDocument, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { useProductOptions } from '../products/products.queries'
+import { parseWarehouseLegacyStats, looksLikeLegacyLoginPage, type WarehouseLegacyStats } from './warehouseHtmlParser'
 
 export interface WarehouseSummary {
   totalProductsInStock: number
@@ -14,6 +17,31 @@ export interface WarehouseSummary {
   shipments: { total: number; validated: number }
   receptions: { total: number; validated: number }
   reservations: { active: number; totalReservedQty: number; released: number; consumed: number }
+  // Undefined while the legacy scrape (see below) hasn't resolved yet, or
+  // failed — the fields above already fall back to honest zeros/guesses in
+  // that case, this just lets the UI show a "some stats are live" hint.
+  legacyStatsError?: string
+}
+
+// Inventories/Shipments/Receptions/Reservations/real Movements-Today have no
+// REST API on this app's backend (only /products/ returns a stock
+// snapshot) — this scrapes the real numbers from the legacy warehouse
+// stats page (product/stock/index.php) the same way generalLedger.queries.ts
+// does for Ledger/Journals. See warehouseHtmlParser.ts for how the markup
+// was verified. Best-effort: falls back to the honest-zero defaults below
+// on any failure (including a stale/missing legacy session) rather than
+// breaking the whole dashboard.
+function useWarehouseLegacyStats() {
+  return useQuery({
+    queryKey: ['warehouses', 'legacyStats'],
+    queryFn: async (): Promise<WarehouseLegacyStats> => {
+      const doc = await fetchLegacyDocument('/product/stock/index.php', new URLSearchParams({ mainmenu: 'inventwarehouse' }))
+      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      return parseWarehouseLegacyStats(doc)
+    },
+    staleTime: 1000 * 30,
+    retry: false,
+  })
 }
 
 export interface StockMovement {
@@ -34,16 +62,22 @@ function effectiveStockFor(productRef: string, baseStock: number, movements: Sto
 }
 
 // No backend endpoint exists for warehouse/stock movements on this app's
-// server (only /products/ returns a static stock snapshot). Movements are
-// held in react-query's cache only — see shared/localCollection.ts — and
-// layered on top of the real product list's stock, so recording one feels
-// real but never writes back to the actual product record. Shipments,
-// receptions, reservations, and inventories have no equivalent local
-// concept to simulate honestly (they'd need real sales/purchase order line
-// items this app doesn't have), so those stay zero rather than invented.
+// server (only /products/ returns a static stock snapshot). Movements
+// recorded via the form below are held in react-query's cache only — see
+// shared/localCollection.ts — and layered on top of the real product list's
+// stock, so recording one feels real but never writes back to the actual
+// product record.
+//
+// Inventories/Shipments/Receptions/Reservations/real Warehouse count/real
+// Movements-Today DO have real values, just not via a REST API — see
+// useWarehouseLegacyStats above, which scrapes them from the legacy page.
+// While that's loading (or if it fails — no legacy session, offline, etc.)
+// this falls back to the previous honest zero/best-guess defaults rather
+// than blocking the rest of the dashboard on it.
 export function useWarehouseSummary() {
   const { data: products } = useProductOptions()
   const [movements] = useLocalCollection(KEY, SEED)
+  const { data: legacyStats, isError: legacyStatsIsError, error: legacyStatsErrorObj } = useWarehouseLegacyStats()
 
   // Services don't hold stock — only physical products count toward these.
   const rows = (products ?? [])
@@ -55,18 +89,18 @@ export function useWarehouseSummary() {
     totalProductsInStock: rows.filter((r) => r.effectiveStock > 0).length,
     totalStockQuantity: rows.reduce((sum, r) => sum + r.effectiveStock, 0),
     totalStockValue: rows.reduce((sum, r) => sum + r.effectiveStock * r.priceExclTax, 0),
-    // Reflects the one warehouse implied by this account's POS terminal
-    // config (warehouse_id: 1) — there's no multi-warehouse data to break
-    // this down further.
-    warehousesActive: products ? 1 : 0,
-    warehousesTotal: products ? 1 : 0,
+    // Falls back to a guess of the one warehouse implied by this account's
+    // POS terminal config (warehouse_id: 1) until the real count above loads.
+    warehousesActive: legacyStats?.warehousesActive ?? (products ? 1 : 0),
+    warehousesTotal: legacyStats?.warehousesTotal ?? (products ? 1 : 0),
     productsOutOfStock: rows.filter((r) => r.effectiveStock <= 0).length,
     productsLowStock: rows.filter((r) => r.effectiveStock > 0 && r.effectiveStock < LOW_STOCK_THRESHOLD).length,
-    movementsToday: movements.filter((m) => m.date.slice(0, 10) === today).length,
-    inventories: 0,
-    shipments: { total: 0, validated: 0 },
-    receptions: { total: 0, validated: 0 },
-    reservations: { active: 0, totalReservedQty: 0, released: 0, consumed: 0 },
+    movementsToday: legacyStats?.movementsToday ?? movements.filter((m) => m.date.slice(0, 10) === today).length,
+    inventories: legacyStats?.inventories ?? 0,
+    shipments: legacyStats?.shipments ?? { total: 0, validated: 0 },
+    receptions: legacyStats?.receptions ?? { total: 0, validated: 0 },
+    reservations: legacyStats?.reservations ?? { active: 0, totalReservedQty: 0, released: 0, consumed: 0 },
+    legacyStatsError: legacyStatsIsError ? (legacyStatsErrorObj instanceof Error ? legacyStatsErrorObj.message : 'Unknown error.') : undefined,
   }
   return { data: summary, isError: false, isLoading: false }
 }
