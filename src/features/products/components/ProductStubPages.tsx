@@ -1,4 +1,4 @@
-import { Tag, Tags } from 'lucide-react'
+import { Percent, Tag, Tags, Upload } from 'lucide-react'
 import { NotBuiltPage } from '../../../shared/components/dashboard/NotBuiltPage'
 
 // Honest "not built yet" landings for nav items that have no backend
@@ -13,4 +13,24 @@ export function ProductPriceListPage() {
 
 export function ProductTagsPage() {
   return <NotBuiltPage icon={Tags} title="Product/Service Tags & Categories" description="Tag/category management. No dedicated management endpoint exists on this backend yet (categories can only be picked, not managed, from the create form)." />
+}
+
+export function ProductImportPage() {
+  return (
+    <NotBuiltPage
+      icon={Upload}
+      title="Import Products"
+      description="Bulk CSV/Excel product import (Dolibarr's generic import wizard: pick a format, map columns, run the import). No upload/import endpoint exists on this backend yet."
+    />
+  )
+}
+
+export function ProductVatUpdatePage() {
+  return (
+    <NotBuiltPage
+      icon={Percent}
+      title="Global VAT Update"
+      description="Mass VAT-rate change across products/services. No dedicated endpoint exists on this backend yet."
+    />
+  )
 }

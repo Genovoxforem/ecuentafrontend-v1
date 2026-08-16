@@ -109,17 +109,37 @@ function SidebarNavItem({
   location: Location
   openGroups: Record<string, boolean>
   toggleGroup: (key: string) => void
-  hoverGroup: string | null
-  setHoverGroup: (key: string | null) => void
+  hoverGroup: ReadonlySet<string>
+  setHoverGroup: (updater: (prev: Set<string>) => Set<string>) => void
 }) {
   if (!('items' in item) || !item.items) {
     return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} />
   }
   const groupKey = `${sectionKey}:${depth}:${item.label}`
   const isPinned = Boolean(openGroups[groupKey])
-  const isOpen = isPinned || hoverGroup === groupKey
+  const isOpen = isPinned || hoverGroup.has(groupKey)
   return (
-    <div className="pt-0.5 first:pt-0" onMouseEnter={() => setHoverGroup(groupKey)} onMouseLeave={() => setHoverGroup(hoverGroup === groupKey ? null : hoverGroup)}>
+    <div
+      className="pt-0.5 first:pt-0"
+      // A nested group's own mouse-enter/leave only adds/removes *its own*
+      // key — never overwrites a single shared value — so hovering into a
+      // child (physically still inside every ancestor's box) can't blow
+      // away the ancestor chain's open state. Previously this used one
+      // `hoverGroup: string | null` for the whole tree: entering a nested
+      // group clobbered it, so an ancestor's `isOpen` (derived from that
+      // same value) flipped false and its grid-rows transition started
+      // collapsing mid-hover — even though the mouse never left it — which
+      // is what made clicks on deeper items intermittently miss.
+      onMouseEnter={() => setHoverGroup((prev) => (prev.has(groupKey) ? prev : new Set(prev).add(groupKey)))}
+      onMouseLeave={() =>
+        setHoverGroup((prev) => {
+          if (!prev.has(groupKey)) return prev
+          const next = new Set(prev)
+          next.delete(groupKey)
+          return next
+        })
+      }
+    >
       <button
         type="button"
         onClick={() => toggleGroup(groupKey)}
@@ -176,7 +196,7 @@ export function Sidebar({ open = true }: { open?: boolean }) {
   // (hoverGroup) that never touches this pinned state, so moving the mouse
   // away only closes groups that were never actually clicked.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  const [hoverGroup, setHoverGroup] = useState<string | null>(null)
+  const [hoverGroup, setHoverGroup] = useState<Set<string>>(() => new Set())
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
 
   // Whichever chain of groups holds the current page gets pinned open (same

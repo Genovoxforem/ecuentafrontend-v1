@@ -57,7 +57,7 @@ export function HrmArea() {
               { icon: List, label: 'User List', path: ROUTES.usersDashboard },
               { icon: UsersRound, label: 'New Group', path: ROUTES.userGroupCreate },
               { icon: Users, label: 'Group List', path: ROUTES.userGroupList },
-              { icon: ClipboardList, label: 'Activities List' },
+              { icon: ClipboardList, label: 'Activities List', path: ROUTES.activitiesDetail },
             ]}
           />
           <ActionGroupCard
@@ -65,8 +65,8 @@ export function HrmArea() {
             title="HRM"
             columns={3}
             actions={[
-              { icon: CalendarPlus, label: 'Leave request' },
-              { icon: CalendarDays, label: 'List Leave' },
+              { icon: CalendarPlus, label: 'Leave request', path: ROUTES.leaveRequest },
+              { icon: CalendarDays, label: 'List Leave', path: ROUTES.leaveList },
               { icon: Receipt, label: 'New Expense reports' },
               { icon: Receipt, label: 'List Expense reports' },
               { icon: FileText, label: 'Monthly statement' },

@@ -33,10 +33,9 @@ export const nav: NavSection = {
     {
       label: 'Settings',
       items: [
-        { label: 'Classes' },
-        { label: 'Import Products' },
+        { label: 'Import Products', path: ROUTES.productImport },
         { label: 'Product/Service-Categories', path: ROUTES.productTags },
-        { label: 'Product VAT Mass Change' },
+        { label: 'Global VAT Update', path: ROUTES.productVatUpdate },
         { label: 'Bulk Price Update', path: ROUTES.productPriceList },
       ],
     },

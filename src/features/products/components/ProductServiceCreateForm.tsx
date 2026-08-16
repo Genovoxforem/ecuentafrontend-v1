@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ImageUp, Package, PlusCircle, X } from 'lucide-react'
+import { Boxes, ChevronDown, Globe, ImageUp, Package, PlusCircle, Settings2, Tags, Truck, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import {
@@ -11,12 +11,13 @@ import {
   type FormOption,
 } from '../../zra/createProduct.queries'
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className={`block text-sm mb-1 ${required ? 'text-danger' : 'text-text-muted'}`}>
         {label}
         {required && '*'}
+        {hint && <span className="ml-1 text-[10px] font-normal text-text-faint italic">({hint})</span>}
       </label>
       {children}
     </div>
@@ -318,34 +319,97 @@ function CategoryMultiSelect({ value, onChange, options }: { value: string[]; on
   )
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+// "hint" mirrors Field's — fields with no backing column on this backend's
+// /api/products/create-full/ endpoint (confirmed against its real field
+// list) are marked "demo only" right on their own label instead of a
+// separate full-width warning row, so the legacy layout isn't missing
+// pieces without burning a whole grid row per section for the disclaimer.
+function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 h-9">
       <button type="button" onClick={() => onChange(!checked)} className={`w-9 h-5 rounded-full transition-colors shrink-0 ${checked ? 'bg-brand' : 'bg-surface-alt border border-border'}`}>
         <span className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
-      <span className="text-sm text-text">{label}</span>
+      <span className="text-sm text-text">
+        {label}
+        {hint && <span className="ml-1 text-[10px] text-text-faint italic">({hint})</span>}
+      </span>
     </div>
   )
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({ title, cols = 3, children }: { title: string; cols?: 3 | 4; children: React.ReactNode }) {
   return (
     <Card className="!h-auto">
       <h3 className="font-semibold text-text! mb-3">{title}</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3 items-start">{children}</div>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${cols === 4 ? 'xl:grid-cols-4' : 'xl:grid-cols-3'} gap-x-4 gap-y-3 items-start`}>{children}</div>
     </Card>
   )
 }
 
-// Fields below have no backing column on this backend's /api/products/
-// create-full/ endpoint (confirmed against its real field list) — they're
-// kept purely as local component state so the legacy layout isn't missing
-// pieces, but nothing typed into them is sent on submit or persisted past
-// a refresh, same convention as Warehouse's demo stock-movement form.
-function LocalOnlyNote() {
-  return <p className="sm:col-span-2 xl:col-span-3 text-[11px] text-text-faint -mt-1">Fields below aren't saved — no backend field for them yet.</p>
+// Dimension unit choices — the exact scale-code options Dolibarr's own
+// weight_units/size_units/surface_units/volume_units selects offer on the
+// legacy Add Products form (pulled straight from that page's rendered
+// <option value=…> list, not guessed): 0 = base metric unit, negative =
+// smaller metric prefix (kg→g is -3, m→cm is -2, …), 98/99 (and a few
+// extras for volume) = imperial. Sent through as-is on submit — see
+// CreateProductFullInput's weightUnit/sizeUnit/surfaceUnit/volumeUnit.
+const WEIGHT_UNITS: FormOption[] = [
+  { value: '3', label: 'ton' },
+  { value: '0', label: 'kg' },
+  { value: '-3', label: 'g' },
+  { value: '-6', label: 'mg' },
+  { value: '98', label: 'ounce' },
+  { value: '99', label: 'pound' },
+]
+const SIZE_UNITS: FormOption[] = [
+  { value: '0', label: 'm' },
+  { value: '-1', label: 'dm' },
+  { value: '-2', label: 'cm' },
+  { value: '-3', label: 'mm' },
+  { value: '98', label: 'foot' },
+  { value: '99', label: 'inch' },
+]
+const SURFACE_UNITS: FormOption[] = [
+  { value: '0', label: 'm²' },
+  { value: '-2', label: 'dm²' },
+  { value: '-4', label: 'cm²' },
+  { value: '-6', label: 'mm²' },
+  { value: '98', label: 'ft²' },
+  { value: '99', label: 'in²' },
+]
+const VOLUME_UNITS: FormOption[] = [
+  { value: '0', label: 'm³' },
+  { value: '-3', label: 'dm³ (L)' },
+  { value: '-6', label: 'cm³ (ml)' },
+  { value: '-9', label: 'mm³ (µl)' },
+  { value: '88', label: 'ft³' },
+  { value: '89', label: 'in³' },
+  { value: '97', label: 'ounce' },
+  { value: '98', label: 'litre' },
+  { value: '99', label: 'gallon' },
+]
+
+function UnitSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: FormOption[] }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={`${selectCls} w-24 shrink-0 px-1.5`}>
+      {options.map((u) => (
+        <option key={u.value} value={u.value}>
+          {u.label}
+        </option>
+      ))}
+    </select>
+  )
 }
+
+const INVENTORY_TABS = [
+  { id: 'restock', label: 'Restock', icon: Boxes },
+  { id: 'shipping', label: 'Shipping', icon: Truck },
+  { id: 'delivery', label: 'GlobalDelivery', icon: Globe },
+  { id: 'attributes', label: 'Attributes', icon: Tags },
+  { id: 'advanced', label: 'Advanced', icon: Settings2 },
+] as const
+type InventoryTab = (typeof INVENTORY_TABS)[number]['id']
 
 export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
   const navigate = useNavigate()
@@ -367,19 +431,19 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
   const [units, setUnits] = useState('')
   const [packing, setPacking] = useState('')
   const [price, setPrice] = useState('')
+  const [priceBaseType, setPriceBaseType] = useState<'HT' | 'TTC'>('TTC')
   const [priceMin, setPriceMin] = useState('')
   const [vatCategory, setVatCategory] = useState('')
   const [iplCategory, setIplCategory] = useState('')
   const [tourismCategory, setTourismCategory] = useState('')
   const [exciseCategory, setExciseCategory] = useState('')
-  const [barcodeType, setBarcodeType] = useState('')
   const [barcode, setBarcode] = useState('')
   const [accountancySell, setAccountancySell] = useState('')
   const [accountancySellExport, setAccountancySellExport] = useState('')
   const [accountancyBuy, setAccountancyBuy] = useState('')
   const [accountancyBuyExport, setAccountancyBuyExport] = useState('')
+  const [showAccounting, setShowAccounting] = useState(false)
   const [categories, setCategories] = useState<string[]>([])
-  const [isWebsite, setIsWebsite] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
@@ -396,6 +460,18 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
   const [publicUrl, setPublicUrl] = useState('')
   const [chargeTax, setChargeTax] = useState(true)
   const [inStock, setInStock] = useState(true)
+  const [invTab, setInvTab] = useState<InventoryTab>('restock')
+  const [weight, setWeight] = useState('')
+  const [weightUnit, setWeightUnit] = useState('0')
+  const [length, setLength] = useState('')
+  const [width, setWidth] = useState('')
+  const [height, setHeight] = useState('')
+  const [sizeUnit, setSizeUnit] = useState('0')
+  const [surface, setSurface] = useState('')
+  const [surfaceUnit, setSurfaceUnit] = useState('0')
+  const [volume, setVolume] = useState('')
+  const [volumeUnit, setVolumeUnit] = useState('0')
+  const [notePrivate, setNotePrivate] = useState('')
 
   function handleImageSelect(file: File | undefined) {
     if (!file) return
@@ -437,19 +513,31 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
         units,
         packing,
         price,
+        priceBaseType,
         priceMin: priceMin || undefined,
         vatCategory: vatCategory || undefined,
         iplCategory: iplCategory || undefined,
         tourismCategory: tourismCategory || undefined,
         exciseCategory: exciseCategory || undefined,
-        barcodeType: barcodeType || undefined,
+        // Legacy create form never exposes this as a picker — it's a hidden
+        // input hardcoded to 6 (EAN13-family) on every new product.
+        barcodeType: '6',
         barcode: barcode || undefined,
+        weight: weight || undefined,
+        weightUnit: weight ? weightUnit : undefined,
+        length: length || undefined,
+        width: width || undefined,
+        height: height || undefined,
+        sizeUnit: length || width || height ? sizeUnit : undefined,
+        surface: surface || undefined,
+        surfaceUnit: surface ? surfaceUnit : undefined,
+        volume: volume || undefined,
+        volumeUnit: volume ? volumeUnit : undefined,
         accountancySell: accountancySell || undefined,
         accountancySellExport: accountancySellExport || undefined,
         accountancyBuy: accountancyBuy || undefined,
         accountancyBuyExport: accountancyBuyExport || undefined,
         categories: categories.length ? categories : undefined,
-        isWebsite,
       })
       setSuccess(true)
       setTimeout(() => navigate(isService ? ROUTES.serviceList : ROUTES.productList), 900)
@@ -529,31 +617,46 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
         <Field label="Nature of product" required>
           <Select value={finished} onChange={setFinished} options={natureOptions} placeholder="Select…" />
         </Field>
-        <div className="sm:col-span-2">
-          <Field label="Product Classification" required>
-            <ClassificationSearch
-              value={classificationLabel}
-              code={classificationCode}
-              onSelect={(l, c) => {
-                setClassificationLabel(l)
-                setClassificationCode(c)
-              }}
-            />
-          </Field>
-        </div>
-        <LocalOnlyNote />
-        <Toggle checked={useLotSerial} onChange={setUseLotSerial} label="Use lot/serial number" />
-        <Field label="Public URL">
+        <Field label="Product Classification" required>
+          <ClassificationSearch
+            value={classificationLabel}
+            code={classificationCode}
+            onSelect={(l, c) => {
+              setClassificationLabel(l)
+              setClassificationCode(c)
+            }}
+          />
+        </Field>
+        <Toggle checked={useLotSerial} onChange={setUseLotSerial} label="Use lot/serial number" hint="demo only" />
+        <Field label="Public URL" hint="demo only">
           <input value={publicUrl} onChange={(e) => setPublicUrl(e.target.value)} className={inputCls} placeholder="https://…" />
         </Field>
       </SectionCard>
 
-      <SectionCard title="Pricing">
+      <SectionCard title="Pricing" cols={4}>
         <Field label="Base price" required>
-          <input value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} placeholder="Price" />
+          <div className="flex gap-1.5">
+            <input value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls + ' flex-1 min-w-0'} placeholder="Price" />
+            <div className="flex rounded-md border border-input-border overflow-hidden shrink-0" role="group" aria-label="Price tax basis">
+              <button
+                type="button"
+                onClick={() => setPriceBaseType('HT')}
+                className={`px-2 text-xs font-medium transition-colors ${priceBaseType === 'HT' ? 'bg-brand text-white' : 'bg-input-bg text-text-muted hover:bg-surface-hover'}`}
+              >
+                Excl. tax
+              </button>
+              <button
+                type="button"
+                onClick={() => setPriceBaseType('TTC')}
+                className={`px-2 text-xs font-medium transition-colors border-l border-input-border ${priceBaseType === 'TTC' ? 'bg-brand text-white' : 'bg-input-bg text-text-muted hover:bg-surface-hover'}`}
+              >
+                Inc. tax
+              </button>
+            </div>
+          </div>
         </Field>
-        <Field label="Min. selling price">
-          <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className={inputCls} />
+        <Field label="Discounted Price">
+          <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className={inputCls} placeholder="Min. selling price" />
         </Field>
         <Field label="VAT category Code">
           <Select value={vatCategory} onChange={setVatCategory} options={options?.vatCategories ?? []} placeholder="Select Tax Category" />
@@ -567,79 +670,158 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
         <Field label="Excise tax category code">
           <Select value={exciseCategory} onChange={setExciseCategory} options={options?.exciseCategories ?? []} placeholder="Select Tax Category" />
         </Field>
-        <LocalOnlyNote />
-        <Field label="Manufacture TPIN">
+        <Field label="Manufacture TPIN" hint="demo only">
           <input value={tpin} onChange={(e) => setTpin(e.target.value)} className={inputCls} />
         </Field>
-        <Field label="Manufacturer item code">
+        <Field label="Manufacturer item code" hint="demo only">
           <input value={manufacturerItemCode} onChange={(e) => setManufacturerItemCode(e.target.value)} className={inputCls} />
         </Field>
-        <Field label="RRP">
+        <Field label="RRP" hint="demo only">
           <input value={rrp} onChange={(e) => setRrp(e.target.value)} className={inputCls} />
         </Field>
-        <Toggle checked={chargeTax} onChange={setChargeTax} label="Charge tax on this product" />
-        <Toggle checked={inStock} onChange={setInStock} label="In stock" />
+        <Toggle checked={chargeTax} onChange={setChargeTax} label="Charge tax on this product" hint="demo only" />
+        <Toggle checked={inStock} onChange={setInStock} label="In stock" hint="demo only" />
       </SectionCard>
 
-      <SectionCard title="Organize">
+      <SectionCard title="Organize" cols={4}>
         <Field label="Vendor / Country of origin" required>
           <Select value={countryId} onChange={setCountryId} options={options?.countries ?? []} placeholder="Select…" />
         </Field>
-        <div className="sm:col-span-2 xl:col-span-3">
+        <Field label="Manufacturer / Vendor" hint="demo only">
+          <input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label="State/Province of origin" hint="demo only">
+          <input value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label="Customs/Commodity/HS code" hint="demo only">
+          <input value={customsHsCode} onChange={(e) => setCustomsHsCode(e.target.value)} className={inputCls} />
+        </Field>
+        <div className="sm:col-span-2 xl:col-span-4">
           <Field label="Tag/category">
             <CategoryMultiSelect value={categories} onChange={setCategories} options={options?.categories ?? []} />
           </Field>
         </div>
-        <LocalOnlyNote />
-        <Field label="Manufacturer / Vendor">
-          <input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="State/Province of origin">
-          <input value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Customs/Commodity/HS code">
-          <input value={customsHsCode} onChange={(e) => setCustomsHsCode(e.target.value)} className={inputCls} />
-        </Field>
-        <div className="flex items-center pt-6">
-          <Toggle checked={isWebsite} onChange={setIsWebsite} label="Enable on website" />
+        <div className="sm:col-span-2 xl:col-span-4">
+          <button
+            type="button"
+            onClick={() => setShowAccounting((v) => !v)}
+            className={`flex w-full items-center justify-between rounded-md border border-input-border bg-input-bg px-3 h-9 text-sm text-text-muted hover:bg-surface-hover ${showAccounting ? 'rounded-b-none' : ''}`}
+          >
+            Accounting Codes
+            <ChevronDown size={14} className={`transition-transform ${showAccounting ? 'rotate-180' : ''}`} />
+          </button>
+          {showAccounting && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 rounded-b-md border border-t-0 border-input-border p-3">
+              <Field label="Product Accountancy Sell Code">
+                <ComboboxSelect value={accountancySell} onChange={setAccountancySell} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              </Field>
+              <Field label="Product Accountancy Sell Export Code">
+                <ComboboxSelect value={accountancySellExport} onChange={setAccountancySellExport} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              </Field>
+              <Field label="Product Accountancy Buy Code">
+                <ComboboxSelect value={accountancyBuy} onChange={setAccountancyBuy} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              </Field>
+              <Field label="Product Accountancy Buy Export Code">
+                <ComboboxSelect value={accountancyBuyExport} onChange={setAccountancyBuyExport} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              </Field>
+            </div>
+          )}
         </div>
       </SectionCard>
 
-      <SectionCard title="Inventory">
-        <Field label="Default warehouse">
-          <Select value={warehouseId} onChange={setWarehouseId} options={options?.warehouses ?? []} placeholder="Select a warehouse" />
-        </Field>
-        <Field label="Stock limit for alert">
-          <input value={stockAlertLimit} onChange={(e) => setStockAlertLimit(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Desired Stock">
-          <input value={desiredStock} onChange={(e) => setDesiredStock(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Unit" required>
-          <Select value={units} onChange={setUnits} options={options?.units ?? []} placeholder="Select…" />
-        </Field>
-        <Field label="Packaging Unit" required>
-          <Select value={packing} onChange={setPacking} options={options?.packingUnits ?? []} placeholder="Select…" />
-        </Field>
-        <Field label="Barcode type">
-          <Select value={barcodeType} onChange={setBarcodeType} options={options?.barcodeTypes ?? []} placeholder="Select…" />
-        </Field>
-      </SectionCard>
+      <Card className="!h-auto">
+        <h3 className="font-semibold text-text! mb-3">Inventory</h3>
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          <div className="flex sm:flex-col gap-1 shrink-0 w-full sm:w-40 overflow-x-auto sm:overflow-visible">
+            {INVENTORY_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setInvTab(tab.id)}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
+                  invTab === tab.id ? 'bg-brand text-white' : 'text-text-muted hover:bg-surface-hover'
+                }`}
+              >
+                <tab.icon size={14} /> {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid flex-1 min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3 items-start">
+            {invTab === 'restock' && (
+              <>
+                <Field label="Default warehouse">
+                  <Select value={warehouseId} onChange={setWarehouseId} options={options?.warehouses ?? []} placeholder="Select a warehouse" />
+                </Field>
+                <Field label="Stock limit for alert">
+                  <input value={stockAlertLimit} onChange={(e) => setStockAlertLimit(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Desired Stock">
+                  <input value={desiredStock} onChange={(e) => setDesiredStock(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Unit" required>
+                  <Select value={units} onChange={setUnits} options={options?.units ?? []} placeholder="Select…" />
+                </Field>
+                <Field label="Packaging Unit" required>
+                  <Select value={packing} onChange={setPacking} options={options?.packingUnits ?? []} placeholder="Select…" />
+                </Field>
+              </>
+            )}
+            {invTab === 'shipping' && (
+              <>
+                <Field label="Weight">
+                  <div className="flex gap-1.5">
+                    <input value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
+                    <UnitSelect value={weightUnit} onChange={setWeightUnit} options={WEIGHT_UNITS} />
+                  </div>
+                </Field>
+                <Field label="Length">
+                  <input value={length} onChange={(e) => setLength(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Width">
+                  <input value={width} onChange={(e) => setWidth(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Height">
+                  <input value={height} onChange={(e) => setHeight(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Size unit" hint="applies to L/W/H">
+                  <UnitSelect value={sizeUnit} onChange={setSizeUnit} options={SIZE_UNITS} />
+                </Field>
+              </>
+            )}
+            {invTab === 'delivery' && (
+              <>
+                <Field label="Surface">
+                  <div className="flex gap-1.5">
+                    <input value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
+                    <UnitSelect value={surfaceUnit} onChange={setSurfaceUnit} options={SURFACE_UNITS} />
+                  </div>
+                </Field>
+                <Field label="Volume">
+                  <div className="flex gap-1.5">
+                    <input value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
+                    <UnitSelect value={volumeUnit} onChange={setVolumeUnit} options={VOLUME_UNITS} />
+                  </div>
+                </Field>
+              </>
+            )}
+            {invTab === 'advanced' && (
+              <div className="sm:col-span-2 xl:col-span-3">
+                <Field label="Note" hint="private, demo only">
+                  <textarea
+                    value={notePrivate}
+                    onChange={(e) => setNotePrivate(e.target.value)}
+                    rows={3}
+                    className={inputCls + ' h-auto py-2'}
+                    placeholder="Not visible on invoices, quotations…"
+                  />
+                </Field>
+              </div>
+            )}
+            {invTab === 'attributes' && <p className="sm:col-span-2 xl:col-span-3 py-8 text-center text-xs italic text-text-faint">No attributes configured.</p>}
+          </div>
+        </div>
+      </Card>
 
-      <SectionCard title="Accountancy">
-        <Field label="Product Accountancy Sell Code">
-          <ComboboxSelect value={accountancySell} onChange={setAccountancySell} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
-        </Field>
-        <Field label="Product Accountancy Sell Export Code">
-          <ComboboxSelect value={accountancySellExport} onChange={setAccountancySellExport} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
-        </Field>
-        <Field label="Product Accountancy Buy Code">
-          <ComboboxSelect value={accountancyBuy} onChange={setAccountancyBuy} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
-        </Field>
-        <Field label="Product Accountancy Buy Export Code">
-          <ComboboxSelect value={accountancyBuyExport} onChange={setAccountancyBuyExport} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
-        </Field>
-      </SectionCard>
     </div>
   )
 }

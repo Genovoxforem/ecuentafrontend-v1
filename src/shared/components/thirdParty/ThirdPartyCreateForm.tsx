@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -53,6 +53,7 @@ import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFiel
 import { api } from '../../../api/axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { useThirdPartyFormOptions } from '../../../features/customers/thirdPartyOptions.queries'
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 
@@ -83,9 +84,16 @@ const SECTION_ICONS: Record<string, IconType> = {
   'Tags & Documents': Paperclip,
 }
 
-function buildStep1(variant: Variant): FieldSpec[] {
+function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPartyFormOptions>['data'] | null): FieldSpec[] {
   const isVendor = variant === 'vendor'
   const prospectCustomerDefault = isVendor ? 'Not prospect, Not customer' : variant === 'prospect' ? 'Prospect' : 'Customer'
+  
+  // Safe defaults if formOptions is null or properties are missing
+  const countryOptions = formOptions?.countries?.map(c => c.label) ?? ['Zambia']
+  const currencyOptions = formOptions?.currencies?.map(c => c.label) ?? ['Zambian Kwacha (ZMW)']
+  const customerGroupOptions = formOptions?.customerGroups?.map(g => g.label) ?? []
+  const thirdPartyTypeOptions = formOptions?.thirdPartyTypes?.map(t => t.label) ?? []
+  
   const fields: FieldSpec[] = [
     // Matches the reference Dolibarr wizard's compound Title/First/Last name
     // row (see NameField below) — the combined value still submits as the
@@ -113,7 +121,7 @@ function buildStep1(variant: Variant): FieldSpec[] {
     },
     { key: 'trackingId', label: 'Tracking Id', type: 'text', icon: Hash, section: 'Identity' },
     { key: 'aliasName', label: 'Alias name (commercial, trademark, ...)', type: 'text', icon: Tag, section: 'Identity' },
-    { key: 'customerGroup', label: 'Customer Group', type: 'select', options: [], icon: Users, placeholder: 'Select a group', section: 'Identity' },
+    { key: 'customerGroup', label: 'Customer Group', type: 'select', options: customerGroupOptions, icon: Users, placeholder: 'Select a group', section: 'Identity' },
     { key: 'phone', label: 'Phone', type: 'text', icon: Phone, section: 'Contact Info' },
     { key: 'email', label: 'EMail', type: 'text', icon: Mail, section: 'Contact Info' },
     { key: 'customerCode', label: 'Customer Code', type: 'text', defaultValue: 'CU2608-00001', icon: Hash, section: 'Classification' },
@@ -124,44 +132,54 @@ function buildStep1(variant: Variant): FieldSpec[] {
     fields.push({ key: 'branchCode', label: 'Branch Code', type: 'text', icon: Building2, section: 'Classification' })
   }
   fields.push(
-    { key: 'country', label: 'Country', type: 'select', options: ['Zambia (ZM)'], defaultValue: 'Zambia (ZM)', icon: Globe, section: 'Location & Currency' },
+    { key: 'country', label: 'Country', type: 'select', options: countryOptions, defaultValue: countryOptions[0] ?? 'Zambia', icon: Globe, section: 'Location & Currency' },
     { key: 'address', label: 'Address', type: 'text', icon: MapPin, section: 'Location & Currency' },
-    { key: 'currency', label: 'Currency', type: 'select', options: ['Zambian Kwacha (ZMW)'], defaultValue: 'Zambian Kwacha (ZMW)', icon: Coins, section: 'Location & Currency' },
-    { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: [], icon: Layers, section: 'Location & Currency' },
+    { key: 'currency', label: 'Currency', type: 'select', options: currencyOptions, defaultValue: currencyOptions[0] ?? 'Zambian Kwacha (ZMW)', icon: Coins, section: 'Location & Currency' },
+    { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: thirdPartyTypeOptions, icon: Layers, section: 'Location & Currency' },
   )
   return fields
 }
 
-const STEP2_FIELDS: FieldSpec[] = [
-  { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
-  { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
-  { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text', icon: UserCog, section: 'Status & Assignment' },
-  { key: 'salesRep', label: 'Assigned to sales representative', type: 'text', icon: UserRound, section: 'Status & Assignment' },
-  { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
-  { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
+function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['data'] | null): FieldSpec[] {
+  // Safe defaults if formOptions is null or properties are missing
+  const stateOptions = formOptions?.states?.map(s => s.label) ?? []
+  const businessEntityOptions = formOptions?.businessEntityTypes?.map(b => b.label) ?? []
+  const nrcOptions = formOptions?.nrcTypes?.map(n => n.label) ?? []
+  const workforceOptions = formOptions?.workforce?.map(w => w.label) ?? []
+  const languageOptions = formOptions?.languages?.map(l => l.label) ?? []
+  const incotermOptions = formOptions?.incoterms?.map(i => i.label) ?? []
+  
+  return [
+    { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
+    { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
+    { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text', icon: UserCog, section: 'Status & Assignment' },
+    { key: 'salesRep', label: 'Assigned to sales representative', type: 'text', icon: UserRound, section: 'Status & Assignment' },
+    { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
+    { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
 
-  { key: 'zipCode', label: 'Zip Code', type: 'text', icon: MapPin, section: 'Address Details' },
-  { key: 'city', label: 'City', type: 'text', icon: MapPin, section: 'Address Details' },
-  { key: 'stateProvince', label: 'State/Province', type: 'select', options: [], icon: MapIcon, section: 'Address Details' },
-  { key: 'fax', label: 'Fax', type: 'text', icon: Printer, section: 'Address Details' },
+    { key: 'zipCode', label: 'Zip Code', type: 'text', icon: MapPin, section: 'Address Details' },
+    { key: 'city', label: 'City', type: 'text', icon: MapPin, section: 'Address Details' },
+    { key: 'stateProvince', label: 'State/Province', type: 'select', options: stateOptions, icon: MapIcon, section: 'Address Details' },
+    { key: 'fax', label: 'Fax', type: 'text', icon: Printer, section: 'Address Details' },
 
-  { key: 'businessEntityType', label: 'Business entity type', type: 'select', options: [], icon: Briefcase, section: 'Business & Tax' },
-  { key: 'nrc', label: 'NRC', type: 'select', options: [], icon: FileText, section: 'Business & Tax' },
-  { key: 'nrcNumber', label: 'NRC Number', type: 'text', icon: Hash, section: 'Business & Tax' },
-  { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
-  { key: 'vatId', label: 'VAT ID', type: 'text', icon: Receipt, section: 'Business & Tax' },
-  { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
-  { key: 'workforce', label: 'Workforce', type: 'select', options: [], icon: Users, section: 'Business & Tax' },
-  { key: 'languageDefault', label: 'Language default', type: 'select', options: [], icon: Languages, section: 'Business & Tax' },
-  { key: 'incoterms', label: 'Incoterms', type: 'select', options: [], icon: Ship, section: 'Business & Tax' },
-  { key: 'environment', label: 'Environment', type: 'select', options: ['Master entity'], defaultValue: 'Master entity', icon: Server, section: 'Business & Tax' },
-  { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
-  { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
+    { key: 'businessEntityType', label: 'Business entity type', type: 'select', options: businessEntityOptions, icon: Briefcase, section: 'Business & Tax' },
+    { key: 'nrc', label: 'NRC', type: 'select', options: nrcOptions, icon: FileText, section: 'Business & Tax' },
+    { key: 'nrcNumber', label: 'NRC Number', type: 'text', icon: Hash, section: 'Business & Tax' },
+    { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
+    { key: 'vatId', label: 'VAT ID', type: 'text', icon: Receipt, section: 'Business & Tax' },
+    { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
+    { key: 'workforce', label: 'Workforce', type: 'select', options: workforceOptions, icon: Users, section: 'Business & Tax' },
+    { key: 'languageDefault', label: 'Language default', type: 'select', options: languageOptions, icon: Languages, section: 'Business & Tax' },
+    { key: 'incoterms', label: 'Incoterms', type: 'select', options: incotermOptions, icon: Ship, section: 'Business & Tax' },
+    { key: 'environment', label: 'Environment', type: 'select', options: ['Master entity'], defaultValue: 'Master entity', icon: Server, section: 'Business & Tax' },
+    { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
+    { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
 
-  { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
-  { key: 'vendorTags', label: 'Vendors tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
-  { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
-]
+    { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
+    { key: 'vendorTags', label: 'Vendors tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
+    { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
+  ]
+}
 
 const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
 
@@ -231,18 +249,26 @@ interface CreateThirdPartyResponse {
 }
 
 export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant; cancelPath: string }) {
+  // Fetch form options
+  const { data: formOptions, isLoading: formOptionsLoading } = useThirdPartyFormOptions()
+
+  // Build steps with dynamic form options
+  const steps = useMemo(() => {
+    return [
+      { title: 'Setup basic details', fields: buildStep1(variant, formOptions) },
+      { title: 'Add professional info', fields: buildStep2(formOptions) },
+      { title: 'Add social links', fields: [] as FieldSpec[] },
+    ]
+  }, [variant, formOptions])
+
   const [step, setStep] = useState(0)
-  const steps = [
-    { title: 'Setup basic details', fields: buildStep1(variant) },
-    { title: 'Add professional info', fields: STEP2_FIELDS },
-    { title: 'Add social links', fields: [] as FieldSpec[] },
-  ]
 
   const [values, setValues] = useState<Record<string, string>>(() => {
     // firstName/lastName/nameTitle back the compound NameField below; `name`
     // itself is kept in sync as their combined value on every keystroke.
     const init: Record<string, string> = { firstName: '', lastName: '', nameTitle: 'Mr' }
-    for (const f of [...buildStep1(variant), ...STEP2_FIELDS]) {
+    // Initialize with buildStep1/buildStep2 with null formOptions to get base fields
+    for (const f of [...buildStep1(variant, null), ...buildStep2(null)]) {
       init[f.key] = f.defaultValue ?? ''
     }
     for (const f of SOCIAL_LINK_FIELDS) {
@@ -285,7 +311,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [variant === 'vendor' ? 'vendors' : 'customers', 'summary'] })
       const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `New ${variant} added: ${values.name.trim()}`, category: 'other', authorName })
+      logActivity({ label: `New ${variant} added: ${values.name.trim()}`, category: 'thirdparty', authorName })
       navigate(cancelPath)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create third party'),
@@ -320,6 +346,31 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   }
 
   const isLastStep = step === steps.length - 1
+
+  // Show loading state only while data is actively loading (not just when null)
+  if (formOptionsLoading && !formOptions) {
+    return (
+      <StickyFormShell
+        header={
+          <div className="flex items-center gap-3">
+            <span className="flex items-center justify-center w-11 h-10 rounded-xl bg-brand/10 text-brand shrink-0">
+              <LoaderCircle size={22} className="animate-spin" />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-text!">Loading form...</h2>
+            </div>
+          </div>
+        }
+      >
+        <Card className="!h-auto flex-1 flex items-center justify-center min-h-96">
+          <div className="flex flex-col items-center gap-3">
+            <LoaderCircle size={32} className="animate-spin text-brand" />
+            <p className="text-text-muted">Loading dropdown options...</p>
+          </div>
+        </Card>
+      </StickyFormShell>
+    )
+  }
 
   return (
     <StickyFormShell
