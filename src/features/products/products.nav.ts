@@ -14,7 +14,7 @@ export const nav: NavSection = {
         { label: 'Product Area', path: ROUTES.productArea },
         { label: 'New Product', path: ROUTES.productCreate },
         { label: 'Product List', path: ROUTES.productList },
-        { label: 'Stocks', path: ROUTES.productStocks },
+        { label: 'Stocks and location (warehouse) of products', path: ROUTES.productStocks },
         { label: 'Stocks By Lot/Serial', path: ROUTES.productStocksByLot },
         { label: 'Lots/Serials', path: ROUTES.lotsSerials },
         { label: 'Variant Attributes', path: ROUTES.variantAttributes },

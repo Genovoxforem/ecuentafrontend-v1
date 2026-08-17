@@ -113,4 +113,104 @@ export function useCreateLandedCost() {
   }
 }
 
+// Racks/Shelves/Assign-Products — the real underlying tables (llx_rack,
+// llx_shelves, llx_shelvesdet) exist and have real rows on the live DB, but
+// the "Racks" Dolibarr module itself isn't activated server-side
+// (MAIN_MODULE_RACKS is missing from llx_const — confirmed via direct DB
+// query), so custom/racks/*.php always renders its content gated off, even
+// for a logged-in session. Scraping it client-side would just scrape that
+// same empty gate. Same local-only, session-scoped convention as
+// Warehouses/Inventories/Landed Costs above until that module is turned on
+// server-side (a backend change, out of this app's scope).
+
+export interface RackRecord {
+  ref: string
+  name: string
+  shortName: string
+  warehouseRef: string
+  status: 'Active' | 'Inactive'
+}
+const RACKS_KEY = ['local', 'racks'] as const
+
+export function useRacks() {
+  const [racks] = useLocalCollection<RackRecord[]>(RACKS_KEY, [])
+  return racks
+}
+
+export interface NewRackInput {
+  name: string
+  shortName: string
+  warehouseRef: string
+  status: 'Active' | 'Inactive'
+}
+
+export function useCreateRack() {
+  const [, update] = useLocalCollection<RackRecord[]>(RACKS_KEY, [])
+  return (input: NewRackInput) => {
+    const record: RackRecord = { ref: nextLocalRef('RACK'), ...input }
+    update((cur) => [record, ...cur])
+    return record
+  }
+}
+
+export interface ShelfRecord {
+  ref: string
+  rackRef: string
+  capacity: number
+}
+const SHELVES_KEY = ['local', 'shelves'] as const
+
+export function useShelves() {
+  const [shelves] = useLocalCollection<ShelfRecord[]>(SHELVES_KEY, [])
+  return shelves
+}
+
+export interface NewShelfInput {
+  rackRef: string
+  capacity: number
+}
+
+export function useCreateShelf() {
+  const [, update] = useLocalCollection<ShelfRecord[]>(SHELVES_KEY, [])
+  return (input: NewShelfInput) => {
+    const record: ShelfRecord = { ref: nextLocalRef('SHF'), ...input }
+    update((cur) => [record, ...cur])
+    return record
+  }
+}
+
+export interface RackAssignmentRecord {
+  ref: string
+  rackRef: string
+  shelfRef: string
+  productRef: string
+  productLabel: string
+  lotSerial: string
+  qty: number
+}
+const RACK_ASSIGNMENTS_KEY = ['local', 'rackAssignments'] as const
+
+export function useRackAssignments() {
+  const [assignments] = useLocalCollection<RackAssignmentRecord[]>(RACK_ASSIGNMENTS_KEY, [])
+  return assignments
+}
+
+export interface NewRackAssignmentInput {
+  rackRef: string
+  shelfRef: string
+  productRef: string
+  productLabel: string
+  lotSerial: string
+  qty: number
+}
+
+export function useCreateRackAssignment() {
+  const [, update] = useLocalCollection<RackAssignmentRecord[]>(RACK_ASSIGNMENTS_KEY, [])
+  return (input: NewRackAssignmentInput) => {
+    const record: RackAssignmentRecord = { ref: nextLocalRef('ASG'), ...input }
+    update((cur) => [record, ...cur])
+    return record
+  }
+}
+
 export { todayIso }

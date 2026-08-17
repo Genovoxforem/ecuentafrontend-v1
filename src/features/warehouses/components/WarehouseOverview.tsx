@@ -309,8 +309,8 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           icon={Zap}
           title="Quick Actions"
           actions={[
-            { icon: ShoppingCart, label: 'Replenishment' },
-            { icon: FilePenLine, label: 'Stock correction' },
+            { icon: ShoppingCart, label: 'Replenishment', path: ROUTES.replenishment },
+            { icon: FilePenLine, label: 'Stock correction', path: ROUTES.stockCorrection },
             { icon: PackagePlus, label: 'New inventory', path: ROUTES.inventoryCreate },
           ]}
         />
@@ -329,7 +329,7 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           icon={Shuffle}
           title="Stock Transfer & Reports"
           actions={[
-            { icon: Shuffle, label: 'Mass Transfer' },
+            { icon: Shuffle, label: 'Mass Transfer', path: ROUTES.massStockTransfer },
             { icon: ListChecks, label: 'Movement Report' },
             { icon: BarChart2, label: 'Statistics' },
           ]}

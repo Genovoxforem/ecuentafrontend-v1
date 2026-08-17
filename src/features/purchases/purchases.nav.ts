@@ -10,7 +10,7 @@ export const nav: NavSection = {
     {
       label: 'Vendors',
       items: [
-        { label: 'New Vendor', path: ROUTES.vendorCreate },
+        { label: 'New Vendors', path: ROUTES.vendorCreate },
         { label: 'List Of Vendors', path: ROUTES.vendorList },
         { label: 'Vendors Tags & Categories', path: ROUTES.vendorTags },
       ],
@@ -26,7 +26,7 @@ export const nav: NavSection = {
     {
       label: 'Vendor Proposals',
       items: [
-        { label: 'Vendor Proposals Area' },
+        { label: 'Vendor Proposals Area', path: ROUTES.supplierProposalArea },
         { label: 'New Price Request', path: ROUTES.supplierProposalCreate },
         { label: 'Vendor Proposal List', path: ROUTES.supplierProposalList },
       ],

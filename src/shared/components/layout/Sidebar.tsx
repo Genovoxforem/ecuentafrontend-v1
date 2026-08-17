@@ -1,56 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Plus, ChevronDown } from 'lucide-react'
-import { nav as homeNav } from '../../../features/home/home.nav'
-import { nav as zraNav } from '../../../features/zra/zra.nav'
-import { nav as billingNav } from '../../../features/billing/billing.nav'
-import { nav as purchasesNav } from '../../../features/purchases/purchases.nav'
-import { nav as productsNav } from '../../../features/products/products.nav'
-import { nav as warehousesNav } from '../../../features/warehouses/warehouses.nav'
-import { nav as projectsNav } from '../../../features/projects/projects.nav'
-import { nav as bankingNav } from '../../../features/banking/banking.nav'
-import { nav as loansNav } from '../../../features/loans/loans.nav'
-import { nav as usersNav } from '../../../features/users/users.nav'
-import { nav as payrollNav } from '../../../features/payroll/payroll.nav'
-import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
-import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
-import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
-import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
-import { nav as settingsNav } from '../../../features/settings/settings.nav'
-import { nav as reportsNav } from '../../../features/reports/reports.nav'
-import type { NavItem, NavLeafItem, NavSection } from '../../../features/navTypes'
+import type { NavItem, NavLeafItem } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
+import { PATH_SOURCE_SECTIONS } from '../../nav/pathSourceSections'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
 const RAIL_WIDTH_CLASS = 'w-14'
 const RAIL_WIDTH_OFFSET_CLASS = 'left-14'
-
-// Used only as a label->path lookup by buildNavSections now (see there) —
-// the actual section list, order, and item hierarchy come from GET
-// /api/menu/ (the real backend's own llx_menu data for this user), not from
-// this array. Kept as a fallback so the rail isn't empty for the one frame
-// before that request resolves.
-const PATH_SOURCE_SECTIONS: NavSection[] = [
-  homeNav,
-  zraNav,
-  billingNav,
-  purchasesNav,
-  productsNav,
-  warehousesNav,
-  projectsNav,
-  bankingNav,
-  loansNav,
-  usersNav,
-  payrollNav,
-  kitchenNav,
-  fixedAssetNav,
-  generalLedgerNav,
-  ticketNav,
-  settingsNav,
-  reportsNav,
-]
 
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a

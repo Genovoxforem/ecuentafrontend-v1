@@ -15,6 +15,7 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   ListCollapse,
   Rows3,
   Lock,
@@ -40,6 +41,39 @@ function journalBadgeColor(code: string): string {
   let hash = 0
   for (let i = 0; i < code.length; i++) hash = (hash * 31 + code.charCodeAt(i)) >>> 0
   return JOURNAL_BADGE_COLORS[hash % JOURNAL_BADGE_COLORS.length]
+}
+
+// Mirrors the legacy page's "◀ Year 2026 ▶" jump — reads the year straight
+// off dateStart so it always reflects the currently-applied filters, not
+// just the draft still being edited.
+function yearOf(filters: LedgerFilters): number {
+  return Number(filters.dateStart.slice(0, 4)) || new Date().getFullYear()
+}
+
+function YearStepper({ year, onJump }: { year: number; onJump: (year: number) => void }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface px-1 py-1">
+      <button
+        type="button"
+        onClick={() => onJump(year - 1)}
+        title="Previous year"
+        aria-label="Previous year"
+        className="p-1.5 rounded-md text-text-muted hover:bg-surface-hover hover:text-text"
+      >
+        <ChevronLeft size={14} />
+      </button>
+      <span className="text-xs font-semibold text-text! px-1.5 whitespace-nowrap">Year {year}</span>
+      <button
+        type="button"
+        onClick={() => onJump(year + 1)}
+        title="Next year"
+        aria-label="Next year"
+        className="p-1.5 rounded-md text-text-muted hover:bg-surface-hover hover:text-text"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  )
 }
 
 function MovementCard({ icon: Icon, label, movement }: { icon: typeof CalendarClock; label: string; movement: LedgerMovement }) {
@@ -198,17 +232,27 @@ export function LedgerOverview() {
           </span>
           Operations - View By Accounting Account (Ledger)
         </h2>
-        <FiltersForm
-          draft={draft}
-          onChange={setDraft}
-          onSubmit={() => setFilters(draft)}
-          onClear={() => {
-            const next = defaultLedgerFilters()
-            setDraft(next)
-            setFilters(next)
-          }}
-          submitting={isFetching}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <YearStepper
+            year={yearOf(filters)}
+            onJump={(year) => {
+              const next = { ...filters, dateStart: `${year}-01-01`, dateEnd: `${year}-12-31` }
+              setDraft(next)
+              setFilters(next)
+            }}
+          />
+          <FiltersForm
+            draft={draft}
+            onChange={setDraft}
+            onSubmit={() => setFilters(draft)}
+            onClear={() => {
+              const next = defaultLedgerFilters()
+              setDraft(next)
+              setFilters(next)
+            }}
+            submitting={isFetching}
+          />
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
