@@ -5,8 +5,20 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
-import { useCustomerGroup, useCreateCustomerGroup, useUpdateCustomerGroup, type DiscountMethod, type DiscountType } from '../customerGroups.queries'
+import {
+  useCustomerGroup,
+  useCreateCustomerGroup,
+  useUpdateCustomerGroup,
+  DISCOUNT_METHOD_OPTIONS,
+  DISCOUNT_TYPE_OPTIONS,
+} from '../customerGroups.queries'
 
+// Field set and default selections (Discount Method=Percentage, Discount
+// Type=Increase) match societe/new_card.php's own selectarray() defaults.
+// The Discount Percentage/Discount Type fields only show for
+// discountMethod=1 (Percentage) — for discountMethod=2 (Product Price) the
+// legacy page instead loads a per-product pricing table (llx_group_price_product),
+// which is out of scope here since it isn't part of the requested screen.
 export function CustomerGroupCreateForm() {
   const { id } = useParams<{ id: string }>()
   const isEdit = Boolean(id)
@@ -16,29 +28,26 @@ export function CustomerGroupCreateForm() {
   const navigate = useNavigate()
 
   const [label, setLabel] = useState('')
-  const [discountMethod, setDiscountMethod] = useState<DiscountMethod>('Product Price')
+  const [discountMethod, setDiscountMethod] = useState(1)
   const [discountValue, setDiscountValue] = useState('0')
-  const [discountType, setDiscountType] = useState<DiscountType>('N/A')
+  const [discountType, setDiscountType] = useState(1)
   const [description, setDescription] = useState('')
   const [formError, setFormError] = useState('')
-  const [pending, setPending] = useState(false)
 
-  // Prefill once the local collection resolves the row being edited —
-  // it's already in react-query's cache by the time this mounts (no
-  // network round trip), but the effect keeps this resilient to render
-  // order rather than assuming that.
   useEffect(() => {
     if (!existing) return
     setLabel(existing.label)
-    setDiscountMethod(existing.discountMethod)
-    setDiscountValue(String(existing.discountValue))
+    setDiscountMethod(existing.discountMethod ?? 1)
+    setDiscountValue(String(existing.discount))
     setDiscountType(existing.discountType)
-    setDescription(existing.description)
+    setDescription(existing.description ?? '')
   }, [existing])
 
   useEffect(() => {
     if (isEdit && !existing) navigate(ROUTES.customerGroupList)
   }, [isEdit, existing, navigate])
+
+  const pending = createGroup.isPending || updateGroup.isPending
 
   function handleSubmit() {
     setFormError('')
@@ -46,28 +55,31 @@ export function CustomerGroupCreateForm() {
       setFormError('Label is required.')
       return
     }
-    setPending(true)
     const input = {
       label: label.trim(),
       discountMethod,
-      discountValue: discountMethod === 'Percentage' ? Number(discountValue) || 0 : 0,
-      discountType: discountMethod === 'Percentage' ? discountType : ('N/A' as DiscountType),
+      discount: discountMethod === 1 ? Number(discountValue) || 0 : 0,
+      discountType: discountMethod === 1 ? discountType : 0,
       description: description.trim(),
     }
     if (isEdit && id) {
-      updateGroup(id, input)
+      updateGroup.mutate(
+        { id: Number(id), input },
+        { onSuccess: () => navigate(ROUTES.customerGroupList), onError: () => setFormError('Failed to save changes.') },
+      )
     } else {
-      createGroup(input)
+      createGroup.mutate(input, {
+        onSuccess: () => navigate(ROUTES.customerGroupList),
+        onError: () => setFormError('Failed to create customer group.'),
+      })
     }
-    setPending(false)
-    navigate(ROUTES.customerGroupList)
   }
 
   return (
     <StickyFormShell
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Layers size={20} className="text-brand" /> {isEdit ? 'Edit Customer Group' : 'New Customer Group'}
+          <Layers size={20} className="text-brand" /> {isEdit ? 'Edit Customer Group' : 'Create Customer Group'}
         </h2>
       }
       footerLeft={
@@ -82,48 +94,45 @@ export function CustomerGroupCreateForm() {
           onClick={handleSubmit}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
-          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} {isEdit ? 'Save changes' : 'Create group'}
+          {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} {isEdit ? 'Save changes' : 'Create Customer Group'}
         </button>
       }
     >
       <Card className="flex-1">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-          <Field label="Label" required>
+          <Field label="Ref" required>
             <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className={inputClasses} placeholder="e.g. Wholesale, VIP, Staff" />
           </Field>
+          <Field label="Description">
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputClasses} min-h-[42px]`} rows={1} />
+          </Field>
+
           <Field label="Discount Method">
-            <select value={discountMethod} onChange={(e) => setDiscountMethod(e.target.value as DiscountMethod)} className={inputClasses}>
-              <option value="Product Price">Product Price</option>
-              <option value="Percentage">Percentage</option>
+            <select value={discountMethod} onChange={(e) => setDiscountMethod(Number(e.target.value))} className={inputClasses}>
+              {DISCOUNT_METHOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </Field>
 
-          {discountMethod === 'Percentage' && (
-            <>
-              <Field label="Discount Value (%)">
-                <input
-                  type="number"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  className={inputClasses}
-                  min={0}
-                  max={100}
-                />
+          {discountMethod === 1 && (
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Discount Percentage">
+                <input type="number" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} className={inputClasses} min={0} max={100} />
               </Field>
               <Field label="Discount Type">
-                <select value={discountType} onChange={(e) => setDiscountType(e.target.value as DiscountType)} className={inputClasses}>
-                  <option value="Increase">Increase</option>
-                  <option value="Decrease">Decrease</option>
+                <select value={discountType} onChange={(e) => setDiscountType(Number(e.target.value))} className={inputClasses}>
+                  {DISCOUNT_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </Field>
-            </>
+            </div>
           )}
-
-          <div className="sm:col-span-2">
-            <Field label="Description">
-              <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className={inputClasses} />
-            </Field>
-          </div>
         </div>
       </Card>
 

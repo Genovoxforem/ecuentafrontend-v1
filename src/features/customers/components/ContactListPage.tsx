@@ -9,18 +9,25 @@ import { useContacts, type ContactKind } from '../contacts.queries'
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Real GET /api/contacts/?kind=customer data (see contacts.queries.ts) —
-// server-side search + pagination, matching how the endpoint itself is
+const KIND_LABEL: Record<ContactKind, string> = {
+  customer: 'Customers',
+  vendor: 'Vendors',
+}
+
+// Real GET /api/contacts/?kind=customer|vendor data (see contacts.queries.ts)
+// — server-side search + pagination, matching how the endpoint itself is
 // built rather than fetching everything and slicing client-side. Columns
 // match the legacy List Of Contacts/Addresses page exactly (Last Name,
 // First Name, Phone, Email, Third-Party [+ company sub-line], Visibility,
 // Environment, Status) — "Environment" is real too (llx_socpeople.entity),
-// just always "Master Entity" on this single-entity install.
+// just always "Master Entity" on this single-entity install. Reused for both
+// the Sales > Customer Contacts and Purchases > Vendor Contacts pages.
 export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const { data, isLoading, isError } = useContacts(kind, search, page, perPage)
+  const createRoute = kind === 'vendor' ? ROUTES.vendorContactCreate : ROUTES.contactCreate
 
   useEffect(() => {
     setPage(1)
@@ -50,9 +57,9 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Users size={20} className="text-brand" /> List Of Contacts/Addresses (Customers)
+          <Users size={20} className="text-brand" /> List Of Contacts/Addresses ({KIND_LABEL[kind]})
         </h2>
-        <Link to={ROUTES.contactCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+        <Link to={createRoute} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
           <Plus size={14} /> Create Contact/Address
         </Link>
       </div>

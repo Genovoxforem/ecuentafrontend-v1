@@ -42,7 +42,7 @@ export const nav: NavSection = {
     {
       label: 'Purchases',
       items: [
-        { label: 'Create Quick Purchase', path: ROUTES.vendorInvoiceCreate },
+        { label: 'Create Quick Purchase', path: ROUTES.vendorInvoiceCreateQuick },
         { label: 'Create Detailed Purchase', path: ROUTES.vendorInvoiceCreate },
         { label: 'Vendor Invoices', path: ROUTES.vendorInvoiceList },
         { label: 'Paid (Vendor Invoices)', path: ROUTES.vendorInvoicePaid },

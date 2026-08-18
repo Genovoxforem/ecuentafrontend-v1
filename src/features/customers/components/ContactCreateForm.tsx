@@ -4,9 +4,9 @@ import { UserPlus, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
-import { useCustomerOptions } from '../customerOptions'
+import { useCustomerOptions, useVendorOptions } from '../customerOptions'
 import { useThirdPartyFormOptions } from '../thirdPartyOptions.queries'
-import { useCreateContact } from '../contacts.queries'
+import { useCreateContact, type ContactKind } from '../contacts.queries'
 import { useCategories } from '../categories.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -32,14 +32,21 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 // Real POST /api/contacts/ create (see contacts.queries.ts) against
-// llx_socpeople — companyId from useCustomerOptions, countryId from the
-// real llx_c_country dictionary, categoryIds from the real Contact
-// Tags/Categories collection (see categories.queries.ts, type=4) so tags
-// picked here actually link via llx_categorie_contact. civility/facebook/
+// llx_socpeople — companyId from useCustomerOptions/useVendorOptions
+// (picked by `kind`, matching how api/contacts/'s own GET branches on
+// kind=customer|vendor), countryId from the real llx_c_country dictionary,
+// categoryIds from the real Contact Tags/Categories collection (see
+// categories.queries.ts, type=4 — Dolibarr doesn't split contact tags by
+// customer/vendor, so the same collection backs both). civility/facebook/
 // twitter/linkedin/whatsapp are real columns too — see that endpoint's
 // header comment for which social columns it covers.
-export function ContactCreateForm() {
-  const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind }) {
+  const isVendor = kind === 'vendor'
+  const { data: customerOpts, isLoading: customerOptsLoading } = useCustomerOptions(!isVendor)
+  const { data: vendorOpts, isLoading: vendorOptsLoading } = useVendorOptions(isVendor)
+  const customers = isVendor ? vendorOpts : customerOpts
+  const customersLoading = isVendor ? vendorOptsLoading : customerOptsLoading
+  const listRoute = isVendor ? ROUTES.vendorContactList : ROUTES.contactList
   const { data: formOptions } = useThirdPartyFormOptions()
   const countries = formOptions?.countries ?? []
   const { data: tagsData } = useCategories(4)
@@ -106,7 +113,7 @@ export function ContactCreateForm() {
         whatsapp,
       },
       {
-        onSuccess: () => navigate(ROUTES.contactList),
+        onSuccess: () => navigate(listRoute),
         onError: () => setFormError('Could not save this contact — please try again.'),
       },
     )
@@ -131,7 +138,7 @@ export function ContactCreateForm() {
       }
       headerClassName="py-3"
       footerLeft={
-        <Link to={ROUTES.contactList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+        <Link to={listRoute} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel
         </Link>
       }

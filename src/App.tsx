@@ -123,6 +123,30 @@ const VendorCreateModule = lazy(() => import('./modules/vendors/VendorCreateModu
 const VendorTagsModule = lazy(() => import('./modules/purchases/VendorTagsModule').then((m) => ({ default: m.VendorTagsModule })))
 const PurchaseOrderStatisticsModule = lazy(() => import('./modules/purchases/PurchaseOrderStatisticsModule').then((m) => ({ default: m.PurchaseOrderStatisticsModule })))
 const VendorProposalsAreaModule = lazy(() => import('./modules/purchases/VendorProposalsAreaModule').then((m) => ({ default: m.VendorProposalsAreaModule })))
+const VendorContactCreateModule = lazy(() => import('./modules/purchases/VendorContactCreateModule').then((m) => ({ default: m.VendorContactCreateModule })))
+const VendorContactListModule = lazy(() => import('./modules/purchases/VendorContactListModule').then((m) => ({ default: m.VendorContactListModule })))
+const VendorContactTagsModule = lazy(() => import('./modules/purchases/VendorContactTagsModule').then((m) => ({ default: m.VendorContactTagsModule })))
+const QuickPurchaseCreateModule = lazy(() => import('./modules/purchases/QuickPurchaseCreateModule').then((m) => ({ default: m.QuickPurchaseCreateModule })))
+const DetailedPurchaseCreateModule = lazy(() => import('./modules/purchases/DetailedPurchaseCreateModule').then((m) => ({ default: m.DetailedPurchaseCreateModule })))
+const VendorInvoiceListModule = lazy(() => import('./modules/purchases/VendorInvoiceListModule').then((m) => ({ default: m.VendorInvoiceListModule })))
+const VendorInvoicePaidModule = lazy(() => import('./modules/purchases/VendorInvoicePaidModule').then((m) => ({ default: m.VendorInvoicePaidModule })))
+const VendorInvoiceUnpaidModule = lazy(() => import('./modules/purchases/VendorInvoiceUnpaidModule').then((m) => ({ default: m.VendorInvoiceUnpaidModule })))
+const VendorInvoiceManualModule = lazy(() => import('./modules/purchases/VendorInvoiceManualModule').then((m) => ({ default: m.VendorInvoiceManualModule })))
+const VendorInvoiceAutomaticModule = lazy(() => import('./modules/purchases/VendorInvoiceAutomaticModule').then((m) => ({ default: m.VendorInvoiceAutomaticModule })))
+const VendorPaymentsListModule = lazy(() => import('./modules/purchases/VendorPaymentsListModule').then((m) => ({ default: m.VendorPaymentsListModule })))
+const VendorPaymentsReportModule = lazy(() => import('./modules/purchases/VendorPaymentsReportModule').then((m) => ({ default: m.VendorPaymentsReportModule })))
+const VendorInvoiceStatisticsModule = lazy(() => import('./modules/purchases/VendorInvoiceStatisticsModule').then((m) => ({ default: m.VendorInvoiceStatisticsModule })))
+const ProjectCreateModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectCreateModule })))
+const ProjectEditModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectEditModule })))
+const ProjectListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectListModule })))
+const ProjectOpenLeadsListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectOpenLeadsListModule })))
+const ProjectOpenProjectsListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectOpenProjectsListModule })))
+const ProjectStatsModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectStatsModule })))
+const ProjectTaskCreateModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTaskCreateModule })))
+const ProjectTaskListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTaskListModule })))
+const ProjectTimeSpentModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTimeSpentModule })))
+const ProjectCategoryCreateModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectCategoryCreateModule })))
+const SupplierProposalStatsModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.SupplierProposalStatsModule })))
 const OrdersListModule = lazy(() => import('./modules/salesOrders/OrdersListModule').then((m) => ({ default: m.OrdersListModule })))
 const OrderCreateModule = lazy(() => import('./modules/salesOrders/OrderCreateModule').then((m) => ({ default: m.OrderCreateModule })))
 const OrderStatisticsModule = lazy(() => import('./modules/salesOrders/OrderStatisticsModule').then((m) => ({ default: m.OrderStatisticsModule })))
@@ -315,6 +339,30 @@ function App() {
                   <Route path={ROUTES.supplierProposalArea} element={<RouteBoundary><VendorProposalsAreaModule /></RouteBoundary>} />
                   <Route path={ROUTES.supplierProposalList} element={<RouteBoundary><SupplierProposalsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.supplierProposalCreate} element={<RouteBoundary><SupplierProposalCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorContactCreate} element={<RouteBoundary><VendorContactCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorContactList} element={<RouteBoundary><VendorContactListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorContactTags} element={<RouteBoundary><VendorContactTagsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceCreateQuick} element={<RouteBoundary><QuickPurchaseCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceCreate} element={<RouteBoundary><DetailedPurchaseCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceList} element={<RouteBoundary><VendorInvoiceListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoicePaid} element={<RouteBoundary><VendorInvoicePaidModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceUnpaid} element={<RouteBoundary><VendorInvoiceUnpaidModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceManual} element={<RouteBoundary><VendorInvoiceManualModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceAutomatic} element={<RouteBoundary><VendorInvoiceAutomaticModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorPaymentsList} element={<RouteBoundary><VendorPaymentsListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorPaymentsReport} element={<RouteBoundary><VendorPaymentsReportModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceStats} element={<RouteBoundary><VendorInvoiceStatisticsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectCreate} element={<RouteBoundary><ProjectCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectEdit} element={<RouteBoundary><ProjectEditModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectList} element={<RouteBoundary><ProjectListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectOpenLeadsList} element={<RouteBoundary><ProjectOpenLeadsListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectOpenProjectsList} element={<RouteBoundary><ProjectOpenProjectsListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectStats} element={<RouteBoundary><ProjectStatsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectTaskCreate} element={<RouteBoundary><ProjectTaskCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectTaskList} element={<RouteBoundary><ProjectTaskListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectTimeSpent} element={<RouteBoundary><ProjectTimeSpentModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectCategoryCreate} element={<RouteBoundary><ProjectCategoryCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.supplierProposalStats} element={<RouteBoundary><SupplierProposalStatsModule /></RouteBoundary>} />
                   <Route path={ROUTES.productList} element={<RouteBoundary><ProductsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.serviceList} element={<RouteBoundary><ServicesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.productArea} element={<RouteBoundary><ProductAreaModule /></RouteBoundary>} />
