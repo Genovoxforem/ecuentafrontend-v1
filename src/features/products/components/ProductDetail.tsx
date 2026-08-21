@@ -375,9 +375,17 @@ export function ProductDetail() {
               color="bg-brand"
             />
             <div className="space-y-2 pt-0.5">
-              <div className="flex flex-wrap items-center gap-2">
-                { <h2 className="text-lg font-bold text-text!">{product.label}</h2> }
-                <StatusPill active={product.forSale} activeLabel="For sale" inactiveLabel="Not for sale" tone="success" />
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold text-text!">{product.label}</h2>
+                  <StatusPill active={product.forSale} activeLabel="For sale" inactiveLabel="Not for sale" tone="success" />
+                </div>
+                {product.barcode && (
+                  <div className="flex flex-col items-center gap-0.5 shrink-0">
+                    <ProductBarcodeGraphic value={product.barcode} height={32} width={1.1} />
+                    <span className="text-[10px] text-text-faint whitespace-nowrap">{product.barcode}</span>
+                  </div>
+                )}
               </div>
               <span className="inline-block rounded-md border border-border bg-surface px-2 py-0.5 text-xs text-text-muted">
                 SKU <span className="font-medium text-text!">{product.ref}</span>
@@ -408,19 +416,6 @@ export function ProductDetail() {
               </div>
             </div>
           </div>
-
-          {/* Barcode gets its own centered section now, instead of a small
-              inline glyph in the meta row — matches the real reference
-              page's header layout (a dedicated "Barcode" block between the
-              product info and the action buttons), not just a cosmetic
-              tweak buried among Type/Origin/Created. */}
-          {product.barcode && (
-            <div className="flex flex-col items-center gap-1 px-4 shrink-0 self-center">
-              <span className="text-xs font-medium text-text-faint">Barcode</span>
-              <ProductBarcodeGraphic value={product.barcode} height={40} width={1.3} />
-              <span className="text-xs text-text-faint">{product.barcode}</span>
-            </div>
-          )}
 
           <div className="flex flex-col items-end gap-2 shrink-0">
             <div className="flex items-center gap-1">
@@ -892,7 +887,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-4">
-      <Card className="!h-auto sticky top-0 z-20">
+      <Card className="!h-auto">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-text-faint">Default Tax Rate</span>
