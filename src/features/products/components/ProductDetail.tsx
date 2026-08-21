@@ -402,19 +402,18 @@ export function ProductDetail() {
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 pt-0.5">
+              <div className="flex flex-wrap items-end gap-2 pt-0.5">
                 <StatChip label="Price Inc." value={formatMoney(product.priceInclTax)} />
                 <StatChip label="Stock" value={formatNumber(product.stock)} />
+                {product.barcode && (
+                  <div className="flex flex-col items-center gap-0.5 shrink-0 ml-2">
+                    <ProductBarcodeGraphic value={product.barcode} height={28} width={0.9} />
+                    <span className="text-[8px] text-text-faint whitespace-nowrap">{product.barcode}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-
-          {product.barcode && (
-            <div className="flex flex-col items-center gap-0.5 shrink-0 ml-4 mr-auto">
-              <ProductBarcodeGraphic value={product.barcode} height={32} width={1.1} />
-              <span className="text-[10px] text-text-faint whitespace-nowrap">{product.barcode}</span>
-            </div>
-          )}
 
           <div className="flex flex-col items-end gap-2 shrink-0">
             <div className="flex items-center gap-1">
