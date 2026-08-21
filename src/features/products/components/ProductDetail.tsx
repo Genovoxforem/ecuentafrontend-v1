@@ -346,7 +346,7 @@ export function ProductDetail() {
   }
 
   return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0">
+    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
       <div className="sticky -top-6 z-10 -mx-6 flex items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <Link to={ROUTES.productList} className="flex items-center gap-1.5 text-sm text-text-faint hover:text-text" title="Back to list">
           <ChevronLeft size={18} /> Products
