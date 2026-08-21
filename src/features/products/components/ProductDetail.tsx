@@ -125,7 +125,7 @@ const TABS = [
   { label: 'Notes', icon: StickyNote },
   { label: 'Documents', icon: Paperclip },
   { label: 'Events', icon: CalendarClock },
-
+  { label: 'Margins', icon: Percent },
 ] as const
 type Tab = (typeof TABS)[number]['label']
 
@@ -356,8 +356,8 @@ export function ProductDetail() {
         </Link>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
-        {/* Hero + tab bar + content are ONE card now, not two stacked with a
+      <div className="sticky top-0 z-10 px-6 pt-4 bg-gradient-to-b from-white via-white to-white/0 dark:from-gray-950 dark:via-gray-950 dark:to-gray-950/0 -mx-6">
+        {/* Hero + tab bar are ONE card now, not two stacked with a
             gap between them — the hero's own bottom border is what separates
             it from the tab bar, matching a single continuous panel instead
             of two separate boxes. Card itself goes !p-0 so the tab bar/
@@ -488,7 +488,9 @@ export function ProductDetail() {
             </div>
           </div>
         </Card>
+      </div>
 
+      <div className="flex-1 min-h-0 overflow-auto px-6 pb-4 space-y-4">
         {actionError && <p className="text-sm text-danger">{actionError}</p>}
 
         {/* Content is its own section now, separate from the hero+tab-bar
