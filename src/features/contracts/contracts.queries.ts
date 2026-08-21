@@ -86,3 +86,45 @@ export function useCreateContract() {
     logActivity({ label: `New contract ${row.ref} with ${row.thirdParty}`, category: 'contracts', authorName: input.author })
   }
 }
+
+// Individual service lines within a contract — same local-only convention
+// as contracts themselves (no backend endpoint), kept as a separate
+// collection since ContractRow has no line-item concept of its own.
+export interface ContractServiceRow {
+  ref: string
+  contractRef: string
+  service: string
+  thirdParty: string
+  plannedStart: string
+  realStart: string
+  plannedEnd: string
+  realEnd: string
+  status: 'Planned' | 'Running' | 'Closed'
+}
+
+const SERVICES_KEY = ['local', 'contractServices'] as const
+
+export function useContractServices() {
+  const [services] = useLocalCollection<ContractServiceRow[]>(SERVICES_KEY, [])
+  return services
+}
+
+export interface NewContractServiceInput {
+  contractRef: string
+  service: string
+  thirdParty: string
+  plannedStart: string
+  realStart: string
+  plannedEnd: string
+  realEnd: string
+  status: ContractServiceRow['status']
+}
+
+export function useCreateContractService() {
+  const [, update] = useLocalCollection<ContractServiceRow[]>(SERVICES_KEY, [])
+  return (input: NewContractServiceInput) => {
+    const row: ContractServiceRow = { ref: nextLocalRef('(SVC)'), ...input }
+    update((cur) => [row, ...cur])
+    return row
+  }
+}

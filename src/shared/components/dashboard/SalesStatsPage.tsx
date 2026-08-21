@@ -1,38 +1,59 @@
-import { useState, type ComponentType } from 'react'
+import type { ComponentType } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Card } from './DashboardKit'
 import { inputClasses } from '../forms/FormField'
 import { formatMoney } from '../../../utils/format'
+import type { MonthlyStats } from '../../../features/salesOrders/orderStats.queries'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEAR_OPTIONS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2]
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-// No stats endpoint exists on this app's backend for orders or quotations
-// (same gap as the plain list — see salesOrders.queries.ts / quotations.queries.ts),
-// so every number here stays an honest zero rather than invented monthly
-// figures — same choice the list pages make. The filter controls and year
-// picker are real/interactive; there's just nothing behind them yet.
-function ChartCard({ title }: { title: string }) {
+function BarChartCard({ title, values, format }: { title: string; values: number[]; format: (v: number) => string }) {
+  const max = Math.max(1, ...values)
   return (
     <Card>
       <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">{title}</h3>
-      <div className="h-48 flex items-center justify-center">
-        <p className="text-sm text-text-faint">Not enough data...</p>
+      <div className="flex items-end gap-2 h-40 border-l border-b border-border pl-2 pb-1">
+        {MONTHS.map((m, i) => {
+          const v = values[i] ?? 0
+          return (
+            <div key={m} className="flex-1 flex flex-col items-center justify-end h-full" title={`${m}: ${format(v)}`}>
+              <span className="text-[10px] text-text-muted mb-0.5">{v > 0 ? format(v) : ''}</span>
+              <div className="w-full bg-brand rounded-t-sm" style={{ height: v === 0 ? 0 : `${Math.max(4, (v / max) * 100)}%` }} />
+              <span className="text-[10px] text-text-faint mt-1">{m}</span>
+            </div>
+          )
+        })}
       </div>
     </Card>
   )
 }
 
+// No filtering (Third-Party/Type/Tag/Created By/Status) endpoint exists for
+// either orders or quotations stats, so those selects stay decorative —
+// only Year is wired, matching how far the real backend actually reaches.
 export function SalesStatsPage({
   icon: Icon,
   title,
   entityLabel,
+  stats,
+  isLoading,
+  year,
+  onYearChange,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
   entityLabel: string
+  stats: MonthlyStats | undefined
+  isLoading: boolean
+  year: string
+  onYearChange: (year: string) => void
 }) {
-  const [year, setYear] = useState(String(CURRENT_YEAR))
+  const counts = stats?.countByMonth?.[year] ?? Array(12).fill(0)
+  const amounts = stats?.amountByMonth?.[year] ?? Array(12).fill(0)
+  const averages = counts.map((c, i) => (c > 0 ? amounts[i] / c : 0))
+  const summary = stats?.summary ?? { count: 0, totalAmount: 0, averageAmount: 0 }
 
   return (
     <div className="space-y-4">
@@ -49,7 +70,7 @@ export function SalesStatsPage({
             {['Third-Party', 'Third-Party Type', 'Tag/Category Customer', 'Created By', 'Status'].map((label) => (
               <label key={label} className="flex flex-col gap-1">
                 <span className="text-sm text-text">{label}</span>
-                <select defaultValue="" className={inputClasses}>
+                <select defaultValue="" className={inputClasses} disabled>
                   <option value="" disabled>
                     Select...
                   </option>
@@ -58,7 +79,7 @@ export function SalesStatsPage({
             ))}
             <label className="flex flex-col gap-1">
               <span className="text-sm text-text">Year</span>
-              <select value={year} onChange={(e) => setYear(e.target.value)} className={inputClasses}>
+              <select value={year} onChange={(e) => onYearChange(e.target.value)} className={inputClasses}>
                 {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y}>
                     {y}
@@ -66,8 +87,8 @@ export function SalesStatsPage({
                 ))}
               </select>
             </label>
-            <button type="button" className="w-full rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover flex items-center justify-center gap-1.5">
-              <RefreshCw size={14} /> Refresh
+            <button type="button" disabled={isLoading} className="w-full rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover flex items-center justify-center gap-1.5 disabled:opacity-60">
+              <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Refresh
             </button>
           </div>
 
@@ -82,19 +103,19 @@ export function SalesStatsPage({
             </thead>
             <tbody>
               <tr>
-                <td className="py-2 pr-2 text-text-muted">{year}</td>
-                <td className="py-2 pr-2 text-text-muted">0</td>
-                <td className="py-2 pr-2 text-text-muted">{formatMoney(0)}</td>
-                <td className="py-2 text-text-muted">{formatMoney(0)}</td>
+                <td className="py-2 pr-2 text-brand font-medium">{year}</td>
+                <td className="py-2 pr-2 text-text! tabular-nums">{summary.count}</td>
+                <td className="py-2 pr-2 text-text! tabular-nums">{formatMoney(summary.totalAmount)}</td>
+                <td className="py-2 text-text! tabular-nums">{formatMoney(summary.averageAmount)}</td>
               </tr>
             </tbody>
           </table>
         </Card>
 
         <div className="space-y-4">
-          <ChartCard title={`Number Of ${entityLabel} By Month`} />
-          <ChartCard title={`Amount Of ${entityLabel} By Month (Excl. Tax)`} />
-          <ChartCard title="Average Amount" />
+          <BarChartCard title={`Number Of ${entityLabel} By Month`} values={counts} format={(v) => String(v)} />
+          <BarChartCard title={`Amount Of ${entityLabel} By Month (Excl. Tax)`} values={amounts} format={formatMoney} />
+          <BarChartCard title="Average Amount" values={averages} format={formatMoney} />
         </div>
       </div>
     </div>

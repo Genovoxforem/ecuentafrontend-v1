@@ -77,6 +77,6 @@ export function useCreatePurchaseOrder() {
       pendingCount: current.pendingCount + 1,
       orders: [row, ...current.orders],
     }))
-    logActivity({ label: `New purchase order ${row.ref} from ${row.thirdParty}`, category: 'orders', authorName: input.author })
+    logActivity({ label: `New purchase order ${row.ref} from ${row.thirdParty}`, category: 'purchase', authorName: input.author })
   }
 }

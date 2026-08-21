@@ -265,12 +265,9 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-brand/10 text-brand">
-            <Warehouse size={17} />
-          </span>
-          <h2 className="text-lg font-bold text-text!">Warehouses area</h2>
-        </div>
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Warehouse size={20} className="text-brand" /> Warehouses area
+        </h2>
         <button
           type="button"
           onClick={() => setShowRecordMovement((v) => !v)}
@@ -295,8 +292,8 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           caption="Active / Total"
           icon={Warehouse}
           color="green"
-          listPath={ROUTES.warehouseDashboard}
-          newPath={ROUTES.warehouseDashboard}
+          listPath={ROUTES.warehouseList}
+          newPath={ROUTES.warehouseCreate}
         />
 
         <MetricCard
@@ -312,20 +309,27 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           icon={Zap}
           title="Quick Actions"
           actions={[
-            { icon: ShoppingCart, label: 'Replenishment' },
-            { icon: FilePenLine, label: 'Stock correction' },
-            { icon: PackagePlus, label: 'New inventory' },
+            { icon: ShoppingCart, label: 'Replenishment', path: ROUTES.replenishment },
+            { icon: FilePenLine, label: 'Stock correction', path: ROUTES.stockCorrection },
+            { icon: PackagePlus, label: 'New inventory', path: ROUTES.inventoryCreate },
           ]}
         />
 
-        <MetricCard label="Inventories" value={summary.inventories} icon={ClipboardList} color="rose" />
-        <MetricCard label="Shipments" value={summary.shipments.total} caption={`${summary.shipments.validated} Validated`} icon={Truck} color="blue" />
+        <MetricCard label="Inventories" value={summary.inventories} icon={ClipboardList} color="rose" listPath={ROUTES.inventoryList} newPath={ROUTES.inventoryCreate} />
+        <MetricCard
+          label="Shipments"
+          value={summary.shipments.total}
+          caption={`${summary.shipments.validated} Validated`}
+          icon={Truck}
+          color="blue"
+          listPath={ROUTES.shipmentList}
+        />
         <MetricCard label="Receptions" value={summary.receptions.total} caption={`${summary.receptions.validated} Validated`} icon={PackageCheck} color="blue" />
         <ActionGroupCard
           icon={Shuffle}
           title="Stock Transfer & Reports"
           actions={[
-            { icon: Shuffle, label: 'Mass Transfer' },
+            { icon: Shuffle, label: 'Mass Transfer', path: ROUTES.massStockTransfer },
             { icon: ListChecks, label: 'Movement Report' },
             { icon: BarChart2, label: 'Statistics' },
           ]}

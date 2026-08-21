@@ -72,6 +72,6 @@ export function useCreateSupplierProposal() {
       draftCount: current.draftCount + 1,
       proposals: [row, ...current.proposals],
     }))
-    logActivity({ label: `New price request ${row.ref} to ${row.thirdParty}`, category: 'other', authorName: input.author })
+    logActivity({ label: `New price request ${row.ref} to ${row.thirdParty}`, category: 'purchase', authorName: input.author })
   }
 }

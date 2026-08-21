@@ -136,11 +136,23 @@ export interface CreateProductFullInput {
   barcodeType?: string
   barcode?: string
   weight?: string
+  // *Unit fields below carry Dolibarr's own scale codes (0 = base metric
+  // unit, negative = smaller metric prefix, 98/99 = imperial — see
+  // ProductServiceCreateForm's WEIGHT_UNITS/SIZE_UNITS/etc for the full
+  // tables), matching what the legacy Add Products form itself posts for
+  // weight_units/size_units/surface_units/volume_units. Unlike the rest of
+  // this interface, the proxy's exact accepted key name for these isn't
+  // confirmed — if it expects something else, they're just silently
+  // dropped (missing weight/size/surface/volume unit costs nothing else).
+  weightUnit?: string
   length?: string
   width?: string
   height?: string
+  sizeUnit?: string
   surface?: string
+  surfaceUnit?: string
   volume?: string
+  volumeUnit?: string
   accountancySell?: string
   accountancySellExport?: string
   accountancyBuy?: string

@@ -30,11 +30,16 @@ export function useRecentActivity({ category, limit }: RecentActivityParams) {
 
 let idSeq = 1
 
+// `date` is optional and defaults to now — every existing caller (create
+// actions across the app logging themselves as they happen) omits it and
+// keeps working unchanged. Passing it explicitly is only for the Agenda
+// calendar's own "+ New Event" form, where the user picks a date that isn't
+// necessarily today.
 export function useLogActivity() {
   const queryClient = useQueryClient()
-  return (event: Omit<ActivityEvent, 'id' | 'date'>) => {
+  return (event: Omit<ActivityEvent, 'id' | 'date'> & { date?: string }) => {
     queryClient.setQueryData<ActivityEvent[]>(KEY, (current) => [
-      { ...event, id: `local-${idSeq++}`, date: new Date().toISOString() },
+      { ...event, id: `local-${idSeq++}`, date: event.date ?? new Date().toISOString() },
       ...(current ?? SEED),
     ])
   }

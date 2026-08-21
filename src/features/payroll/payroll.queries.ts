@@ -96,7 +96,7 @@ export function useCreateLeaveRequest() {
     }
     update((current) => [request, ...current])
     const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: `New leave request from ${input.employeeName}`, category: 'other', authorName })
+    logActivity({ label: `New leave request from ${input.employeeName}`, category: 'leave', authorName })
   }
 }
 

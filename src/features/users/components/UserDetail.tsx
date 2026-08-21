@@ -41,13 +41,14 @@ import {
   CalendarClock,
   Link2,
   Upload,
+  MapPin,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
-import { useUser, useLanguageOptions } from '../users.queries'
+import { useUser, useUserDetail, useLanguageOptions } from '../users.queries'
 import { useRecentActivity } from '../../agenda/agenda.queries'
-import { formatDateTimeAmPm } from '../../../utils/format'
+import { formatDateTimeAmPm, formatDate, formatMoney } from '../../../utils/format'
 
 const RELATED_OBJECT_COLUMNS = ['Type', 'Ref.', 'Date', 'Amount (Excl.)', 'Status']
 
@@ -129,6 +130,17 @@ function Field({ label, value }: { label: string; value: string }) {
 export function UserDetail() {
   const { id } = useParams<{ id: string }>()
   const { user, isLoading } = useUser(id)
+  const { detail } = useUserDetail(id)
+  // "<zip> <town>, <country> - <state>" — matches the reference card's own
+  // location pill format. Real data from GET /api/users/detail/ (llx_user's
+  // zip/town joined to llx_c_country/llx_c_departements); country label is
+  // shown exactly as that table stores it, which isn't always the English
+  // name (e.g. Zambia's row is literally labelled "Zambie") — legacy applies
+  // its own translation layer on top that isn't worth reproducing here for
+  // one label.
+  const locationLabel = detail
+    ? [[detail.zip, detail.town].filter(Boolean).join(' '), [detail.countryLabel, detail.stateLabel].filter(Boolean).join(' - ')].filter(Boolean).join(', ')
+    : ''
   const [tab, setTab] = useState<Tab>('User')
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
   const [permModule, setPermModule] = useState<(typeof PERMISSION_MODULES)[number]['key']>('users-groups')
@@ -196,6 +208,11 @@ export function UserDetail() {
             <Avatar name={user.name || user.login} size={72} className="text-xl" />
             <div>
               <p className="font-semibold text-text! text-base">{user.name || user.login}</p>
+              {locationLabel && (
+                <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-xs text-brand">
+                  <MapPin size={12} /> {locationLabel}
+                </span>
+              )}
               <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-text-faint">
                 <Building2 size={12} /> Master entity
               </span>
@@ -248,11 +265,11 @@ export function UserDetail() {
             <div className="w-full text-left mt-2 pt-2 border-t border-border space-y-1">
               <p className="flex items-center justify-between text-xs">
                 <span className="text-text-faint">Created on:</span>
-                <span className="text-text-muted">—</span>
+                <span className="text-text-muted">{detail?.createdAt ? formatDateTimeAmPm(detail.createdAt) : '—'}</span>
               </p>
               <p className="flex items-center justify-between text-xs">
                 <span className="text-text-faint">Created by:</span>
-                <span className="text-text-muted">—</span>
+                <span className="text-text-muted">{detail?.creatorLogin || '—'}</span>
               </p>
             </div>
 
@@ -356,19 +373,32 @@ export function UserDetail() {
                   <Field label="Type" value="Internal" />
                   <Field label="Gender" value={user.gender} />
                   <Field label="Employee" value={user.employee ? 'Yes' : 'No'} />
-                  <Field label="Supervisor" value="" />
+                  <Field label="Supervisor" value={detail?.supervisorName ?? ''} />
+                  {/* Force Expense Report Validator: fk_user_expense_validator is a real llx_user
+                      column, but api/users/detail/ selects it and never includes it in the response —
+                      no resolved name to show without a backend change, so this stays honestly blank. */}
                   <Field label="Force Expense Report Validator" value="" />
                   <Field label="Job Position" value={user.designation} />
                   <Field label="Email" value={user.email} />
                   <Field label="Phone" value={user.phone} />
                   <Field label="Last Login" value={user.lastLogin} />
-                  <Field label="Average Hourly Rate" value="" />
-                  <Field label="Average Daily Rate" value="" />
-                  <Field label="Salary" value="" />
-                  <Field label="Hours Worked (Per Week)" value="" />
-                  <Field label="Employment Date" value="" />
-                  <Field label="Date Range Of Login Validity" value="" />
-                  <Field label="Date Of Birth" value="" />
+                  <Field label="Average Hourly Rate" value={detail?.hourlyCost != null ? `${formatMoney(detail.hourlyCost)} ZMW` : ''} />
+                  <Field label="Average Daily Rate" value={detail?.dailyCost != null ? `${formatMoney(detail.dailyCost)} ZMW` : ''} />
+                  <Field label="Salary" value={detail?.salary != null ? `${formatMoney(detail.salary)} ZMW` : ''} />
+                  <Field label="Hours Worked (Per Week)" value={detail?.weeklyHours != null ? String(detail.weeklyHours) : ''} />
+                  <Field label="Employment Date" value={detail?.dateEmployment ? formatDate(detail.dateEmployment) : ''} />
+                  <Field
+                    label="Date Range Of Login Validity"
+                    value={
+                      detail?.dateStartValidity || detail?.dateEndValidity
+                        ? `${detail.dateStartValidity ? formatDate(detail.dateStartValidity) : '…'} - ${detail.dateEndValidity ? formatDate(detail.dateEndValidity) : '…'}`
+                        : ''
+                    }
+                  />
+                  <Field label="Date Of Birth" value={detail?.birth ? formatDate(detail.birth) : ''} />
+                  {/* Employee NRC: no such column exists on llx_user at all (checked the schema
+                      directly) — unlike Customer Group's NRC, this one has no real source anywhere
+                      in this app, not just an unwired one. */}
                   <Field label="Employee NRC" value="" />
                 </div>
               )}
@@ -628,8 +658,8 @@ export function UserDetail() {
                   <p className="flex items-center gap-1.5 text-sm text-text-muted">
                     <StickyNote size={14} className="text-text-faint" /> Login {user.login}
                   </p>
-                  <p className="text-sm text-text-faint italic">No note recorded.</p>
-                  <button type="button" disabled title="Not built yet" className="rounded-lg bg-neutral-bg px-4 py-2 text-sm font-medium text-text-faint cursor-default">
+                  {detail?.note ? <p className="text-sm text-text! whitespace-pre-wrap">{detail.note}</p> : <p className="text-sm text-text-faint italic">No note recorded.</p>}
+                  <button type="button" disabled title="Not built yet — no update endpoint exists" className="rounded-lg bg-neutral-bg px-4 py-2 text-sm font-medium text-text-faint cursor-default">
                     Modify
                   </button>
                 </div>

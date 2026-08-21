@@ -67,9 +67,19 @@ function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
 // unambiguous; otherwise falls back to plain text so it never links to the
 // wrong profile. Split into its own component (not inlined in the row map)
 // because useUserIdByName is a hook and can't be called from inside .map().
+//
+// `name` comes back empty for every row created via api/customer/
+// (?action=create) — that endpoint doesn't authenticate through this app's
+// X-API-Key, so it always saves fk_user_creat as NULL — while `date` (datec)
+// is still real and correctly saved. Only bailing out on a missing name used
+// to blank the whole cell, hiding a perfectly valid date along with it; now
+// the date renders on its own whenever it's the only thing available.
 function CreatorCell({ name, date }: { name: string; date: string }) {
   const userId = useUserIdByName(name)
-  if (!name) return null
+  if (!name && !date) return null
+  if (!name) {
+    return <div className="whitespace-nowrap text-xs text-text-faint">On : {formatDateTimeAmPm(date)}</div>
+  }
   return (
     <div className="flex items-center gap-2">
       <Avatar name={name} size={28} color="bg-teal-500" className="text-xs" />

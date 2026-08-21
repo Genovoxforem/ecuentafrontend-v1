@@ -1,56 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Plus, ChevronDown } from 'lucide-react'
-import { nav as homeNav } from '../../../features/home/home.nav'
-import { nav as zraNav } from '../../../features/zra/zra.nav'
-import { nav as billingNav } from '../../../features/billing/billing.nav'
-import { nav as purchasesNav } from '../../../features/purchases/purchases.nav'
-import { nav as productsNav } from '../../../features/products/products.nav'
-import { nav as warehousesNav } from '../../../features/warehouses/warehouses.nav'
-import { nav as projectsNav } from '../../../features/projects/projects.nav'
-import { nav as bankingNav } from '../../../features/banking/banking.nav'
-import { nav as loansNav } from '../../../features/loans/loans.nav'
-import { nav as usersNav } from '../../../features/users/users.nav'
-import { nav as payrollNav } from '../../../features/payroll/payroll.nav'
-import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
-import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
-import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
-import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
-import { nav as settingsNav } from '../../../features/settings/settings.nav'
-import { nav as reportsNav } from '../../../features/reports/reports.nav'
-import type { NavItem, NavLeafItem, NavSection } from '../../../features/navTypes'
+import type { NavItem, NavLeafItem } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
+import { PATH_SOURCE_SECTIONS } from '../../nav/pathSourceSections'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
 const RAIL_WIDTH_CLASS = 'w-14'
 const RAIL_WIDTH_OFFSET_CLASS = 'left-14'
-
-// Used only as a label->path lookup by buildNavSections now (see there) —
-// the actual section list, order, and item hierarchy come from GET
-// /api/menu/ (the real backend's own llx_menu data for this user), not from
-// this array. Kept as a fallback so the rail isn't empty for the one frame
-// before that request resolves.
-const PATH_SOURCE_SECTIONS: NavSection[] = [
-  homeNav,
-  zraNav,
-  billingNav,
-  purchasesNav,
-  productsNav,
-  warehousesNav,
-  projectsNav,
-  bankingNav,
-  loansNav,
-  usersNav,
-  payrollNav,
-  kitchenNav,
-  fixedAssetNav,
-  generalLedgerNav,
-  ticketNav,
-  settingsNav,
-  reportsNav,
-]
 
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a
@@ -109,17 +68,37 @@ function SidebarNavItem({
   location: Location
   openGroups: Record<string, boolean>
   toggleGroup: (key: string) => void
-  hoverGroup: string | null
-  setHoverGroup: (key: string | null) => void
+  hoverGroup: ReadonlySet<string>
+  setHoverGroup: (updater: (prev: Set<string>) => Set<string>) => void
 }) {
   if (!('items' in item) || !item.items) {
     return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} />
   }
   const groupKey = `${sectionKey}:${depth}:${item.label}`
   const isPinned = Boolean(openGroups[groupKey])
-  const isOpen = isPinned || hoverGroup === groupKey
+  const isOpen = isPinned || hoverGroup.has(groupKey)
   return (
-    <div className="pt-0.5 first:pt-0" onMouseEnter={() => setHoverGroup(groupKey)} onMouseLeave={() => setHoverGroup(hoverGroup === groupKey ? null : hoverGroup)}>
+    <div
+      className="pt-0.5 first:pt-0"
+      // A nested group's own mouse-enter/leave only adds/removes *its own*
+      // key — never overwrites a single shared value — so hovering into a
+      // child (physically still inside every ancestor's box) can't blow
+      // away the ancestor chain's open state. Previously this used one
+      // `hoverGroup: string | null` for the whole tree: entering a nested
+      // group clobbered it, so an ancestor's `isOpen` (derived from that
+      // same value) flipped false and its grid-rows transition started
+      // collapsing mid-hover — even though the mouse never left it — which
+      // is what made clicks on deeper items intermittently miss.
+      onMouseEnter={() => setHoverGroup((prev) => (prev.has(groupKey) ? prev : new Set(prev).add(groupKey)))}
+      onMouseLeave={() =>
+        setHoverGroup((prev) => {
+          if (!prev.has(groupKey)) return prev
+          const next = new Set(prev)
+          next.delete(groupKey)
+          return next
+        })
+      }
+    >
       <button
         type="button"
         onClick={() => toggleGroup(groupKey)}
@@ -176,7 +155,7 @@ export function Sidebar({ open = true }: { open?: boolean }) {
   // (hoverGroup) that never touches this pinned state, so moving the mouse
   // away only closes groups that were never actually clicked.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  const [hoverGroup, setHoverGroup] = useState<string | null>(null)
+  const [hoverGroup, setHoverGroup] = useState<Set<string>>(() => new Set())
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
 
   // Whichever chain of groups holds the current page gets pinned open (same
