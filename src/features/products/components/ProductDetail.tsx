@@ -375,17 +375,9 @@ export function ProductDetail() {
               color="bg-brand"
             />
             <div className="space-y-2 pt-0.5">
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-bold text-text!">{product.label}</h2>
-                  <StatusPill active={product.forSale} activeLabel="For sale" inactiveLabel="Not for sale" tone="success" />
-                </div>
-                {product.barcode && (
-                  <div className="flex flex-col items-center gap-0.5 shrink-0">
-                    <ProductBarcodeGraphic value={product.barcode} height={32} width={1.1} />
-                    <span className="text-[10px] text-text-faint whitespace-nowrap">{product.barcode}</span>
-                  </div>
-                )}
+              <div className="flex items-start gap-2">
+                <h2 className="text-lg font-bold text-text!">{product.label}</h2>
+                <StatusPill active={product.forSale} activeLabel="For sale" inactiveLabel="Not for sale" tone="success" />
               </div>
               <span className="inline-block rounded-md border border-border bg-surface px-2 py-0.5 text-xs text-text-muted">
                 SKU <span className="font-medium text-text!">{product.ref}</span>
@@ -416,6 +408,13 @@ export function ProductDetail() {
               </div>
             </div>
           </div>
+
+          {product.barcode && (
+            <div className="flex flex-col items-center gap-0.5 shrink-0 ml-auto mr-12">
+              <ProductBarcodeGraphic value={product.barcode} height={32} width={1.1} />
+              <span className="text-[10px] text-text-faint whitespace-nowrap">{product.barcode}</span>
+            </div>
+          )}
 
           <div className="flex flex-col items-end gap-2 shrink-0">
             <div className="flex items-center gap-1">
