@@ -886,7 +886,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-4">
-      <Card className="!h-auto">
+      <Card className="!h-auto sticky top-0 z-10 bg-gray-950 dark:bg-gray-950 border-b border-border">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-text-faint">Default Tax Rate</span>
@@ -914,7 +914,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
 
       <Card className="!h-auto flex flex-col">
         <div className="space-y-3 flex-1 flex flex-col">
-          <div className="flex items-center justify-between">
+          <div className="sticky top-[72px] z-20 bg-gray-950 dark:bg-gray-950 -mx-4 px-4 py-2 flex items-center justify-between">
             <SectionHeader icon={Tag} color="green">
               Selling Prices
             </SectionHeader>
