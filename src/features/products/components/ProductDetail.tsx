@@ -553,7 +553,7 @@ function ProductTab({
   onViewAllActivity: () => void
 }) {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 p-4">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
       <div className="space-y-4">
         {/* About/Pricing/Product Accountancy each get their own bordered card
             now — previously all three shared one card with only spacing
