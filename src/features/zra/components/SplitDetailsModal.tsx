@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useZraUpdateImport, type AsycudaImportRow } from '../asycudaImport.queries'
 import { useProductSearch } from '../../products/products.queries'
+import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 // The legacy row HTML's per-row Split offcanvas (with all these values
 // embedded as plain text) is stripped server-side before it reaches us (see
@@ -169,7 +170,13 @@ export function SplitDetailsModal({ row, onClose, onApproved }: { row: AsycudaIm
           window.alert(res.status)
           onApproved()
         },
-        onError: (err) => window.alert(err instanceof Error ? err.message : 'Split approve failed — please try again.'),
+        // POST /api/zra/asycuda-imports/update/ 404s on this backend (see
+        // BackendUnavailable.tsx) — same honest message as the Approve/Cancel actions in
+        // AsycudaImportList.tsx instead of a raw "Request failed with status code 404".
+        onError: (err) =>
+          window.alert(
+            isBackendUnavailable(err) ? "Updating ASYCUDA imports isn't available on this backend yet." : err instanceof Error ? err.message : 'Split approve failed — please try again.',
+          ),
       },
     )
   }

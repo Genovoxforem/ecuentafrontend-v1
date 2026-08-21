@@ -90,5 +90,9 @@ export function useVendorsSummary() {
       }
     },
     staleTime: 1000 * 60,
+    // /vendors/summary/ and /vendors/list/ don't exist on the currently-
+    // active backend (see BackendUnavailable.tsx) — a permanent 404, so
+    // retrying is pointless.
+    retry: false,
   })
 }

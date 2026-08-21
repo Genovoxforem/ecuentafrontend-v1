@@ -9,7 +9,7 @@ export function AutomaticPurchaseList() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
 
-  const { data, isLoading, isError } = useAutomaticPurchaseList({ page, perPage: PER_PAGE, search })
+  const { data, isLoading, isError, error } = useAutomaticPurchaseList({ page, perPage: PER_PAGE, search })
   const rows = data?.items ?? []
   const total = data?.total ?? 0
 
@@ -41,7 +41,15 @@ export function AutomaticPurchaseList() {
             </tr>
           </thead>
           <tbody>
-            <EmptyRow colSpan={5} isLoading={isLoading} isError={isError} isEmpty={rows.length === 0} emptyLabel="No pending purchases found." />
+            <EmptyRow
+              colSpan={5}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              isEmpty={rows.length === 0}
+              emptyLabel="No pending purchases found."
+              feature="ZRA Automatic Purchase"
+            />
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border align-top hover:bg-surface-hover">
                 <td className="px-3 py-3 whitespace-nowrap">

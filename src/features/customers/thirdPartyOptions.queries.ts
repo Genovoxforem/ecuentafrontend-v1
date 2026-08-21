@@ -3,6 +3,7 @@ import { api } from '../../api/axios'
 import { useProductFormOptions } from '../zra/createProduct.queries'
 import { useLanguageOptions } from '../users/users.queries'
 import { useCustomerGroupsSummary } from './customerGroups.queries'
+import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
 
 // Fallback country list when /zra/product-form-options/ API is unavailable
 const FALLBACK_COUNTRIES = [
@@ -72,6 +73,9 @@ export function useCustomerLookups() {
       return data.data
     },
     staleTime: 1000 * 60 * 10,
+    // /customers/lookups/ doesn't exist on the currently-active backend (see
+    // BackendUnavailable.tsx) — a permanent 404, so retrying is pointless.
+    retry: false,
   })
 }
 
@@ -95,6 +99,12 @@ export function useStatesByCountry(countryId: string | undefined) {
     },
     enabled: !!countryId,
     staleTime: 1000 * 60 * 10,
+    // api/users/ (and therefore /users/states/) doesn't exist at all on the
+    // currently-active backend — a permanent 404. Deliberately not surfaced
+    // as a form-level error: callers just get an empty state list back (see
+    // stateOptions below), same "graceful, non-blocking" treatment as any
+    // other optional dropdown source failing.
+    retry: false,
   })
 }
 
@@ -121,8 +131,17 @@ export interface ThirdPartyFormOptions {
 export function useThirdPartyFormOptions() {
   const { data: productOptions, isLoading: productsLoading } = useProductFormOptions()
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
-  const { data: groupsSummary } = useCustomerGroupsSummary()
-  const { data: lookups, isLoading: lookupsLoading } = useCustomerLookups()
+  const { data: groupsSummary, isError: groupsIsError, error: groupsError } = useCustomerGroupsSummary()
+  const { data: lookups, isLoading: lookupsLoading, isError: lookupsIsError, error: lookupsError } = useCustomerLookups()
+
+  // /customers/lookups/ and /customers/groups/ both don't exist on the
+  // currently-active backend — when either is down, several of the
+  // dropdowns built below (Currency, Business entity type, Third-party
+  // type, Workforce, Incoterms, Environment, Sales rep, Categories,
+  // Customer Group, next Customer/Vendor code) come back as empty rather
+  // than the real dictionary data. Callers use this flag to explain that
+  // gap instead of just showing an unexplained empty select.
+  const optionsUnavailable = (lookupsIsError && isBackendUnavailable(lookupsError)) || (groupsIsError && isBackendUnavailable(groupsError))
 
   // Use fallback countries if API doesn't return any (e.g., /zra/product-form-options/ unavailable)
   const countries = (productOptions?.countries && productOptions.countries.length > 0) ? productOptions.countries : FALLBACK_COUNTRIES
@@ -164,5 +183,6 @@ export function useThirdPartyFormOptions() {
     data: options,
     isLoading: productsLoading || languagesLoading || lookupsLoading,
     isError: false,
+    optionsUnavailable,
   }
 }

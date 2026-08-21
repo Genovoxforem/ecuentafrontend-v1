@@ -45,6 +45,7 @@ import {
   ScanLine,
   Paperclip,
   Share2,
+  CloudOff,
 } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 import { StickyFormShell } from '../layout/StickyFormShell'
@@ -250,7 +251,7 @@ interface CreateThirdPartyResponse {
 
 export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant; cancelPath: string }) {
   // Fetch form options
-  const { data: formOptions, isLoading: formOptionsLoading } = useThirdPartyFormOptions()
+  const { data: formOptions, isLoading: formOptionsLoading, optionsUnavailable } = useThirdPartyFormOptions()
 
   const [step, setStep] = useState(0)
 
@@ -406,6 +407,8 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             </div>
           </div>
         }
+        footerLeft={null}
+        footerRight={null}
       >
         <Card className="!h-auto flex-1 flex items-center justify-center min-h-96">
           <div className="flex flex-col items-center gap-3">
@@ -438,6 +441,21 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
               <p className="text-xs text-warning-fg">
                 The backend's create endpoint has no way to flag a record as a supplier — reading its source directly confirms it always creates a plain customer record
                 regardless of what's submitted here. This will save as a customer, not a vendor, in the real database.
+              </p>
+            </Card>
+          )}
+
+          {/* /customers/lookups/ and /customers/groups/ don't exist on the currently-active
+              backend — several selects below (Currency, Business entity type, Third-party
+              type, Workforce, Incoterms, Environment, Customer Group) and the auto-generated
+              Customer/Vendor code preview come back empty as a result. This explains that gap
+              once, up front, instead of leaving each affected field looking silently broken. */}
+          {optionsUnavailable && (
+            <Card className="!bg-neutral-bg border-border flex items-start gap-3">
+              <CloudOff size={18} className="text-text-faint shrink-0 mt-0.5" />
+              <p className="text-xs text-text-faint">
+                Some dropdown data (Currency, Business entity type, Third-party type, Workforce, Incoterms, Environment, Customer Group) and the auto-generated Customer/Vendor code
+                aren't available on this backend yet — those fields may show no options. This isn't a bug in the form.
               </p>
             </Card>
           )}

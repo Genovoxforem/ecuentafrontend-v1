@@ -8,6 +8,7 @@ import {
   useProductPrefill,
   type FormOption,
 } from '../createProduct.queries'
+import { isBackendUnavailable, BackendUnavailableCard } from '../../../shared/components/BackendUnavailable'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -215,7 +216,7 @@ function CreateCategoryModal({ categories, onClose, onCreated }: { categories: F
       const result = await createCategory.mutateAsync({ label: name.trim(), description: description.trim() || undefined, parentId: parentId || undefined })
       onCreated(result.categoryId)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the category — please try again.')
+      setError(isBackendUnavailable(err) ? "Creating a tag/category isn't available on this backend yet." : err instanceof Error ? err.message : 'Could not create the category — please try again.')
     }
   }
 
@@ -338,8 +339,8 @@ function CategoryMultiSelect({ value, onChange, options }: { value: string[]; on
 
 export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode: string; onClose: () => void; onCreated: () => void }) {
   const createProduct = useCreateProduct()
-  const { data: prefill, isLoading: prefillLoading } = useProductPrefill(taskCode)
-  const { data: options, isLoading: optionsLoading } = useProductFormOptions()
+  const { data: prefill, isLoading: prefillLoading, error: prefillError } = useProductPrefill(taskCode)
+  const { data: options, isLoading: optionsLoading, error: optionsError } = useProductFormOptions()
 
   const [ref, setRef] = useState('')
   const [label, setLabel] = useState('')
@@ -451,11 +452,38 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
       })
       onCreated()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection error while creating the product — please try again.')
+      setError(
+        isBackendUnavailable(err) ? "Creating a new product isn't available on this backend yet." : err instanceof Error ? err.message : 'Connection error while creating the product — please try again.',
+      )
     }
   }
 
   const loading = prefillLoading || optionsLoading
+
+  // GET /api/zra/asycuda-imports/prefill/ and /api/zra/product-form-options/ both 404 on
+  // this backend (see BackendUnavailable.tsx) — without either, this form has no country/
+  // unit/packaging/tax-category options and no ASYCUDA prefill data to work with, so it's
+  // treated as the whole feature being unavailable rather than rendering a form full of
+  // empty dropdowns that look loaded but aren't.
+  const backendUnavailable = isBackendUnavailable(prefillError) || isBackendUnavailable(optionsError)
+
+  if (backendUnavailable) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="w-full max-w-lg bg-surface border border-border rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-2.5 border-b border-border">
+            <h3 className="text-lg font-semibold text-text!">Add Products</h3>
+            <button type="button" onClick={onClose} className="p-1 rounded-md text-text-muted hover:bg-surface-alt">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-4">
+            <BackendUnavailableCard feature="Add Products" />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>

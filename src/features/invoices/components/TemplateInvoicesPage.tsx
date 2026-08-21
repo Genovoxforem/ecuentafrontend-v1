@@ -1,5 +1,6 @@
 import { Flag } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { formatMoney } from '../../../utils/format'
 import { useInvoiceTemplates } from '../invoiceTemplates.queries'
 
@@ -14,7 +15,7 @@ function fmtDate(v: string | null) {
 // reading llx_facture_rec directly. Read-only, matching the legacy page's
 // own instructions for how templates get created.
 export function TemplateInvoicesPage() {
-  const { data, isLoading, isError } = useInvoiceTemplates()
+  const { data, isLoading, isError, error } = useInvoiceTemplates()
   const items = data?.items ?? []
 
   const totals = items.reduce(
@@ -59,8 +60,12 @@ export function TemplateInvoicesPage() {
               </tr>
             ) : isError ? (
               <tr>
-                <td colSpan={12} className="px-4 py-4 text-danger">
-                  Could not load template invoices.
+                <td colSpan={12} className="px-4 py-4">
+                  {isBackendUnavailable(error) ? (
+                    <BackendUnavailableInline feature="Invoice Templates" />
+                  ) : (
+                    <span className="text-danger">Could not load template invoices.</span>
+                  )}
                 </td>
               </tr>
             ) : items.length === 0 ? (

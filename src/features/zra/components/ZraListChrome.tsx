@@ -1,4 +1,4 @@
-import { AlertTriangle } from 'lucide-react'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 
 export const PER_PAGE = 25
 
@@ -53,18 +53,26 @@ export function TableShell({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-border bg-surface-alt overflow-auto max-h-[65vh] soft-scrollbar">{children}</div>
 }
 
+// `error` and `feature` back the api/zra/* "not available on this backend
+// yet" state (see shared/components/BackendUnavailable.tsx): every ZRA list
+// endpoint 404s on the current backend, so isError alone isn't enough to
+// tell a genuine failure apart from that specific, honest case.
 export function EmptyRow({
   colSpan,
   isLoading,
   isError,
+  error,
   isEmpty,
   emptyLabel,
+  feature,
 }: {
   colSpan: number
   isLoading: boolean
   isError: boolean
+  error?: unknown
   isEmpty: boolean
   emptyLabel: string
+  feature: string
 }) {
   if (isLoading) {
     return (
@@ -76,6 +84,15 @@ export function EmptyRow({
     )
   }
   if (isError) {
+    if (isBackendUnavailable(error)) {
+      return (
+        <tr>
+          <td colSpan={colSpan} className="p-0">
+            <BackendUnavailableInline feature={feature} />
+          </td>
+        </tr>
+      )
+    }
     return (
       <tr>
         <td colSpan={colSpan} className="px-3 py-8 text-center text-danger">
@@ -91,24 +108,6 @@ export function EmptyRow({
         {emptyLabel}
       </td>
     </tr>
-  )
-}
-
-// Shown on ZRA pages with no matching backend endpoint at all (as opposed to
-// a page that loaded and came back empty) — an honest "not available" state
-// instead of fabricated rows.
-export function BackendUnavailable({ icon, title, note }: { icon: React.ReactNode; title: string; note?: string }) {
-  return (
-    <div className="space-y-4">
-      <ListHeader icon={icon} title={title} count={undefined} />
-      <div className="rounded-xl border border-border bg-surface-alt px-4 py-10 flex flex-col items-center text-center gap-2">
-        <AlertTriangle size={22} className="text-warning-fg" />
-        <p className="text-sm font-medium text-text!">Backend not available yet</p>
-        <p className="text-sm text-text-faint max-w-md">
-          {note ?? 'No matching REST endpoint exists for this data on the backend yet — this page will connect once one is built.'}
-        </p>
-      </div>
-    </div>
   )
 }
 

@@ -17,10 +17,10 @@ export function Field({ label, required, children }: { label: string; required?:
   )
 }
 
-export function Select({ defaultValue, options }: { defaultValue?: string; options: string[] }) {
+export function Select({ defaultValue, options, placeholder }: { defaultValue?: string; options: string[]; placeholder?: string }) {
   return (
     <select defaultValue={defaultValue ?? ''} className={inputClasses}>
-      {!defaultValue && <option value="">Select an option</option>}
+      {!defaultValue && <option value="">{placeholder ?? 'Select an option'}</option>}
       {options.map((o) => (
         <option key={o} value={o}>
           {o}

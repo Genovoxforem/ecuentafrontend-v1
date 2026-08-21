@@ -174,6 +174,8 @@ const ProductsListModule = lazy(() => import('./modules/products/ProductsListMod
 const ServicesListModule = lazy(() => import('./modules/products/ServicesListModule').then((m) => ({ default: m.ServicesListModule })))
 const ProductAreaModule = lazy(() => import('./modules/products/ProductAreaModule').then((m) => ({ default: m.ProductAreaModule })))
 const ProductCreateModule = lazy(() => import('./modules/products/ProductCreateModule').then((m) => ({ default: m.ProductCreateModule })))
+const ProductDetailModule = lazy(() => import('./modules/products/ProductDetailModule').then((m) => ({ default: m.ProductDetailModule })))
+const ProductEditModule = lazy(() => import('./modules/products/ProductEditModule').then((m) => ({ default: m.ProductEditModule })))
 const ServiceCreateModule = lazy(() => import('./modules/products/ServiceCreateModule').then((m) => ({ default: m.ServiceCreateModule })))
 const ProductStatisticsModule = lazy(() => import('./modules/products/ProductStatisticsModule').then((m) => ({ default: m.ProductStatisticsModule })))
 const ServiceStatisticsModule = lazy(() => import('./modules/products/ServiceStatisticsModule').then((m) => ({ default: m.ServiceStatisticsModule })))
@@ -367,6 +369,8 @@ function App() {
                   <Route path={ROUTES.serviceList} element={<RouteBoundary><ServicesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.productArea} element={<RouteBoundary><ProductAreaModule /></RouteBoundary>} />
                   <Route path={ROUTES.productCreate} element={<RouteBoundary><ProductCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productDetail} element={<RouteBoundary><ProductDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productEdit} element={<RouteBoundary><ProductEditModule /></RouteBoundary>} />
                   <Route path={ROUTES.serviceCreate} element={<RouteBoundary><ServiceCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.productStats} element={<RouteBoundary><ProductStatisticsModule /></RouteBoundary>} />
                   <Route path={ROUTES.serviceStats} element={<RouteBoundary><ServiceStatisticsModule /></RouteBoundary>} />

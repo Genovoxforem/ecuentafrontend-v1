@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Users, LoaderCircle } from 'lucide-react'
 import { useUnuploadedCustomersList, useUploadCustomersToZra } from '../zraLists.queries'
 import { ListHeader, ListPagination, SearchBox, TableShell, EmptyRow, PER_PAGE } from './ZraListChrome'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 
 export function UnuploadedCustomersList() {
   const [page, setPage] = useState(1)
@@ -9,7 +10,7 @@ export function UnuploadedCustomersList() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
-  const { data, isLoading, isError } = useUnuploadedCustomersList({ page, perPage: PER_PAGE, search })
+  const { data, isLoading, isError, error } = useUnuploadedCustomersList({ page, perPage: PER_PAGE, search })
   const upload = useUploadCustomersToZra()
   const rows = data?.items ?? []
   const total = data?.total ?? 0
@@ -62,7 +63,13 @@ export function UnuploadedCustomersList() {
           {upload.data.succeeded ? "Customer's Uploaded In ZRA Server Successfully" : 'Server Error! Please Contact Administrator'}
         </p>
       )}
-      {upload.isError && <p className="text-sm text-danger">{upload.error instanceof Error ? upload.error.message : 'Upload failed — please try again.'}</p>}
+      {upload.isError && (
+        isBackendUnavailable(upload.error) ? (
+          <BackendUnavailableInline feature="Uploading customers/vendors to ZRA" />
+        ) : (
+          <p className="text-sm text-danger">{upload.error instanceof Error ? upload.error.message : 'Upload failed — please try again.'}</p>
+        )
+      )}
 
       <div className="max-w-sm">
         <SearchBox
@@ -91,7 +98,15 @@ export function UnuploadedCustomersList() {
             </tr>
           </thead>
           <tbody>
-            <EmptyRow colSpan={8} isLoading={isLoading} isError={isError} isEmpty={rows.length === 0} emptyLabel="No unuploaded records found." />
+            <EmptyRow
+              colSpan={8}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              isEmpty={rows.length === 0}
+              emptyLabel="No unuploaded records found."
+              feature="ZRA Un-Uploaded Customers/Vendor"
+            />
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3">

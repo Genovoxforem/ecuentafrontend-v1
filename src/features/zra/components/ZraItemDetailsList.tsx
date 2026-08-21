@@ -13,7 +13,7 @@ export function ZraItemDetailsList() {
   const [lastReqDtInput, setLastReqDtInput] = useState('')
   const [lastReqDt, setLastReqDt] = useState<string | undefined>(undefined)
 
-  const { data, isLoading, isError } = useZraItemDetails(lastReqDt)
+  const { data, isLoading, isError, error } = useZraItemDetails(lastReqDt)
   const items = data?.items ?? []
 
   return (
@@ -67,7 +67,15 @@ export function ZraItemDetailsList() {
             </tr>
           </thead>
           <tbody>
-            <EmptyRow colSpan={14} isLoading={isLoading} isError={isError} isEmpty={items.length === 0} emptyLabel="No items found." />
+            <EmptyRow
+              colSpan={14}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              isEmpty={items.length === 0}
+              emptyLabel="No items found."
+              feature="Item Details"
+            />
             {items.map((item, i) => (
               <tr key={`${item.itemCode}-${i}`} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3 text-text! font-medium">{dash(item.itemName)}</td>

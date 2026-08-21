@@ -12,6 +12,7 @@ import {
   DISCOUNT_METHOD_OPTIONS,
   DISCOUNT_TYPE_OPTIONS,
 } from '../customerGroups.queries'
+import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 // Field set and default selections (Discount Method=Percentage, Discount
 // Type=Increase) match societe/new_card.php's own selectarray() defaults.
@@ -65,12 +66,15 @@ export function CustomerGroupCreateForm() {
     if (isEdit && id) {
       updateGroup.mutate(
         { id: Number(id), input },
-        { onSuccess: () => navigate(ROUTES.customerGroupList), onError: () => setFormError('Failed to save changes.') },
+        {
+          onSuccess: () => navigate(ROUTES.customerGroupList),
+          onError: (err) => setFormError(isBackendUnavailable(err) ? 'Customer groups aren’t available on this backend yet — changes can’t be saved.' : 'Failed to save changes.'),
+        },
       )
     } else {
       createGroup.mutate(input, {
         onSuccess: () => navigate(ROUTES.customerGroupList),
-        onError: () => setFormError('Failed to create customer group.'),
+        onError: (err) => setFormError(isBackendUnavailable(err) ? 'Customer groups aren’t available on this backend yet — this can’t be created.' : 'Failed to create customer group.'),
       })
     }
   }

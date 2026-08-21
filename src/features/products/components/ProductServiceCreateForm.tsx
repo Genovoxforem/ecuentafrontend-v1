@@ -1,7 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Boxes, ChevronDown, Globe, ImageUp, Package, PlusCircle, Settings2, Tags, Truck, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft,
+  Boxes,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Globe,
+  ImageUp,
+  LoaderCircle,
+  Package,
+  PlusCircle,
+  Settings2,
+  Share2,
+  Tags,
+  Truck,
+  X,
+} from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { ROUTES } from '../../../routes'
 import {
   useCreateCategory,
@@ -10,8 +29,12 @@ import {
   useProductFormOptions,
   type FormOption,
 } from '../../zra/createProduct.queries'
+import { useStatesByCountry } from '../../customers/thirdPartyOptions.queries'
+import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
+import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
+import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
+export function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className={`block text-sm mb-1 ${required ? 'text-danger' : 'text-text-muted'}`}>
@@ -24,11 +47,11 @@ function Field({ label, required, hint, children }: { label: string; required?: 
   )
 }
 
-const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
-const selectCls = inputCls + ' appearance-none'
+export const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+export const selectCls = inputCls + ' appearance-none'
 const menuCls = 'absolute z-20 w-full max-h-56 overflow-auto rounded-md border border-border bg-surface shadow-lg soft-scrollbar'
 
-function Select({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: FormOption[]; placeholder: string }) {
+export function Select({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: FormOption[]; placeholder: string }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} className={selectCls}>
       <option value="">{placeholder}</option>
@@ -54,7 +77,7 @@ function measureOpenUpward(el: HTMLElement | null, menuHeight = 240) {
 // live results backed by /zra/product-classifications/ (real
 // llx_c_productclassification search). Doubles as the legacy form's
 // "Customs/Commodity/HS code" concept — that's what this table is.
-function ClassificationSearch({ value, code, onSelect }: { value: string; code: string; onSelect: (label: string, code: string) => void }) {
+export function ClassificationSearch({ value, code, onSelect }: { value: string; code: string; onSelect: (label: string, code: string) => void }) {
   const [term, setTerm] = useState(value)
   const [debounced, setDebounced] = useState(value)
   const [open, setOpen] = useState(false)
@@ -189,7 +212,7 @@ function ComboboxSelect({ value, onChange, options, placeholder }: { value: stri
   )
 }
 
-function CreateCategoryModal({ categories, onClose, onCreated }: { categories: FormOption[]; onClose: () => void; onCreated: (categoryId: string) => void }) {
+export function CreateCategoryModal({ categories, onClose, onCreated }: { categories: FormOption[]; onClose: () => void; onCreated: (categoryId: string) => void }) {
   const createCategory = useCreateCategory()
   const [name, setName] = useState('')
   const [parentId, setParentId] = useState('')
@@ -245,7 +268,7 @@ function CreateCategoryModal({ categories, onClose, onCreated }: { categories: F
   )
 }
 
-function CategoryMultiSelect({ value, onChange, options }: { value: string[]; onChange: (v: string[]) => void; options: FormOption[] }) {
+export function CategoryMultiSelect({ value, onChange, options }: { value: string[]; onChange: (v: string[]) => void; options: FormOption[] }) {
   const [open, setOpen] = useState(false)
   const [openUpward, setOpenUpward] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
@@ -278,21 +301,29 @@ function CategoryMultiSelect({ value, onChange, options }: { value: string[]; on
         <ChevronDown size={14} className="text-text-faint shrink-0" />
       </button>
       {open && (
-        <div className={`${menuCls} ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
-          {options.map((o) => {
-            const isSelected = value.includes(o.value)
-            return (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => toggleValue(o.value)}
-                className={`block w-full text-left px-3 py-2 text-xs hover:bg-surface-hover ${isSelected ? 'bg-brand text-white hover:bg-brand' : 'text-text'}`}
-              >
-                {o.label}
-              </button>
-            )
-          })}
-          {options.length === 0 && <p className="px-3 py-2 text-xs text-text-faint">No categories yet.</p>}
+        // Add New used to be the last child inside the same scrolling container as the
+        // option list (old menuCls applied max-h/overflow-auto to the whole panel), so once
+        // there were enough categories to need scrolling, it scrolled away with them instead
+        // of staying reachable. Splitting the scrollable list into its own inner div, with
+        // Add New as a sibling below it, keeps the button fixed at the panel's bottom
+        // regardless of list length or scroll position.
+        <div className={`absolute z-20 w-full rounded-md border border-border bg-surface shadow-lg ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+          <div className="max-h-56 overflow-auto soft-scrollbar">
+            {options.map((o) => {
+              const isSelected = value.includes(o.value)
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => toggleValue(o.value)}
+                  className={`block w-full text-left px-3 py-2 text-xs hover:bg-surface-hover ${isSelected ? 'bg-brand text-white hover:bg-brand' : 'text-text'}`}
+                >
+                  {o.label}
+                </button>
+              )
+            })}
+            {options.length === 0 && <p className="px-3 py-2 text-xs text-text-faint">No categories yet.</p>}
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -338,57 +369,23 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
   )
 }
 
-function SectionCard({ title, cols = 3, children }: { title: string; cols?: 3 | 4; children: React.ReactNode }) {
+// grow: lets this card absorb leftover vertical space in the wizard's plain
+// flex-column step area (flex-1 alongside !h-auto — flex-basis:0% from
+// flex-1 wins over the height property for sizing, so this only ever grows
+// the card into real leftover space bounded by that flex column's own
+// height, never an unrelated grid row like the earlier attempt on this page).
+function SectionCard({ title, cols = 3, grow = false, children }: { title: string; cols?: 3 | 4; grow?: boolean; children: React.ReactNode }) {
   return (
-    <Card className="!h-auto">
+    <Card className={`!h-auto ${grow ? 'flex-1' : ''}`}>
       <h3 className="font-semibold text-text! mb-3">{title}</h3>
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${cols === 4 ? 'xl:grid-cols-4' : 'xl:grid-cols-3'} gap-x-4 gap-y-3 items-start`}>{children}</div>
     </Card>
   )
 }
 
-// Dimension unit choices — the exact scale-code options Dolibarr's own
-// weight_units/size_units/surface_units/volume_units selects offer on the
-// legacy Add Products form (pulled straight from that page's rendered
-// <option value=…> list, not guessed): 0 = base metric unit, negative =
-// smaller metric prefix (kg→g is -3, m→cm is -2, …), 98/99 (and a few
-// extras for volume) = imperial. Sent through as-is on submit — see
-// CreateProductFullInput's weightUnit/sizeUnit/surfaceUnit/volumeUnit.
-const WEIGHT_UNITS: FormOption[] = [
-  { value: '3', label: 'ton' },
-  { value: '0', label: 'kg' },
-  { value: '-3', label: 'g' },
-  { value: '-6', label: 'mg' },
-  { value: '98', label: 'ounce' },
-  { value: '99', label: 'pound' },
-]
-const SIZE_UNITS: FormOption[] = [
-  { value: '0', label: 'm' },
-  { value: '-1', label: 'dm' },
-  { value: '-2', label: 'cm' },
-  { value: '-3', label: 'mm' },
-  { value: '98', label: 'foot' },
-  { value: '99', label: 'inch' },
-]
-const SURFACE_UNITS: FormOption[] = [
-  { value: '0', label: 'm²' },
-  { value: '-2', label: 'dm²' },
-  { value: '-4', label: 'cm²' },
-  { value: '-6', label: 'mm²' },
-  { value: '98', label: 'ft²' },
-  { value: '99', label: 'in²' },
-]
-const VOLUME_UNITS: FormOption[] = [
-  { value: '0', label: 'm³' },
-  { value: '-3', label: 'dm³ (L)' },
-  { value: '-6', label: 'cm³ (ml)' },
-  { value: '-9', label: 'mm³ (µl)' },
-  { value: '88', label: 'ft³' },
-  { value: '89', label: 'in³' },
-  { value: '97', label: 'ounce' },
-  { value: '98', label: 'litre' },
-  { value: '99', label: 'gallon' },
-]
+// WEIGHT_UNITS/SIZE_UNITS/SURFACE_UNITS/VOLUME_UNITS moved to
+// productConstants.ts (also used by ProductDetail.tsx's read-only Overview
+// display) — imported below.
 
 function UnitSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: FormOption[] }) {
   return (
@@ -411,11 +408,20 @@ const INVENTORY_TABS = [
 ] as const
 type InventoryTab = (typeof INVENTORY_TABS)[number]['id']
 
+const PRODUCT_WIZARD_STEPS = [
+  { title: 'Product Information', subtitle: 'Basic details', icon: FileText },
+  { title: 'Pricing & Tax', subtitle: 'Price and tax settings', icon: Tags },
+  { title: 'Inventory', subtitle: 'Stock and warehouse', icon: Boxes },
+  { title: 'Other Details', subtitle: 'Additional information', icon: Share2 },
+  { title: 'Review & Save', subtitle: 'Confirm and save', icon: Check },
+] as const
+
 export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
   const navigate = useNavigate()
   const createProduct = useCreateProduct()
   const { data: options, isLoading: optionsLoading } = useProductFormOptions()
   const isService = prodType === 1
+  const [step, setStep] = useState(0)
 
   const [ref, setRef] = useState('')
   const [label, setLabel] = useState('')
@@ -425,6 +431,12 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
   const [classificationCode, setClassificationCode] = useState('')
   const [finished, setFinished] = useState(isService ? '3' : '2')
   const [countryId, setCountryId] = useState('')
+  // Real, country-reactive list (llx_c_departements via the same /users/states/ endpoint the
+  // Customer form already uses) — no matching stateId param exists on this endpoint's
+  // CreateProductFullInput though (confirmed absent, same as the other Organize fields), so
+  // the selection itself still isn't sent. A real populated dropdown beats free text
+  // pretending to be structured data even when it can't be submitted yet.
+  const { data: stateOptions } = useStatesByCountry(countryId || undefined)
   const [warehouseId, setWarehouseId] = useState('')
   const [stockAlertLimit, setStockAlertLimit] = useState('')
   const [desiredStock, setDesiredStock] = useState('')
@@ -478,14 +490,7 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
     setImagePreview(URL.createObjectURL(file))
   }
 
-  const natureOptions = useMemo<FormOption[]>(
-    () => [
-      { value: '2', label: 'Finished Product' },
-      { value: '1', label: 'Raw Material' },
-      { value: '3', label: 'Service' },
-    ],
-    [],
-  )
+  const natureOptions = NATURE_OPTIONS
 
   async function handleSubmit() {
     setError('')
@@ -542,98 +547,129 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
       setSuccess(true)
       setTimeout(() => navigate(isService ? ROUTES.serviceList : ROUTES.productList), 900)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection error while creating — please try again.')
+      // POST /api/products/create-full/ doesn't exist on the current backend (see
+      // BackendUnavailable.tsx) — surfaced with the same clear "not available" wording as
+      // BackendUnavailableInline instead of a raw 404/connection-error message, reusing this
+      // form's existing danger-Card error slot.
+      if (isBackendUnavailable(err)) {
+        setError(`${isService ? 'Creating a new service' : 'Creating a new product'} isn't available on this backend yet.`)
+      } else {
+        setError(err instanceof Error ? err.message : 'Connection error while creating — please try again.')
+      }
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Package size={20} className="text-brand" /> New {isService ? 'Service' : 'Product'}
-        </h2>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={createProduct.isPending || optionsLoading}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {createProduct.isPending ? 'Saving…' : `Save ${isService ? 'Service' : 'Product'}`}
-        </button>
-      </div>
+  const cancelPath = isService ? ROUTES.serviceList : ROUTES.productList
+  const isLastStep = step === PRODUCT_WIZARD_STEPS.length - 1
 
-      {success && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Created — redirecting to the list…</Card>}
-      {error && <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">{error}</Card>}
+  // Gates each step behind the fields it actually needs before letting the wizard move on —
+  // same spirit as OrderCreateForm's goNext(), surfacing a missing required field on the step
+  // that actually owns it rather than only at final submit (handleSubmit's own checks above
+  // stay as the last-resort safety net for the Save button on the Review step).
+  function goNext() {
+    setError('')
+    if (step === 0) {
+      if (!label.trim()) return setError('Product Label is required!')
+      if (!ref.trim()) return setError('Ref. (SKU) is required!')
+      if (!classificationCode) return setError('Product Classification is required!')
+    }
+    if (step === 1) {
+      if (!price) return setError('Base price is required!')
+    }
+    if (step === 2) {
+      if (!units) return setError('Unit is required!')
+      if (!packing) return setError('Packaging Unit is required!')
+    }
+    if (step === 3) {
+      if (!countryId) return setError('Country of origin is required!')
+    }
+    setStep((s) => Math.min(s + 1, PRODUCT_WIZARD_STEPS.length - 1))
+  }
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_260px] gap-4 items-start">
-        <SectionCard title="Product Information">
-          <Field label="Label" required>
-            <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} placeholder="ProductTitle" />
-          </Field>
-          <Field label="Ref. (SKU)" required>
-            <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} placeholder="SKU" />
-          </Field>
-          <Field label="Barcode value">
-            <input value={barcode} onChange={(e) => setBarcode(e.target.value)} className={inputCls} placeholder="0123-4567" />
-          </Field>
-          <div className="sm:col-span-2 xl:col-span-3">
-            <Field label="Description (Optional)">
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls + ' h-auto py-2'} placeholder="Product description" />
+  const selectedCountryLabel = options?.countries.find((c) => c.value === countryId)?.label ?? ''
+  const selectedWarehouseLabel = options?.warehouses.find((w) => w.value === warehouseId)?.label ?? ''
+  const selectedUnitLabel = options?.units.find((u) => u.value === units)?.label ?? ''
+  const selectedPackingLabel = options?.packingUnits.find((p) => p.value === packing)?.label ?? ''
+  const selectedVatLabel = options?.vatCategories.find((v) => v.value === vatCategory)?.label ?? ''
+
+  const stepContent: Record<number, React.ReactNode> = {
+    0: (
+      <>
+        {/* No items-start: default align-items: stretch here is a contained, 2-cell grid
+            row (not stretched by an outer forced height), so it just matches the shorter
+            "Product Image" card to the taller "Product Information" one — Product Image
+            drops its !h-auto below to actually respond to that stretch. */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_260px] gap-4 flex-1">
+          <SectionCard title="Product Information">
+            <Field label="Label" required>
+              <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} placeholder="ProductTitle" />
             </Field>
-          </div>
+            <Field label="Ref. (SKU)" required>
+              <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} placeholder="SKU" />
+            </Field>
+            <Field label="Barcode value">
+              <input value={barcode} onChange={(e) => setBarcode(e.target.value)} className={inputCls} placeholder="0123-4567" />
+            </Field>
+            <div className="sm:col-span-2 xl:col-span-3">
+              <Field label="Description (Optional)">
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls + ' h-auto py-2'} placeholder="Product description" />
+              </Field>
+            </div>
+          </SectionCard>
+
+          <Card>
+            <h3 className="font-semibold text-text! mb-3">Product Image</h3>
+            <label className="flex flex-col items-center justify-center gap-2 h-36 rounded-lg border-2 border-dashed border-border hover:border-brand/40 cursor-pointer text-center px-3">
+              {imagePreview ? (
+                <img src={imagePreview} alt="Preview" className="max-h-32 max-w-full object-contain rounded" />
+              ) : (
+                <>
+                  <ImageUp size={22} className="text-text-faint" />
+                  <span className="text-xs text-text-muted">Drag&amp;drop image here</span>
+                  <span className="text-[11px] text-text-faint">Max file size: 2M</span>
+                </>
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageSelect(e.target.files?.[0])} />
+            </label>
+            <p className="text-[11px] text-text-faint mt-2">Preview only — no image upload endpoint exists yet, so nothing here is saved.</p>
+          </Card>
+        </div>
+
+        <SectionCard title="Variants" grow>
+          <Field label="Status (Sell)" required>
+            <select value={statut} onChange={(e) => setStatut(e.target.value)} className={selectCls}>
+              <option value="1">For sale</option>
+              <option value="0">Not for sale</option>
+            </select>
+          </Field>
+          <Field label="Status (Purchase)" required>
+            <select value={statutBuy} onChange={(e) => setStatutBuy(e.target.value)} className={selectCls}>
+              <option value="1">For purchase</option>
+              <option value="0">Not for purchase</option>
+            </select>
+          </Field>
+          <Field label="Nature of product" required>
+            <Select value={finished} onChange={setFinished} options={natureOptions} placeholder="Select…" />
+          </Field>
+          <Field label="Product Classification" required>
+            <ClassificationSearch
+              value={classificationLabel}
+              code={classificationCode}
+              onSelect={(l, c) => {
+                setClassificationLabel(l)
+                setClassificationCode(c)
+              }}
+            />
+          </Field>
+          <Toggle checked={useLotSerial} onChange={setUseLotSerial} label="Use lot/serial number" hint="demo only" />
+          <Field label="Public URL" hint="demo only">
+            <input value={publicUrl} onChange={(e) => setPublicUrl(e.target.value)} className={inputCls} placeholder="https://…" />
+          </Field>
         </SectionCard>
-
-        <Card className="!h-auto">
-          <h3 className="font-semibold text-text! mb-3">Product Image</h3>
-          <label className="flex flex-col items-center justify-center gap-2 h-36 rounded-lg border-2 border-dashed border-border hover:border-brand/40 cursor-pointer text-center px-3">
-            {imagePreview ? (
-              <img src={imagePreview} alt="Preview" className="max-h-32 max-w-full object-contain rounded" />
-            ) : (
-              <>
-                <ImageUp size={22} className="text-text-faint" />
-                <span className="text-xs text-text-muted">Drag&amp;drop image here</span>
-                <span className="text-[11px] text-text-faint">Max file size: 2M</span>
-              </>
-            )}
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageSelect(e.target.files?.[0])} />
-          </label>
-          <p className="text-[11px] text-text-faint mt-2">Preview only — no image upload endpoint exists yet, so nothing here is saved.</p>
-        </Card>
-      </div>
-
-      <SectionCard title="Variants">
-        <Field label="Status (Sell)" required>
-          <select value={statut} onChange={(e) => setStatut(e.target.value)} className={selectCls}>
-            <option value="1">For sale</option>
-            <option value="0">Not for sale</option>
-          </select>
-        </Field>
-        <Field label="Status (Purchase)" required>
-          <select value={statutBuy} onChange={(e) => setStatutBuy(e.target.value)} className={selectCls}>
-            <option value="1">For purchase</option>
-            <option value="0">Not for purchase</option>
-          </select>
-        </Field>
-        <Field label="Nature of product" required>
-          <Select value={finished} onChange={setFinished} options={natureOptions} placeholder="Select…" />
-        </Field>
-        <Field label="Product Classification" required>
-          <ClassificationSearch
-            value={classificationLabel}
-            code={classificationCode}
-            onSelect={(l, c) => {
-              setClassificationLabel(l)
-              setClassificationCode(c)
-            }}
-          />
-        </Field>
-        <Toggle checked={useLotSerial} onChange={setUseLotSerial} label="Use lot/serial number" hint="demo only" />
-        <Field label="Public URL" hint="demo only">
-          <input value={publicUrl} onChange={(e) => setPublicUrl(e.target.value)} className={inputCls} placeholder="https://…" />
-        </Field>
-      </SectionCard>
-
-      <SectionCard title="Pricing" cols={4}>
+      </>
+    ),
+    1: (
+      <SectionCard title="Pricing" cols={4} grow>
         <Field label="Base price" required>
           <div className="flex gap-1.5">
             <input value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls + ' flex-1 min-w-0'} placeholder="Price" />
@@ -679,19 +715,145 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
         <Field label="RRP" hint="demo only">
           <input value={rrp} onChange={(e) => setRrp(e.target.value)} className={inputCls} />
         </Field>
-        <Toggle checked={chargeTax} onChange={setChargeTax} label="Charge tax on this product" hint="demo only" />
+        {/* Checkbox here (not Toggle) — matches the reference layout exactly, which uses a
+            plain checkbox for this field but a switch for "In stock" below, not the same
+            control for both. */}
+        <label className="flex items-center gap-2 h-9 cursor-pointer">
+          <input type="checkbox" checked={chargeTax} onChange={(e) => setChargeTax(e.target.checked)} className="rounded border-input-border text-brand focus:ring-brand/30" />
+          <span className="text-sm text-text">
+            Charge tax on this product<span className="ml-1 text-[10px] text-text-faint italic">(demo only)</span>
+          </span>
+        </label>
         <Toggle checked={inStock} onChange={setInStock} label="In stock" hint="demo only" />
       </SectionCard>
-
-      <SectionCard title="Organize" cols={4}>
+    ),
+    2: (
+      <Card className="!h-auto flex-1">
+        <h3 className="font-semibold text-text! mb-3">Inventory</h3>
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          <div className="flex sm:flex-col gap-1 shrink-0 w-full sm:w-40 overflow-x-auto sm:overflow-visible">
+            {INVENTORY_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setInvTab(tab.id)}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
+                  invTab === tab.id ? 'bg-brand text-white' : 'text-text-muted hover:bg-surface-hover'
+                }`}
+              >
+                <tab.icon size={14} /> {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid flex-1 min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3 items-start">
+            {invTab === 'restock' && (
+              <>
+                {/* SearchableSelect (not the plain Select used elsewhere on this page) —
+                    matches the reference layout's own searchable warehouse dropdown. No
+                    onAddNew here: legacy's "+ Create Warehouse" has nothing real behind it
+                    anywhere in this app yet (useCreateWarehouse only writes to browser local
+                    storage, not the real database), so it's left out rather than wired to a
+                    dead end. */}
+                <Field label="Default warehouse">
+                  <SearchableSelect value={warehouseId} onChange={setWarehouseId} options={options?.warehouses ?? []} placeholder="Select a warehouse" />
+                </Field>
+                <Field label="Stock limit for alert">
+                  <input value={stockAlertLimit} onChange={(e) => setStockAlertLimit(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Desired Stock">
+                  <input value={desiredStock} onChange={(e) => setDesiredStock(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Unit" required>
+                  <Select value={units} onChange={setUnits} options={options?.units ?? []} placeholder="Select…" />
+                </Field>
+                <Field label="Packaging Unit" required>
+                  <Select value={packing} onChange={setPacking} options={options?.packingUnits ?? []} placeholder="Select…" />
+                </Field>
+              </>
+            )}
+            {invTab === 'shipping' && (
+              <>
+                <Field label="Weight">
+                  <div className="flex gap-1.5">
+                    <input value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
+                    <UnitSelect value={weightUnit} onChange={setWeightUnit} options={WEIGHT_UNITS} />
+                  </div>
+                </Field>
+                <div className="sm:col-span-2 xl:col-span-2">
+                  <Field label="Length x Width x Height">
+                    <div className="flex items-center gap-1.5">
+                      <input value={length} onChange={(e) => setLength(e.target.value)} className={inputCls} />
+                      <span className="text-text-faint text-sm shrink-0">x</span>
+                      <input value={width} onChange={(e) => setWidth(e.target.value)} className={inputCls} />
+                      <span className="text-text-faint text-sm shrink-0">x</span>
+                      <input value={height} onChange={(e) => setHeight(e.target.value)} className={inputCls} />
+                      <UnitSelect value={sizeUnit} onChange={setSizeUnit} options={SIZE_UNITS} />
+                    </div>
+                  </Field>
+                </div>
+              </>
+            )}
+            {invTab === 'delivery' && (
+              <>
+                <Field label="Area">
+                  <div className="flex gap-1.5">
+                    <input value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
+                    <UnitSelect value={surfaceUnit} onChange={setSurfaceUnit} options={SURFACE_UNITS} />
+                  </div>
+                </Field>
+                <Field label="Volume">
+                  <div className="flex gap-1.5">
+                    <input value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
+                    <UnitSelect value={volumeUnit} onChange={setVolumeUnit} options={VOLUME_UNITS} />
+                  </div>
+                </Field>
+              </>
+            )}
+            {invTab === 'advanced' && (
+              <div className="sm:col-span-2 xl:col-span-3">
+                <Field label="Note" hint="private, demo only">
+                  <textarea
+                    value={notePrivate}
+                    onChange={(e) => setNotePrivate(e.target.value)}
+                    rows={3}
+                    className={inputCls + ' h-auto py-2'}
+                    placeholder="Not visible on invoices, quotations…"
+                  />
+                </Field>
+              </div>
+            )}
+            {invTab === 'attributes' && <p className="sm:col-span-2 xl:col-span-3 py-8 text-center text-xs italic text-text-faint">No attributes configured.</p>}
+          </div>
+        </div>
+      </Card>
+    ),
+    3: (
+      <SectionCard title="Organize" cols={4} grow>
         <Field label="Vendor / Country of origin" required>
-          <Select value={countryId} onChange={setCountryId} options={options?.countries ?? []} placeholder="Select…" />
+          <Select
+            value={countryId}
+            onChange={(v) => {
+              setCountryId(v)
+              // Whatever state was picked almost certainly doesn't belong to the newly
+              // selected country's own list — stale otherwise.
+              setStateProvince('')
+            }}
+            options={options?.countries ?? []}
+            placeholder="Select…"
+          />
         </Field>
         <Field label="Manufacturer / Vendor" hint="demo only">
           <input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} className={inputCls} />
         </Field>
         <Field label="State/Province of origin" hint="demo only">
-          <input value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} className={inputCls} />
+          <select value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} disabled={!countryId} className={selectCls}>
+            <option value="">{countryId ? 'Select…' : 'Select a country first'}</option>
+            {stateOptions?.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Customs/Commodity/HS code" hint="demo only">
           <input value={customsHsCode} onChange={(e) => setCustomsHsCode(e.target.value)} className={inputCls} />
@@ -728,100 +890,177 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
           )}
         </div>
       </SectionCard>
+    ),
+    4: (
+      <Card className="!h-auto flex-1">
+        <h3 className="font-semibold text-text! mb-1">Review & Save</h3>
+        <p className="text-sm text-text-faint mb-4">Check the details below, then save</p>
 
-      <Card className="!h-auto">
-        <h3 className="font-semibold text-text! mb-3">Inventory</h3>
-        <div className="flex flex-col sm:flex-row gap-4 items-start">
-          <div className="flex sm:flex-col gap-1 shrink-0 w-full sm:w-40 overflow-x-auto sm:overflow-visible">
-            {INVENTORY_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setInvTab(tab.id)}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
-                  invTab === tab.id ? 'bg-brand text-white' : 'text-text-muted hover:bg-surface-hover'
-                }`}
-              >
-                <tab.icon size={14} /> {tab.label}
-              </button>
-            ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-4 mb-6">
+          <div>
+            <p className="text-xs text-text-faint">Label</p>
+            <p className="text-sm text-text!">{label || '—'}</p>
           </div>
-          <div className="grid flex-1 min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3 items-start">
-            {invTab === 'restock' && (
-              <>
-                <Field label="Default warehouse">
-                  <Select value={warehouseId} onChange={setWarehouseId} options={options?.warehouses ?? []} placeholder="Select a warehouse" />
-                </Field>
-                <Field label="Stock limit for alert">
-                  <input value={stockAlertLimit} onChange={(e) => setStockAlertLimit(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="Desired Stock">
-                  <input value={desiredStock} onChange={(e) => setDesiredStock(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="Unit" required>
-                  <Select value={units} onChange={setUnits} options={options?.units ?? []} placeholder="Select…" />
-                </Field>
-                <Field label="Packaging Unit" required>
-                  <Select value={packing} onChange={setPacking} options={options?.packingUnits ?? []} placeholder="Select…" />
-                </Field>
-              </>
-            )}
-            {invTab === 'shipping' && (
-              <>
-                <Field label="Weight">
-                  <div className="flex gap-1.5">
-                    <input value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
-                    <UnitSelect value={weightUnit} onChange={setWeightUnit} options={WEIGHT_UNITS} />
-                  </div>
-                </Field>
-                <Field label="Length">
-                  <input value={length} onChange={(e) => setLength(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="Width">
-                  <input value={width} onChange={(e) => setWidth(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="Height">
-                  <input value={height} onChange={(e) => setHeight(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="Size unit" hint="applies to L/W/H">
-                  <UnitSelect value={sizeUnit} onChange={setSizeUnit} options={SIZE_UNITS} />
-                </Field>
-              </>
-            )}
-            {invTab === 'delivery' && (
-              <>
-                <Field label="Surface">
-                  <div className="flex gap-1.5">
-                    <input value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
-                    <UnitSelect value={surfaceUnit} onChange={setSurfaceUnit} options={SURFACE_UNITS} />
-                  </div>
-                </Field>
-                <Field label="Volume">
-                  <div className="flex gap-1.5">
-                    <input value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls + ' flex-1 min-w-0'} />
-                    <UnitSelect value={volumeUnit} onChange={setVolumeUnit} options={VOLUME_UNITS} />
-                  </div>
-                </Field>
-              </>
-            )}
-            {invTab === 'advanced' && (
-              <div className="sm:col-span-2 xl:col-span-3">
-                <Field label="Note" hint="private, demo only">
-                  <textarea
-                    value={notePrivate}
-                    onChange={(e) => setNotePrivate(e.target.value)}
-                    rows={3}
-                    className={inputCls + ' h-auto py-2'}
-                    placeholder="Not visible on invoices, quotations…"
-                  />
-                </Field>
-              </div>
-            )}
-            {invTab === 'attributes' && <p className="sm:col-span-2 xl:col-span-3 py-8 text-center text-xs italic text-text-faint">No attributes configured.</p>}
+          <div>
+            <p className="text-xs text-text-faint">Ref. (SKU)</p>
+            <p className="text-sm text-text!">{ref || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Product Classification</p>
+            <p className="text-sm text-text!">{classificationLabel || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Nature of product</p>
+            <p className="text-sm text-text!">{natureOptions.find((o) => o.value === finished)?.label ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Status</p>
+            <p className="text-sm text-text!">
+              {statut === '1' ? 'For sale' : 'Not for sale'} / {statutBuy === '1' ? 'For purchase' : 'Not for purchase'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Base price</p>
+            <p className="text-sm text-text!">
+              {price || '—'} {price && (priceBaseType === 'TTC' ? '(Inc. tax)' : '(Excl. tax)')}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">VAT category Code</p>
+            <p className="text-sm text-text!">{selectedVatLabel || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Unit / Packaging Unit</p>
+            <p className="text-sm text-text!">
+              {selectedUnitLabel || '—'} / {selectedPackingLabel || '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Default warehouse</p>
+            <p className="text-sm text-text!">{selectedWarehouseLabel || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Country of origin</p>
+            <p className="text-sm text-text!">{selectedCountryLabel || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-text-faint">Tags/categories</p>
+            <p className="text-sm text-text!">
+              {categories.length ? options?.categories.filter((c) => categories.includes(c.value)).map((c) => c.label).join(', ') || categories.length : '—'}
+            </p>
           </div>
         </div>
       </Card>
+    ),
+  }
 
-    </div>
+  return (
+    <>
+      <StickyFormShell
+        headerClassName="pt-1.5 pb-2.5"
+        header={
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Link to={cancelPath} className="text-text-faint hover:text-text">
+                  <ArrowLeft size={20} />
+                </Link>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+                  <Package size={20} className="text-brand" /> New {isService ? 'Service' : 'Product'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link to={cancelPath} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+                  Cancel
+                </Link>
+                {isLastStep ? (
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={createProduct.isPending || optionsLoading}
+                    className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+                  >
+                    {createProduct.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
+                    {createProduct.isPending ? 'Saving…' : `Save ${isService ? 'Service' : 'Product'}`}
+                  </button>
+                ) : (
+                  <button type="button" onClick={goNext} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+                    Next <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center mt-3">
+              {PRODUCT_WIZARD_STEPS.map((s, i) => {
+                const isDone = i < step
+                const isActive = i === step
+                return (
+                  <div key={s.title} className={`flex items-center ${i < PRODUCT_WIZARD_STEPS.length - 1 ? 'flex-1' : ''}`}>
+                    <button type="button" onClick={() => i <= step && setStep(i)} title={s.subtitle} className="flex items-center gap-2.5 group text-left">
+                      <span
+                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors ${
+                          isDone
+                            ? 'bg-success border-success text-white'
+                            : isActive
+                              ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
+                              : 'bg-surface border-border text-text-faint'
+                        }`}
+                      >
+                        {isDone ? <Check size={14} /> : i + 1}
+                      </span>
+                      <span className="hidden sm:block">
+                        <span className={`block text-sm ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
+                        <span className="block text-xs text-text-faint">{s.subtitle}</span>
+                      </span>
+                    </button>
+                    {i < PRODUCT_WIZARD_STEPS.length - 1 && <div className={`h-0.5 flex-1 mx-3 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        }
+        footerLeft={
+          <Link to={cancelPath} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+            <X size={14} /> Cancel
+          </Link>
+        }
+        footerRight={
+          <>
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={() => setStep((s) => s - 1)}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+            )}
+            {isLastStep ? (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={createProduct.isPending || optionsLoading}
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              >
+                {createProduct.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
+                {createProduct.isPending ? 'Saving…' : `Save ${isService ? 'Service' : 'Product'}`}
+              </button>
+            ) : (
+              <button type="button" onClick={goNext} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+                Next <ChevronRight size={14} />
+              </button>
+            )}
+          </>
+        }
+      >
+        <div className="flex-1 flex flex-col gap-4 min-w-0 shrink-0">
+          {success && <Card className="!h-auto shrink-0 !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Created — redirecting to the list…</Card>}
+          {error && <Card className="!h-auto shrink-0 !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">{error}</Card>}
+          {stepContent[step]}
+        </div>
+      </StickyFormShell>
+    </>
   )
 }

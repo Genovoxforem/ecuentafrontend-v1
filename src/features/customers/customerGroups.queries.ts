@@ -60,8 +60,11 @@ export function useCustomerGroupsSummary() {
         discountMethod: row.discountMethod === null ? null : Number(row.discountMethod),
       }))
     },
+    // /customers/groups/ doesn't exist on the currently-active backend (see
+    // BackendUnavailable.tsx) — a permanent 404, so retrying is pointless.
+    retry: false,
   })
-  return { data: { groups: query.data ?? [] }, isError: query.isError, isLoading: query.isLoading }
+  return { data: { groups: query.data ?? [] }, isError: query.isError, error: query.error, isLoading: query.isLoading }
 }
 
 export function useCustomerGroup(id: string | undefined) {

@@ -3,6 +3,7 @@ import { FileBarChart2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
 import { usePayments } from '../payments.queries'
+import { BackendUnavailableCard, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -12,7 +13,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 // endpoint of its own, so the grouping happens here rather than being
 // invented server-side.
 export function PaymentsReportPage() {
-  const { data, isLoading } = usePayments()
+  const { data, isLoading, error } = usePayments()
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
@@ -30,6 +31,20 @@ export function PaymentsReportPage() {
     [rows, applied],
   )
   const total = filtered.reduce((sum, r) => sum + r.amount, 0)
+
+  // api/payments/ doesn't exist on the current backend (see BackendUnavailable.tsx) — same
+  // underlying query as PaymentsListPage, shown here too rather than letting this page fall
+  // through to a silent "No Data Available" table.
+  if (isBackendUnavailable(error)) {
+    return (
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <FileBarChart2 size={20} className="text-brand" /> Payments reports
+        </h2>
+        <BackendUnavailableCard feature="Payments" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

@@ -1,20 +1,24 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Box, Package, Wrench, Search, Plus } from 'lucide-react'
+import { Box, Package, Wrench, Search, Plus, Filter } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { useAllProductsRich, type ProductRow, type ProductsSummary, type RichProductRow } from '../products.queries'
+import { useProductFormOptions } from '../../zra/createProduct.queries'
 import { ProductAvatar } from './ProductAvatar'
+import { ProductFilterModal } from './ProductFilterModal'
+import { ProductDetailPanel } from './ProductDetailPanel'
+import { DEFAULT_PRODUCT_FILTERS, activeFilterCount, matchesProductFilters, type ProductFilters } from '../productFilters'
 
 // Extra columns beyond the base /api/products/ fields mirror the legacy
 // "All Products" report (product/allproducts.php) — see useAllProductsRich.
 // Best-effort enrichment: falls back to "—" per row when that fetch hasn't
 // resolved yet or a ref isn't found in it, rather than blocking the table.
-const COLUMNS = ['Ref', 'Label', 'Category', 'Price (Excl. Tax)', 'Price (Incl. Tax)', 'VAT', 'Stock', 'ZRA Status', 'Lot Status', 'Country', 'Created']
-const PER_PAGE = 15
+const COLUMNS = ['Product', 'Category', 'VAT Code', 'Price (Excl. Tax)', 'Price (Incl. Tax)', 'Stock', 'Classification', 'ZRA Status', 'Lot Status', 'Country', 'Created']
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(product: ProductRow, query: string) {
   const q = query.trim().toLowerCase()
@@ -36,8 +40,13 @@ function StatusBadge({ value }: { value: string | undefined }) {
 
 export function ProductsList({ summary }: { summary: ProductsSummary }) {
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState<ProductFilters>(DEFAULT_PRODUCT_FILTERS)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const { data: richRows } = useAllProductsRich(0)
+  const { data: formOptions } = useProductFormOptions()
 
   const richByRef = useMemo(() => {
     const map = new Map<string, RichProductRow>()
@@ -45,11 +54,33 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
     return map
   }, [richRows])
 
-  const filteredProducts = useMemo(() => summary.products.filter((p) => matchesSearch(p, search)), [summary.products, search])
-  const pageProducts = filteredProducts.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const categoryLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    formOptions?.categories.forEach((c) => map.set(c.value, c.label))
+    return map
+  }, [formOptions])
+
+  const filteredProducts = useMemo(
+    () =>
+      summary.products.filter(
+        (p) => matchesSearch(p, search) && matchesProductFilters(p, richByRef.get(p.ref), filters, categoryLabelById),
+      ),
+    [summary.products, search, filters, richByRef, categoryLabelById],
+  )
+  const pageProducts = filteredProducts.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
+
+  function handleApplyFilters(next: ProductFilters) {
+    setFilters(next)
     setPage(1)
   }
 
@@ -57,13 +88,13 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
     const rows = filteredProducts.map((p) => {
       const rich = richByRef.get(p.ref)
       return [
-        p.ref,
-        p.label,
+        `${p.label} (Ref: ${p.ref})`,
         rich?.category ?? '',
+        rich?.vatCode ?? '',
         `${formatMoney(p.priceExclTax)} ${summary.currency}`,
         `${formatMoney(p.priceInclTax)} ${summary.currency}`,
-        p.vatRate,
         String(p.stock),
+        rich?.classification ?? '',
         rich?.zraStatus ?? '',
         rich?.lotStatus ?? '',
         rich?.country ?? '',
@@ -109,6 +140,17 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+            <select
+              value={perPage}
+              onChange={(e) => handlePerPageChange(Number(e.target.value))}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
             <div className="relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
@@ -119,8 +161,21 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setFilterModalOpen(true)}
+              className="flex items-center gap-2 text-sm font-medium rounded-md border border-input-border bg-input-bg text-text px-3 py-1.5 hover:bg-surface-hover"
+            >
+              <Filter size={14} /> Filter
+              {activeFilterCount(filters) > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-brand text-white text-[11px] font-semibold">
+                  {activeFilterCount(filters)}
+                </span>
+              )}
+            </button>
             <TableExportButtons title="Product List" getExportData={getExportData} />
           </div>
+          {expandedId && <div className="p-4 pb-0"><ProductDetailPanel productId={expandedId} onClose={() => setExpandedId(null)} /></div>}
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
@@ -149,33 +204,59 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                   pageProducts.map((p) => {
                     const rich = richByRef.get(p.ref)
                     return (
-                      <tr key={p.ref} className="border-b border-border">
-                        <td className="px-4 py-3 text-brand">{p.ref}</td>
-                        <td className="px-4 py-3 text-text!">
-                          <span className="flex items-center gap-2">
+                      <tr
+                        key={p.ref}
+                        onClick={() => setExpandedId((cur) => (cur === p.id ? null : p.id))}
+                        className="border-b border-border cursor-pointer hover:bg-surface-hover"
+                      >
+                        {/* Matches allproducts_ajax.php's own 'product' cell markup exactly: avatar,
+                            label, "Ref: X" as a small muted sub-line, the whole thing clickable — one
+                            combined cell, not two separate Ref/Label columns. In real legacy this link
+                            goes to product/card.php?id=X; here it goes to the React Product Detail page
+                            (/products/:id) instead, since that's now a real page covering the same
+                            tabs. stopPropagation so clicking the link doesn't also toggle this row's
+                            own inline detail panel underneath it. */}
+                        <td className="px-4 py-3">
+                          <Link to={ROUTES.productDetail.replace(':id', p.id)} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 group">
                             <ProductAvatar bg={rich?.avatarBg} color={rich?.avatarColor} />
-                            {p.label}
-                          </span>
+                            <span className="flex flex-col">
+                              <span className="text-brand group-hover:underline font-medium">{p.label}</span>
+                              <span className="text-xs text-text-faint">Ref: {p.ref}</span>
+                            </span>
+                          </Link>
                         </td>
                         <td className="px-4 py-3 text-text-muted">
                           <RichCell value={rich?.category} />
                         </td>
+                        <td className="px-4 py-3 text-text-muted">
+                          <RichCell value={rich?.vatCode} />
+                        </td>
                         <td className="px-4 py-3 text-text-muted text-right tabular-nums">{formatMoney(p.priceExclTax)} {summary.currency}</td>
                         <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(p.priceInclTax)} {summary.currency}</td>
-                        <td className="px-4 py-3 text-text-muted">{p.vatRate}</td>
-                        <td className="px-4 py-3 text-text-muted text-right tabular-nums whitespace-nowrap">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {rich ? (
-                            <span className="inline-flex flex-col items-end leading-tight">
-                              <span className={rich.stockPhysical > 0 ? 'text-success font-medium' : 'text-warning-fg font-medium'}>{rich.stockPhysical}</span>
-                              {(rich.stockDesired > 0 || rich.stockReserved > 0) && (
-                                <span className="text-[10px] text-text-faint">
-                                  D:{rich.stockDesired} R:{rich.stockReserved}
-                                </span>
-                              )}
-                            </span>
+                            // Matches allproducts_ajax.php's own stockInfo markup exactly: Desired/Reserved
+                            // line always shown first (small, muted), Physical second (bold), 3-way color —
+                            // red if negative, warning if physical <= desired (covers the common 0<=0 case
+                            // too), success only once physical genuinely exceeds desired.
+                            <div className="flex flex-col">
+                              <span className="text-xs text-text-faint">
+                                Desired: {rich.stockDesired} | Reserved: {rich.stockReserved}
+                              </span>
+                              <span
+                                className={`font-semibold tabular-nums ${
+                                  rich.stockPhysical < 0 ? 'text-danger' : rich.stockPhysical <= rich.stockDesired ? 'text-warning-fg' : 'text-success'
+                                }`}
+                              >
+                                Physical: {rich.stockPhysical}
+                              </span>
+                            </div>
                           ) : (
-                            p.stock
+                            <span className="text-text-muted tabular-nums">{p.stock}</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                          <RichCell value={rich?.classification ?? undefined} />
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge value={rich?.zraStatus} />
@@ -198,7 +279,8 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
           </div>
         </Card>
       </div>
-      <ListPagination page={page} perPage={PER_PAGE} total={filteredProducts.length} onPageChange={setPage} edgeToEdge />
+      <ListPagination page={page} perPage={perPage} total={filteredProducts.length} onPageChange={setPage} edgeToEdge />
+      <ProductFilterModal open={filterModalOpen} onClose={() => setFilterModalOpen(false)} filters={filters} onApply={handleApplyFilters} />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Boxes, LoaderCircle } from 'lucide-react'
 import { useUnuploadedStockMovements, useUploadStockMovementsToZra } from '../zraLists.queries'
 import { ListHeader, ListPagination, SearchBox, TableShell, EmptyRow, PER_PAGE } from './ZraListChrome'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 
 export function UnuploadedStockList() {
   const [page, setPage] = useState(1)
@@ -9,7 +10,7 @@ export function UnuploadedStockList() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
-  const { data, isLoading, isError } = useUnuploadedStockMovements({ page, perPage: PER_PAGE, search })
+  const { data, isLoading, isError, error } = useUnuploadedStockMovements({ page, perPage: PER_PAGE, search })
   const upload = useUploadStockMovementsToZra()
   const rows = data?.items ?? []
   const total = data?.total ?? 0
@@ -62,7 +63,13 @@ export function UnuploadedStockList() {
           {upload.data.succeeded ? 'Stock movements uploaded to ZRA successfully' : upload.data.statusMessage || 'Server Error! Please Contact Administrator'}
         </p>
       )}
-      {upload.isError && <p className="text-sm text-danger">{upload.error instanceof Error ? upload.error.message : 'Upload failed — please try again.'}</p>}
+      {upload.isError && (
+        isBackendUnavailable(upload.error) ? (
+          <BackendUnavailableInline feature="Uploading stock movements to ZRA" />
+        ) : (
+          <p className="text-sm text-danger">{upload.error instanceof Error ? upload.error.message : 'Upload failed — please try again.'}</p>
+        )
+      )}
 
       <div className="max-w-sm">
         <SearchBox
@@ -93,7 +100,15 @@ export function UnuploadedStockList() {
             </tr>
           </thead>
           <tbody>
-            <EmptyRow colSpan={10} isLoading={isLoading} isError={isError} isEmpty={rows.length === 0} emptyLabel="No unuploaded stock movements found." />
+            <EmptyRow
+              colSpan={10}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              isEmpty={rows.length === 0}
+              emptyLabel="No unuploaded stock movements found."
+              feature="Un-Uploaded Stock Movements"
+            />
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3">

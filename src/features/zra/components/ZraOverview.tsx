@@ -2,6 +2,7 @@ import { type ComponentType } from 'react'
 import { CheckCircle2, RefreshCw, ReceiptText, FileText, Calculator, Percent, ShoppingCart, ListChecks, LayoutList } from 'lucide-react'
 import { formatMoney } from '../../../utils/format'
 import { useVsdcStatus, type ZraSummary, type ZraSyncDetailRow, type ZraSyncStat } from '../zra.queries'
+import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const fmt = (n: number) => `ZMW ${formatMoney(n)}`
 
@@ -110,7 +111,14 @@ function YearFilter({ value, onChange }: { value: number | null; onChange: (year
 // 'getzraresponse' action (branch sync status code/message) — real, live
 // gateway checks, not derived from local DB data (see useVsdcStatus).
 function VsdcStatusBar() {
-  const { data, isFetching, dataUpdatedAt, refetch } = useVsdcStatus()
+  const { data, isFetching, isError, error, dataUpdatedAt, refetch } = useVsdcStatus()
+
+  // GET /api/zra/vsdc-status/ 404s on this backend (see BackendUnavailable.tsx). Without
+  // this distinction, isError just leaves `data` undefined forever and both lines below
+  // would show "Checking…" indefinitely — implying a check still in progress rather than
+  // one that already failed.
+  const unavailable = isError && isBackendUnavailable(error)
+  const stillChecking = data === undefined && !isError
 
   return (
     <div className="flex flex-col lg:flex-row lg:items-center gap-4 text-sm border-b border-border pb-4">
@@ -126,8 +134,12 @@ function VsdcStatusBar() {
       <div className="flex flex-col gap-1.5">
         <span className="flex items-center gap-1.5">
           <span className="text-text-muted">ZRA Server Api Status :</span>
-          {data === undefined ? (
+          {stillChecking ? (
             <span className="text-text-faint">Checking…</span>
+          ) : unavailable ? (
+            <span className="text-text-faint">Not available on this backend yet</span>
+          ) : data === undefined ? (
+            <span className="text-danger font-medium">Could not check ZRA API status.</span>
           ) : data.apiOnline ? (
             <span className="flex items-center gap-1 text-success font-medium">
               <CheckCircle2 size={14} /> ZRA API Online
@@ -143,7 +155,7 @@ function VsdcStatusBar() {
               {data.syncStatus.code} - {data.syncStatus.message}
             </span>
           ) : (
-            <span className="text-text-faint text-xs">{data === undefined ? 'Checking…' : 'Unavailable'}</span>
+            <span className="text-text-faint text-xs">{stillChecking ? 'Checking…' : unavailable ? 'Not available on this backend yet' : 'Unavailable'}</span>
           )}
           <button
             type="button"

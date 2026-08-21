@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import axios from 'axios'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
+import { parseSocieteListRow, type RawSocieteListRow, type SocieteListRow } from './societeListParser'
 
 export interface CustomersSummary {
   totalCustomers: number
@@ -11,87 +12,83 @@ export interface CustomersSummary {
   customers: ThirdPartyRow[]
 }
 
-// GET /api/customers/summary/ (api/customers/summary/index.php) — purpose-built
-// for this exact stat-card row (Total, Created This Month, Outstanding Balance,
-// Default/Other Country counts), computed server-side straight from
-// llx_societe/llx_facture rather than derived client-side from a row list that
-// doesn't carry enough fields for it.
-interface SummaryPayload {
-  total: number
-  createdThisMonth: number
-  outstandingBalance: number
-  defaultCountryCount: number
-  otherCountryCount: number
+interface SocieteListResponse {
+  ok: boolean
+  iTotalRecords: number
+  data: RawSocieteListRow[]
 }
 
-// GET /api/customers/list/ (api/customers/list/index.php) — the React-app-
-// specific list endpoint (distinct from api/customers/index.php, which serves
-// the mobile app with a narrower row shape missing country/balance/sales
-// rep/creation date entirely). Both endpoints wrap their payload as
-// {success, data: ...}, unlike the mobile endpoint's flat {success, customers, ...}.
-interface ListItem {
-  id: number
-  name: string
-  tpin: string | null
-  trackingId: string | null
-  isCustomer: boolean
-  isProspect: boolean
-  isVendor: boolean
-  statusLabel: 'Open' | 'Closed'
-  email: string
-  phone: string
-  countryLabel: string | null
-  currencyCode: string
-  outstandingBalance: number
-  salesReps: string | null
-  createdAt: string
-  creatorName: string
-}
+// This deployment is Zambia-specific throughout (ZRA integration, TPIN/NRC
+// fields, ZMW currency) — there is no API exposing a configured "default
+// country" to compare against, so this is a hardcoded stand-in for the
+// entity's own country on the Default/Other Country stat split.
+const DEFAULT_COUNTRY = 'Zambia'
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
-
-export function toRow(item: ListItem): ThirdPartyRow {
+export function toThirdPartyRow(item: SocieteListRow): ThirdPartyRow {
   return {
-    name: item.name ?? '',
-    country: item.countryLabel ?? '',
+    name: item.name,
+    country: item.country,
     outstandingBalance: item.outstandingBalance,
-    tpin: item.tpin ?? '',
-    salesRep: item.salesReps ?? '',
-    email: item.email ?? '',
-    phone: item.phone ?? '',
+    tpin: item.tpin,
+    salesRep: item.salesRep,
+    email: item.email,
+    phone: item.phone,
     nature: item.isCustomer && item.isProspect ? 'Customer, Prospect' : item.isProspect ? 'Prospect' : 'Customer',
-    trackingId: item.trackingId ?? '',
-    // Raw MySQL datetime, not pre-formatted — ThirdPartyList both displays
-    // this (via formatDateTimeAmPm) and parses it for the date-range filter,
-    // so it needs to stay a real parseable timestamp, not display text.
-    creationDate: item.createdAt ?? '',
-    creatorName: item.creatorName ?? '',
+    trackingId: item.trackingId,
+    creationDate: item.creationDateIso,
+    creatorName: item.creatorName,
     status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
   }
 }
 
-// limit: 500 — web_pagination()'s own clamp ceiling (see api/_web_common.php)
-// — fetched once and paginated client-side by ThirdPartyList, same pattern
-// used for every other list page in this app.
+// societe/api/list.php (DataTables-style POST, see societeListParser.ts) —
+// a real, session-cookie-authenticated endpoint, unrelated to the old
+// /api/customers/{summary,list}/ routes this used to call (both permanent
+// 404s on the currently-active backend). `length: -1` returns every
+// matching row in one response (no server-side pagination), which both
+// supplies ThirdPartyList's full row set (it paginates client-side, same
+// pattern as every other list page in this app) and lets the summary stats
+// below be computed client-side from that same row list, since no endpoint
+// provides createdThisMonth/balance-sum/country-split directly.
 export function useCustomersSummary() {
   return useQuery({
     queryKey: ['customers', 'summary'],
     queryFn: async (): Promise<CustomersSummary> => {
-      const [summaryRes, listRes] = await Promise.all([
-        api.get<WebEnvelope<SummaryPayload>>('/customers/summary/'),
-        api.get<WebEnvelope<{ items: ListItem[]; total: number }>>('/customers/list/', { params: { type: 'c', page: 1, limit: 500 } }),
-      ])
-      const s = summaryRes.data.data
-      const rows = listRes.data.data.items.map(toRow)
+      // societe/api/list.php's real response body (confirmed live) is
+      // prefixed with a UTF-8 BOM and a couple of blank lines before the
+      // opening "{", even though it sends Content-Type: application/json —
+      // axios's automatic JSON transform runs plain JSON.parse() on that,
+      // which throws on the leading BOM. Disabling the transform and
+      // parsing manually after a trim() (which strips BOM/whitespace alike)
+      // sidesteps that rather than depending on a backend fix.
+      const res = await axios.post<string>(
+        '/societe/api/list.php',
+        new URLSearchParams({ draw: '1', start: '0', length: '-1', type: 'c', contextpage: 'customerlist' }),
+        { transformResponse: (data) => data },
+      )
+      const body: SocieteListResponse = JSON.parse(res.data.trim())
+
+      const parsed = body.data.map(parseSocieteListRow)
+      const now = new Date()
+
+      const rows: ThirdPartyRow[] = parsed.map(toThirdPartyRow)
+
+      const createdThisMonth = parsed.filter((item) => {
+        if (!item.creationDateIso) return false
+        const d = new Date(item.creationDateIso)
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      }).length
+
+      const outstandingBalance = parsed.reduce((sum, item) => sum + item.outstandingBalance, 0)
+      const defaultCountryCustomers = parsed.filter((item) => item.country === DEFAULT_COUNTRY).length
+      const otherCountryCustomers = parsed.length - defaultCountryCustomers
+
       return {
-        totalCustomers: s.total,
-        createdThisMonth: s.createdThisMonth,
-        outstandingBalance: s.outstandingBalance,
-        defaultCountryCustomers: s.defaultCountryCount,
-        otherCountryCustomers: s.otherCountryCount,
+        totalCustomers: body.iTotalRecords ?? parsed.length,
+        createdThisMonth,
+        outstandingBalance,
+        defaultCountryCustomers,
+        otherCountryCustomers,
         customers: rows,
       }
     },

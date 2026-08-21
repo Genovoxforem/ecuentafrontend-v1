@@ -75,7 +75,7 @@ function DetailsModal({ item, onClose }: { item: ZraStockListItem; onClose: () =
 // client-side groupAndAggregateItems()), with a "View More" action opening
 // the per-movement breakdown, same as the real page's modal.
 export function ZraStockList() {
-  const { data, isLoading, isError } = useZraStockList()
+  const { data, isLoading, isError, error } = useZraStockList()
   const items = data?.items ?? []
   const [selected, setSelected] = useState<ZraStockListItem | null>(null)
 
@@ -103,7 +103,15 @@ export function ZraStockList() {
             </tr>
           </thead>
           <tbody>
-            <EmptyRow colSpan={7} isLoading={isLoading} isError={isError} isEmpty={items.length === 0} emptyLabel="No data available" />
+            <EmptyRow
+              colSpan={7}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              isEmpty={items.length === 0}
+              emptyLabel="No data available"
+              feature="ZRA Stock List"
+            />
             {items.map((item) => (
               <tr key={item.itemCode} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3 text-text-muted">{item.sno}</td>

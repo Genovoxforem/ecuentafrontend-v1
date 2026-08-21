@@ -1,8 +1,16 @@
 import { useProspectsSummary } from '../../features/customers/prospects.queries'
 import { ProspectsList } from '../../features/customers/components/ProspectsList'
+import { BackendUnavailableCard, isBackendUnavailable } from '../../shared/components/BackendUnavailable'
 
 export function ProspectsListModule() {
-  const { data: summary, isError } = useProspectsSummary()
+  const { data: summary, isError, error } = useProspectsSummary()
+
+  // Same permanently-missing /customers/summary/ and /customers/list/
+  // endpoints as CustomersListModule — honest unavailable state for the
+  // 404 case, generic error message for anything else.
+  if (isError && isBackendUnavailable(error)) {
+    return <BackendUnavailableCard feature="Prospects list" />
+  }
 
   return (
     <>

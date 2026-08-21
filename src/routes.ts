@@ -132,6 +132,8 @@ export const ROUTES = {
   productArea: '/products',
   productList: '/products/list',
   productCreate: '/products/create',
+  productDetail: '/products/:id',
+  productEdit: '/products/:id/edit',
   productStocks: '/products/stocks',
   productStocksByLot: '/products/stocks-by-lot',
   lotsSerials: '/products/lots-serials',
