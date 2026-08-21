@@ -927,7 +927,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden">
+          <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden isolate">
             <div className={`overflow-y-auto ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-surface z-10">
@@ -2393,7 +2393,7 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden">
+          <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden isolate">
             <div className="overflow-y-auto max-h-[550px]">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-surface z-10">
