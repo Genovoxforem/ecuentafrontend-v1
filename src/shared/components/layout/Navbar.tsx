@@ -10,12 +10,13 @@ import { SettingsMegaMenu } from './navbar/SettingsMegaMenu'
 import { NotificationsPanel } from './navbar/NotificationsPanel'
 import { DailySummaryPanel } from './navbar/DailySummaryPanel'
 import { ClockInPanel } from './navbar/ClockInPanel'
+import { AllAppsDrawer } from './navbar/AllAppsDrawer'
 import { useAttendanceStatus } from '../../../features/attendance/attendance.queries'
 import { Avatar } from '../Avatar'
 import logoIcon from '../../../assets/log3.png'
 import logoFull from '../../../assets/Ecuenta_logo.png'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
-type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | null
+type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | 'apps' | null
 
 // Custom styled tooltip (replaces the native `title` attribute), shown below
 // the icon on hover via CSS-only group-hover, plus an optional glow ring for
@@ -92,7 +93,9 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
   const { user } = useAuth()
   const { data: attendance } = useAttendanceStatus()
   const [openPanel, setOpenPanel] = useState<PanelName>(null)
+  const [appsQuery, setAppsQuery] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!openPanel) return
@@ -156,10 +159,25 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
       </div>
 
       <div className="relative z-10 flex-1 flex items-center gap-3 max-w-xl min-w-0">
-        <div className="flex-1 min-w-[110px] flex items-center gap-2 h-9 px-3 rounded-full bg-surface-alt text-text-faint">
+        <div
+          className="flex-1 min-w-[110px] flex items-center gap-2 h-9 px-3 rounded-full bg-surface-alt text-text-faint cursor-text"
+          onClick={() => {
+            setOpenPanel('apps')
+            searchInputRef.current?.focus()
+          }}
+        >
           <Search size={16} className="shrink-0" />
-          <input type="text" placeholder="Search anythings" className="flex-1 min-w-0 bg-transparent outline-none text-sm text-text placeholder-text-faint" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={appsQuery}
+            onChange={(e) => setAppsQuery(e.target.value)}
+            onFocus={() => setOpenPanel('apps')}
+            placeholder="Search anythings"
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm text-text placeholder-text-faint"
+          />
         </div>
+        {openPanel === 'apps' && <AllAppsDrawer query={appsQuery} onQueryChange={setAppsQuery} onClose={closePanel} />}
         <div className="hidden lg:flex items-center gap-2 h-9 pl-3 pr-1.5 rounded-full border border-border text-sm text-text-muted whitespace-nowrap">
           Today New Leads
           <span className="w-6 h-6 flex items-center justify-center rounded-full bg-info-bg text-info-fg text-xs font-semibold">27</span>

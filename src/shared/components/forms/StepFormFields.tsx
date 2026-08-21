@@ -38,7 +38,7 @@ export function Field({ field, value, onChange }: { field: FieldSpec; value: str
   // doesn't get nagged with a format error before the user's typed anything.
   const error = field.validate && value.trim() ? field.validate(value.trim()) : null
   return (
-    <label className="flex flex-col gap-1.5">
+    <label className="flex flex-col gap-0.5">
       <span className="text-xs font-medium text-text-muted">
         {field.label}
         {field.required && <span className="text-danger ml-0.5">*</span>}
@@ -104,12 +104,19 @@ export function groupFields(fields: FieldSpec[]): { section: string; fields: Fie
   return order.map((section) => ({ section, fields: bySection.get(section)! }))
 }
 
+const GRID_COLS_CLASS = {
+  2: 'sm:grid-cols-2',
+  3: 'sm:grid-cols-3',
+  4: 'sm:grid-cols-2 lg:grid-cols-4',
+} as const
+
 export function StepFields({
   fields,
   values,
   setValues,
   sectionIcons = {},
   renderField,
+  columns = 3,
 }: {
   fields: FieldSpec[]
   values: Record<string, string>
@@ -120,6 +127,11 @@ export function StepFields({
   // field) — return a node to use it instead of the default Field, or
   // undefined to fall through to the default.
   renderField?: (field: FieldSpec) => ReactNode | undefined
+  // Field-grid column count on sm+ screens (4 steps down to 2 on narrower
+  // sm/md widths rather than cramming 4 across a tablet-width viewport).
+  // Defaults to 3 (UserCreateForm's existing layout, unaffected unless it
+  // opts in); ThirdPartyCreateForm passes 4.
+  columns?: 2 | 3 | 4
 }) {
   const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
   return (
@@ -134,7 +146,7 @@ export function StepFields({
                 <h4 className="text-xs font-semibold text-text-faint uppercase tracking-wide">{section}</h4>
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-4">
+            <div className={`grid grid-cols-1 ${GRID_COLS_CLASS[columns]} gap-x-4 gap-y-4`}>
               {sectionFields.map((field) => renderField?.(field) ?? <Field key={field.key} field={field} value={values[field.key]} onChange={setField(field.key)} />)}
             </div>
           </div>

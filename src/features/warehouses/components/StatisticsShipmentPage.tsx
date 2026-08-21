@@ -2,22 +2,30 @@ import { useState } from 'react'
 import { Truck } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
-import { useCustomersSummary } from '../../customers/customers.queries'
+import { useCustomerOptions } from '../../customers/customerOptions'
 import { useUsersSummary } from '../../users/users.queries'
+import { useShipmentStats } from '../shipmentStats.queries'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+// Real GET /api/shipments/stats/ data (see shipmentStats.queries.ts) —
+// mirrors expedition/stats/index.php's own validated-shipments-only,
+// grouped-by-date_valid query. Third-Party/Created By filters use real
+// customer/user ids so they actually narrow the SQL, not just cosmetic.
 export function StatisticsShipmentPage() {
-  const { data: customersSummary } = useCustomersSummary()
+  const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: usersSummary } = useUsersSummary()
   const [thirdParty, setThirdParty] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const { data: stats, isLoading: statsLoading } = useShipmentStats(Number(year), thirdParty, createdBy)
 
-  const customerOptions = (customersSummary?.customers ?? []).map((c) => ({ value: c.name, label: c.name }))
+  const customerOptions = (customers ?? []).map((c) => ({ value: c.id, label: c.name }))
   const userOptions = (usersSummary?.users ?? []).map((u) => ({ value: String(u.id), label: u.name }))
   const years = Array.from({ length: 3 }, (_, i) => String(new Date().getFullYear() - i))
+  const byMonth = stats?.byMonth ?? Array(12).fill(0)
+  const maxCount = Math.max(1, ...byMonth)
 
   return (
     <div className="space-y-4">
@@ -33,7 +41,7 @@ export function StatisticsShipmentPage() {
             <h3 className="text-sm font-semibold text-text!">Filter</h3>
             <div>
               <label className="block text-xs text-text-faint mb-1">Third-Party</label>
-              <SearchableSelect value={thirdParty} onChange={setThirdParty} options={customerOptions} placeholder="Select…" />
+              <SearchableSelect value={thirdParty} onChange={setThirdParty} options={customerOptions} placeholder={customersLoading ? 'Loading…' : 'Select…'} />
             </div>
             <div>
               <label className="block text-xs text-text-faint mb-1">Created By</label>
@@ -57,12 +65,17 @@ export function StatisticsShipmentPage() {
           <div>
             <h3 className="text-sm font-semibold text-brand mb-3">Number of shipments by month</h3>
             <div className="flex items-end gap-2 h-40 border-l border-b border-border pl-2 pb-1">
-              {MONTHS.map((m) => (
-                <div key={m} className="flex-1 flex flex-col items-center justify-end h-full">
-                  <div className="w-full bg-surface-alt border-t border-border" style={{ height: '2px' }} />
-                  <span className="text-[10px] text-text-faint mt-1">{m}</span>
-                </div>
-              ))}
+              {MONTHS.map((m, i) => {
+                const count = byMonth[i] ?? 0
+                const heightPct = count === 0 ? 0 : Math.max(4, (count / maxCount) * 100)
+                return (
+                  <div key={m} className="flex-1 flex flex-col items-center justify-end h-full" title={`${m}: ${count}`}>
+                    <span className="text-[10px] text-text-muted mb-0.5">{count > 0 ? count : ''}</span>
+                    <div className="w-full bg-brand rounded-t-sm" style={{ height: `${heightPct}%` }} />
+                    <span className="text-[10px] text-text-faint mt-1">{m}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -75,11 +88,26 @@ export function StatisticsShipmentPage() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={2} className="py-3 text-text-faint italic">
-                No data.
-              </td>
-            </tr>
+            {statsLoading ? (
+              <tr>
+                <td colSpan={2} className="py-3 text-text-faint italic">
+                  Loading…
+                </td>
+              </tr>
+            ) : !stats?.byYear.length ? (
+              <tr>
+                <td colSpan={2} className="py-3 text-text-faint italic">
+                  No data.
+                </td>
+              </tr>
+            ) : (
+              stats.byYear.map((y) => (
+                <tr key={y.year} className="border-b border-border last:border-0">
+                  <td className="py-2 text-brand font-medium">{y.year}</td>
+                  <td className="py-2 text-right tabular-nums text-text!">{y.count}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
 

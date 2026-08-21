@@ -51,6 +51,12 @@ export interface StockMovement {
   delta: number
   reason: string
   date: string
+  // Optional — only set by warehouse-aware entry points (Stock Correction,
+  // Stock Transfer, Mass Stock Transfer). Older/simpler recordings (e.g.
+  // from Box Break) leave these blank rather than guessing a warehouse.
+  warehouseRef?: string
+  lotSerial?: string
+  type?: 'Correction' | 'Transfer In' | 'Transfer Out'
 }
 
 const KEY = ['local', 'warehouseMovements'] as const
@@ -130,17 +136,45 @@ export function useRecentMovements(limit = 10): StockMovement[] {
   return movements.slice(0, limit)
 }
 
+type NewMovementInput = {
+  productRef: string
+  productLabel: string
+  delta: number
+  reason: string
+  warehouseRef?: string
+  lotSerial?: string
+  type?: StockMovement['type']
+}
+
+function buildMovement(input: NewMovementInput): StockMovement {
+  return {
+    ref: nextLocalRef('MO'),
+    productRef: input.productRef,
+    productLabel: input.productLabel,
+    delta: input.delta,
+    reason: input.reason,
+    date: new Date().toISOString(),
+    warehouseRef: input.warehouseRef,
+    lotSerial: input.lotSerial,
+    type: input.type,
+  }
+}
+
 export function useRecordStockMovement() {
   const [, update] = useLocalCollection(KEY, SEED)
-  return (input: { productRef: string; productLabel: string; delta: number; reason: string }) => {
-    const movement: StockMovement = {
-      ref: nextLocalRef('MO'),
-      productRef: input.productRef,
-      productLabel: input.productLabel,
-      delta: input.delta,
-      reason: input.reason,
-      date: new Date().toISOString(),
-    }
-    update((current) => [movement, ...current])
+  return (input: NewMovementInput) => {
+    update((current) => [buildMovement(input), ...current])
+  }
+}
+
+// Records several movements as one batch — used by Mass Stock Transfer,
+// where each table row becomes a paired Transfer Out (source) / Transfer In
+// (target) movement in the same shared local ledger the other Stock
+// Movement pages read from.
+export function useRecordStockMovements() {
+  const [, update] = useLocalCollection(KEY, SEED)
+  return (inputs: NewMovementInput[]) => {
+    const batch = inputs.map(buildMovement)
+    update((current) => [...batch, ...current])
   }
 }

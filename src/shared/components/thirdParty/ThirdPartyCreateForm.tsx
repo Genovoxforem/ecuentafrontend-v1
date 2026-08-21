@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction, useMemo } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -53,7 +53,7 @@ import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFiel
 import { api } from '../../../api/axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
-import { useThirdPartyFormOptions } from '../../../features/customers/thirdPartyOptions.queries'
+import { useThirdPartyFormOptions, useStatesByCountry } from '../../../features/customers/thirdPartyOptions.queries'
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 
@@ -124,9 +124,9 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
     { key: 'customerGroup', label: 'Customer Group', type: 'select', options: customerGroupOptions, icon: Users, placeholder: 'Select a group', section: 'Identity' },
     { key: 'phone', label: 'Phone', type: 'text', icon: Phone, section: 'Contact Info' },
     { key: 'email', label: 'EMail', type: 'text', icon: Mail, section: 'Contact Info' },
-    { key: 'customerCode', label: 'Customer Code', type: 'text', defaultValue: 'CU2608-00001', icon: Hash, section: 'Classification' },
+    { key: 'customerCode', label: 'Customer Code', type: 'text', defaultValue: formOptions?.nextCustomerCode ?? '', icon: Hash, section: 'Classification' },
     { key: 'vendor', label: 'Vendor', type: 'select', options: ['No', 'Yes'], defaultValue: isVendor ? 'Yes' : 'No', icon: Truck, section: 'Classification' },
-    { key: 'vendorCode', label: 'Vendor Code', type: 'text', defaultValue: 'SU2608-00001', icon: Hash, section: 'Classification' },
+    { key: 'vendorCode', label: 'Vendor Code', type: 'text', defaultValue: formOptions?.nextVendorCode ?? '', icon: Hash, section: 'Classification' },
   ]
   if (isVendor) {
     fields.push({ key: 'branchCode', label: 'Branch Code', type: 'text', icon: Building2, section: 'Classification' })
@@ -140,15 +140,15 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
   return fields
 }
 
-function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['data'] | null): FieldSpec[] {
+function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['data'] | null, stateOptions: string[]): FieldSpec[] {
   // Safe defaults if formOptions is null or properties are missing
-  const stateOptions = formOptions?.states?.map(s => s.label) ?? []
   const businessEntityOptions = formOptions?.businessEntityTypes?.map(b => b.label) ?? []
   const nrcOptions = formOptions?.nrcTypes?.map(n => n.label) ?? []
   const workforceOptions = formOptions?.workforce?.map(w => w.label) ?? []
   const languageOptions = formOptions?.languages?.map(l => l.label) ?? []
   const incotermOptions = formOptions?.incoterms?.map(i => i.label) ?? []
-  
+  const environmentOptions = formOptions?.environment?.map(e => e.label) ?? []
+
   return [
     { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
     { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
@@ -171,7 +171,7 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
     { key: 'workforce', label: 'Workforce', type: 'select', options: workforceOptions, icon: Users, section: 'Business & Tax' },
     { key: 'languageDefault', label: 'Language default', type: 'select', options: languageOptions, icon: Languages, section: 'Business & Tax' },
     { key: 'incoterms', label: 'Incoterms', type: 'select', options: incotermOptions, icon: Ship, section: 'Business & Tax' },
-    { key: 'environment', label: 'Environment', type: 'select', options: ['Master entity'], defaultValue: 'Master entity', icon: Server, section: 'Business & Tax' },
+    { key: 'environment', label: 'Environment', type: 'select', options: environmentOptions, defaultValue: environmentOptions[0], icon: Server, section: 'Business & Tax' },
     { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
     { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
 
@@ -252,15 +252,6 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   // Fetch form options
   const { data: formOptions, isLoading: formOptionsLoading } = useThirdPartyFormOptions()
 
-  // Build steps with dynamic form options
-  const steps = useMemo(() => {
-    return [
-      { title: 'Setup basic details', fields: buildStep1(variant, formOptions) },
-      { title: 'Add professional info', fields: buildStep2(formOptions) },
-      { title: 'Add social links', fields: [] as FieldSpec[] },
-    ]
-  }, [variant, formOptions])
-
   const [step, setStep] = useState(0)
 
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -268,7 +259,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     // itself is kept in sync as their combined value on every keystroke.
     const init: Record<string, string> = { firstName: '', lastName: '', nameTitle: 'Mr' }
     // Initialize with buildStep1/buildStep2 with null formOptions to get base fields
-    for (const f of [...buildStep1(variant, null), ...buildStep2(null)]) {
+    for (const f of [...buildStep1(variant, null), ...buildStep2(null, [])]) {
       init[f.key] = f.defaultValue ?? ''
     }
     for (const f of SOCIAL_LINK_FIELDS) {
@@ -276,6 +267,60 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     }
     return init
   })
+
+  // Customer Code / Vendor Code start out blank (formOptions is still
+  // loading when `values` above is first initialized) — fill in the real
+  // live-preview code once it arrives, same as legacy's own next-code
+  // preview, but only if the user hasn't already typed something over it.
+  useEffect(() => {
+    if (!formOptions) return
+    setValues((prev) => ({
+      ...prev,
+      customerCode: prev.customerCode || formOptions.nextCustomerCode,
+      vendorCode: prev.vendorCode || formOptions.nextVendorCode,
+    }))
+  }, [formOptions?.nextCustomerCode, formOptions?.nextVendorCode])
+
+  // Country starts out as the bare fallback string 'Zambia' (same reason as
+  // above — real formOptions isn't loaded yet when `values` is initialized),
+  // which never matches any real "<Name> (<CODE>)" country label once the
+  // real list arrives. Left alone, the <select> just falls back to visually
+  // showing its first option while `values.country` stays stuck on the
+  // unmatched fallback string underneath — which breaks selectedCountryId
+  // below (State/Province would never load) and would silently submit the
+  // wrong country if the user never happens to touch this field.
+  //
+  // Once real data loads, snap it to the installation's actual configured
+  // home country (formOptions.defaultCountryId, sourced from the real
+  // MAIN_INFO_SOCIETE_COUNTRY constant) — matching societe/card.php's own
+  // default (`$mysoc->country_id`) exactly, rather than just picking
+  // whichever country happens to sort first alphabetically. Falls back to
+  // the first country in the list only if that constant is somehow unset.
+  // Never overwrites an actual user selection.
+  useEffect(() => {
+    if (!formOptions?.countries?.length) return
+    const isRealCountry = formOptions.countries.some((c) => c.label === values.country)
+    if (isRealCountry) return
+    const home = formOptions.countries.find((c) => c.value === String(formOptions.defaultCountryId))
+    setValues((prev) => ({ ...prev, country: (home ?? formOptions.countries[0]).label }))
+  }, [formOptions?.countries, formOptions?.defaultCountryId])
+
+  // State/Province is reactive to the selected Country — legacy's own field
+  // (select_state($country_code), societe/card.php) works the same way — so
+  // it's fetched separately from the rest of useThirdPartyFormOptions rather
+  // than baked into that combined bundle.
+  const selectedCountryId = formOptions?.countries?.find((c) => c.label === values.country)?.value
+  const { data: stateOptionsData } = useStatesByCountry(selectedCountryId)
+  const stateOptions = stateOptionsData?.map((s) => s.label) ?? []
+
+  // Build steps with dynamic form options — cheap pure functions, no need to
+  // memoize across every field-level state update this component makes.
+  const steps = [
+    { title: 'Setup basic details', fields: buildStep1(variant, formOptions) },
+    { title: 'Add professional info', fields: buildStep2(formOptions, stateOptions) },
+    { title: 'Add social links', fields: [] as FieldSpec[] },
+  ]
+
   const [formError, setFormError] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -471,8 +516,14 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
           item with a real computed height), h-full would actually apply and clip this
           card to that height, letting its field grid visually overflow past the box
           without affecting the scroll height, which is what let the sticky footer below
-          stick early and cover the last couple of rows. */}
-      <Card className="!h-auto flex-1 min-h-0">
+          stick early and cover the last couple of rows.
+
+          !pb-20: !h-auto alone isn't enough once a step has this many rows (step 2 grew
+          past what fits) — the sticky footer overlays rather than pushes content, so
+          without extra bottom clearance equal to roughly its own height, the footer still
+          visually covers the Business & Tax section's last row and the Tags & Documents
+          section header sitting right above it. */}
+      <Card className="!h-auto flex-1 min-h-0 !pb-20">
         {step === 2 ? (
           <SocialLinksStep values={values} onChange={setField} />
         ) : (
@@ -481,6 +532,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             values={values}
             setValues={setValues}
             sectionIcons={SECTION_ICONS}
+            columns={4}
             renderField={(field) => (field.type === 'name' ? <NameField key={field.key} values={values} setValues={setValues} required={field.required} /> : undefined)}
           />
         )}

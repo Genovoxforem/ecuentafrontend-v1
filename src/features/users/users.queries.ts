@@ -161,6 +161,64 @@ export function useUser(id: string | number | undefined) {
   return { user, isLoading }
 }
 
+// Raw shape from GET /api/users/detail/?id= (api/users/detail/index.php) —
+// real, direct SQL against llx_user (address/zip/town/country/state,
+// creation date+creator, supervisor, salary/thm/tjm/weeklyhours, employment
+// and login-validity date ranges, birth, notes, social links). Built for
+// this exact page (its own header comment says so: "matching
+// htdocs/user/card.php's view mode") but was never wired up — UserDetail.tsx
+// used only the narrower list-row shape from useUser above, which is why the
+// User tab's Supervisor/Salary/Employment/Address fields, and the left
+// panel's Created-on/Created-by, showed blank despite this real data
+// existing all along.
+export interface UserDetailData {
+  id: number
+  login: string
+  name: string
+  admin: boolean
+  superAdmin: boolean
+  employee: boolean
+  gender: string | null
+  job: string | null
+  address: string | null
+  zip: string | null
+  town: string | null
+  countryLabel: string | null
+  stateLabel: string | null
+  mobile: string | null
+  officePhone: string | null
+  officeFax: string | null
+  email: string | null
+  enabled: boolean
+  lastLogin: string | null
+  createdAt: string | null
+  creatorLogin: string | null
+  note: string | null
+  dateEmployment: string | null
+  dateEmploymentEnd: string | null
+  dateStartValidity: string | null
+  dateEndValidity: string | null
+  birth: string | null
+  supervisorName: string | null
+  salary: number | null
+  hourlyCost: number | null
+  dailyCost: number | null
+  weeklyHours: number | null
+}
+
+export function useUserDetail(id: string | number | undefined) {
+  const numericId = typeof id === 'string' ? Number(id) : id
+  const query = useQuery({
+    queryKey: ['users', 'detail', numericId],
+    queryFn: async (): Promise<UserDetailData> => {
+      const { data } = await api.get<WebEnvelope<UserDetailData>>('/users/detail/', { params: { id: numericId } })
+      return data.data
+    },
+    enabled: numericId !== undefined && !Number.isNaN(numericId),
+  })
+  return { detail: query.data, isLoading: query.isLoading }
+}
+
 // GET /api/customers/list/'s creatorName (see customers.queries.ts) is a
 // display name, not a user id — there's no creator-id field on that
 // endpoint to link against directly. This resolves it against the real

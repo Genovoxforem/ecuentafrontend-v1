@@ -1,80 +1,115 @@
-import { useLocalCollection, nextLocalRef } from '../../shared/localCollection'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '../../api/axios'
 import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
 
-export type DiscountMethod = 'Product Price' | 'Percentage'
-export type DiscountType = 'N/A' | 'Increase' | 'Decrease'
+// discountType/discountMethod are the exact int codes societe/new_card.php's
+// legacy form posts as dis_type/dis_method, stored verbatim in
+// llx_custom_group.discount_type / .customer_method:
+export const DISCOUNT_TYPE_OPTIONS = [
+  { value: 0, label: 'Decrease' },
+  { value: 1, label: 'Increase' },
+] as const
+
+export const DISCOUNT_METHOD_OPTIONS = [
+  { value: 1, label: 'Percentage' },
+  { value: 2, label: 'Product Price' },
+] as const
 
 export interface CustomerGroupRow {
-  id: string
+  id: number
   label: string
-  discountMethod: DiscountMethod
-  // Only meaningful when discountMethod is 'Percentage' — the reference
-  // list shows this baked into the Discount Method cell itself, e.g.
-  // "Percentage -0%".
-  discountValue: number
-  discountType: DiscountType
+  discount: number
+  discountType: number
+  discountMethod: number | null
   description: string
-}
-
-export interface CustomerGroupsSummary {
-  groups: CustomerGroupRow[]
-}
-
-const SEED: CustomerGroupsSummary = { groups: [] }
-
-const KEY = ['local', 'customerGroups'] as const
-
-// No customer-group/discount-tier endpoint exists on this app's server —
-// held in react-query's cache only (see shared/localCollection.ts), same
-// pattern as users.queries.ts, so create/edit/delete feel real in the
-// browser but never persist anywhere.
-export function useCustomerGroupsSummary() {
-  const [data] = useLocalCollection(KEY, SEED)
-  return { data, isError: false, isLoading: false }
-}
-
-export function useCustomerGroup(id: string | undefined) {
-  const { data } = useCustomerGroupsSummary()
-  return id ? data.groups.find((g) => g.id === id) : undefined
-}
-
-export function formatDiscountMethod(row: Pick<CustomerGroupRow, 'discountMethod' | 'discountValue'>) {
-  if (row.discountMethod === 'Percentage') return `Percentage -${row.discountValue}%`
-  return row.discountMethod
 }
 
 export interface CustomerGroupInput {
   label: string
-  discountMethod: DiscountMethod
-  discountValue: number
-  discountType: DiscountType
+  discount: number
+  discountType: number
+  discountMethod: number
   description: string
 }
 
+interface WebEnvelope<T> {
+  success: boolean
+  data: T
+}
+
+const QUERY_KEY = ['customers', 'groups'] as const
+
+// GET/POST/PUT/DELETE /api/customers/groups/ (api/customers/groups/index.php)
+// — real, reads/writes llx_custom_group directly (ports Node
+// sales-service/customers.service.js's list/create/delete; PUT added
+// alongside this page so the existing Edit UI has a real backing route too).
+export function useCustomerGroupsSummary() {
+  const query = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: async (): Promise<CustomerGroupRow[]> => {
+      const { data } = await api.get<WebEnvelope<CustomerGroupRow[]>>('/customers/groups/')
+      // discountType/discountMethod currently come back as raw MySQL strings
+      // ("1"/"2") rather than JSON numbers — the backend's own int-cast on
+      // these two fields was reverted this session — so every strict ===
+      // comparison downstream (formatDiscountMethod, the list's badge
+      // lookups) would silently never match without normalizing here first.
+      return data.data.map((row) => ({
+        ...row,
+        discountType: Number(row.discountType),
+        discountMethod: row.discountMethod === null ? null : Number(row.discountMethod),
+      }))
+    },
+  })
+  return { data: { groups: query.data ?? [] }, isError: query.isError, isLoading: query.isLoading }
+}
+
+export function useCustomerGroup(id: string | undefined) {
+  const { data } = useCustomerGroupsSummary()
+  return id ? data.groups.find((g) => String(g.id) === id) : undefined
+}
+
+export function formatDiscountMethod(row: Pick<CustomerGroupRow, 'discountMethod' | 'discount'>) {
+  if (row.discountMethod === 1) return `Percentage -${row.discount}%`
+  if (row.discountMethod === 2) return 'Product Price'
+  return '—'
+}
+
 export function useCreateCustomerGroup() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  const logActivity = useLogActivity()
+  const queryClient = useQueryClient()
   const { user } = useAuth()
-  return (input: CustomerGroupInput) => {
-    const row: CustomerGroupRow = { id: nextLocalRef('cg'), ...input }
-    update((current) => ({ ...current, groups: [row, ...current.groups] }))
-    const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: `New customer group ${row.label} added`, category: 'other', authorName })
-    return row
-  }
+  const logActivity = useLogActivity()
+  return useMutation({
+    mutationFn: async (input: CustomerGroupInput) => {
+      const { data } = await api.post<WebEnvelope<{ id: number }>>('/customers/groups/', input)
+      return data.data
+    },
+    onSuccess: (_result, input) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
+      logActivity({ label: `New customer group ${input.label} added`, category: 'other', authorName })
+    },
+  })
 }
 
 export function useUpdateCustomerGroup() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  return (id: string, input: CustomerGroupInput) => {
-    update((current) => ({ ...current, groups: current.groups.map((g) => (g.id === id ? { ...g, ...input } : g)) }))
-  }
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: number; input: CustomerGroupInput }) => {
+      const { data } = await api.put<WebEnvelope<{ id: number }>>('/customers/groups/', { id, ...input })
+      return data.data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  })
 }
 
 export function useDeleteCustomerGroup() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  return (id: string) => {
-    update((current) => ({ ...current, groups: current.groups.filter((g) => g.id !== id) }))
-  }
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.delete<WebEnvelope<{ id: number }>>('/customers/groups/', { params: { id } })
+      return data.data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  })
 }

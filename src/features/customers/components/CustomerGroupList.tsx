@@ -11,25 +11,22 @@ const EXPORT_COLUMNS = ['Label', 'Discount Method', 'Discount Type', 'Descriptio
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-const METHOD_BADGE: Record<CustomerGroupRow['discountMethod'], string> = {
-  'Product Price': 'bg-info-bg text-info-fg',
-  Percentage: 'bg-warning-bg text-warning-fg',
+const METHOD_BADGE: Record<number, string> = {
+  1: 'bg-warning-bg text-warning-fg',
+  2: 'bg-info-bg text-info-fg',
 }
 
-const TYPE_BADGE: Record<CustomerGroupRow['discountType'], string> = {
-  'N/A': 'bg-neutral-bg text-neutral-fg',
-  Increase: 'bg-danger-bg text-danger-fg',
-  Decrease: 'bg-success-bg text-success-fg',
-}
+const TYPE_LABEL: Record<number, string> = { 0: 'Decrease', 1: 'Increase' }
+const TYPE_BADGE: Record<number, string> = { 0: 'bg-success-bg text-success-fg', 1: 'bg-danger-bg text-danger-fg' }
 
 function matchesSearch(group: CustomerGroupRow, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  return [group.label, formatDiscountMethod(group), group.discountType, group.description].some((field) => field.toLowerCase().includes(q))
+  return [group.label, formatDiscountMethod(group), group.description ?? ''].some((field) => field.toLowerCase().includes(q))
 }
 
 export function CustomerGroupList() {
-  const { data } = useCustomerGroupsSummary()
+  const { data, isLoading } = useCustomerGroupsSummary()
   const deleteGroup = useDeleteCustomerGroup()
 
   const [page, setPage] = useState(1)
@@ -52,11 +49,11 @@ export function CustomerGroupList() {
   function handleDelete(group: CustomerGroupRow) {
     const confirmed = window.confirm(`Delete customer group "${group.label}"? This can't be undone.`)
     if (!confirmed) return
-    deleteGroup(group.id)
+    deleteGroup.mutate(group.id)
   }
 
   function getExportData() {
-    const rows = filteredGroups.map((g) => [g.label, formatDiscountMethod(g), g.discountType, g.description])
+    const rows = filteredGroups.map((g) => [g.label, formatDiscountMethod(g), g.discountMethod === 1 ? TYPE_LABEL[g.discountType] : 'N/A', g.description ?? ''])
     return { headers: EXPORT_COLUMNS, rows }
   }
 
@@ -111,7 +108,13 @@ export function CustomerGroupList() {
                 </tr>
               </thead>
               <tbody>
-                {data.groups.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-text-faint" colSpan={6}>
+                      Loading…
+                    </td>
+                  </tr>
+                ) : data.groups.length === 0 ? (
                   <tr>
                     <td className="px-4 py-10" colSpan={6}>
                       <div className="flex flex-col items-center gap-2 text-center">
@@ -136,20 +139,30 @@ export function CustomerGroupList() {
                     <tr key={g.id} className="border-b border-border hover:bg-surface-hover/60">
                       <td className="px-4 py-3 text-text-muted">{(page - 1) * perPage + i + 1}</td>
                       <td className="px-4 py-3">
-                        <Link to={ROUTES.customerGroupEdit.replace(':id', g.id)} className="font-medium text-brand hover:underline">
+                        <Link to={ROUTES.customerGroupEdit.replace(':id', String(g.id))} className="font-medium text-brand hover:underline">
                           {g.label}
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${METHOD_BADGE[g.discountMethod]}`}>{formatDiscountMethod(g)}</span>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${g.discountMethod ? METHOD_BADGE[g.discountMethod] : 'bg-neutral-bg text-neutral-fg'}`}>
+                          {formatDiscountMethod(g)}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${TYPE_BADGE[g.discountType]}`}>{g.discountType}</span>
+                        {g.discountMethod === 1 ? (
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${TYPE_BADGE[g.discountType]}`}>{TYPE_LABEL[g.discountType]}</span>
+                        ) : (
+                          <span className="text-text-faint">N/A</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-text-muted">{g.description || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <Link to={ROUTES.customerGroupEdit.replace(':id', g.id)} title="Edit" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand">
+                          <Link
+                            to={ROUTES.customerGroupEdit.replace(':id', String(g.id))}
+                            title="Edit"
+                            className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand"
+                          >
                             <Pencil size={14} />
                           </Link>
                           <button type="button" title="Delete" onClick={() => handleDelete(g)} className="p-1.5 rounded-md text-text-faint hover:bg-danger-bg hover:text-danger-fg">

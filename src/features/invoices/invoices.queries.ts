@@ -14,6 +14,11 @@ export interface InvoiceRow {
   status: string
   zraStatus: string
   canRecordPayment: boolean
+  // Raw Dolibarr fk_statut (0=draft,1=validated,2=paid,3=abandoned) — kept
+  // alongside the friendly status_label above so pages that need the exact
+  // code (Abandoned Invoices) don't have to reverse-engineer it from the
+  // label.
+  rawStatut: number
 }
 
 export interface InvoicesSummary {
@@ -68,20 +73,33 @@ export function toRow(raw: RawInvoice): InvoiceRow {
     paymentType: '',
     author: '',
     amountInclTax: Number(raw.total_ttc ?? 0),
-    status: raw.status_label ?? '',
+    // The backend's own status_label never accounts for fk_statut=3
+    // (abandoned) and would mislabel it "Draft" — corrected here rather
+    // than reproducing that gap.
+    status: raw.statut === 3 ? 'Abandoned' : (raw.status_label ?? ''),
     zraStatus: raw.zra_sdc?.upload_status ?? '',
     canRecordPayment: raw.statut === 1,
+    rawStatut: raw.statut,
   }
 }
 
 // GET /api/invoices/ — confirmed live. Client count isn't in this response,
 // so it's derived from the distinct third parties on the returned rows
 // rather than a separate customer-count call.
+//
+// limit: 500 — this endpoint defaults to just 50 rows (its own
+// unenforced-max `limit` param) when none is passed, ordered newest-first.
+// Without an explicit limit, older rows (draft/abandoned invoices with low
+// row ids, for instance) silently fall off the fetched set even though
+// total_count still reports the true total — confirmed live: the one real
+// abandoned invoice in this database never appeared until this was added.
+// Same "fetch up to 500 once, page/filter client-side" convention as
+// ThirdPartyList.tsx.
 export function useInvoicesSummary() {
   return useQuery({
     queryKey: ['invoices', 'summary'],
     queryFn: async (): Promise<InvoicesSummary> => {
-      const { data } = await api.get<InvoicesResponse>('/invoices/', { params: { status: 'all' } })
+      const { data } = await api.get<InvoicesResponse>('/invoices/', { params: { status: 'all', limit: 500 } })
       const rows = (data.invoices ?? []).map(toRow)
       const paidAmount = rows.filter((r) => r.status === 'Paid').reduce((sum, r) => sum + r.amountInclTax, 0)
       return {

@@ -16,7 +16,7 @@ export const nav: NavSection = {
   items: [
     {
       label: 'Users',
-      items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'User Tags/Categories', path: ROUTES.userTags }],
+      items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'Users tags/categories', path: ROUTES.userTags }],
     },
     { label: 'User Groups', items: [{ label: 'Add User Group', path: ROUTES.userGroupCreate }, { label: 'User Groups List', path: ROUTES.userGroupList }] },
     {
@@ -24,7 +24,7 @@ export const nav: NavSection = {
       items: [
         { label: 'HRM Area', path: ROUTES.hrmArea },
         { label: 'List Leave', path: ROUTES.leaveList },
-        { label: 'Leave Request', path: ROUTES.leaveRequest },
+        { label: 'Leave', path: ROUTES.leaveRequest },
         { label: 'Time Spent', path: ROUTES.timeSpent },
         { label: 'Activitieslist', path: ROUTES.activitiesDetail },
       ],

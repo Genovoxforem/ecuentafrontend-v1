@@ -18,7 +18,7 @@ const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
 // Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
 // one list so the dev proxy below and the generated production .htaccess
 // (see htaccessPlugin) can never drift apart from each other.
-const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants'] as const
+const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants', '/projet', '/categories', '/comm'] as const
 
 // Production deploys this build's dist/ output onto the backend's own
 // origin (e.g. https://demo1.ecuenta.online), alongside its existing PHP
@@ -120,6 +120,23 @@ export default defineConfig({
       // No React route starts with /variants, so a plain prefix is safe,
       // but anchored anyway to match the rest of this list.
       '^/variants(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Generic import wizard (Sales > Settings > Import Customers/Vendors)
+      // — imports/import.php's Step 1 dataset list is scraped for its real
+      // datatoimport codes (see importsHtmlParser.ts), and Step 2's
+      // "Download Empty Example" links go straight to the real
+      // imports/emptyexample.php file-generator endpoint, same as the
+      // legacy page itself does. No REST API exists for either. No React
+      // route starts with /imports, so a plain prefix is safe.
+      '^/imports(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Projects/Leads module (projet/*.php) and its tag/category creation
+      // (categories/card.php?type=6) and vendor-proposal statistics
+      // (comm/propal/stats/*) — same no-REST-API scrape pattern, see
+      // projects.queries.ts, tasks.queries.ts, and friends. No React route
+      // starts with /projet, /categories, or /comm, so a plain prefix is
+      // safe, but anchored anyway to match the rest of this list.
+      '^/projet(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/categories(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/comm(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

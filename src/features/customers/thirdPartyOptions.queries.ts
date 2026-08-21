@@ -1,16 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { api } from '../../api/axios'
 import { useProductFormOptions } from '../zra/createProduct.queries'
 import { useLanguageOptions } from '../users/users.queries'
 import { useCustomerGroupsSummary } from './customerGroups.queries'
-
-// Static currency list — no currency-dictionary endpoint exists on this backend
-const BASE_CURRENCIES = [
-  { value: 'ZMW', label: 'Zambian Kwacha (ZMW)' },
-  { value: 'USD', label: 'US Dollar (USD)' },
-  { value: 'EUR', label: 'Euro (EUR)' },
-  { value: 'GBP', label: 'British Pound (GBP)' },
-  { value: 'INR', label: 'Indian Rupee (INR)' },
-]
 
 // Fallback country list when /zra/product-form-options/ API is unavailable
 const FALLBACK_COUNTRIES = [
@@ -34,68 +26,81 @@ const FALLBACK_COUNTRIES = [
   { value: 'BR', label: 'Brazil' },
 ]
 
-// Static business entity types — common legal structures
-const BUSINESS_ENTITY_TYPES = [
-  { value: 'sole_proprietorship', label: 'Sole Proprietorship' },
-  { value: 'partnership', label: 'Partnership' },
-  { value: 'limited_company', label: 'Limited Company' },
-  { value: 'public_limited_company', label: 'Public Limited Company' },
-  { value: 'ngo_non_profit', label: 'NGO / Non-Profit' },
-  { value: 'government', label: 'Government' },
-]
-
-// Static workforce/employee count options
-const WORKFORCE_OPTIONS = [
-  { value: '0', label: '0 employees' },
-  { value: '1', label: '1-5 employees' },
-  { value: '2', label: '6-10 employees' },
-  { value: '3', label: '11-50 employees' },
-  { value: '4', label: '51-100 employees' },
-  { value: '5', label: '101-500 employees' },
-  { value: '6', label: '500+ employees' },
-]
-
-// Static incoterms options
-const INCOTERMS_OPTIONS = [
-  { value: 'EXW', label: 'EXW - Ex Works' },
-  { value: 'FCA', label: 'FCA - Free Carrier' },
-  { value: 'FAS', label: 'FAS - Free Alongside Ship' },
-  { value: 'FOB', label: 'FOB - Free on Board' },
-  { value: 'CFR', label: 'CFR - Cost and Freight' },
-  { value: 'CIF', label: 'CIF - Cost, Insurance and Freight' },
-  { value: 'CPT', label: 'CPT - Carriage Paid To' },
-  { value: 'CIP', label: 'CIP - Carriage and Insurance Paid' },
-  { value: 'DAF', label: 'DAF - Delivered at Frontier' },
-  { value: 'DES', label: 'DES - Delivered Ex Ship' },
-  { value: 'DEQ', label: 'DEQ - Delivered Ex Quay' },
-  { value: 'DDU', label: 'DDU - Delivered Duty Unpaid' },
-  { value: 'DDP', label: 'DDP - Delivered Duty Paid' },
-]
-
-// Static NRC type options (National Registration Certificate types)
+// The legacy create form (societe/card.php) hardcodes this exact 3-option
+// list inline (<select name="nrc_id">NRC/Passport/Driving license</select>)
+// rather than reading it from a database dictionary — confirmed by reading
+// that file directly. So this is real parity with the live system, not a
+// placeholder: there is no NRC table to fetch from on either app.
 const NRC_OPTIONS = [
-  { value: 'zambian', label: 'Zambian NRC' },
-  { value: 'passport', label: 'Passport' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'company_registration', label: 'Company Registration' },
-  { value: 'tax_clearance', label: 'Tax Clearance' },
-  { value: 'other', label: 'Other' },
+  { value: 'NRC', label: 'NRC' },
+  { value: 'Passport', label: 'Passport' },
+  { value: 'Driving license', label: 'Driving license' },
 ]
 
-// Static prospect types
-const THIRD_PARTY_TYPES = [
-  { value: 'individual', label: 'Individual' },
-  { value: 'company', label: 'Company' },
-  { value: 'vendor', label: 'Vendor' },
-  { value: 'supplier', label: 'Supplier' },
-  { value: 'distributor', label: 'Distributor' },
-  { value: 'agent', label: 'Agent' },
-  { value: 'other', label: 'Other' },
-]
+interface WebEnvelope<T> {
+  success: boolean
+  data: T
+}
+
+// GET /api/customers/lookups/ (api/customers/lookups/index.php) — real,
+// direct SQL against the same dictionary tables societe/card.php's own
+// select_* helpers use (llx_c_typent, llx_c_forme_juridique, llx_c_effectif,
+// llx_c_incoterms, llx_multicurrency, llx_entity, llx_user, llx_categorie).
+// This single endpoint already existed and was fully unused before this —
+// see thirdPartyFormOptions below, which now sources 6 previously-hardcoded
+// dropdowns from it instead of inline JS constants.
+export interface CustomerLookups {
+  defaultCountryId: number | null
+  currencies: Array<{ code: string; name: string }>
+  legalForms: Array<{ id: number; label: string }>
+  typent: Array<{ id: number; code: string; label: string }>
+  effectifs: Array<{ id: number; label: string }>
+  incoterms: Array<{ id: number; code: string }>
+  entities: Array<{ id: number; label: string }>
+  salesReps: Array<{ id: number; name: string }>
+  custCategories: Array<{ id: number; label: string }>
+  vendorCategories: Array<{ id: number; label: string }>
+  nextCustomerCode: string
+  nextVendorCode: string
+}
+
+export function useCustomerLookups() {
+  return useQuery({
+    queryKey: ['customers', 'lookups'],
+    queryFn: async (): Promise<CustomerLookups> => {
+      const { data } = await api.get<WebEnvelope<CustomerLookups>>('/customers/lookups/')
+      return data.data
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+
+// GET /api/users/states/?countryId= (api/users/states/index.php) — real,
+// llx_c_departements joined to llx_c_regions for the given country. Legacy's
+// own State/Province field (select_state($country_code), societe/card.php)
+// is exactly this reactive-to-country behavior — a flat, country-independent
+// state list (what this app previously reused the Country list as a
+// placeholder for) can't represent that, so this is a separate hook the
+// create form calls whenever its selected country changes.
+export interface StateOption {
+  value: string
+  label: string
+}
+export function useStatesByCountry(countryId: string | undefined) {
+  return useQuery({
+    queryKey: ['users', 'states', countryId],
+    queryFn: async (): Promise<StateOption[]> => {
+      const { data } = await api.get<WebEnvelope<Array<{ id: number; label: string }>>>('/users/states/', { params: { countryId } })
+      return data.data.map((s) => ({ value: String(s.id), label: s.label }))
+    },
+    enabled: !!countryId,
+    staleTime: 1000 * 60 * 10,
+  })
+}
 
 export interface ThirdPartyFormOptions {
   countries: Array<{ value: string; label: string }>
-  states: Array<{ value: string; label: string }>
+  defaultCountryId: number | null
   currencies: Array<{ value: string; label: string }>
   businessEntityTypes: Array<{ value: string; label: string }>
   thirdPartyTypes: Array<{ value: string; label: string }>
@@ -103,7 +108,13 @@ export interface ThirdPartyFormOptions {
   workforce: Array<{ value: string; label: string }>
   languages: Array<{ value: string; label: string }>
   incoterms: Array<{ value: string; label: string }>
+  environment: Array<{ value: string; label: string }>
   customerGroups: Array<{ value: string; label: string }>
+  salesReps: Array<{ value: string; label: string }>
+  custCategories: Array<{ value: string; label: string }>
+  vendorCategories: Array<{ value: string; label: string }>
+  nextCustomerCode: string
+  nextVendorCode: string
 }
 
 // Combined hook that fetches all form options needed for the Third Party creation form
@@ -111,41 +122,47 @@ export function useThirdPartyFormOptions() {
   const { data: productOptions, isLoading: productsLoading } = useProductFormOptions()
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
   const { data: groupsSummary } = useCustomerGroupsSummary()
+  const { data: lookups, isLoading: lookupsLoading } = useCustomerLookups()
 
-  // Transform product form options to the format we need
   // Use fallback countries if API doesn't return any (e.g., /zra/product-form-options/ unavailable)
-  const countries = (productOptions?.countries && productOptions.countries.length > 0) 
-    ? productOptions.countries 
-    : FALLBACK_COUNTRIES
-  
-  // Convert language options to the right format
-  const languages = languageOptions?.map((lang) => ({
-    value: lang.code,
-    label: lang.label,
-  })) ?? []
+  const countries = (productOptions?.countries && productOptions.countries.length > 0) ? productOptions.countries : FALLBACK_COUNTRIES
 
-  // Convert customer groups to select options with safe chaining
-  const customerGroups = groupsSummary?.groups?.map((group) => ({
-    value: group.id,
-    label: group.label,
-  })) ?? []
+  const languages = languageOptions?.map((lang) => ({ value: lang.code, label: lang.label })) ?? []
+
+  const customerGroups = groupsSummary?.groups?.map((group) => ({ value: String(group.id), label: group.label })) ?? []
+
+  const currencies = lookups?.currencies?.map((c) => ({ value: c.code, label: c.name })) ?? []
+  const businessEntityTypes = lookups?.legalForms?.map((f) => ({ value: String(f.id), label: f.label })) ?? []
+  const thirdPartyTypes = lookups?.typent?.filter((t) => t.id > 0).map((t) => ({ value: String(t.id), label: t.label })) ?? []
+  const workforce = lookups?.effectifs?.filter((e) => e.id > 0).map((e) => ({ value: String(e.id), label: e.label })) ?? []
+  const incoterms = lookups?.incoterms?.map((i) => ({ value: String(i.id), label: i.code })) ?? []
+  const environment = lookups?.entities?.map((e) => ({ value: String(e.id), label: e.label })) ?? []
+  const salesReps = lookups?.salesReps?.map((r) => ({ value: String(r.id), label: r.name })) ?? []
+  const custCategories = lookups?.custCategories?.map((c) => ({ value: String(c.id), label: c.label })) ?? []
+  const vendorCategories = lookups?.vendorCategories?.map((c) => ({ value: String(c.id), label: c.label })) ?? []
 
   const options: ThirdPartyFormOptions = {
     countries,
-    states: productOptions?.countries ?? [], // Using countries as a placeholder for states
-    currencies: BASE_CURRENCIES,
-    businessEntityTypes: BUSINESS_ENTITY_TYPES,
-    thirdPartyTypes: THIRD_PARTY_TYPES,
+    defaultCountryId: lookups?.defaultCountryId ?? null,
+    currencies,
+    businessEntityTypes,
+    thirdPartyTypes,
     nrcTypes: NRC_OPTIONS,
-    workforce: WORKFORCE_OPTIONS,
+    workforce,
     languages,
-    incoterms: INCOTERMS_OPTIONS,
+    incoterms,
+    environment,
     customerGroups,
+    salesReps,
+    custCategories,
+    vendorCategories,
+    nextCustomerCode: lookups?.nextCustomerCode ?? '',
+    nextVendorCode: lookups?.nextVendorCode ?? '',
   }
 
   return {
     data: options,
-    isLoading: productsLoading || languagesLoading,
+    isLoading: productsLoading || languagesLoading || lookupsLoading,
     isError: false,
   }
 }
