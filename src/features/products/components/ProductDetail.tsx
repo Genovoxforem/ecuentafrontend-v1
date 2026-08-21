@@ -2253,115 +2253,181 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
 
   const pageStart = page * pageSize + 1
   const pageEnd = Math.min((page + 1) * pageSize, data.totalRecords)
+  const referersTotalQty = data.referers.reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0)
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-text-faint">Period</label>
-          <select value={month} onChange={(e) => { setMonth(parseInt(e.target.value) || 0); setPage(0) }} className={modalInputCls + ' py-1.5'}>
-            <option value="0">All Months</option>
-            <option value="1">January</option>
-            <option value="2">February</option>
-            <option value="3">March</option>
-            <option value="4">April</option>
-            <option value="5">May</option>
-            <option value="6">June</option>
-            <option value="7">July</option>
-            <option value="8">August</option>
-            <option value="9">September</option>
-            <option value="10">October</option>
-            <option value="11">November</option>
-            <option value="12">December</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-text-faint">Year</label>
-          <select value={year} onChange={(e) => { setYear(parseInt(e.target.value) || 0); setPage(0) }} className={modalInputCls + ' py-1.5'}>
-            <option value="0">All Years</option>
-            {data.years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-text-faint">Page Size</label>
-          <select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value) || 20); setPage(0) }} className={modalInputCls + ' py-1.5'}>
-            <option value="10">10 rows</option>
-            <option value="20">20 rows</option>
-            <option value="50">50 rows</option>
-            <option value="100">100 rows</option>
-          </select>
-        </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <MetricTile icon={DollarSign} color="green" label="Invoiced Total" value={formatMoney(data.totalHT)} caption="Excl. tax, all customer invoices" />
+        <MetricTile icon={Boxes} color="blue" label="Total Qty Invoiced" value={formatNumber(data.totalQty)} caption="Units across all invoices" />
+        <MetricTile icon={FileText} color="violet" label="Invoice Lines" value={formatNumber(data.totalRecords)} caption="Matching current filter" />
       </div>
 
-      <TabTable>
-        <thead>
-          <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-            <Th>Invoice</Th>
-            <Th>Date</Th>
-            <Th>Customer</Th>
-            <Th>Code</Th>
-            <Th right>Qty</Th>
-            <Th right>Total (Excl.)</Th>
-            <Th right>Status</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {!data.invoices || data.invoices.length === 0 ? (
-            <EmptyRow span={7} label="No invoices found for this product." />
-          ) : (
-            data.invoices.map((inv) => (
-              <tr key={inv.id} className="border-b border-border last:border-0">
-                <Td muted>{inv.ref}</Td>
-                <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
-                <Td>{inv.company}</Td>
-                <Td muted>{inv.customerCode}</Td>
-                <Td right muted>
-                  {formatNumber(inv.qty)}
-                </Td>
-                <Td right>{formatMoney(inv.totalHT)}</Td>
-                <Td right>
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${inv.statusClass === 'success' ? 'bg-success-bg text-success-fg' : inv.statusClass === 'warning' ? 'bg-warning-bg text-warning-fg' : 'bg-secondary-bg text-secondary-fg'}`}>
-                    {inv.status}
-                  </span>
-                </Td>
+      <Card className="!h-auto">
+        <SectionHeader icon={Link2} color="indigo">
+          Related Items
+        </SectionHeader>
+        <TabTable>
+          <thead>
+            <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <Th>Related Items</Th>
+              <Th right>Number Of Third Parties</Th>
+              <Th right>Number Of Related Items</Th>
+              <Th right>Total Quantity</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.referers.length === 0 ? (
+              <EmptyRow span={4} label="No related items for this product." />
+            ) : (
+              data.referers.map((r) => (
+                <tr key={r.label} className="border-b border-border last:border-0">
+                  <Td>{r.label}</Td>
+                  <Td right muted>
+                    {formatNumber(r.nbThirdparties)}
+                  </Td>
+                  <Td right muted>
+                    {r.nbObjects}
+                  </Td>
+                  <Td right>{r.qty}</Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          {data.referers.length > 0 && (
+            <tfoot>
+              <tr className="border-t border-border font-semibold">
+                <Td>Total</Td>
+                <Td right muted>—</Td>
+                <Td right muted>—</Td>
+                <Td right>{formatNumber(referersTotalQty)}</Td>
               </tr>
-            ))
+            </tfoot>
           )}
-        </tbody>
-      </TabTable>
+        </TabTable>
+      </Card>
 
-      {data.totalRecords > 0 && (
-        <div className="flex items-center justify-between pt-2 border-t border-border text-xs text-text-faint">
-          <span>
-            {pageStart}–{pageEnd} of {data.totalRecords}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={page <= 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              <ChevronLeft size={12} />
-            </button>
-            <span className="px-1">
-              {page + 1} / {data.totalPages || 1}
+      <Card className="!h-auto flex flex-col">
+        <div className="space-y-3 flex-1 flex flex-col">
+          <div className="flex items-center justify-between">
+            <SectionHeader icon={FileText} color="green">
+              Customer Invoices
+            </SectionHeader>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-border bg-surface text-xs font-medium text-text-faint">
+              {formatNumber(data.totalRecords)} Records
             </span>
-            <button
-              type="button"
-              disabled={page >= data.totalPages - 1}
-              onClick={() => setPage((p) => Math.min(data.totalPages - 1, p + 1))}
-              className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
-            >
-              <ChevronRight size={12} />
-            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 -mx-4 px-4 pb-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-text-faint">Period</label>
+              <select value={month} onChange={(e) => { setMonth(parseInt(e.target.value) || 0); setPage(0) }} className={modalInputCls + ' py-1.5'}>
+                <option value="0">All Months</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-text-faint">Year</label>
+              <select value={year} onChange={(e) => { setYear(parseInt(e.target.value) || 0); setPage(0) }} className={modalInputCls + ' py-1.5'}>
+                <option value="0">All Years</option>
+                {data.years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-xs text-text-faint">Page Size</label>
+              <select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value) || 20); setPage(0) }} className={modalInputCls + ' py-1.5 w-24'}>
+                <option value="10">10 rows</option>
+                <option value="20">20 rows</option>
+                <option value="50">50 rows</option>
+                <option value="100">100 rows</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto overflow-y-auto flex-1 -mx-4 border border-border rounded max-h-[550px]">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface z-10">
+                <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <Th>Invoice</Th>
+                  <Th>Date</Th>
+                  <Th>Customer</Th>
+                  <Th>Code</Th>
+                  <Th right>Qty</Th>
+                  <Th right>Total (Excl.)</Th>
+                  <Th right>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {!data.invoices || data.invoices.length === 0 ? (
+                  <EmptyRow span={7} label="No invoices found for this product." />
+                ) : (
+                  data.invoices.map((inv) => (
+                    <tr key={inv.id} className="border-b border-border last:border-0">
+                      <Td muted>{inv.ref}</Td>
+                      <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
+                      <Td>{inv.company}</Td>
+                      <Td muted>{inv.customerCode}</Td>
+                      <Td right muted>
+                        {formatNumber(inv.qty)}
+                      </Td>
+                      <Td right>{formatMoney(inv.totalHT)}</Td>
+                      <Td right>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${inv.statusClass === 'success' ? 'bg-success-bg text-success-fg' : inv.statusClass === 'warning' ? 'bg-warning-bg text-warning-fg' : 'bg-secondary-bg text-secondary-fg'}`}>
+                          {inv.status}
+                        </span>
+                      </Td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+
+            {data.totalRecords > 0 && (
+              <div className="sticky bottom-0 flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-gray-950 dark:bg-gray-950 z-10">
+                <span>
+                  {pageStart}–{pageEnd} of {data.totalRecords}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={page <= 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    <ChevronLeft size={12} />
+                  </button>
+                  <span className="px-1">
+                    {page + 1} / {data.totalPages || 1}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={page >= data.totalPages - 1}
+                    onClick={() => setPage((p) => Math.min(data.totalPages - 1, p + 1))}
+                    className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </Card>
     </div>
   )
 }
