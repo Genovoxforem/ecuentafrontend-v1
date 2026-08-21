@@ -85,5 +85,8 @@ export function useProspectsSummary() {
       }
     },
     staleTime: 1000 * 60,
+    // Same permanently-missing endpoints as customers.queries.ts — retrying
+    // a 404 is pointless.
+    retry: false,
   })
 }

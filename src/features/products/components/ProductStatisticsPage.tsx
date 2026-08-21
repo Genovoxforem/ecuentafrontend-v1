@@ -7,7 +7,7 @@ import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function StatMiniChart({ series, color }: { series: ProductStatSeries; color: string }) {
+export function StatMiniChart({ series, color }: { series: ProductStatSeries; color: string }) {
   const data = series.monthly.map((v, i) => ({ month: MONTHS[i] ?? String(i + 1), value: v }))
   return (
     <Card>

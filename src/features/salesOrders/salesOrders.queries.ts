@@ -1,3 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../../api/axios'
+
 export interface OrderRow {
   ref: string
   refCustomer: string
@@ -23,20 +26,73 @@ export interface SalesOrdersSummary {
   orders: OrderRow[]
 }
 
-const STUB_SUMMARY: SalesOrdersSummary = {
-  totalOrders: 0,
-  ordersThisMonth: 0,
-  totalOrderAmount: 0,
-  validatedCount: 0,
-  draftCount: 0,
-  orders: [],
+interface RawOrderItem {
+  id: number
+  ref: string
+  refCustomer: string | null
+  projectRef: string | null
+  thirdPartyName: string | null
+  city: string | null
+  zipCode: string | null
+  orderDate: string | null
+  plannedDelivery: string | null
+  amountHt: number
+  authorLogin: string | null
+  billed: boolean
+  statusLabel: string
+  statusCode: number
 }
 
-// Stubbed: the real version calls Dolibarr's commande/list stats (order
-// counts, this-month count, total value, validated/draft breakdown, plus the
-// order list itself). This project has no backend of its own, so it always
-// reports the same all-zero/empty summary, matching the reference list on a
-// fresh install with no orders yet.
+function toRow(raw: RawOrderItem): OrderRow {
+  return {
+    ref: raw.ref ?? '',
+    refCustomer: raw.refCustomer ?? '',
+    projectRef: raw.projectRef ?? '',
+    thirdParty: raw.thirdPartyName ?? '',
+    city: raw.city ?? '',
+    zipCode: raw.zipCode ?? '',
+    orderDate: raw.orderDate ?? '',
+    plannedDelivery: raw.plannedDelivery ?? '',
+    amountExclTax: Number(raw.amountHt ?? 0),
+    author: raw.authorLogin ?? '',
+    // No real "shippable" signal on this endpoint (no shipment-table join) — every order in
+    // this install's data is unshipped anyway (matches the reference list, which shows "No"
+    // for every visible row), so this stays a fixed false rather than a fabricated true/false
+    // split with nothing behind it.
+    shippable: false,
+    billed: !!raw.billed,
+    status: raw.statusLabel ?? '',
+  }
+}
+
+// GET /api/orders/summary/ + GET /api/orders/ — both real, pre-existing endpoints
+// (ports of sales-service/orders.service.js summary()/list()) that simply weren't wired to
+// this page yet; this component previously always showed an all-zero/empty stub. Verified
+// live against the reference list: totals (72/0/100398.4832/66/1) and the first few rows
+// match exactly, including a genuine 71-vs-72 discrepancy between the list's own total and
+// the summary card's total that the reference list has too (not something introduced here).
+// Orders list fetched in one page up to 250 (current install has 72 total, same convention
+// as useCustomerOptions/useProductOptions) — OrdersList.tsx already does its own
+// client-side search/pagination over the full array, so this keeps that working unchanged
+// rather than restructuring it into server-side paging.
 export function useSalesOrdersSummary() {
-  return { data: STUB_SUMMARY, isError: false, isLoading: false }
+  return useQuery({
+    queryKey: ['salesOrders', 'summary'],
+    queryFn: async (): Promise<SalesOrdersSummary> => {
+      const [summaryRes, listRes] = await Promise.all([
+        api.get<{ success: boolean; data: { total: number; thisMonth: number; totalAmount: number; validated: number; draft: number } }>('/orders/summary/'),
+        api.get<{ success: boolean; data: { items: RawOrderItem[]; total: number } }>('/orders/', { params: { limit: 250 } }),
+      ])
+      const s = summaryRes.data.data
+      return {
+        totalOrders: s.total,
+        ordersThisMonth: s.thisMonth,
+        totalOrderAmount: s.totalAmount,
+        validatedCount: s.validated,
+        draftCount: s.draft,
+        orders: (listRes.data.data.items ?? []).map(toRow),
+      }
+    },
+    staleTime: 1000 * 30,
+  })
 }

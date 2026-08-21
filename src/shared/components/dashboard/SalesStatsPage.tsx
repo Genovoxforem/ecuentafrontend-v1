@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Card } from './DashboardKit'
 import { inputClasses } from '../forms/FormField'
+import { SearchableSelect, type SearchableSelectOption } from '../forms/SearchableSelect'
 import { formatMoney } from '../../../utils/format'
 import type { MonthlyStats } from '../../../features/salesOrders/orderStats.queries'
 
@@ -30,9 +31,19 @@ function BarChartCard({ title, values, format }: { title: string; values: number
   )
 }
 
-// No filtering (Third-Party/Type/Tag/Created By/Status) endpoint exists for
-// either orders or quotations stats, so those selects stay decorative —
-// only Year is wired, matching how far the real backend actually reaches.
+// Real filter data + state, supplied by a caller whose backend endpoint actually accepts
+// these (currently just OrderStatistics — api/orders/stats/index.php's socid/userid/
+// typent_id/categ_id/status params). Optional so PurchaseOrderStatistics/QuotationStatistics
+// keep the previous disabled-placeholder rendering until/unless their own stats endpoints
+// grow the same real filtering.
+export interface SalesStatsFilters {
+  thirdParty: { value: string; onChange: (v: string) => void; options: SearchableSelectOption[] }
+  thirdPartyType: { value: string; onChange: (v: string) => void; options: SearchableSelectOption[] }
+  category: { value: string; onChange: (v: string) => void; options: SearchableSelectOption[] }
+  createdBy: { value: string; onChange: (v: string) => void; options: SearchableSelectOption[] }
+  status: { value: string; onChange: (v: string) => void; options: SearchableSelectOption[] }
+}
+
 export function SalesStatsPage({
   icon: Icon,
   title,
@@ -41,6 +52,8 @@ export function SalesStatsPage({
   isLoading,
   year,
   onYearChange,
+  filters,
+  onRefresh,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -49,6 +62,8 @@ export function SalesStatsPage({
   isLoading: boolean
   year: string
   onYearChange: (year: string) => void
+  filters?: SalesStatsFilters
+  onRefresh?: () => void
 }) {
   const counts = stats?.countByMonth?.[year] ?? Array(12).fill(0)
   const amounts = stats?.amountByMonth?.[year] ?? Array(12).fill(0)
@@ -67,16 +82,71 @@ export function SalesStatsPage({
         <Card className="gap-3">
           <h3 className="font-semibold text-text!">Filter</h3>
           <div className="space-y-3">
-            {['Third-Party', 'Third-Party Type', 'Tag/Category Customer', 'Created By', 'Status'].map((label) => (
-              <label key={label} className="flex flex-col gap-1">
-                <span className="text-sm text-text">{label}</span>
-                <select defaultValue="" className={inputClasses} disabled>
-                  <option value="" disabled>
-                    Select...
-                  </option>
-                </select>
-              </label>
-            ))}
+            {filters ? (
+              <>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-text">Third-Party</span>
+                  <SearchableSelect value={filters.thirdParty.value} onChange={filters.thirdParty.onChange} options={filters.thirdParty.options} placeholder="Select…" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-text">Third-Party Type</span>
+                  <select value={filters.thirdPartyType.value} onChange={(e) => filters.thirdPartyType.onChange(e.target.value)} className={inputClasses}>
+                    <option value="">Select...</option>
+                    {filters.thirdPartyType.options.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-text">Tag/Category Customer</span>
+                  <select value={filters.category.value} onChange={(e) => filters.category.onChange(e.target.value)} className={inputClasses}>
+                    <option value="">Select...</option>
+                    {filters.category.options.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-text">Created By</span>
+                  <select value={filters.createdBy.value} onChange={(e) => filters.createdBy.onChange(e.target.value)} className={inputClasses}>
+                    <option value="">Select...</option>
+                    {filters.createdBy.options.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-text">Status</span>
+                  <select value={filters.status.value} onChange={(e) => filters.status.onChange(e.target.value)} className={inputClasses}>
+                    <option value="">Select...</option>
+                    {filters.status.options.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              // No filtering endpoint exists yet for this entity's stats — stays decorative
+              // until/unless its own backend grows the same real params OrderStatistics has.
+              ['Third-Party', 'Third-Party Type', 'Tag/Category Customer', 'Created By', 'Status'].map((label) => (
+                <label key={label} className="flex flex-col gap-1">
+                  <span className="text-sm text-text">{label}</span>
+                  <select defaultValue="" className={inputClasses} disabled>
+                    <option value="" disabled>
+                      Select...
+                    </option>
+                  </select>
+                </label>
+              ))
+            )}
             <label className="flex flex-col gap-1">
               <span className="text-sm text-text">Year</span>
               <select value={year} onChange={(e) => onYearChange(e.target.value)} className={inputClasses}>
@@ -87,7 +157,12 @@ export function SalesStatsPage({
                 ))}
               </select>
             </label>
-            <button type="button" disabled={isLoading} className="w-full rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover flex items-center justify-center gap-1.5 disabled:opacity-60">
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="w-full rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover flex items-center justify-center gap-1.5 disabled:opacity-60"
+            >
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Refresh
             </button>
           </div>

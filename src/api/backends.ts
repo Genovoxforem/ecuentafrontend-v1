@@ -4,7 +4,8 @@
 // Copy it to .env.local (gitignored, per-developer/per-machine) and change
 // it there instead of editing this file.
 export const BACKEND_URLS = {
-  local: 'http://localhost/ecnta10/htdocs',
+  //local: 'http://localhost/ecnta10/htdocs',
+  local: 'http://localhost/ecuenta9/htdocs',
   demoV2: 'https://demov2.ecuenta.app',
   demo1: 'https://demo1.ecuenta.online',
   live: 'http://192.168.1.10',

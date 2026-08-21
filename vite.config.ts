@@ -18,7 +18,7 @@ const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
 // Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
 // one list so the dev proxy below and the generated production .htaccess
 // (see htaccessPlugin) can never drift apart from each other.
-const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants', '/projet', '/categories', '/comm'] as const
+const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants', '/projet', '/categories', '/comm', '/core', '/societe', '/productinfo', '/admin'] as const
 
 // Production deploys this build's dist/ output onto the backend's own
 // origin (e.g. https://demo1.ecuenta.online), alongside its existing PHP
@@ -137,6 +137,33 @@ export default defineConfig({
       '^/projet(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       '^/categories(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       '^/comm(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // UOM Settings tab (core/ajax/uom_manage.php) — a real, already-JSON
+      // Dolibarr AJAX endpoint (list/create/update/delete conversions), no
+      // scraping needed, just same-origin session-cookie auth like the rest
+      // of this list. No React route starts with /core, so a plain prefix
+      // is safe, but anchored anyway to match the rest of this list.
+      '^/core(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Third-party (Customer/Prospect/Supplier) list — societe/api/list.php
+      // is a real, working, session-cookie-authenticated JSON endpoint (a
+      // separate namespace from /api/*, unaffected by that namespace's gaps
+      // on this backend) — see societeListParser.ts. No React route starts
+      // with /societe, so a plain prefix is safe, but anchored anyway to
+      // match the rest of this list.
+      '^/societe(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Product hero-header actions (Delete/Duplicate) — productinfo/api/
+      // product_api.php, a real JSON CRUD API in the same vein as
+      // societe/api/*, unrelated to the old /api/products/ namespace. No
+      // React route starts with /productinfo, so a plain prefix is safe,
+      // but anchored anyway to match the rest of this list.
+      '^/productinfo(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Legacy dictionary pages (admin/dict.php?id=N) — no REST endpoint
+      // exists for these on this backend (/customers/lookups/ 404s), but
+      // the real PHP admin pages themselves are live and session-cookie
+      // authenticated like every other legacy-scrape source in this app —
+      // see legacyDictionaryParser.ts. No React route starts with /admin,
+      // so a plain prefix is safe, but anchored anyway to match the rest
+      // of this list.
+      '^/admin(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

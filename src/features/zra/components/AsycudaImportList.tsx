@@ -5,6 +5,18 @@ import { CreateProductModal } from './CreateProductModal'
 import { SplitDetailsModal } from './SplitDetailsModal'
 import { CancelReasonModal } from './CancelReasonModal'
 import { ListPagination, PER_PAGE } from './ZraListChrome'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
+
+// The approve/cancel/split-approve mutations below all submit to the LIVE ZRA
+// gateway through api/zra/asycuda-imports/update/, which is one of the
+// api/zra/* routes missing entirely on this backend (see
+// BackendUnavailable.tsx) — every one of those actions now 404s. Centralized
+// here so the three call sites below (approve/cancel/split) all give the
+// same honest message instead of a raw "Request failed with status code 404".
+function describeUpdateError(err: unknown): string {
+  if (isBackendUnavailable(err)) return "Updating ASYCUDA imports isn't available on this backend yet."
+  return err instanceof Error ? err.message : 'Update failed — please try again.'
+}
 
 const NOTES = [
   'Create Supplier by Selecting Imported Country (expect ZAMBIA) To Make Purchase as ASYCUDA Import',
@@ -44,7 +56,7 @@ export function AsycudaImportList() {
   const [splitRow, setSplitRow] = useState<AsycudaImportRow | null>(null)
   const [cancelItem, setCancelItem] = useState<AsycudaUpdateItem | null>(null)
 
-  const { data, isLoading, isError, refetch } = useAsycudaImportList({ page, perPage: PER_PAGE, declRefNum: declRefFilter })
+  const { data, isLoading, isError, error, refetch } = useAsycudaImportList({ page, perPage: PER_PAGE, declRefNum: declRefFilter })
   const { data: totalCount } = useAsycudaImportCount(declRefFilter)
   const updateImport = useZraUpdateImport()
 
@@ -80,7 +92,7 @@ export function AsycudaImportList() {
             window.alert(res.status)
             refetch()
           },
-          onError: (err) => window.alert(err instanceof Error ? err.message : 'Approve failed — please try again.'),
+          onError: (err) => window.alert(describeUpdateError(err)),
         },
       )
     }
@@ -204,8 +216,12 @@ export function AsycudaImportList() {
             )}
             {isError && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-danger">
-                  Could not load ASYCUDA import items.
+                <td colSpan={8} className="p-0">
+                  {isBackendUnavailable(error) ? (
+                    <BackendUnavailableInline feature="ZRA ASYCUDA Import Items" />
+                  ) : (
+                    <p className="px-3 py-8 text-center text-danger">Could not load ASYCUDA import items.</p>
+                  )}
                 </td>
               </tr>
             )}
@@ -270,7 +286,7 @@ export function AsycudaImportList() {
                   setCancelItem(null)
                   refetch()
                 },
-                onError: (err) => window.alert(err instanceof Error ? err.message : 'Cancel failed — please try again.'),
+                onError: (err) => window.alert(describeUpdateError(err)),
               },
             )
           }}

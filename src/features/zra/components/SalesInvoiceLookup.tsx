@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ShoppingCart, ExternalLink, LoaderCircle } from 'lucide-react'
 import { useSalesInvoiceLookup } from '../zra.queries'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 
 const FIELD_LABELS = [
   ['invoiceNumber', 'Invoice Number'],
@@ -56,9 +57,13 @@ export function SalesInvoiceLookup() {
       </div>
 
       {lookup.isError && (
-        <p className="text-sm text-danger">
-          {lookup.error instanceof Error ? lookup.error.message : 'Could not reach the ZRA gateway — please try again.'}
-        </p>
+        isBackendUnavailable(lookup.error) ? (
+          <BackendUnavailableInline feature="ZRA Sales invoice lookup" />
+        ) : (
+          <p className="text-sm text-danger">
+            {lookup.error instanceof Error ? lookup.error.message : 'Could not reach the ZRA gateway — please try again.'}
+          </p>
+        )
       )}
 
       {lookup.data && !lookup.data.found && <p className="text-sm text-text-faint">No matching invoice found for that CIS Invoice Number.</p>}

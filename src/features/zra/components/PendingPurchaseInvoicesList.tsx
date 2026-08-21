@@ -9,7 +9,7 @@ export function PendingPurchaseInvoicesList() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
 
-  const { data, isLoading, isError } = usePendingPurchasesList({ page, perPage: PER_PAGE, search })
+  const { data, isLoading, isError, error } = usePendingPurchasesList({ page, perPage: PER_PAGE, search })
   const rows = data?.items ?? []
   const total = data?.total ?? 0
 
@@ -45,7 +45,15 @@ export function PendingPurchaseInvoicesList() {
             </tr>
           </thead>
           <tbody>
-            <EmptyRow colSpan={9} isLoading={isLoading} isError={isError} isEmpty={rows.length === 0} emptyLabel="No pending purchase invoices found." />
+            <EmptyRow
+              colSpan={9}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              isEmpty={rows.length === 0}
+              emptyLabel="No pending purchase invoices found."
+              feature="ZRA Pending Purchase Invoices"
+            />
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3 text-brand font-medium">{row.ref}</td>

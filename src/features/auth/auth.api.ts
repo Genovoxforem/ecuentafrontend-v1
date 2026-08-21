@@ -39,6 +39,8 @@ export async function loginRequest({ login, password, entity }: LoginCredentials
 // numbers/booleans, so `admin` needs explicit coercion below rather than a
 // plain truthy check (the string "0" is truthy in JS).
 interface RawUser {
+  id: string | number
+  entity: string | number
   login: string
   firstname: string
   lastname: string
@@ -56,7 +58,7 @@ interface MeResponse {
 }
 
 export interface Me {
-  user: { firstname: string; lastname: string; login: string; admin: boolean; email?: string; job?: string; photo?: string }
+  user: { id: string; entity: string; firstname: string; lastname: string; login: string; admin: boolean; email?: string; job?: string; photo?: string }
   permissions: Record<string, Record<string, boolean>>
 }
 
@@ -67,6 +69,8 @@ export async function fetchMe(): Promise<Me> {
   }
   return {
     user: {
+      id: String(data.user.id),
+      entity: String(data.user.entity),
       login: data.user.login,
       firstname: data.user.firstname,
       lastname: data.user.lastname,

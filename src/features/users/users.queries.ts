@@ -148,6 +148,9 @@ export function useUsersSummary() {
       }
     },
     staleTime: 1000 * 60,
+    // api/users/ doesn't exist at all on the currently-active backend (see
+    // BackendUnavailable.tsx) — a permanent 404, so retrying is pointless.
+    retry: false,
   })
 }
 
@@ -155,10 +158,10 @@ export function useUsersSummary() {
 // useUsersSummary) — no separate GET /api/users/:id/ endpoint exists, and
 // none is needed since the list is fetched in full already.
 export function useUser(id: string | number | undefined) {
-  const { data, isLoading } = useUsersSummary()
+  const { data, isLoading, isError, error } = useUsersSummary()
   const numericId = typeof id === 'string' ? Number(id) : id
   const user = numericId !== undefined && !Number.isNaN(numericId) ? data?.users.find((u) => u.id === numericId) : undefined
-  return { user, isLoading }
+  return { user, isLoading, isError, error }
 }
 
 // Raw shape from GET /api/users/detail/?id= (api/users/detail/index.php) —
@@ -215,8 +218,11 @@ export function useUserDetail(id: string | number | undefined) {
       return data.data
     },
     enabled: numericId !== undefined && !Number.isNaN(numericId),
+    // Same api/users/ gap as useUsersSummary above — permanent 404, no
+    // point retrying.
+    retry: false,
   })
-  return { detail: query.data, isLoading: query.isLoading }
+  return { detail: query.data, isLoading: query.isLoading, isError: query.isError, error: query.error }
 }
 
 // GET /api/customers/list/'s creatorName (see customers.queries.ts) is a

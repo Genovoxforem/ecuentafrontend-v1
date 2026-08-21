@@ -9,6 +9,14 @@ import {
   useDeleteAsycudaPurchaseInvoice,
   type AsycudaInvoiceState,
 } from '../asycudaPurchaseInvoice.queries'
+import { isBackendUnavailable, BackendUnavailableCard, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
+
+// POST /api/zra/asycuda-purchase/* mutations below (assign/lines/delete/save/delete)
+// all 404 on this backend (see BackendUnavailable.tsx) — a single honest message,
+// reused at each call site instead of a raw "Request failed with status code 404".
+function describeAsycudaPurchaseError(err: unknown, fallback: string): string {
+  return isBackendUnavailable(err) ? "This action isn't available on this backend yet." : err instanceof Error ? err.message : fallback
+}
 
 const inputCls = 'h-10 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const labelCls = 'text-sm text-text-muted'
@@ -25,7 +33,7 @@ function ProductsPanel({
   onAssign: (productIds: number[]) => void
   assigning: boolean
 }) {
-  const { data, isLoading, isError } = useDeclarationProducts(declaration)
+  const { data, isLoading, isError, error } = useDeclarationProducts(declaration)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40" onClick={onClose}>
@@ -38,7 +46,7 @@ function ProductsPanel({
         </div>
 
         {isLoading && <p className="text-sm text-text-faint">Loading…</p>}
-        {isError && <p className="text-sm text-danger">Could not load declaration products.</p>}
+        {isError && (isBackendUnavailable(error) ? <BackendUnavailableInline feature="Asycuda declaration products" /> : <p className="text-sm text-danger">Could not load declaration products.</p>)}
 
         {data && (
           <>
@@ -91,7 +99,7 @@ function ProductsPanel({
 }
 
 export function AsycudaPurchaseInvoiceCreate() {
-  const { data: refData, isLoading: refLoading } = useAsycudaPurchaseReferenceData()
+  const { data: refData, isLoading: refLoading, error: refError } = useAsycudaPurchaseReferenceData()
 
   const [vendorId, setVendorId] = useState<number | null>(null)
   const [declaration, setDeclaration] = useState('')
@@ -159,6 +167,7 @@ export function AsycudaPurchaseInvoiceCreate() {
             setInvoice(result)
           }
         },
+        onError: (err) => window.alert(describeAsycudaPurchaseError(err, 'Could not delete this line — please try again.')),
       },
     )
   }
@@ -196,6 +205,7 @@ export function AsycudaPurchaseInvoiceCreate() {
               : { ok: false, text: 'Could not save — check bank account, payment mode, and payment terms.' },
           )
         },
+        onError: (err) => setSaveMessage({ ok: false, text: describeAsycudaPurchaseError(err, 'Could not save — please try again.') }),
       },
     )
   }
@@ -207,10 +217,27 @@ export function AsycudaPurchaseInvoiceCreate() {
       onSuccess: (result) => {
         if (result.succeeded) resetForm()
       },
+      onError: (err) => window.alert(describeAsycudaPurchaseError(err, 'Could not delete this invoice — please try again.')),
     })
   }
 
   const lines = invoice?.lines ?? []
+
+  // GET /api/zra/asycuda-purchase/reference-data/ 404s on this backend (see
+  // BackendUnavailable.tsx) — without vendors/declarations/bank accounts/payment
+  // types this screen has nothing usable to offer, so it's treated as the whole
+  // page being unavailable rather than a form full of empty dropdowns.
+  if (isBackendUnavailable(refError)) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)]">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-text! mb-4">
+          <FileText size={20} className="text-brand" />
+          Create Asycuda Purchase Invoice
+        </h2>
+        <BackendUnavailableCard feature="Create Asycuda Purchase Invoice" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -432,7 +459,7 @@ export function AsycudaPurchaseInvoiceCreate() {
         </div>
 
         {saveMessage && <p className={`text-sm ${saveMessage.ok ? 'text-success-fg' : 'text-danger'}`}>{saveMessage.text}</p>}
-        {assign.isError && <p className="text-sm text-danger">{assign.error instanceof Error ? assign.error.message : 'Could not assign products.'}</p>}
+        {assign.isError && <p className="text-sm text-danger">{describeAsycudaPurchaseError(assign.error, 'Could not assign products.')}</p>}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm">

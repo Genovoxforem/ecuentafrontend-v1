@@ -48,12 +48,15 @@ function SidebarLeaf({
 }
 
 // Recursive: a group can itself contain groups (real depth varies by module
-// — most are 2 levels, a few like Employee/General Ledger go to 3), each
-// independently pinned open/closed the same way top-level groups are.
+// — most are 2 levels, a few like Employee/General Ledger go to 3).
+// Accordion at every level: opening a group closes whichever *sibling*
+// group (same immediate parent) was previously pinned open — but never
+// touches its own ancestors or descendants, which is a different axis
+// entirely (see toggleGroup's groupKey/parentKey scheme below).
 function SidebarNavItem({
   item,
   depth,
-  sectionKey,
+  parentKey,
   navigate,
   location,
   openGroups,
@@ -63,18 +66,21 @@ function SidebarNavItem({
 }: {
   item: NavItem
   depth: number
-  sectionKey: string
+  parentKey: string
   navigate: NavigateFunction
   location: Location
   openGroups: Record<string, boolean>
-  toggleGroup: (key: string) => void
+  toggleGroup: (groupKey: string, parentKey: string) => void
   hoverGroup: ReadonlySet<string>
   setHoverGroup: (updater: (prev: Set<string>) => Set<string>) => void
 }) {
   if (!('items' in item) || !item.items) {
     return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} />
   }
-  const groupKey = `${sectionKey}:${depth}:${item.label}`
+  // Full ancestor path, not just depth — depth alone can't tell two
+  // same-depth groups under different parents apart, which would make the
+  // accordion incorrectly close a group in an unrelated branch.
+  const groupKey = `${parentKey}>${item.label}`
   const isPinned = Boolean(openGroups[groupKey])
   const isOpen = isPinned || hoverGroup.has(groupKey)
   return (
@@ -101,7 +107,7 @@ function SidebarNavItem({
     >
       <button
         type="button"
-        onClick={() => toggleGroup(groupKey)}
+        onClick={() => toggleGroup(groupKey, parentKey)}
         style={{ paddingLeft: `${depth * 0.75 + 0.5}rem` }}
         className={`w-full flex items-center justify-between pr-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide transition-colors ${
           isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
@@ -112,12 +118,17 @@ function SidebarNavItem({
       </button>
       <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          {item.items.map((sub) => (
+          {item.items.map((sub, i) => (
             <SidebarNavItem
-              key={sub.label}
+              // Index-qualified: the dynamic backend menu (ecuenta9) can
+              // legitimately contain sibling items with the same label
+              // (e.g. two different "Statistics" pages under one section) —
+              // label alone isn't a safe React key there, unlike the
+              // hand-curated static fallback nav where it always was.
+              key={`${sub.label}-${i}`}
               item={sub}
               depth={depth + 1}
-              sectionKey={sectionKey}
+              parentKey={groupKey}
               navigate={navigate}
               location={location}
               openGroups={openGroups}
@@ -148,12 +159,15 @@ export function Sidebar({ open = true }: { open?: boolean }) {
   const SECTIONS = useMemo(() => (menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : PATH_SOURCE_SECTIONS), [menu])
   const [activeKey, setActiveKey] = useState('home')
   const [hovering, setHovering] = useState(false)
-  // At most one key here at a time — only one group is pinned open; clicking
-  // a header pins it (and closes whichever other group was pinned) — stays
-  // open, highlighted, ignoring mouse-leave — until it's clicked again or a
-  // different header takes over. Hovering is a separate, temporary preview
-  // (hoverGroup) that never touches this pinned state, so moving the mouse
-  // away only closes groups that were never actually clicked.
+  // Accordion, keyed by full ancestor path (see SidebarNavItem's groupKey):
+  // clicking a header pins it open and closes whichever *sibling* — same
+  // immediate parent — was previously pinned, but leaves ancestors and
+  // descendants alone (those are different branches of the map, not
+  // touched by a sibling swap). Stays open, highlighted, ignoring
+  // mouse-leave, until clicked again or a sibling takes over. Hovering is a
+  // separate, temporary preview (hoverGroup) that never touches this pinned
+  // state, so moving the mouse away only closes groups that were never
+  // actually clicked.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [hoverGroup, setHoverGroup] = useState<Set<string>>(() => new Set())
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
@@ -163,29 +177,42 @@ export function Sidebar({ open = true }: { open?: boolean }) {
   // sub-menu link (which navigates here) and landing on a URL directly, so
   // the active item is never hidden inside a collapsed group at any depth.
   useEffect(() => {
-    function findOpenChain(items: NavItem[], depth: number): string[] | null {
+    function findOpenChain(items: NavItem[], parentKey: string): string[] | null {
       for (const item of items) {
         if (!('items' in item) || !item.items) continue
         if (itemContainsPath(item, location.pathname)) {
-          const groupKey = `${active.key}:${depth}:${item.label}`
-          const nested = findOpenChain(item.items, depth + 1)
+          const groupKey = `${parentKey}>${item.label}`
+          const nested = findOpenChain(item.items, groupKey)
           return nested ? [groupKey, ...nested] : [groupKey]
         }
       }
       return null
     }
-    const chain = findOpenChain(active.items, 0)
+    const chain = findOpenChain(active.items, active.key)
     if (chain && chain.some((k) => !openGroups[k])) {
       setOpenGroups(Object.fromEntries(chain.map((k) => [k, true])))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, location.pathname])
 
-  // Each group toggles independently (a nested tree can't collapse to "only
-  // one open" the way a flat 2-level list could) — opening a child no
-  // longer force-closes its parent.
-  function toggleGroup(groupKey: string) {
-    setOpenGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }))
+  // Accordion: opening groupKey closes every OTHER currently-open key that
+  // shares its immediate parent (a true sibling), while leaving ancestors,
+  // descendants, and unrelated branches untouched — derived by comparing
+  // each open key's own parent segment (everything before its last `>`)
+  // against this groupKey's parentKey, not by depth (see SidebarNavItem).
+  function toggleGroup(groupKey: string, parentKey: string) {
+    setOpenGroups((prev) => {
+      const wasOpen = Boolean(prev[groupKey])
+      const next: Record<string, boolean> = {}
+      for (const [k, v] of Object.entries(prev)) {
+        if (!v) continue
+        const kParent = k.slice(0, k.lastIndexOf('>'))
+        if (kParent === parentKey) continue
+        next[k] = v
+      }
+      if (!wasOpen) next[groupKey] = true
+      return next
+    })
   }
 
   // Pinned-open (`open` prop, toggled by Navbar's collapse button) keeps the
@@ -243,12 +270,12 @@ export function Sidebar({ open = true }: { open?: boolean }) {
           </div>
           <div className="space-y-0">
             {active.items.length === 0 && <p className="text-xs italic text-text-muted px-2 py-1">Nothing here yet.</p>}
-            {active.items.map((item) => (
+            {active.items.map((item, i) => (
               <SidebarNavItem
-                key={item.label}
+                key={`${item.label}-${i}`}
                 item={item}
                 depth={0}
-                sectionKey={active.key}
+                parentKey={active.key}
                 navigate={navigate}
                 location={location}
                 openGroups={openGroups}

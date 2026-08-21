@@ -49,6 +49,7 @@ import { Avatar } from '../../../shared/components/Avatar'
 import { useUser, useUserDetail, useLanguageOptions } from '../users.queries'
 import { useRecentActivity } from '../../agenda/agenda.queries'
 import { formatDateTimeAmPm, formatDate, formatMoney } from '../../../utils/format'
+import { BackendUnavailableCard, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const RELATED_OBJECT_COLUMNS = ['Type', 'Ref.', 'Date', 'Amount (Excl.)', 'Status']
 
@@ -129,7 +130,7 @@ function Field({ label, value }: { label: string; value: string }) {
 
 export function UserDetail() {
   const { id } = useParams<{ id: string }>()
-  const { user, isLoading } = useUser(id)
+  const { user, isLoading, isError, error } = useUser(id)
   const { detail } = useUserDetail(id)
   // "<zip> <town>, <country> - <state>" — matches the reference card's own
   // location pill format. Real data from GET /api/users/detail/ (llx_user's
@@ -171,6 +172,21 @@ export function UserDetail() {
     return (
       <div className="-m-6 flex-1 flex items-center justify-center">
         <p className="text-sm text-text-muted">Loading…</p>
+      </div>
+    )
+  }
+
+  // api/users/ doesn't exist at all on the currently-active backend — show
+  // the honest unavailable state instead of the misleading "No user found"
+  // message below, which would otherwise imply a bad id rather than a
+  // missing backend.
+  if (isError && isBackendUnavailable(error)) {
+    return (
+      <div className="-m-6 flex-1 flex flex-col items-center justify-center gap-3">
+        <BackendUnavailableCard feature="User details" />
+        <Link to={ROUTES.usersDashboard} className="text-sm text-brand hover:underline">
+          Back to Users list
+        </Link>
       </div>
     )
   }

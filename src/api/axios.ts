@@ -64,6 +64,29 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       setStoredToken(null)
       onUnauthorized?.()
+    } else if (axios.isAxiosError(error) && !error.response) {
+      // The browser never got a response at all — this is either a real
+      // network failure, or the request was genuinely cross-origin and got
+      // CORS-blocked before reaching this code. Confirmed live against the
+      // active backend: every protected endpoint except api/login/ (which
+      // has its own early `if REQUEST_METHOD===OPTIONS exit` before
+      // anything else runs) hits main.inc.php's CSRF check first on an
+      // OPTIONS preflight, which returns a plain-text refusal page with
+      // zero Access-Control-* headers — so a real cross-origin caller's
+      // preflight fails and the actual request never fires. That's a
+      // backend response-ordering bug, not fixable here: browser CORS
+      // enforcement happens before any JS runs, so nothing in this
+      // interceptor (or anywhere else in React) can see or work around it.
+      // The actual mitigation is architectural — every request in this
+      // app stays same-origin (Vite's dev proxy, or same-origin production
+      // deployment — see this file's own top comment) specifically so the
+      // browser never needs to preflight a real cross-origin call at all.
+      // This branch only fires if that policy is ever broken (e.g. a
+      // hardcoded absolute backend URL sneaks into a future change), and
+      // exists purely so that shows up as a clear message instead of a
+      // bare, unexplained "Network Error".
+      error.message =
+        'Unable to reach the server — this may be a network issue, or a request went directly to a remote backend instead of through the app\'s same-origin proxy (check VITE_ACTIVE_BACKEND and that requests use relative /api paths).'
     }
     return Promise.reject(error)
   },
