@@ -892,17 +892,27 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-4">
-      <Card className="!h-auto">
-        <div>
-          <Field label="Default Tax Rate" value={data.vatDisplay || '0%'} />
+      <Card className="!h-auto sticky top-0 z-20">
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs text-text-faint">Default Tax Rate</span>
+            <span className="text-sm font-medium">{data.vatDisplay || '0%'}</span>
+          </div>
           {data.zra.map((z) => (
-            <Field key={z.label} label={z.label} value={`${z.amount} (${z.code})`} />
+            <div key={z.label} className="flex items-baseline gap-2">
+              <span className="text-xs text-text-faint">{z.label}</span>
+              <span className="text-sm font-medium">{z.amount} ({z.code})</span>
+            </div>
           ))}
-          <Field label="Selling Price" value={`${formatMoney(data.sellingPrice)} ${data.priceBaseType}`} />
-          <Field label="Min Price" value={`${formatMoney(data.minPrice)} ${data.priceBaseType}`} />
-        </div>
-        <div className="flex items-center gap-2 pt-3">
-          <button type="button" disabled title="Not built yet — needs a VAT/ZRA-category picker, same scope as this session's other deferred write actions" className="px-3 py-2 rounded-md bg-brand/40 text-white text-sm font-medium cursor-default">
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs text-text-faint">Selling Price</span>
+            <span className="text-sm font-medium">{formatMoney(data.sellingPrice)} {data.priceBaseType}</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs text-text-faint">Min Price</span>
+            <span className="text-sm font-medium">{formatMoney(data.minPrice)} {data.priceBaseType}</span>
+          </div>
+          <button type="button" disabled title="Not built yet — needs a VAT/ZRA-category picker, same scope as this session's other deferred write actions" className="ml-auto px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-default">
             Update Default Price
           </button>
         </div>
