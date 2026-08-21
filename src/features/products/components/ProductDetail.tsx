@@ -356,14 +356,15 @@ export function ProductDetail() {
         </Link>
       </div>
 
-      <div className="sticky top-0 z-10 px-6 pt-4 pb-2 bg-white dark:bg-gray-950 -mx-6">
-        {/* Hero + tab bar are ONE card now, not two stacked with a
-            gap between them — the hero's own bottom border is what separates
-            it from the tab bar, matching a single continuous panel instead
-            of two separate boxes. Card itself goes !p-0 so the tab bar/
-            content (which already assumed edge-to-edge placement) aren't
-            double-padded; the hero section gets its own p-4 wrapper instead. */}
-        <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="sticky top-0 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
+        <div className="px-6">
+          {/* Hero + tab bar are ONE card now, not two stacked with a
+              gap between them — the hero's own bottom border is what separates
+              it from the tab bar, matching a single continuous panel instead
+              of two separate boxes. Card itself goes !p-0 so the tab bar/
+              content (which already assumed edge-to-edge placement) aren't
+              double-padded; the hero section gets its own p-4 wrapper instead. */}
+          <Card className="!h-auto !p-0 overflow-hidden">
           <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
           <div className="flex items-start gap-4 min-w-[240px] flex-1">
             <Avatar
@@ -488,9 +489,10 @@ export function ProductDetail() {
             </div>
           </div>
         </Card>
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4 space-y-4 no-scrollbar">
         {actionError && <p className="text-sm text-danger mt-2">{actionError}</p>}
 
         {/* Content is its own section now, separate from the hero+tab-bar
