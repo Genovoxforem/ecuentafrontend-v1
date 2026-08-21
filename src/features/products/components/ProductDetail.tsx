@@ -356,7 +356,7 @@ export function ProductDetail() {
         </Link>
       </div>
 
-      <div className="sticky top-0 z-10 px-6 pt-4 bg-gradient-to-b from-white via-white to-white/0 dark:from-gray-950 dark:via-gray-950 dark:to-gray-950/0 -mx-6">
+      <div className="sticky top-0 z-10 px-6 pt-4 pb-2 bg-white dark:bg-gray-950 -mx-6">
         {/* Hero + tab bar are ONE card now, not two stacked with a
             gap between them — the hero's own bottom border is what separates
             it from the tab bar, matching a single continuous panel instead
@@ -466,15 +466,15 @@ export function ProductDetail() {
           </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-b border-border px-2">
-            <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden">
+          <div className="flex items-center justify-between gap-2 border-t border-border px-0">
+            <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden">
               {TABS.map(({ label: t, icon: Icon }) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTab(t)}
-                  className={`flex items-center gap-1.5 shrink-0 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-                    tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
+                  className={`flex items-center gap-1.5 shrink-0 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+                    tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'
                   }`}
                 >
                   <Icon size={14} className="shrink-0" /> {t}
@@ -490,8 +490,8 @@ export function ProductDetail() {
         </Card>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto px-6 pb-4 space-y-4">
-        {actionError && <p className="text-sm text-danger">{actionError}</p>}
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
+        {actionError && <p className="text-sm text-danger mt-2">{actionError}</p>}
 
         {/* Content is its own section now, separate from the hero+tab-bar
             card above (space-y-4 on the parent gives the real visible gap
