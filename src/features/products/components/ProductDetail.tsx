@@ -927,87 +927,89 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className={`overflow-x-auto overflow-y-auto flex-1 -mx-4 border border-border rounded flex flex-col ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
-            <table className="w-full text-sm flex-1">
-              <thead className="sticky top-0 bg-surface z-10">
-                <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                  <Th>Applied Prices From</Th>
-                  <Th>Price Base</Th>
-                  <Th right>Default Tax Rate</Th>
-                  <Th right>HT</Th>
-                  <Th right>TTC</Th>
-                  <Th right>Min Price HT</Th>
-                  <Th right>Min Price TTC</Th>
-                  <Th>Changed By</Th>
-                  {data.canDelete && <Th right>Actions</Th>}
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
-                  <EmptyRow span={data.canDelete ? 9 : 8} label={totalRecords === 0 ? 'No price history.' : 'No results for current page.'} />
-                ) : (
-                  paginatedData.map((row) => (
-                    <tr key={row.rowid} className="border-b border-border last:border-0">
-                      <Td muted>{row.dateStr}</Td>
-                      <Td muted>{row.priceBaseType}</Td>
-                      <Td right muted>
-                        {row.vatDisplay}
-                      </Td>
-                      <Td right>{formatMoney(row.price)}</Td>
-                      <Td right>{formatMoney(row.priceTtc)}</Td>
-                      <Td right muted>
-                        {formatMoney(row.priceMin)}
-                      </Td>
-                      <Td right muted>
-                        {formatMoney(row.priceMinTtc)}
-                      </Td>
-                      <Td muted>{row.userName}</Td>
-                      {data.canDelete && (
-                        <Td right>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteLog(row.rowid)}
-                            disabled={deleteLog.isPending}
-                            title="Delete log entry"
-                            className="p-1 rounded text-text-faint hover:bg-danger-bg hover:text-danger disabled:opacity-60"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+          <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden">
+            <div className={`overflow-y-auto ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-surface z-10">
+                  <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                    <Th>Applied Prices From</Th>
+                    <Th>Price Base</Th>
+                    <Th right>Default Tax Rate</Th>
+                    <Th right>HT</Th>
+                    <Th right>TTC</Th>
+                    <Th right>Min Price HT</Th>
+                    <Th right>Min Price TTC</Th>
+                    <Th>Changed By</Th>
+                    {data.canDelete && <Th right>Actions</Th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.length === 0 ? (
+                    <EmptyRow span={data.canDelete ? 9 : 8} label={totalRecords === 0 ? 'No price history.' : 'No results for current page.'} />
+                  ) : (
+                    paginatedData.map((row) => (
+                      <tr key={row.rowid} className="border-b border-border last:border-0">
+                        <Td muted>{row.dateStr}</Td>
+                        <Td muted>{row.priceBaseType}</Td>
+                        <Td right muted>
+                          {row.vatDisplay}
                         </Td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                        <Td right>{formatMoney(row.price)}</Td>
+                        <Td right>{formatMoney(row.priceTtc)}</Td>
+                        <Td right muted>
+                          {formatMoney(row.priceMin)}
+                        </Td>
+                        <Td right muted>
+                          {formatMoney(row.priceMinTtc)}
+                        </Td>
+                        <Td muted>{row.userName}</Td>
+                        {data.canDelete && (
+                          <Td right>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLog(row.rowid)}
+                              disabled={deleteLog.isPending}
+                              title="Delete log entry"
+                              className="p-1 rounded text-text-faint hover:bg-danger-bg hover:text-danger disabled:opacity-60"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </Td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
             {totalRecords > 0 && (
-              <div className="sticky bottom-0 flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-gray-950 dark:bg-gray-950 z-10">
-              <span>
-                {pageStart}–{pageEnd} of {totalRecords}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={page <= 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
-                >
-                  <ChevronLeft size={12} />
-                </button>
-                <span className="px-1">
-                  {page + 1} / {totalPages || 1}
+              <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-white dark:bg-gray-950">
+                <span>
+                  {pageStart}–{pageEnd} of {totalRecords}
                 </span>
-                <button
-                  type="button"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                  className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
-                >
-                  <ChevronRight size={12} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={page <= 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    <ChevronLeft size={12} />
+                  </button>
+                  <span className="px-1">
+                    {page + 1} / {totalPages || 1}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages - 1}
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
               </div>
-            </div>
             )}
           </div>
         </div>
@@ -2359,46 +2361,48 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className="overflow-x-auto overflow-y-auto flex-1 -mx-4 border border-border rounded max-h-[550px]">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface z-10">
-                <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                  <Th>Invoice</Th>
-                  <Th>Date</Th>
-                  <Th>Customer</Th>
-                  <Th>Code</Th>
-                  <Th right>Qty</Th>
-                  <Th right>Total (Excl.)</Th>
-                  <Th right>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {!data.invoices || data.invoices.length === 0 ? (
-                  <EmptyRow span={7} label="No invoices found for this product." />
-                ) : (
-                  data.invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b border-border last:border-0">
-                      <Td muted>{inv.ref}</Td>
-                      <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
-                      <Td>{inv.company}</Td>
-                      <Td muted>{inv.customerCode}</Td>
-                      <Td right muted>
-                        {formatNumber(inv.qty)}
-                      </Td>
-                      <Td right>{formatMoney(inv.totalHT)}</Td>
-                      <Td right>
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${inv.statusClass === 'success' ? 'bg-success-bg text-success-fg' : inv.statusClass === 'warning' ? 'bg-warning-bg text-warning-fg' : 'bg-secondary-bg text-secondary-fg'}`}>
-                          {inv.status}
-                        </span>
-                      </Td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden">
+            <div className="overflow-y-auto max-h-[550px]">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-surface z-10">
+                  <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                    <Th>Invoice</Th>
+                    <Th>Date</Th>
+                    <Th>Customer</Th>
+                    <Th>Code</Th>
+                    <Th right>Qty</Th>
+                    <Th right>Total (Excl.)</Th>
+                    <Th right>Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!data.invoices || data.invoices.length === 0 ? (
+                    <EmptyRow span={7} label="No invoices found for this product." />
+                  ) : (
+                    data.invoices.map((inv) => (
+                      <tr key={inv.id} className="border-b border-border last:border-0">
+                        <Td muted>{inv.ref}</Td>
+                        <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
+                        <Td>{inv.company}</Td>
+                        <Td muted>{inv.customerCode}</Td>
+                        <Td right muted>
+                          {formatNumber(inv.qty)}
+                        </Td>
+                        <Td right>{formatMoney(inv.totalHT)}</Td>
+                        <Td right>
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${inv.statusClass === 'success' ? 'bg-success-bg text-success-fg' : inv.statusClass === 'warning' ? 'bg-warning-bg text-warning-fg' : 'bg-secondary-bg text-secondary-fg'}`}>
+                            {inv.status}
+                          </span>
+                        </Td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
             {data.totalRecords > 0 && (
-              <div className="sticky bottom-0 flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-gray-950 dark:bg-gray-950 z-10">
+              <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-white dark:bg-gray-950">
                 <span>
                   {pageStart}–{pageEnd} of {data.totalRecords}
                 </span>
