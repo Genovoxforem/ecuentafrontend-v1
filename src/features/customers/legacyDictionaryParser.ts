@@ -34,34 +34,70 @@ function cellText(cell: Element | undefined): string {
   return (cell?.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
-// Shared shape across all three dictionaries: [code/id, label, ...rest] per
-// row, rest being the always-icon-only Active/Edit columns this app has no
-// use for. The one code value that's never a real option is Dolibarr's own
-// "-" placeholder row (typent's TE_UNKNOWN, effectif's EF0) — skipped so
-// the dropdown doesn't start with a meaningless dash.
-function parseTwoColumnDictionary(doc: Document): DictionaryOption[] {
+// Every row's edit/disable/delete links carry the real database rowid as a
+// query param (confirmed live, e.g.
+// "dict.php?...&rowid=5&code=TE_ADMIN&&id=8&action=edit&token=..."), even
+// though it's never shown as a visible column — this is the numeric id
+// societe/api/societes.php's typent_id/effectif_id fields actually need
+// (see thirdPartyOptions.queries.ts), not the code text in the first cell.
+function rowIdFromLinks(row: Element): string | null {
+  const link = row.querySelector('a[href*="rowid="]')
+  const href = link?.getAttribute('href') ?? ''
+  const match = href.match(/[?&]rowid=(\d+)/)
+  return match ? match[1] : null
+}
+
+// Currencies: [code, name, symbol, ...] — code (e.g. "ZMW") is what
+// societe/api/societes.php's multicurrency_code field actually wants, not a
+// numeric id, so this one keeps the first cell as its value.
+export function parseCurrenciesDocument(doc: Document): DictionaryOption[] {
   const rows = Array.from(doc.querySelectorAll('tr.oddeven'))
+  const seenLabels = new Set<string>()
   const options: DictionaryOption[] = []
   for (const row of rows) {
     const cells = row.querySelectorAll('td')
     const value = cellText(cells[0])
     const label = cellText(cells[1])
-    if (!value || !label || label === '-') continue
+    if (!value || !label || label === '-' || seenLabels.has(label)) continue
+    // The <select> this feeds (ThirdPartyCreateForm.tsx / StepFormFields.tsx)
+    // only ever sees the label string, both as the rendered option and as
+    // the lookup key back to a real value — so two rows sharing a label
+    // (confirmed live: "Turkey Lira" appears twice in this dictionary,
+    // presumably an old/new Lira pair) are indistinguishable to the user
+    // and would silently collide on whichever the label→value lookup finds
+    // first. Keeping only the first occurrence matches that existing
+    // lookup behavior instead of just hiding a duplicate React key warning.
+    seenLabels.add(label)
     options.push({ value, label })
   }
   return options
 }
 
-export function parseCurrenciesDocument(doc: Document): DictionaryOption[] {
-  return parseTwoColumnDictionary(doc)
+// Third-party types and Workforce: societe/api/societes.php's typent_id/
+// effectif_id both want the real numeric rowid (llx_c_typent.rowid /
+// llx_c_effectif.rowid), so value comes from the row's own edit link, not
+// the code text in the first cell. Falls back to the code if a row somehow
+// has no rowid-bearing link (defensive only — every real row checked during
+// verification had one).
+function parseIdBackedDictionary(doc: Document): DictionaryOption[] {
+  const rows = Array.from(doc.querySelectorAll('tr.oddeven'))
+  const options: DictionaryOption[] = []
+  for (const row of rows) {
+    const cells = row.querySelectorAll('td')
+    const code = cellText(cells[0])
+    const label = cellText(cells[1])
+    if (!code || !label || label === '-') continue
+    options.push({ value: rowIdFromLinks(row) ?? code, label })
+  }
+  return options
 }
 
 export function parseThirdPartyTypesDocument(doc: Document): DictionaryOption[] {
-  return parseTwoColumnDictionary(doc)
+  return parseIdBackedDictionary(doc)
 }
 
 export function parseWorkforceDocument(doc: Document): DictionaryOption[] {
-  return parseTwoColumnDictionary(doc)
+  return parseIdBackedDictionary(doc)
 }
 
 export function looksLikeLegacyLoginPage(doc: Document): boolean {

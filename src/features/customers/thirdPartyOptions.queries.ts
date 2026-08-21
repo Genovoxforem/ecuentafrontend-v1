@@ -119,6 +119,45 @@ export function useLegacyDictionary(kind: keyof typeof DICTIONARY_IDS, parse: (d
   })
 }
 
+// societe/api/societes.php (the real endpoint the legacy "New Third Party"
+// wizard itself posts to — see ThirdPartyCreateForm.tsx's create mutation)
+// enforces Dolibarr's own CSRF token check on mutations, unlike the
+// read-only societe/api/list.php this app already uses for the Customers
+// list. Confirmed live: the token is both a `societeToken` JS global AND a
+// hidden `<input name="token">` on any authenticated societe/list.php page,
+// tied to the PHP session rather than that specific page — scraping it from
+// a plain fetch (no JS execution needed) works exactly like every other
+// legacy-HTML value this app reads.
+//
+// That same page also solves a second problem: societes.php's country_id
+// field needs Dolibarr's real numeric llx_c_country.rowid (confirmed live —
+// Zambia is 239), but useProductFormOptions()'s countries (sourced from
+// /zra/product-form-options/, built for the Product form's own needs) use
+// the ISO alpha-2 code as their value instead ("ZM"). Rather than fetch a
+// second page just for this, the real <select name="country_id"> on this
+// same societe/list.php response already carries the correct numeric id
+// against each country's "Name (CODE)" text — scraped once here and
+// returned alongside the token.
+export interface SocieteFormContext {
+  token: string
+  countryIdByCode: Record<string, string>
+}
+export async function fetchSocieteFormContext(): Promise<SocieteFormContext> {
+  const res = await fetch('/societe/list.php?type=c', { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status} fetching form context.`)
+  const html = await res.text()
+  const tokenMatch = html.match(/name=["']token["']\s+value=["']([a-f0-9]+)["']/) ?? html.match(/societeToken\s*=\s*['"]([a-f0-9]+)['"]/)
+  if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const countryIdByCode: Record<string, string> = {}
+  doc.querySelectorAll('select[name="country_id"] option').forEach((opt) => {
+    const codeMatch = (opt.textContent ?? '').match(/\(([A-Z]{2})\)\s*$/)
+    const value = opt.getAttribute('value')
+    if (codeMatch && value) countryIdByCode[codeMatch[1]] = value
+  })
+  return { token: tokenMatch[1], countryIdByCode }
+}
+
 // GET /api/users/states/?countryId= (api/users/states/index.php) — real,
 // llx_c_departements joined to llx_c_regions for the given country. Legacy's
 // own State/Province field (select_state($country_code), societe/card.php)

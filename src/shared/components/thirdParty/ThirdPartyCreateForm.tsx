@@ -6,7 +6,6 @@ import {
   Check,
   X,
   LoaderCircle,
-  TriangleAlert,
   ChevronLeft,
   ChevronRight,
   Contact,
@@ -51,10 +50,10 @@ import { Card } from '../dashboard/DashboardKit'
 import { StickyFormShell } from '../layout/StickyFormShell'
 import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
 import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
-import { api } from '../../../api/axios'
+import axios from 'axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
-import { useThirdPartyFormOptions, useStatesByCountry } from '../../../features/customers/thirdPartyOptions.queries'
+import { useThirdPartyFormOptions, useStatesByCountry, fetchSocieteFormContext } from '../../../features/customers/thirdPartyOptions.queries'
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 
@@ -247,8 +246,14 @@ function NameField({
   )
 }
 
+// Real response shape from societe/api/societes.php?action=create,
+// confirmed live: {"ok":true,"message":"Third party created","id":2071,
+// "societe":{...},"redirect":"/.../societe/card.php?socid=2071"}. Errors
+// use `error` in place of `ok:true` (not directly captured live, but
+// matches this endpoint's list.php sibling's own {ok, error} convention).
 interface CreateThirdPartyResponse {
-  success: boolean
+  ok: boolean
+  id?: number
   error?: string
   message?: string
 }
@@ -333,6 +338,10 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const selectedCountryId = formOptions?.countries?.find((c) => c.label === values.country)?.value
   const { data: stateOptionsData } = useStatesByCountry(selectedCountryId)
   const stateOptions = stateOptionsData?.map((s) => s.label) ?? []
+  const selectedStateId = stateOptionsData?.find((s) => s.label === values.stateProvince)?.value
+  const selectedCurrencyCode = formOptions?.currencies?.find((c) => c.label === values.currency)?.value
+  const selectedThirdPartyTypeId = formOptions?.thirdPartyTypes?.find((t) => t.label === values.thirdPartyType)?.value
+  const selectedWorkforceId = formOptions?.workforce?.find((w) => w.label === values.workforce)?.value
 
   // Build steps with dynamic form options — cheap pure functions, no need to
   // memoize across every field-level state update this component makes.
@@ -350,28 +359,91 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
 
   const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
 
-  // POST /api/customer/?action=create — read api/customer/index.php's
-  // handleCreateCustomer() directly: `name` and `tpin` are both hard
-  // requirements (missing tpin fails with "TPIN (Tax PIN) is required"),
-  // and email/phone/address/zip/town are read and applied as-is. There is
-  // no `type`/`client`/supplier param this handler reads at all — it
-  // unconditionally sets client=1 (plain customer) and never touches the
-  // fournisseur flag, regardless of what's sent. See the vendor-variant
-  // warning banner below for what that means for this form.
+  // POST societe/api/societes.php — the REAL endpoint the legacy "New Third
+  // Party" wizard itself submits to (captured live: opening
+  // societe/list.php?type=c|p|f and completing the actual wizard fires this
+  // exact request, not /api/customer/). Confirmed live across all three
+  // variants which fields distinguish them:
+  //   Customer: client=1, fournisseur=0      Prospect: client=2, fournisseur=0
+  //   Vendor:   client=0, fournisseur=1, supplier_code set instead of customer_code
+  // This is a mutation, so — unlike societe/api/list.php's read-only calls
+  // elsewhere in this app — it enforces Dolibarr's own CSRF check, hence the
+  // token fetch (see fetchSocieteToken). Response shape confirmed live:
+  // {ok, message, id, societe, redirect} on success.
   const createMutation = useMutation({
     mutationFn: async () => {
-      const body = new URLSearchParams()
-      body.set('name', values.name.trim())
-      body.set('tpin', values.tpin.trim())
-      if (values.email) body.set('email', values.email)
-      if (values.phone) body.set('phone', values.phone)
-      if (values.address) body.set('address', values.address)
-      if (values.city) body.set('town', values.city)
-      if (values.zipCode) body.set('zip', values.zipCode)
-      const { data } = await api.post<CreateThirdPartyResponse>('/customer/?action=create', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      const isVendorNow = values.vendor === 'Yes'
+      const client = isVendorNow ? 0 : values.prospectCustomer === 'Prospect' ? 2 : values.prospectCustomer === 'Not prospect, Not customer' ? 0 : 1
+      const type = isVendorNow ? 'f' : values.prospectCustomer === 'Prospect' ? 'p' : 'c'
+      const { token, countryIdByCode } = await fetchSocieteFormContext()
+      const payload = {
+        name_title: values.nameTitle,
+        name: values.firstName.trim(),
+        lastname: values.lastName.trim(),
+        client,
+        fournisseur: isVendorNow ? 1 : 0,
+        idprof1: values.tpin.trim(),
+        idprof2: values.trackingId || '',
+        name_alias: values.aliasName || '',
+        group_id: '',
+        phone: values.phone || '',
+        customer_code: values.customerCode || 'auto',
+        email: values.email || '',
+        // selectedCountryId is the ISO alpha-2 code (this app's
+        // /zra/product-form-options/ source uses that as its option value),
+        // but societes.php needs Dolibarr's real numeric country rowid —
+        // countryIdByCode (scraped alongside the token, see
+        // fetchSocieteFormContext) converts it.
+        country_id: (selectedCountryId && countryIdByCode[selectedCountryId]) || '',
+        supplier_code: values.vendorCode || (isVendorNow ? 'auto' : ''),
+        branch_code: values.branchCode || '',
+        address: values.address || '',
+        multicurrency_code: selectedCurrencyCode || '',
+        typent_id: selectedThirdPartyTypeId || '',
+        status: values.status === 'Close' ? 0 : 1,
+        supervisor_det: values.supervisorDetails || '',
+        employer_name: values.employerName || '',
+        employee_num: values.employeeNumber || '',
+        usermode: values.thirdPartyMode === 'privileged' ? '2' : '1',
+        zipcode: values.zipCode || '',
+        town: values.city || '',
+        state_id: selectedStateId || '',
+        fax: values.fax || '',
+        forme_juridique_code: '',
+        nrc_id: '',
+        nrc_num: values.nrcNumber || '',
+        document: {},
+        assujtva_value: values.salesTaxUsed === 'No' ? 0 : 1,
+        tva_intra: values.vatId || '',
+        effectif_id: selectedWorkforceId || '',
+        capital: values.capital || '',
+        fk_incoterms: '',
+        location_incoterms: '',
+        barcode: values.barcode || '',
+        url: values.web || '',
+        facebook: values.facebook || '',
+        skype: values.skype || '',
+        twitter: values.twitter || '',
+        linkedin: values.linkedin || '',
+        instagram: values.instagram || '',
+        snapchat: values.snapchat || '',
+        googleplus: values.googlePlus || '',
+        youtube: values.youtube || '',
+        whatsapp: values.whatsapp || '',
+        diaspora: values.diaspora || '',
+        viber: values.viber || '',
+        github: values.github || '',
+        type,
+        commercial: [],
+        custcats: [],
+        suppcats: [],
+        action: 'create',
+        token,
+      }
+      const { data } = await axios.post<CreateThirdPartyResponse>('/societe/api/societes.php', payload, {
+        headers: { 'Content-Type': 'application/json' },
       })
-      if (!data.success) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
       return data
     },
     onSuccess: () => {
@@ -402,15 +474,14 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     }
     // Matches the reference wizard: Third-party type only turns mandatory
     // (red label) once Prospect/Customer is set to "Prospect" — confirmed
-    // by comparing societe/card.php?type=c vs type=p directly. But only
-    // enforce this when the dropdown actually has a real option to pick —
-    // its options come from /customers/lookups/, a confirmed 404 on this
-    // backend (see thirdPartyOptions.queries.ts), so it renders with zero
-    // selectable options. Requiring a value nothing can satisfy would make
-    // every Prospect submission fail permanently with no way forward; the
-    // live backend handler doesn't even read this field (see the
-    // mutationFn comment below), so skipping the check here costs nothing
-    // real once the dropdown is empty.
+    // by comparing societe/card.php?type=c vs type=p directly. The `> 0`
+    // guard is defensive, not currently load-bearing: thirdPartyTypes now
+    // comes from the real admin/dict.php?id=8 scrape (13 real options), so
+    // this requirement is satisfiable again. Left in place in case that
+    // source ever goes down the way /customers/lookups/ already has —
+    // requiring a value nothing can satisfy would permanently block every
+    // Prospect submission with no way forward, same failure mode this line
+    // was originally added to fix.
     if (values.prospectCustomer === 'Prospect' && !values.thirdPartyType && (formOptions?.thirdPartyTypes?.length ?? 0) > 0) {
       setFormError('Third-party type is required for prospects.')
       setStep(0)
@@ -463,30 +534,14 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             </div>
           </div>
 
-          {variant === 'vendor' && (
-            <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
-              <TriangleAlert size={18} className="text-warning-fg shrink-0 mt-0.5" />
-              <p className="text-xs text-warning-fg">
-                The backend's create endpoint has no way to flag a record as a supplier — reading its source directly confirms it always creates a plain customer record
-                regardless of what's submitted here. This will save as a customer, not a vendor, in the real database.
-              </p>
-            </Card>
-          )}
-
-          {/* Same backend limitation as the vendor banner above, confirmed live
-              (not just from source): submitting this form returns
-              {"message":"Customer created successfully"} and a "CU..." ref
-              regardless of the Prospect/Customer dropdown here — the create
-              endpoint unconditionally sets client=1. */}
-          {variant === 'prospect' && (
-            <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
-              <TriangleAlert size={18} className="text-warning-fg shrink-0 mt-0.5" />
-              <p className="text-xs text-warning-fg">
-                The backend's create endpoint has no way to flag a record as a prospect — confirmed live, it always creates a plain customer record regardless of what's
-                submitted here. This will save as a customer, not a prospect, in the real database.
-              </p>
-            </Card>
-          )}
+          {/* Vendor/Prospect used to show a warning banner here explaining that
+              /api/customer/?action=create always saved a plain customer
+              regardless of variant. That's no longer true — this form now
+              submits to societe/api/societes.php, the real endpoint the
+              legacy wizard itself uses, which correctly reads client/
+              fournisseur (confirmed live per-variant: Customer client=1,
+              Prospect client=2, Vendor client=0+fournisseur=1). No banner
+              needed since the save is now correct. */}
 
           {/* /customers/lookups/ and /customers/groups/ don't exist on the currently-active
               backend, so Business entity type, Incoterms, Environment, and Customer Group
