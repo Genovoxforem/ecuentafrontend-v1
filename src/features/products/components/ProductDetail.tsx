@@ -253,7 +253,7 @@ function StatChip({ label, value }: { label: string; value: string }) {
     </span>
   )
 }
-
+  
 // Bigger stat tile for the Stock/UOM/Supplier Prices tabs (base unit,
 // conversions count, supplier count, etc.) — same {label above, value, caption
 // below} shape as the Customers list's own stat cards, just a tab-local
@@ -2237,6 +2237,27 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
   )
 }
 
+// Legacy's Related Items rows link out to that document type's own list
+// page (propal.php, commande.php, facture.php, ...), each pre-filtered to
+// this product — this app has no per-product filter on those list pages
+// yet, so these route to the real, live list module for that document type
+// instead (same destination a user would reach from the sidebar), rather
+// than routing back to the legacy PHP page per the standing rule. Matched
+// by keyword rather than exact string since the API's referer labels aren't
+// a fixed enum (confirmed live: "Purchase orders" is lowercase "orders"
+// unlike its siblings).
+function refererListRoute(label: string): string | null {
+  const l = label.toLowerCase()
+  if (l.includes('quotation')) return ROUTES.quotationList
+  if (l.includes('supplierproposal') || l.includes('supplier proposal')) return ROUTES.supplierProposalList
+  if (l.includes('sales order')) return ROUTES.orderList
+  if (l.includes('purchase order')) return ROUTES.purchaseOrderList
+  if (l.includes('customer') && l.includes('invoice')) return ROUTES.invoiceList
+  if (l.includes('vendor') && l.includes('invoice')) return ROUTES.vendorInvoiceList
+  if (l.includes('contract')) return ROUTES.contractList
+  return null
+}
+
 // Invoice Stats tab (invoice_stats_api.php) — customer invoices with this
 // product, paginated + filterable by month/year. Mirrors legacy's "Related items"
 // table exactly (product/stats/facture.php), with Period/Year/PageSize filters
@@ -2282,18 +2303,29 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
             {data.referers.length === 0 ? (
               <EmptyRow span={4} label="No related items for this product." />
             ) : (
-              data.referers.map((r) => (
-                <tr key={r.label} className="border-b border-border last:border-0">
-                  <Td>{r.label}</Td>
-                  <Td right muted>
-                    {formatNumber(r.nbThirdparties)}
-                  </Td>
-                  <Td right muted>
-                    {r.nbObjects}
-                  </Td>
-                  <Td right>{r.qty}</Td>
-                </tr>
-              ))
+              data.referers.map((r) => {
+                const route = refererListRoute(r.label)
+                return (
+                  <tr key={r.label} className="border-b border-border last:border-0">
+                    <Td>
+                      {route ? (
+                        <Link to={route} className="text-brand hover:underline">
+                          {r.label}
+                        </Link>
+                      ) : (
+                        r.label
+                      )}
+                    </Td>
+                    <Td right muted>
+                      {formatNumber(r.nbThirdparties)}
+                    </Td>
+                    <Td right muted>
+                      {r.nbObjects}
+                    </Td>
+                    <Td right>{r.qty}</Td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
           {data.referers.length > 0 && (
@@ -2381,9 +2413,22 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                   ) : (
                     data.invoices.map((inv) => (
                       <tr key={inv.id} className="border-b border-border last:border-0">
-                        <Td muted>{inv.ref}</Td>
+                        <Td muted>
+                          {/* No per-invoice detail page exists in this rebuild yet
+                              (routes.ts has no invoiceDetail route) — routes to the
+                              real Invoices module rather than back to the legacy
+                              facture.php card, consistent with the Related Items
+                              links above. */}
+                          <Link to={ROUTES.invoiceList} className="text-brand hover:underline">
+                            {inv.ref}
+                          </Link>
+                        </Td>
                         <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
-                        <Td>{inv.company}</Td>
+                        <Td>
+                          <Link to={ROUTES.customerList} className="text-brand hover:underline">
+                            {inv.company}
+                          </Link>
+                        </Td>
                         <Td muted>{inv.customerCode}</Td>
                         <Td right muted>
                           {formatNumber(inv.qty)}
