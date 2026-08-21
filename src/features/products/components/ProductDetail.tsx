@@ -406,9 +406,9 @@ export function ProductDetail() {
                 <StatChip label="Price Inc." value={formatMoney(product.priceInclTax)} />
                 <StatChip label="Stock" value={formatNumber(product.stock)} />
                 {product.barcode && (
-                  <div className="flex flex-col items-center gap-0.5 shrink-0 ml-2">
-                    <ProductBarcodeGraphic value={product.barcode} height={28} width={0.9} />
-                    <span className="text-[8px] text-text-faint whitespace-nowrap">{product.barcode}</span>
+                  <div className="flex flex-col items-center gap-0.5 shrink-0 ml-3">
+                    <ProductBarcodeGraphic value={product.barcode} height={36} width={1.0} />
+                    <span className="text-[9px] text-text-faint whitespace-nowrap">{product.barcode}</span>
                   </div>
                 )}
               </div>
@@ -460,8 +460,8 @@ export function ProductDetail() {
           </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-border px-0">
-            <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden">
+          <div className="border-t border-border">
+            <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden -mx-6 px-6" style={{ scrollBehavior: 'smooth' }}>
               {TABS.map(({ label: t, icon: Icon }) => (
                 <button
                   key={t}
