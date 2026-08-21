@@ -410,7 +410,7 @@ export function ProductDetail() {
           </div>
 
           {product.barcode && (
-            <div className="flex flex-col items-center gap-0.5 shrink-0 ml-auto mr-12">
+            <div className="flex flex-col items-center gap-0.5 shrink-0 ml-4 mr-auto">
               <ProductBarcodeGraphic value={product.barcode} height={32} width={1.1} />
               <span className="text-[10px] text-text-faint whitespace-nowrap">{product.barcode}</span>
             </div>
