@@ -18,7 +18,7 @@ const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
 // Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
 // one list so the dev proxy below and the generated production .htaccess
 // (see htaccessPlugin) can never drift apart from each other.
-const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants', '/projet', '/categories', '/comm', '/core', '/societe', '/productinfo'] as const
+const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants', '/projet', '/categories', '/comm', '/core', '/societe', '/productinfo', '/admin'] as const
 
 // Production deploys this build's dist/ output onto the backend's own
 // origin (e.g. https://demo1.ecuenta.online), alongside its existing PHP
@@ -156,6 +156,14 @@ export default defineConfig({
       // React route starts with /productinfo, so a plain prefix is safe,
       // but anchored anyway to match the rest of this list.
       '^/productinfo(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Legacy dictionary pages (admin/dict.php?id=N) — no REST endpoint
+      // exists for these on this backend (/customers/lookups/ 404s), but
+      // the real PHP admin pages themselves are live and session-cookie
+      // authenticated like every other legacy-scrape source in this app —
+      // see legacyDictionaryParser.ts. No React route starts with /admin,
+      // so a plain prefix is safe, but anchored anyway to match the rest
+      // of this list.
+      '^/admin(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

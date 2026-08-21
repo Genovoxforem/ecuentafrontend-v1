@@ -92,6 +92,10 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
   // Safe defaults if formOptions is null or properties are missing
   const countryOptions = formOptions?.countries?.map(c => c.label) ?? ['Zambia']
   const currencyOptions = formOptions?.currencies?.map(c => c.label) ?? ['Zambian Kwacha (ZMW)']
+  // Real dictionary data is alphabetical (Afghanistan Afghani first) — for
+  // this Zambia-focused deployment, default to the real Zambian Kwacha
+  // entry when present instead of whatever's alphabetically first.
+  const defaultCurrencyLabel = currencyOptions.find((label) => /zambia/i.test(label)) ?? currencyOptions[0] ?? 'Zambian Kwacha (ZMW)'
   const customerGroupOptions = formOptions?.customerGroups?.map(g => g.label) ?? []
   const thirdPartyTypeOptions = formOptions?.thirdPartyTypes?.map(t => t.label) ?? []
   
@@ -135,7 +139,7 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
   fields.push(
     { key: 'country', label: 'Country', type: 'select', options: countryOptions, defaultValue: countryOptions[0] ?? 'Zambia', icon: Globe, section: 'Location & Currency' },
     { key: 'address', label: 'Address', type: 'text', icon: MapPin, section: 'Location & Currency' },
-    { key: 'currency', label: 'Currency', type: 'select', options: currencyOptions, defaultValue: currencyOptions[0] ?? 'Zambian Kwacha (ZMW)', icon: Coins, section: 'Location & Currency' },
+    { key: 'currency', label: 'Currency', type: 'select', options: currencyOptions, defaultValue: defaultCurrencyLabel, icon: Coins, section: 'Location & Currency' },
     { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: thirdPartyTypeOptions, icon: Layers, section: 'Location & Currency' },
   )
   return fields
@@ -306,6 +310,22 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     setValues((prev) => ({ ...prev, country: (home ?? formOptions.countries[0]).label }))
   }, [formOptions?.countries, formOptions?.defaultCountryId])
 
+  // Same stale-fallback problem as Country above: `values.currency` starts
+  // out as the bare fallback string 'Zambian Kwacha (ZMW)' (buildStep1's
+  // own fallback, used before formOptions loads), which doesn't exactly
+  // match any real option once the live dict.php currency list arrives
+  // (its real label is just 'Zambian Kwacha', no code suffix) — left alone
+  // the <select> silently falls back to its first (alphabetical) option,
+  // "Afghanistan Afghani". Snap to the real Zambian Kwacha entry once real
+  // data loads, same "never overwrite an actual user selection" guard.
+  useEffect(() => {
+    if (!formOptions?.currencies?.length) return
+    const isRealCurrency = formOptions.currencies.some((c) => c.label === values.currency)
+    if (isRealCurrency) return
+    const zmw = formOptions.currencies.find((c) => /zambia/i.test(c.label))
+    setValues((prev) => ({ ...prev, currency: (zmw ?? formOptions.currencies[0]).label }))
+  }, [formOptions?.currencies])
+
   // State/Province is reactive to the selected Country — legacy's own field
   // (select_state($country_code), societe/card.php) works the same way — so
   // it's fetched separately from the rest of useThirdPartyFormOptions rather
@@ -382,8 +402,16 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     }
     // Matches the reference wizard: Third-party type only turns mandatory
     // (red label) once Prospect/Customer is set to "Prospect" — confirmed
-    // by comparing societe/card.php?type=c vs type=p directly.
-    if (values.prospectCustomer === 'Prospect' && !values.thirdPartyType) {
+    // by comparing societe/card.php?type=c vs type=p directly. But only
+    // enforce this when the dropdown actually has a real option to pick —
+    // its options come from /customers/lookups/, a confirmed 404 on this
+    // backend (see thirdPartyOptions.queries.ts), so it renders with zero
+    // selectable options. Requiring a value nothing can satisfy would make
+    // every Prospect submission fail permanently with no way forward; the
+    // live backend handler doesn't even read this field (see the
+    // mutationFn comment below), so skipping the check here costs nothing
+    // real once the dropdown is empty.
+    if (values.prospectCustomer === 'Prospect' && !values.thirdPartyType && (formOptions?.thirdPartyTypes?.length ?? 0) > 0) {
       setFormError('Third-party type is required for prospects.')
       setStep(0)
       return
@@ -445,17 +473,36 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             </Card>
           )}
 
+          {/* Same backend limitation as the vendor banner above, confirmed live
+              (not just from source): submitting this form returns
+              {"message":"Customer created successfully"} and a "CU..." ref
+              regardless of the Prospect/Customer dropdown here — the create
+              endpoint unconditionally sets client=1. */}
+          {variant === 'prospect' && (
+            <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
+              <TriangleAlert size={18} className="text-warning-fg shrink-0 mt-0.5" />
+              <p className="text-xs text-warning-fg">
+                The backend's create endpoint has no way to flag a record as a prospect — confirmed live, it always creates a plain customer record regardless of what's
+                submitted here. This will save as a customer, not a prospect, in the real database.
+              </p>
+            </Card>
+          )}
+
           {/* /customers/lookups/ and /customers/groups/ don't exist on the currently-active
-              backend — several selects below (Currency, Business entity type, Third-party
-              type, Workforce, Incoterms, Environment, Customer Group) and the auto-generated
-              Customer/Vendor code preview come back empty as a result. This explains that gap
-              once, up front, instead of leaving each affected field looking silently broken. */}
+              backend, so Business entity type, Incoterms, Environment, and Customer Group
+              (plus the auto-generated Customer/Vendor code preview) come back empty. Currency,
+              Third-party type, and Workforce used to be in this same list, but now come from
+              the real legacy admin/dict.php pages instead (see thirdPartyOptions.queries.ts) —
+              removed here so this banner only names what's still genuinely unfilled. Business
+              entity type stays lumped in with the dead-endpoint fields even though its own
+              dict.php page (id=1) is real: it has zero rows for Zambia specifically, so it's
+              no more usable than if the endpoint didn't exist at all. */}
           {optionsUnavailable && (
             <Card className="!bg-neutral-bg border-border flex items-start gap-3">
               <CloudOff size={18} className="text-text-faint shrink-0 mt-0.5" />
               <p className="text-xs text-text-faint">
-                Some dropdown data (Currency, Business entity type, Third-party type, Workforce, Incoterms, Environment, Customer Group) and the auto-generated Customer/Vendor code
-                aren't available on this backend yet — those fields may show no options. This isn't a bug in the form.
+                Some dropdown data (Business entity type, Incoterms, Environment, Customer Group) and the auto-generated Customer/Vendor code aren't available on this backend
+                yet — those fields may show no options. This isn't a bug in the form.
               </p>
             </Card>
           )}

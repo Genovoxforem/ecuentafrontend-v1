@@ -4,6 +4,14 @@ import { useProductFormOptions } from '../zra/createProduct.queries'
 import { useLanguageOptions } from '../users/users.queries'
 import { useCustomerGroupsSummary } from './customerGroups.queries'
 import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
+import {
+  DICTIONARY_IDS,
+  parseCurrenciesDocument,
+  parseThirdPartyTypesDocument,
+  parseWorkforceDocument,
+  looksLikeLegacyLoginPage,
+  type DictionaryOption,
+} from './legacyDictionaryParser'
 
 // Fallback country list when /zra/product-form-options/ API is unavailable
 const FALLBACK_COUNTRIES = [
@@ -79,6 +87,38 @@ export function useCustomerLookups() {
   })
 }
 
+// Currency/Third-party type/Workforce dictionaries — /customers/lookups/
+// (used above) is a confirmed 404, but the real Dolibarr admin dictionary
+// pages themselves (admin/dict.php?id=9|8|19) are live on this backend and
+// session-cookie authenticated, same as every other legacy-scrape source in
+// this app (see legacyDictionaryParser.ts for how the id-to-dictionary
+// mapping and row structure were verified). Business entity type
+// (id=1/llx_c_forme_juridique) was checked too but has zero rows for
+// Zambia, so it's deliberately left out here — still sourced from the dead
+// lookups endpoint below, same "not available" state as before.
+async function fetchLegacyDictionary(id: number): Promise<Document> {
+  const res = await fetch(`/admin/dict.php?id=${id}`, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy dictionary backend returned ${res.status}.`)
+  const html = await res.text()
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  if (looksLikeLegacyLoginPage(doc)) throw new Error('Not signed into the legacy backend.')
+  return doc
+}
+
+export function useLegacyDictionary(kind: keyof typeof DICTIONARY_IDS, parse: (doc: Document) => DictionaryOption[]) {
+  return useQuery({
+    queryKey: ['customers', 'legacyDictionary', kind],
+    queryFn: async () => parse(await fetchLegacyDictionary(DICTIONARY_IDS[kind])),
+    staleTime: 1000 * 60 * 30,
+    // Unlike /customers/lookups/ above (retry: false because that's a
+    // confirmed permanent 404), this endpoint is real and working — a
+    // failure here is more likely a transient race against
+    // establishLegacySession() still finishing (this form can be the
+    // first legacy-scrape page visited right after login), so default
+    // retry behavior applies instead of giving up after one attempt.
+  })
+}
+
 // GET /api/users/states/?countryId= (api/users/states/index.php) — real,
 // llx_c_departements joined to llx_c_regions for the given country. Legacy's
 // own State/Province field (select_state($country_code), societe/card.php)
@@ -133,14 +173,19 @@ export function useThirdPartyFormOptions() {
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
   const { data: groupsSummary, isError: groupsIsError, error: groupsError } = useCustomerGroupsSummary()
   const { data: lookups, isLoading: lookupsLoading, isError: lookupsIsError, error: lookupsError } = useCustomerLookups()
+  const { data: currencyDict, isLoading: currencyLoading } = useLegacyDictionary('currencies', parseCurrenciesDocument)
+  const { data: thirdPartyTypeDict, isLoading: thirdPartyTypeLoading } = useLegacyDictionary('thirdPartyTypes', parseThirdPartyTypesDocument)
+  const { data: workforceDict, isLoading: workforceLoading } = useLegacyDictionary('workforce', parseWorkforceDocument)
 
   // /customers/lookups/ and /customers/groups/ both don't exist on the
   // currently-active backend — when either is down, several of the
-  // dropdowns built below (Currency, Business entity type, Third-party
-  // type, Workforce, Incoterms, Environment, Sales rep, Categories,
-  // Customer Group, next Customer/Vendor code) come back as empty rather
-  // than the real dictionary data. Callers use this flag to explain that
-  // gap instead of just showing an unexplained empty select.
+  // dropdowns built below (Business entity type, Incoterms, Environment,
+  // Sales rep, Categories, Customer Group, next Customer/Vendor code) come
+  // back as empty rather than the real dictionary data. Currency,
+  // Third-party type, and Workforce are sourced from the real legacy
+  // dict.php pages instead (see useLegacyDictionary above), so they're
+  // excluded from this flag — it only needs to explain the gaps that are
+  // still genuinely unfilled.
   const optionsUnavailable = (lookupsIsError && isBackendUnavailable(lookupsError)) || (groupsIsError && isBackendUnavailable(groupsError))
 
   // Use fallback countries if API doesn't return any (e.g., /zra/product-form-options/ unavailable)
@@ -150,10 +195,10 @@ export function useThirdPartyFormOptions() {
 
   const customerGroups = groupsSummary?.groups?.map((group) => ({ value: String(group.id), label: group.label })) ?? []
 
-  const currencies = lookups?.currencies?.map((c) => ({ value: c.code, label: c.name })) ?? []
+  const currencies = currencyDict ?? []
   const businessEntityTypes = lookups?.legalForms?.map((f) => ({ value: String(f.id), label: f.label })) ?? []
-  const thirdPartyTypes = lookups?.typent?.filter((t) => t.id > 0).map((t) => ({ value: String(t.id), label: t.label })) ?? []
-  const workforce = lookups?.effectifs?.filter((e) => e.id > 0).map((e) => ({ value: String(e.id), label: e.label })) ?? []
+  const thirdPartyTypes = thirdPartyTypeDict ?? []
+  const workforce = workforceDict ?? []
   const incoterms = lookups?.incoterms?.map((i) => ({ value: String(i.id), label: i.code })) ?? []
   const environment = lookups?.entities?.map((e) => ({ value: String(e.id), label: e.label })) ?? []
   const salesReps = lookups?.salesReps?.map((r) => ({ value: String(r.id), label: r.name })) ?? []
@@ -181,7 +226,7 @@ export function useThirdPartyFormOptions() {
 
   return {
     data: options,
-    isLoading: productsLoading || languagesLoading || lookupsLoading,
+    isLoading: productsLoading || languagesLoading || lookupsLoading || currencyLoading || thirdPartyTypeLoading || workforceLoading,
     isError: false,
     optionsUnavailable,
   }
