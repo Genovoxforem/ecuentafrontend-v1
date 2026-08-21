@@ -924,10 +924,10 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className="overflow-x-auto -mx-4">
+          <div className="overflow-x-auto overflow-y-auto max-h-[600px] -mx-4 border border-border rounded">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <thead className="sticky top-0 bg-surface">
+                <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
                   <Th>Applied Prices From</Th>
                   <Th>Price Base</Th>
                   <Th right>Default Tax Rate</Th>
