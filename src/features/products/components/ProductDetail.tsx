@@ -928,9 +928,9 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className={`overflow-x-auto overflow-y-auto flex-1 -mx-4 border border-border rounded ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface">
+          <div className={`overflow-x-auto overflow-y-auto flex-1 -mx-4 border border-border rounded flex flex-col ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
+            <table className="w-full text-sm flex-1">
+              <thead className="sticky top-0 bg-surface z-10">
                 <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
                   <Th>Applied Prices From</Th>
                   <Th>Price Base</Th>
@@ -981,10 +981,9 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
                 )}
               </tbody>
             </table>
-          </div>
 
-          {totalRecords > 0 && (
-            <div className="flex items-center justify-between pt-2 border-t border-border text-xs text-text-faint">
+            {totalRecords > 0 && (
+              <div className="sticky bottom-0 flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-gray-950 dark:bg-gray-950 z-10">
               <span>
                 {pageStart}–{pageEnd} of {totalRecords}
               </span>
@@ -1010,7 +1009,8 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
                 </button>
               </div>
             </div>
-          )}
+            )}
+          </div>
         </div>
       </Card>
     </div>
