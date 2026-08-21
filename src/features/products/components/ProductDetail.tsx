@@ -872,6 +872,8 @@ function TeamsPanel({ id }: { id: string | undefined }) {
 function SellingPricesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductPriceOverview(id)
   const deleteLog = useDeletePriceLog()
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(20)
 
   if (isLoading) return <LegacyLoadingCard label="Loading selling prices…" />
   if (isError) return <LegacyErrorCard title="Couldn't load selling prices" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
@@ -881,6 +883,12 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
     if (!window.confirm('Delete this price log entry?')) return
     deleteLog.mutate({ id: id!, lineId: rowid })
   }
+
+  const totalRecords = data.priceLog.length
+  const totalPages = Math.ceil(totalRecords / pageSize)
+  const pageStart = page * pageSize + 1
+  const pageEnd = Math.min((page + 1) * pageSize, totalRecords)
+  const paginatedData = data.priceLog.slice(page * pageSize, (page + 1) * pageSize)
 
   return (
     <div className="space-y-4">
@@ -901,62 +909,104 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
       </Card>
 
       <Card className="!h-auto">
-        <SectionHeader icon={Tag} color="green">
-          Selling Prices
-        </SectionHeader>
-        <div className="overflow-x-auto -mx-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                <Th>Applied Prices From</Th>
-                <Th>Price Base</Th>
-                <Th right>Default Tax Rate</Th>
-                <Th right>HT</Th>
-                <Th right>TTC</Th>
-                <Th right>Min Price HT</Th>
-                <Th right>Min Price TTC</Th>
-                <Th>Changed By</Th>
-                {data.canDelete && <Th right>Actions</Th>}
-              </tr>
-            </thead>
-            <tbody>
-              {data.priceLog.length === 0 ? (
-                <EmptyRow span={data.canDelete ? 9 : 8} label="No price history." />
-              ) : (
-                data.priceLog.map((row) => (
-                  <tr key={row.rowid} className="border-b border-border last:border-0">
-                    <Td muted>{row.dateStr}</Td>
-                    <Td muted>{row.priceBaseType}</Td>
-                    <Td right muted>
-                      {row.vatDisplay}
-                    </Td>
-                    <Td right>{formatMoney(row.price)}</Td>
-                    <Td right>{formatMoney(row.priceTtc)}</Td>
-                    <Td right muted>
-                      {formatMoney(row.priceMin)}
-                    </Td>
-                    <Td right muted>
-                      {formatMoney(row.priceMinTtc)}
-                    </Td>
-                    <Td muted>{row.userName}</Td>
-                    {data.canDelete && (
-                      <Td right>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLog(row.rowid)}
-                          disabled={deleteLog.isPending}
-                          title="Delete log entry"
-                          className="p-1 rounded text-text-faint hover:bg-danger-bg hover:text-danger disabled:opacity-60"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <SectionHeader icon={Tag} color="green">
+              Selling Prices
+            </SectionHeader>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-text-faint">Page Size</label>
+              <select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value) || 20); setPage(0) }} className={modalInputCls + ' py-1.5 w-24'}>
+                <option value="10">10 rows</option>
+                <option value="20">20 rows</option>
+                <option value="50">50 rows</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto -mx-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                  <Th>Applied Prices From</Th>
+                  <Th>Price Base</Th>
+                  <Th right>Default Tax Rate</Th>
+                  <Th right>HT</Th>
+                  <Th right>TTC</Th>
+                  <Th right>Min Price HT</Th>
+                  <Th right>Min Price TTC</Th>
+                  <Th>Changed By</Th>
+                  {data.canDelete && <Th right>Actions</Th>}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedData.length === 0 ? (
+                  <EmptyRow span={data.canDelete ? 9 : 8} label={totalRecords === 0 ? 'No price history.' : 'No results for current page.'} />
+                ) : (
+                  paginatedData.map((row) => (
+                    <tr key={row.rowid} className="border-b border-border last:border-0">
+                      <Td muted>{row.dateStr}</Td>
+                      <Td muted>{row.priceBaseType}</Td>
+                      <Td right muted>
+                        {row.vatDisplay}
                       </Td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      <Td right>{formatMoney(row.price)}</Td>
+                      <Td right>{formatMoney(row.priceTtc)}</Td>
+                      <Td right muted>
+                        {formatMoney(row.priceMin)}
+                      </Td>
+                      <Td right muted>
+                        {formatMoney(row.priceMinTtc)}
+                      </Td>
+                      <Td muted>{row.userName}</Td>
+                      {data.canDelete && (
+                        <Td right>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLog(row.rowid)}
+                            disabled={deleteLog.isPending}
+                            title="Delete log entry"
+                            className="p-1 rounded text-text-faint hover:bg-danger-bg hover:text-danger disabled:opacity-60"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </Td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalRecords > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-border text-xs text-text-faint">
+              <span>
+                {pageStart}–{pageEnd} of {totalRecords}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={page <= 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <ChevronLeft size={12} />
+                </button>
+                <span className="px-1">
+                  {page + 1} / {totalPages || 1}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  className="p-1 rounded-md border border-border text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>
