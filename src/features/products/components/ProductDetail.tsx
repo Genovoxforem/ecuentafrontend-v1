@@ -492,7 +492,7 @@ export function ProductDetail() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4 space-y-4 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
         {actionError && <p className="text-sm text-danger mt-2">{actionError}</p>}
 
         {/* Content is its own section now, separate from the hero+tab-bar
