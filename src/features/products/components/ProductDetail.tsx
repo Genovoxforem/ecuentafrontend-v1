@@ -918,8 +918,8 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
         </div>
       </Card>
 
-      <Card className="!h-auto">
-        <div className="space-y-3">
+      <Card className="!h-auto flex flex-col">
+        <div className="space-y-3 flex-1 flex flex-col">
           <div className="flex items-center justify-between">
             <SectionHeader icon={Tag} color="green">
               Selling Prices
@@ -934,7 +934,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             </div>
           </div>
 
-          <div className="overflow-x-auto overflow-y-auto max-h-[600px] -mx-4 border border-border rounded">
+          <div className={`overflow-x-auto overflow-y-auto flex-1 -mx-4 border border-border rounded ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-surface">
                 <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
