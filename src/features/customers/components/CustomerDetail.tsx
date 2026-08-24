@@ -22,6 +22,7 @@ import {
   BookOpen,
   BadgeDollarSign,
   Building2,
+  Pencil,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -193,14 +194,29 @@ export function CustomerDetail() {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => navigate(ROUTES.customerList)}
-                className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
-                title="Close"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* societe/api/societes.php has a working create action but
+                    no update/edit action (confirmed live: action=update
+                    returns {"ok":false,"error":"Unknown action or
+                    method"}) — disabled rather than wired to a form that
+                    can't actually save. */}
+                <button
+                  type="button"
+                  disabled
+                  title="Not built yet — no update endpoint exists on this backend"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-faint text-sm font-medium cursor-default opacity-60"
+                >
+                  <Pencil size={14} /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(ROUTES.customerList)}
+                  className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
@@ -256,8 +272,7 @@ function ThirdPartyTab({ data }: { data: CustomerProfile }) {
         <InfoRow label="Business Entity Type" value={data.formeJuridique} />
         <InfoRow label="Capital" value={data.capital ? `${data.capital} ${data.currencyCode}` : ''} />
         <InfoRow label="Workforce" value={data.effectif} />
-        <InfoRow label="Prospect Level" value={data.prospectLevelLabel} />
-        <InfoRow label="Prospect Status" value={data.stcommLabel} />
+        <InfoRow label="Default Language" value={data.defaultLang} />
       </Card>
 
       <Card className="!h-auto">
@@ -294,7 +309,38 @@ function ThirdPartyTab({ data }: { data: CustomerProfile }) {
         </SectionHeader>
         <InfoRow label="Customer Accounting Code" value={data.codeCompta} />
         <InfoRow label="Supplier Accounting Code" value={data.codeComptaFournisseur} />
+        <InfoRow label="Payment Term" value={data.paymentTermLabel} />
+        <InfoRow label="Payment Type" value={data.paymentTypeLabel} />
+        <InfoRow label="Payment Bank Account" value={data.bankAccountLabel} />
+        <InfoRow label="Relative Discount %" value={data.relativeDiscountPercent ? `${data.relativeDiscountPercent}%` : ''} />
+        <InfoRow label="Global Discount" value={data.globalDiscount ? formatMoney(data.globalDiscount) : ''} />
+        <InfoRow label="Max Outstanding" value={data.maxOutstanding ? formatMoney(data.maxOutstanding) : ''} />
         <InfoRow label="Currency" value={data.currencyCode} />
+        <InfoRow label="Incoterms" value={data.incotermsLabel} />
+      </Card>
+
+      <Card className="!h-auto">
+        <SectionHeader icon={ShoppingCart} color="indigo">
+          Commercial
+        </SectionHeader>
+        <InfoRow label="Shipping Method" value={data.shippingMethodLabel} />
+        <InfoRow label="Prospect Status" value={data.stcommLabel} />
+        <InfoRow label="Prospect Potential" value={data.prospectLevelLabel} />
+        <InfoRow label="Sales Representatives" value={data.salesReps.join(', ')} />
+      </Card>
+
+      <Card className="!h-auto">
+        <SectionHeader icon={CalendarClock} color="green">
+          Status
+        </SectionHeader>
+        <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border">
+          <span className="text-xs text-text-faint shrink-0">Status</span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
+            {data.status === 1 ? 'Active' : 'Closed'}
+          </span>
+        </div>
+        <InfoRow label="Creation Date" value={data.dateCreation} />
+        <InfoRow label="Created By" value={data.createdBy} />
       </Card>
     </div>
   )

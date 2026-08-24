@@ -74,6 +74,18 @@ export interface CustomerProfile {
   meetingCount: number
   invoiceCount: number
   contactCount: number
+  shippingMethodLabel: string
+  paymentTermLabel: string
+  paymentTypeLabel: string
+  bankAccountLabel: string
+  relativeDiscountPercent: number
+  globalDiscount: number
+  maxOutstanding: number
+  incotermsLabel: string
+  dateCreation: string
+  createdBy: string
+  salesReps: string[]
+  defaultLang: string
 }
 
 interface RawSocieteProfile {
@@ -140,6 +152,20 @@ interface RawSocieteProfile {
   meeting_count: number
   invoice_count: number
   contact_count: number
+  shipping_method_label: string
+  cond_reglement_label: string
+  mode_reglement_label: string
+  bank_account_label: string
+  remise_percent: number
+  remise_absolue: number
+  outstanding_limit: number
+  incoterms_label: string
+  date_creation: string
+  created_by: string
+  // Empty on every profile checked live so far — shape not confirmed, kept
+  // loose and mapped defensively (see mapProfile) rather than assumed.
+  sales_reps: unknown[]
+  default_lang: string
 }
 
 interface RawSocieteResponse {
@@ -213,6 +239,20 @@ function mapProfile(raw: RawSocieteProfile): CustomerProfile {
     meetingCount: raw.meeting_count,
     invoiceCount: raw.invoice_count,
     contactCount: raw.contact_count,
+    shippingMethodLabel: raw.shipping_method_label,
+    paymentTermLabel: raw.cond_reglement_label,
+    paymentTypeLabel: raw.mode_reglement_label,
+    bankAccountLabel: raw.bank_account_label,
+    relativeDiscountPercent: raw.remise_percent,
+    globalDiscount: raw.remise_absolue,
+    maxOutstanding: raw.outstanding_limit,
+    incotermsLabel: raw.incoterms_label,
+    dateCreation: raw.date_creation,
+    createdBy: raw.created_by,
+    salesReps: (raw.sales_reps ?? []).map((r) =>
+      typeof r === 'string' ? r : typeof r === 'object' && r !== null ? String((r as Record<string, unknown>).name ?? (r as Record<string, unknown>).label ?? '') : String(r),
+    ),
+    defaultLang: raw.default_lang,
   }
 }
 
