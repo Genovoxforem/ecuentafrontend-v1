@@ -109,6 +109,7 @@ const LinkedFilesManualTreeModule = lazy(() => import('./modules/usersDashboard/
 const LinkedFilesAutomaticTreeModule = lazy(() => import('./modules/usersDashboard/LinkedFilesAreaModule').then((m) => ({ default: m.LinkedFilesAutomaticTreeModule })))
 const CustomersListModule = lazy(() => import('./modules/customers/CustomersListModule').then((m) => ({ default: m.CustomersListModule })))
 const CustomerCreateModule = lazy(() => import('./modules/customers/CustomerCreateModule').then((m) => ({ default: m.CustomerCreateModule })))
+const CustomerDetailModule = lazy(() => import('./modules/customers/CustomerDetailModule').then((m) => ({ default: m.CustomerDetailModule })))
 const ProspectsListModule = lazy(() => import('./modules/customers/ProspectsListModule').then((m) => ({ default: m.ProspectsListModule })))
 const ProspectCreateModule = lazy(() => import('./modules/customers/ProspectCreateModule').then((m) => ({ default: m.ProspectCreateModule })))
 const CustomerGroupListModule = lazy(() => import('./modules/customers/CustomerGroupListModule').then((m) => ({ default: m.CustomerGroupListModule })))
@@ -303,6 +304,7 @@ function App() {
                   <Route path={ROUTES.userDocumentsAutomatic} element={<RouteBoundary><LinkedFilesAutomaticTreeModule /></RouteBoundary>} />
                   <Route path={ROUTES.customerList} element={<RouteBoundary><CustomersListModule /></RouteBoundary>} />
                   <Route path={ROUTES.customersCreate} element={<RouteBoundary><CustomerCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.customerDetail} element={<RouteBoundary><CustomerDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.prospectList} element={<RouteBoundary><ProspectsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.prospectsCreate} element={<RouteBoundary><ProspectCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.customerGroupList} element={<RouteBoundary><CustomerGroupListModule /></RouteBoundary>} />

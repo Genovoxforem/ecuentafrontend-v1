@@ -26,6 +26,7 @@ const DEFAULT_COUNTRY = 'Zambia'
 
 export function toThirdPartyRow(item: SocieteListRow): ThirdPartyRow {
   return {
+    id: item.socid,
     name: item.name,
     country: item.country,
     outstandingBalance: item.outstandingBalance,

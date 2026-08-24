@@ -1,0 +1,234 @@
+import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
+
+// GET societe/api/societe.php?id=X — a real, working endpoint discovered by
+// probing the same societe/api/* namespace the Customer List (list.php) and
+// Create Customer (societes.php) features already use. Confirmed live: `tab`/
+// `action` query params are silently ignored — this always returns the SAME
+// full profile regardless, so there's exactly one call for this whole page,
+// not one per tab. Response also carries `tabs` (the legacy page's full tab
+// list) and `urls` (real legacy card.php links, kept only for reference —
+// this app routes internally instead of following them, per the standing
+// rule against linking back to legacy pages).
+export interface CustomerProfile {
+  id: number
+  name: string
+  nameAlias: string
+  nameTitle: string
+  lastname: string
+  email: string
+  phone: string
+  fax: string
+  web: string
+  address: string
+  zip: string
+  town: string
+  stateId: number
+  countryId: number
+  countryLabel: string
+  client: number
+  fournisseur: number
+  isCustomer: boolean
+  isVendor: boolean
+  status: number
+  codeClient: string
+  codeFournisseur: string
+  tpin: string
+  trackingId: string
+  vatId: string
+  capital: string
+  typentId: number
+  effectifId: number
+  formeJuridiqueCode: string
+  formeJuridique: string
+  effectif: string
+  currencyCode: string
+  groupId: number
+  branchCode: string
+  employeeNum: string
+  employerName: string
+  supervisorDetails: string
+  nrcId: string
+  nrcNum: string
+  barcode: string
+  codeCompta: string
+  codeComptaFournisseur: string
+  notePublic: string
+  notePrivate: string
+  clientLabel: string
+  prospectLevelLabel: string
+  stcommLabel: string
+  logoUrl: string
+  kpiQuotation: number
+  kpiQuotationCount: number
+  kpiOrder: number
+  kpiOrderCount: number
+  kpiInvoice: number
+  kpiInvoiceCount: number
+  kpiOutstanding: number
+  kpiOutstandingCount: number
+  advance: number
+  kpiAdvanceCount: number
+  taskCount: number
+  callCount: number
+  meetingCount: number
+  invoiceCount: number
+  contactCount: number
+}
+
+interface RawSocieteProfile {
+  id: number
+  name: string
+  name_alias: string
+  name_title: string
+  lastname: string
+  email: string
+  phone: string
+  fax: string
+  url: string
+  address: string
+  zip: string
+  town: string
+  state_id: number
+  country_id: number
+  country_label: string
+  client: number
+  fournisseur: number
+  is_customer: number
+  is_vendor: number
+  status: number
+  code_client: string
+  code_fournisseur: string
+  idprof1: string
+  idprof2: string
+  tva_intra: string
+  capital: string
+  typent_id: number
+  effectif_id: number
+  forme_juridique_code: string
+  forme_juridique: string
+  effectif: string
+  multicurrency_code: string
+  group_id: number
+  branch_code: string
+  employee_num: string
+  employer_name: string
+  supervisor_det: string
+  nrc_id: string
+  nrc_num: string
+  barcode: string
+  code_compta: string
+  code_compta_fournisseur: string
+  note_public: string
+  note_private: string
+  client_label: string
+  prospect_level_label: string
+  stcomm_label: string
+  logo_url: string
+  kpi_quotation: number
+  kpi_quotation_count: number
+  kpi_order: number
+  kpi_order_count: number
+  kpi_invoice: number
+  kpi_invoice_count: number
+  kpi_outstanding: number
+  kpi_outstanding_count: number
+  advance: number
+  kpi_advance_count: number
+  task_count: number
+  call_count: number
+  meeting_count: number
+  invoice_count: number
+  contact_count: number
+}
+
+interface RawSocieteResponse {
+  ok: boolean
+  error?: string
+  profile: RawSocieteProfile
+}
+
+function mapProfile(raw: RawSocieteProfile): CustomerProfile {
+  return {
+    id: raw.id,
+    name: raw.name,
+    nameAlias: raw.name_alias,
+    nameTitle: raw.name_title,
+    lastname: raw.lastname,
+    email: raw.email,
+    phone: raw.phone,
+    fax: raw.fax,
+    web: raw.url,
+    address: raw.address,
+    zip: raw.zip,
+    town: raw.town,
+    stateId: raw.state_id,
+    countryId: raw.country_id,
+    countryLabel: raw.country_label,
+    client: raw.client,
+    fournisseur: raw.fournisseur,
+    isCustomer: raw.is_customer === 1,
+    isVendor: raw.is_vendor === 1,
+    status: raw.status,
+    codeClient: raw.code_client,
+    codeFournisseur: raw.code_fournisseur,
+    tpin: raw.idprof1,
+    trackingId: raw.idprof2,
+    vatId: raw.tva_intra,
+    capital: raw.capital,
+    typentId: raw.typent_id,
+    effectifId: raw.effectif_id,
+    formeJuridiqueCode: raw.forme_juridique_code,
+    formeJuridique: raw.forme_juridique,
+    effectif: raw.effectif,
+    currencyCode: raw.multicurrency_code,
+    groupId: raw.group_id,
+    branchCode: raw.branch_code,
+    employeeNum: raw.employee_num,
+    employerName: raw.employer_name,
+    supervisorDetails: raw.supervisor_det,
+    nrcId: raw.nrc_id,
+    nrcNum: raw.nrc_num,
+    barcode: raw.barcode,
+    codeCompta: raw.code_compta,
+    codeComptaFournisseur: raw.code_compta_fournisseur,
+    notePublic: raw.note_public,
+    notePrivate: raw.note_private,
+    clientLabel: raw.client_label,
+    prospectLevelLabel: raw.prospect_level_label,
+    stcommLabel: raw.stcomm_label,
+    logoUrl: raw.logo_url,
+    kpiQuotation: raw.kpi_quotation,
+    kpiQuotationCount: raw.kpi_quotation_count,
+    kpiOrder: raw.kpi_order,
+    kpiOrderCount: raw.kpi_order_count,
+    kpiInvoice: raw.kpi_invoice,
+    kpiInvoiceCount: raw.kpi_invoice_count,
+    kpiOutstanding: raw.kpi_outstanding,
+    kpiOutstandingCount: raw.kpi_outstanding_count,
+    advance: raw.advance,
+    kpiAdvanceCount: raw.kpi_advance_count,
+    taskCount: raw.task_count,
+    callCount: raw.call_count,
+    meetingCount: raw.meeting_count,
+    invoiceCount: raw.invoice_count,
+    contactCount: raw.contact_count,
+  }
+}
+
+export function useCustomerDetail(id: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', id],
+    queryFn: async (): Promise<CustomerProfile> => {
+      const { data } = await axios.get<string>(`/societe/api/societe.php`, {
+        params: { id },
+        transformResponse: (raw) => raw,
+      })
+      const parsed: RawSocieteResponse = JSON.parse(data.trim())
+      if (!parsed.ok) throw new Error(parsed.error ?? 'Failed to load third party')
+      return mapProfile(parsed.profile)
+    },
+    enabled: !!id,
+    staleTime: 1000 * 30,
+  })
+}

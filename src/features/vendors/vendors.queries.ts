@@ -55,6 +55,7 @@ interface WebEnvelope<T> {
 
 export function toRow(item: ListItem): ThirdPartyRow {
   return {
+    id: item.id,
     name: item.name ?? '',
     country: item.countryLabel ?? '',
     outstandingBalance: item.outstandingBalance,

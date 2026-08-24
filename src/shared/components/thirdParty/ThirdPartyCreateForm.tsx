@@ -53,6 +53,7 @@ import axios from 'axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { useThirdPartyFormOptions, useStatesByCountry, fetchSocieteFormContext } from '../../../features/customers/thirdPartyOptions.queries'
+import { ROUTES } from '../../../routes'
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 
@@ -445,11 +446,16 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
       if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [variant === 'vendor' ? 'vendors' : 'customers', 'summary'] })
       const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
       logActivity({ label: `New ${variant} added: ${values.name.trim()}`, category: 'thirdparty', authorName })
-      navigate(cancelPath)
+      // Land on the real detail page (native rebuild of societe/card.php)
+      // instead of the list — matches what the legacy wizard itself does on
+      // create. Falls back to cancelPath only if the response somehow
+      // didn't carry an id (shouldn't happen given data.ok was already
+      // checked above, but this mutation's return type marks id optional).
+      navigate(data.id ? ROUTES.customerDetail.replace(':id', String(data.id)) : cancelPath)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create third party'),
   })
