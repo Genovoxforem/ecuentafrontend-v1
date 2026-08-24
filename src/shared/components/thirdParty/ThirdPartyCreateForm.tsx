@@ -44,7 +44,6 @@ import {
   ScanLine,
   Paperclip,
   Share2,
-  CloudOff,
 } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 import { StickyFormShell } from '../layout/StickyFormShell'
@@ -260,7 +259,7 @@ interface CreateThirdPartyResponse {
 
 export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant; cancelPath: string }) {
   // Fetch form options
-  const { data: formOptions, isLoading: formOptionsLoading, optionsUnavailable } = useThirdPartyFormOptions()
+  const { data: formOptions, isLoading: formOptionsLoading } = useThirdPartyFormOptions()
 
   const [step, setStep] = useState(0)
 
@@ -543,24 +542,6 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
               Prospect client=2, Vendor client=0+fournisseur=1). No banner
               needed since the save is now correct. */}
 
-          {/* /customers/lookups/ and /customers/groups/ don't exist on the currently-active
-              backend, so Business entity type, Incoterms, Environment, and Customer Group
-              (plus the auto-generated Customer/Vendor code preview) come back empty. Currency,
-              Third-party type, and Workforce used to be in this same list, but now come from
-              the real legacy admin/dict.php pages instead (see thirdPartyOptions.queries.ts) —
-              removed here so this banner only names what's still genuinely unfilled. Business
-              entity type stays lumped in with the dead-endpoint fields even though its own
-              dict.php page (id=1) is real: it has zero rows for Zambia specifically, so it's
-              no more usable than if the endpoint didn't exist at all. */}
-          {optionsUnavailable && (
-            <Card className="!bg-neutral-bg border-border flex items-start gap-3">
-              <CloudOff size={18} className="text-text-faint shrink-0 mt-0.5" />
-              <p className="text-xs text-text-faint">
-                Some dropdown data (Business entity type, Incoterms, Environment, Customer Group) and the auto-generated Customer/Vendor code aren't available on this backend
-                yet — those fields may show no options. This isn't a bug in the form.
-              </p>
-            </Card>
-          )}
 
           <div className="flex items-center">
             {steps.map((s, i) => {
