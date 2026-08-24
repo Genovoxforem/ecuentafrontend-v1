@@ -23,13 +23,16 @@ import {
   BadgeDollarSign,
   Building2,
   Pencil,
+  Check,
+  BadgeCheck,
+  TriangleAlert,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useCustomerDetail, type CustomerProfile } from '../customerDetail.queries'
+import { useCustomerDetail, useUpdateCustomer, type CustomerProfile, type CustomerEditableFields } from '../customerDetail.queries'
 import { useRecentActivity } from '../../agenda/agenda.queries'
 
 // Native rebuild of the legacy Third-Party detail page
@@ -71,6 +74,25 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border last:border-0">
       <span className="text-xs text-text-faint shrink-0">{label}</span>
       <span className="text-sm text-text! text-right">{value || <span className="text-text-faint">—</span>}</span>
+    </div>
+  )
+}
+
+// Same row, but becomes a real text input while the page is in edit mode —
+// used only for the plain-string fields CustomerEditableFields covers.
+// Falls back to the read-only InfoRow display outside edit mode so callers
+// don't need two separate components per field.
+function EditableRow({ label, value, editing, onChange }: { label: string; value: string; editing: boolean; onChange: (v: string) => void }) {
+  if (!editing) return <InfoRow label={label} value={value} />
+  return (
+    <div className="flex items-center justify-between gap-4 py-1.5 border-b border-border last:border-0">
+      <span className="text-xs text-text-faint shrink-0">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-sm text-text! text-right bg-input-bg border border-input-border rounded-md px-2 py-1 w-full max-w-[220px] focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+      />
     </div>
   )
 }
@@ -125,6 +147,9 @@ export function CustomerDetail() {
   const navigate = useNavigate()
   const { data, isLoading, isError, error, refetch } = useCustomerDetail(id)
   const [tab, setTab] = useState<TabKey>('societe')
+  const [isEditing, setIsEditing] = useState(false)
+  const [formValues, setFormValues] = useState<CustomerEditableFields>({})
+  const updateCustomer = useUpdateCustomer(Number(id))
 
   if (isLoading) {
     return (
@@ -143,6 +168,39 @@ export function CustomerDetail() {
 
   const natureBadge = data.isCustomer && data.client === 2 ? 'Prospect' : data.isCustomer ? 'Customer' : data.isVendor ? 'Vendor' : 'Third-party'
   const displayName = [data.nameTitle, data.name, data.lastname].filter(Boolean).join(' ').trim() || data.name
+
+  function startEditing() {
+    updateCustomer.reset()
+    setFormValues({
+      name: data!.name,
+      lastname: data!.lastname,
+      phone: data!.phone,
+      email: data!.email,
+      fax: data!.fax,
+      web: data!.web,
+      address: data!.address,
+      zip: data!.zip,
+      town: data!.town,
+      tpin: data!.tpin,
+      trackingId: data!.trackingId,
+      vatId: data!.vatId,
+      employerName: data!.employerName,
+      employeeNum: data!.employeeNum,
+      supervisorDetails: data!.supervisorDetails,
+      branchCode: data!.branchCode,
+      nrcNum: data!.nrcNum,
+      capital: data!.capital,
+      barcode: data!.barcode,
+    })
+    setIsEditing(true)
+  }
+  function cancelEditing() {
+    setIsEditing(false)
+    updateCustomer.reset()
+  }
+  function setField(key: keyof CustomerEditableFields) {
+    return (value: string) => setFormValues((prev) => ({ ...prev, [key]: value }))
+  }
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
@@ -166,11 +224,35 @@ export function CustomerDetail() {
                 <Avatar name={data.name} size={64} rounded="lg" color="bg-brand" />
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-bold text-text!">{displayName}</h2>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={formValues.name ?? ''}
+                          onChange={(e) => setField('name')(e.target.value)}
+                          placeholder="First name"
+                          className="text-lg font-bold text-text! bg-input-bg border border-input-border rounded-md px-2 py-0.5 w-32 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                        />
+                        <input
+                          type="text"
+                          value={formValues.lastname ?? ''}
+                          onChange={(e) => setField('lastname')(e.target.value)}
+                          placeholder="Last name"
+                          className="text-lg font-bold text-text! bg-input-bg border border-input-border rounded-md px-2 py-0.5 w-32 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                        />
+                      </div>
+                    ) : (
+                      <h2 className="text-lg font-bold text-text!">{displayName}</h2>
+                    )}
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{natureBadge}</span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
                       {data.status === 1 ? 'Active' : 'Closed'}
                     </span>
+                    {data.zraStatus && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-bg text-success-fg text-xs font-medium">
+                        <BadgeCheck size={12} /> {data.zraStatus}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-text-faint">
                     #{data.id} {data.codeCompta && `· ${data.codeCompta}`}
@@ -195,29 +277,67 @@ export function CustomerDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {/* societe/api/societes.php has a working create action but
-                    no update/edit action (confirmed live: action=update
-                    returns {"ok":false,"error":"Unknown action or
-                    method"}) — disabled rather than wired to a form that
-                    can't actually save. */}
-                <button
-                  type="button"
-                  disabled
-                  title="Not built yet — no update endpoint exists on this backend"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-faint text-sm font-medium cursor-default opacity-60"
-                >
-                  <Pencil size={14} /> Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate(ROUTES.customerList)}
-                  className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
-                  title="Close"
-                >
-                  <X size={18} />
-                </button>
+                {isEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={updateCustomer.isPending}
+                      onClick={() => updateCustomer.mutate(formValues, { onSuccess: () => setIsEditing(false) })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
+                    >
+                      <Check size={14} /> {updateCustomer.isPending ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={startEditing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(ROUTES.customerList)}
+                      className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
+                      title="Close"
+                    >
+                      <X size={18} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
+
+            {/* societe/api/societes.php has a working create action but no
+                real update action (confirmed live: action="update" — and
+                every other verb tried, edit/save/modify/patch/set/
+                update_extra — returns {"ok":false,"error":"Unknown action
+                or method"}; the legacy card.php?action=edit page doesn't
+                expose the third party's own fields as an editable form
+                either). Save still attempts the real call rather than being
+                disabled outright — same "attempt the real action, surface
+                the real error" pattern as Duplicate elsewhere in this app —
+                so this starts working with no frontend change the moment
+                the backend adds the action, and until then shows the actual
+                rejection instead of a fake success. */}
+            {updateCustomer.isError && (
+              <div className="flex items-start gap-2 px-4 py-2.5 border-b border-border bg-danger-bg text-danger-fg text-xs">
+                <TriangleAlert size={14} className="shrink-0 mt-0.5" />
+                <span>
+                  Couldn't save: {updateCustomer.error instanceof Error ? updateCustomer.error.message : 'Unknown error.'}. This backend doesn't support editing third parties yet — the create
+                  action works, but no update action exists.
+                </span>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
               <StatTile label="Quotations" value={formatMoney(data.kpiQuotation)} count={data.kpiQuotationCount} />
@@ -248,7 +368,7 @@ export function CustomerDetail() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
-        {tab === 'societe' && <ThirdPartyTab data={data} />}
+        {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} />}
         {tab === 'notes' && <NotesTab data={data} />}
         {tab === 'activities' && <ActivitiesTab />}
         {tab !== 'societe' && tab !== 'notes' && tab !== 'activities' && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
@@ -257,7 +377,17 @@ export function CustomerDetail() {
   )
 }
 
-function ThirdPartyTab({ data }: { data: CustomerProfile }) {
+function ThirdPartyTab({
+  data,
+  isEditing,
+  formValues,
+  setField,
+}: {
+  data: CustomerProfile
+  isEditing: boolean
+  formValues: CustomerEditableFields
+  setField: (key: keyof CustomerEditableFields) => (value: string) => void
+}) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card className="!h-auto">
@@ -268,9 +398,9 @@ function ThirdPartyTab({ data }: { data: CustomerProfile }) {
         <InfoRow label="Vendor" value={data.isVendor ? 'Yes' : 'No'} />
         <InfoRow label="Customer Code" value={data.codeClient} />
         <InfoRow label="Supplier Code" value={data.codeFournisseur} />
-        <InfoRow label="Barcode" value={data.barcode} />
+        <EditableRow label="Barcode" value={formValues.barcode ?? data.barcode} editing={isEditing} onChange={setField('barcode')} />
         <InfoRow label="Business Entity Type" value={data.formeJuridique} />
-        <InfoRow label="Capital" value={data.capital ? `${data.capital} ${data.currencyCode}` : ''} />
+        <EditableRow label="Capital" value={formValues.capital ?? data.capital} editing={isEditing} onChange={setField('capital')} />
         <InfoRow label="Workforce" value={data.effectif} />
         <InfoRow label="Default Language" value={data.defaultLang} />
       </Card>
@@ -279,13 +409,13 @@ function ThirdPartyTab({ data }: { data: CustomerProfile }) {
         <SectionHeader icon={MapPin} color="green">
           Contact & Address
         </SectionHeader>
-        <InfoRow label="Phone" value={data.phone} />
-        <InfoRow label="Email" value={data.email} />
-        <InfoRow label="Fax" value={data.fax} />
-        <InfoRow label="Website" value={data.web} />
-        <InfoRow label="Address" value={data.address} />
-        <InfoRow label="Zip" value={data.zip} />
-        <InfoRow label="Town" value={data.town} />
+        <EditableRow label="Phone" value={formValues.phone ?? data.phone} editing={isEditing} onChange={setField('phone')} />
+        <EditableRow label="Email" value={formValues.email ?? data.email} editing={isEditing} onChange={setField('email')} />
+        <EditableRow label="Fax" value={formValues.fax ?? data.fax} editing={isEditing} onChange={setField('fax')} />
+        <EditableRow label="Website" value={formValues.web ?? data.web} editing={isEditing} onChange={setField('web')} />
+        <EditableRow label="Address" value={formValues.address ?? data.address} editing={isEditing} onChange={setField('address')} />
+        <EditableRow label="Zip" value={formValues.zip ?? data.zip} editing={isEditing} onChange={setField('zip')} />
+        <EditableRow label="Town" value={formValues.town ?? data.town} editing={isEditing} onChange={setField('town')} />
         <InfoRow label="Country" value={data.countryLabel} />
       </Card>
 
@@ -293,14 +423,14 @@ function ThirdPartyTab({ data }: { data: CustomerProfile }) {
         <SectionHeader icon={FileText} color="violet">
           IDs & Professional
         </SectionHeader>
-        <InfoRow label="TPIN" value={data.tpin} />
-        <InfoRow label="Tracking Id" value={data.trackingId} />
-        <InfoRow label="VAT ID" value={data.vatId} />
-        <InfoRow label="Employer Name" value={data.employerName} />
-        <InfoRow label="Employee Number" value={data.employeeNum} />
-        <InfoRow label="Supervisor Details" value={data.supervisorDetails} />
-        <InfoRow label="Branch Code" value={data.branchCode} />
-        <InfoRow label="NRC Number" value={data.nrcNum} />
+        <EditableRow label="TPIN" value={formValues.tpin ?? data.tpin} editing={isEditing} onChange={setField('tpin')} />
+        <EditableRow label="Tracking Id" value={formValues.trackingId ?? data.trackingId} editing={isEditing} onChange={setField('trackingId')} />
+        <EditableRow label="VAT ID" value={formValues.vatId ?? data.vatId} editing={isEditing} onChange={setField('vatId')} />
+        <EditableRow label="Employer Name" value={formValues.employerName ?? data.employerName} editing={isEditing} onChange={setField('employerName')} />
+        <EditableRow label="Employee Number" value={formValues.employeeNum ?? data.employeeNum} editing={isEditing} onChange={setField('employeeNum')} />
+        <EditableRow label="Supervisor Details" value={formValues.supervisorDetails ?? data.supervisorDetails} editing={isEditing} onChange={setField('supervisorDetails')} />
+        <EditableRow label="Branch Code" value={formValues.branchCode ?? data.branchCode} editing={isEditing} onChange={setField('branchCode')} />
+        <EditableRow label="NRC Number" value={formValues.nrcNum ?? data.nrcNum} editing={isEditing} onChange={setField('nrcNum')} />
       </Card>
 
       <Card className="!h-auto">

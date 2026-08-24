@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
+import { fetchSocieteFormContext } from './thirdPartyOptions.queries'
 
 // GET societe/api/societe.php?id=X — a real, working endpoint discovered by
 // probing the same societe/api/* namespace the Customer List (list.php) and
@@ -59,6 +60,7 @@ export interface CustomerProfile {
   prospectLevelLabel: string
   stcommLabel: string
   logoUrl: string
+  zraStatus: string
   kpiQuotation: number
   kpiQuotationCount: number
   kpiOrder: number
@@ -137,6 +139,7 @@ interface RawSocieteProfile {
   prospect_level_label: string
   stcomm_label: string
   logo_url: string
+  zrastatus: string
   kpi_quotation: number
   kpi_quotation_count: number
   kpi_order: number
@@ -224,6 +227,7 @@ function mapProfile(raw: RawSocieteProfile): CustomerProfile {
     prospectLevelLabel: raw.prospect_level_label,
     stcommLabel: raw.stcomm_label,
     logoUrl: raw.logo_url,
+    zraStatus: raw.zrastatus,
     kpiQuotation: raw.kpi_quotation,
     kpiQuotationCount: raw.kpi_quotation_count,
     kpiOrder: raw.kpi_order,
@@ -270,5 +274,73 @@ export function useCustomerDetail(id: string | undefined) {
     },
     enabled: !!id,
     staleTime: 1000 * 30,
+  })
+}
+
+// Fields the Third-party tab's Edit mode lets a user change — the plain
+// text ones only, matching the scope of this edit UI (Country/Currency/
+// Business entity type/etc. stay read-only, same reasoning as the create
+// form: a proper picker for each is real work with no payoff if the save
+// itself can't land, see below).
+export type CustomerEditableFields = Partial<
+  Pick<
+    CustomerProfile,
+    | 'name'
+    | 'lastname'
+    | 'phone'
+    | 'email'
+    | 'fax'
+    | 'web'
+    | 'address'
+    | 'zip'
+    | 'town'
+    | 'tpin'
+    | 'trackingId'
+    | 'vatId'
+    | 'employerName'
+    | 'employeeNum'
+    | 'supervisorDetails'
+    | 'branchCode'
+    | 'nrcNum'
+    | 'capital'
+    | 'barcode'
+  >
+>
+
+// No real update action exists on societe/api/societes.php — every action
+// verb tried live (update, edit, save, update_extra, modify, patch, set)
+// returns {"ok":false,"error":"Unknown action or method"}, and the legacy
+// card.php?action=edit page doesn't render the third party's own main
+// fields as an editable form either (checked directly: none of its forms
+// contain a name/lastname input, only sub-feature forms like bank account
+// and payment-term config). This mutation still attempts the real call
+// (action: 'update', the REST-conventional verb, matching action: 'create'
+// on the working create endpoint) rather than being disabled outright —
+// same "attempt the real action, surface the real error" pattern already
+// used for Duplicate elsewhere in this app — so if the backend ever adds
+// this action, it starts working with no frontend change needed, and until
+// then the user sees the actual backend rejection, not a fake success.
+export function useUpdateCustomer(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fields: CustomerEditableFields) => {
+      const { token } = await fetchSocieteFormContext()
+      // validateStatus accepts every status here — this endpoint's own
+      // error responses (confirmed live: 400 with a real {ok:false,error}
+      // body) are still meaningful JSON, not the exception case; letting
+      // axios throw its own generic "Request failed with status code 400"
+      // on those would bury the real backend message this banner needs to
+      // show instead.
+      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
+        '/societe/api/societes.php',
+        { action: 'update', id, token, ...fields },
+        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
+      )
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to save changes')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', String(id)] })
+    },
   })
 }
