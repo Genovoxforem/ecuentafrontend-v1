@@ -5,9 +5,9 @@ import { BackendUnavailableCard, isBackendUnavailable } from '../../shared/compo
 export function ProspectsListModule() {
   const { data: summary, isError, error } = useProspectsSummary()
 
-  // Same permanently-missing /customers/summary/ and /customers/list/
-  // endpoints as CustomersListModule — honest unavailable state for the
-  // 404 case, generic error message for anything else.
+  // useProspectsSummary now calls the real societe/api/list.php (type=p),
+  // same as CustomersListModule — this gate is a defensive fallback for a
+  // genuine outage, not the normal path anymore.
   if (isError && isBackendUnavailable(error)) {
     return <BackendUnavailableCard feature="Prospects list" />
   }
