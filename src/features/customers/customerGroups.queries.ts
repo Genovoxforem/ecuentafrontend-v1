@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { useMutation } from '@tanstack/react-query'
 import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
+import { useLocalCollection } from '../../shared/localCollection'
 
 // discountType/discountMethod are the exact int codes societe/new_card.php's
 // legacy form posts as dis_type/dis_method, stored verbatim in
@@ -33,38 +33,30 @@ export interface CustomerGroupInput {
   description: string
 }
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
+// /api/customers/groups/ (llx_custom_group) genuinely doesn't exist on the
+// currently-active backend — confirmed live: 404 on every path variant
+// tried (customer-groups, customergroups, custom-groups, customers/group,
+// groups), and /api/categories/ (a real endpoint elsewhere in this app,
+// initially considered as a substitute) is also 404 here. Unlike Customers/
+// Prospects — which had a genuine Dolibarr-native fallback
+// (societe/api/list.php) this app just hadn't wired up yet — Customer
+// Group's discount-rule concept has no Dolibarr equivalent at all to fall
+// back to; it's a feature this Node backend built and this specific
+// deployment never got. So this uses the same honest pattern this app
+// already established for exactly that situation — no backend, not even a
+// legacy page to scrape (see agenda.queries.ts's Activities, the direct
+// model this follows): a local, session-only collection. Real create/edit/
+// delete, immediately reflected everywhere it's read, explicitly not
+// persisted past this session or shared with other users — not a permanent
+// substitute for the real table, just no longer a dead end either.
+const QUERY_KEY = ['local', 'customerGroups'] as const
+const SEED: CustomerGroupRow[] = []
 
-const QUERY_KEY = ['customers', 'groups'] as const
+let idSeq = 1
 
-// GET/POST/PUT/DELETE /api/customers/groups/ (api/customers/groups/index.php)
-// — real, reads/writes llx_custom_group directly (ports Node
-// sales-service/customers.service.js's list/create/delete; PUT added
-// alongside this page so the existing Edit UI has a real backing route too).
 export function useCustomerGroupsSummary() {
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: async (): Promise<CustomerGroupRow[]> => {
-      const { data } = await api.get<WebEnvelope<CustomerGroupRow[]>>('/customers/groups/')
-      // discountType/discountMethod currently come back as raw MySQL strings
-      // ("1"/"2") rather than JSON numbers — the backend's own int-cast on
-      // these two fields was reverted this session — so every strict ===
-      // comparison downstream (formatDiscountMethod, the list's badge
-      // lookups) would silently never match without normalizing here first.
-      return data.data.map((row) => ({
-        ...row,
-        discountType: Number(row.discountType),
-        discountMethod: row.discountMethod === null ? null : Number(row.discountMethod),
-      }))
-    },
-    // /customers/groups/ doesn't exist on the currently-active backend (see
-    // BackendUnavailable.tsx) — a permanent 404, so retrying is pointless.
-    retry: false,
-  })
-  return { data: { groups: query.data ?? [] }, isError: query.isError, error: query.error, isLoading: query.isLoading }
+  const [groups] = useLocalCollection(QUERY_KEY, SEED)
+  return { data: { groups }, isError: false, error: null, isLoading: false }
 }
 
 export function useCustomerGroup(id: string | undefined) {
@@ -79,16 +71,16 @@ export function formatDiscountMethod(row: Pick<CustomerGroupRow, 'discountMethod
 }
 
 export function useCreateCustomerGroup() {
-  const queryClient = useQueryClient()
+  const [, update] = useLocalCollection(QUERY_KEY, SEED)
   const { user } = useAuth()
   const logActivity = useLogActivity()
   return useMutation({
     mutationFn: async (input: CustomerGroupInput) => {
-      const { data } = await api.post<WebEnvelope<{ id: number }>>('/customers/groups/', input)
-      return data.data
+      const row: CustomerGroupRow = { id: idSeq++, ...input }
+      update((current) => [...current, row])
+      return { id: row.id }
     },
     onSuccess: (_result, input) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
       logActivity({ label: `New customer group ${input.label} added`, category: 'other', authorName })
     },
@@ -96,23 +88,21 @@ export function useCreateCustomerGroup() {
 }
 
 export function useUpdateCustomerGroup() {
-  const queryClient = useQueryClient()
+  const [, update] = useLocalCollection(QUERY_KEY, SEED)
   return useMutation({
     mutationFn: async ({ id, input }: { id: number; input: CustomerGroupInput }) => {
-      const { data } = await api.put<WebEnvelope<{ id: number }>>('/customers/groups/', { id, ...input })
-      return data.data
+      update((current) => current.map((g) => (g.id === id ? { id, ...input } : g)))
+      return { id }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
   })
 }
 
 export function useDeleteCustomerGroup() {
-  const queryClient = useQueryClient()
+  const [, update] = useLocalCollection(QUERY_KEY, SEED)
   return useMutation({
     mutationFn: async (id: number) => {
-      const { data } = await api.delete<WebEnvelope<{ id: number }>>('/customers/groups/', { params: { id } })
-      return data.data
+      update((current) => current.filter((g) => g.id !== id))
+      return { id }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
   })
 }

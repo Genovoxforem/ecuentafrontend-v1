@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Layers, Plus, Search, Pencil, Trash2, Tag } from 'lucide-react'
+import { Layers, Plus, Search, Pencil, Trash2, Tag, Info } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { useCustomerGroupsSummary, useDeleteCustomerGroup, formatDiscountMethod, type CustomerGroupRow } from '../customerGroups.queries'
-import { BackendUnavailableCard, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const EXPORT_COLUMNS = ['Label', 'Discount Method', 'Discount Type', 'Description']
 
@@ -27,13 +26,12 @@ function matchesSearch(group: CustomerGroupRow, query: string) {
 }
 
 export function CustomerGroupList() {
-  const { data, isLoading, isError, error } = useCustomerGroupsSummary()
+  const { data, isLoading } = useCustomerGroupsSummary()
   const deleteGroup = useDeleteCustomerGroup()
 
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
-  const [deleteError, setDeleteError] = useState('')
 
   const filteredGroups = useMemo(() => data.groups.filter((g) => matchesSearch(g, search)), [data.groups, search])
   const pageGroups = filteredGroups.slice((page - 1) * perPage, page * perPage)
@@ -51,34 +49,12 @@ export function CustomerGroupList() {
   function handleDelete(group: CustomerGroupRow) {
     const confirmed = window.confirm(`Delete customer group "${group.label}"? This can't be undone.`)
     if (!confirmed) return
-    setDeleteError('')
-    deleteGroup.mutate(group.id, {
-      onError: (err) =>
-        setDeleteError(isBackendUnavailable(err) ? 'Customer groups aren’t available on this backend yet — nothing was deleted.' : 'Failed to delete customer group.'),
-    })
+    deleteGroup.mutate(group.id)
   }
 
   function getExportData() {
     const rows = filteredGroups.map((g) => [g.label, formatDiscountMethod(g), g.discountMethod === 1 ? TYPE_LABEL[g.discountType] : 'N/A', g.description ?? ''])
     return { headers: EXPORT_COLUMNS, rows }
-  }
-
-  // /customers/groups/ doesn't exist on the currently-active backend — show
-  // the honest unavailable state instead of an empty "No customer groups
-  // yet" table, which would otherwise read as a real, empty result set.
-  if (isError && isBackendUnavailable(error)) {
-    return (
-      <div className="-m-6 flex-1 flex flex-col min-h-0">
-        <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <Layers size={20} className="text-brand" /> Customer Group List
-          </h2>
-        </div>
-        <div className="flex-1 flex flex-col min-h-0 px-6 py-4">
-          <BackendUnavailableCard feature="Customer Groups" />
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -93,7 +69,17 @@ export function CustomerGroupList() {
         </Link>
       </div>
 
-      {deleteError && <p className="px-6 pt-3 text-sm text-danger">{deleteError}</p>}
+      {/* No /api/customers/groups/ endpoint exists on this backend (checked
+          live, along with several plausible alternate paths) — this feature
+          has no Dolibarr-native page to fall back to either, since customer
+          groups with discount rules were built specifically for this app's
+          own backend. Real create/edit/delete, kept in this browser tab's
+          memory only (same pattern as this app's Activities log) — said
+          plainly here rather than left to look like an ordinary saved list. */}
+      <div className="flex items-start gap-2 px-6 pt-3 text-xs text-text-faint">
+        <Info size={13} className="shrink-0 mt-0.5" />
+        <span>Customer groups aren't backed by this server yet — changes here are saved in this browser tab only, not shared or kept after it closes.</span>
+      </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
