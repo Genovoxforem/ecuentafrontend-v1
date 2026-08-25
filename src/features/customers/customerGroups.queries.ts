@@ -1,7 +1,8 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
-import { useLocalCollection } from '../../shared/localCollection'
+import { parseCustomerGroupListDocument, looksLikeGroupListLoginPage, type CustomerGroupListRow } from './customerGroupListParser'
 
 // discountType/discountMethod are the exact int codes societe/new_card.php's
 // legacy form posts as dis_type/dis_method, stored verbatim in
@@ -16,47 +17,41 @@ export const DISCOUNT_METHOD_OPTIONS = [
   { value: 2, label: 'Product Price' },
 ] as const
 
-export interface CustomerGroupRow {
-  id: number
-  label: string
-  discount: number
-  discountType: number
-  discountMethod: number | null
-  description: string
-}
+export type CustomerGroupRow = CustomerGroupListRow
 
 export interface CustomerGroupInput {
   label: string
   discount: number
   discountType: number
   discountMethod: number
-  description: string
+  description: string 
 }
 
-// /api/customers/groups/ (llx_custom_group) genuinely doesn't exist on the
-// currently-active backend — confirmed live: 404 on every path variant
-// tried (customer-groups, customergroups, custom-groups, customers/group,
-// groups), and /api/categories/ (a real endpoint elsewhere in this app,
-// initially considered as a substitute) is also 404 here. Unlike Customers/
-// Prospects — which had a genuine Dolibarr-native fallback
-// (societe/api/list.php) this app just hadn't wired up yet — Customer
-// Group's discount-rule concept has no Dolibarr equivalent at all to fall
-// back to; it's a feature this Node backend built and this specific
-// deployment never got. So this uses the same honest pattern this app
-// already established for exactly that situation — no backend, not even a
-// legacy page to scrape (see agenda.queries.ts's Activities, the direct
-// model this follows): a local, session-only collection. Real create/edit/
-// delete, immediately reflected everywhere it's read, explicitly not
-// persisted past this session or shared with other users — not a permanent
-// substitute for the real table, just no longer a dead end either.
-const QUERY_KEY = ['local', 'customerGroups'] as const
-const SEED: CustomerGroupRow[] = []
+const QUERY_KEY = ['customerGroups', 'list'] as const
 
-let idSeq = 1
+// /api/customers/groups/ (and every plausible path variant, plus
+// /api/categories/) is a confirmed 404 on the currently-active backend — but
+// unlike a feature this Node backend never built at all, Customer Groups
+// turned out to have a real Dolibarr-native page underneath after all:
+// societe/new_card.php (list/delete) + societe/new_card_ajax.php
+// (create/update), the same "dead REST route, real legacy page" pattern
+// already found for Customer create and the Customers/Prospects list.
+// Verified live: POSTing new_card_ajax.php?action=add performed a genuine
+// INSERT (returned a real cust_group_id), and the row then appeared in
+// new_card.php's own re-rendered list table. Real, persisted, shared across
+// users — not the session-only local collection this used to be.
+async function fetchCustomerGroupList(): Promise<CustomerGroupListRow[]> {
+  const res = await fetch('/societe/new_card.php?action=list', { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const html = await res.text()
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  if (looksLikeGroupListLoginPage(doc)) throw new Error('Not signed into the legacy backend.')
+  return parseCustomerGroupListDocument(doc)
+}
 
 export function useCustomerGroupsSummary() {
-  const [groups] = useLocalCollection(QUERY_KEY, SEED)
-  return { data: { groups }, isError: false, error: null, isLoading: false }
+  const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchCustomerGroupList, staleTime: 1000 * 30 })
+  return { data: { groups: query.data ?? [] }, isError: query.isError, error: query.error, isLoading: query.isLoading }
 }
 
 export function useCustomerGroup(id: string | undefined) {
@@ -71,38 +66,82 @@ export function formatDiscountMethod(row: Pick<CustomerGroupRow, 'discountMethod
 }
 
 export function useCreateCustomerGroup() {
-  const [, update] = useLocalCollection(QUERY_KEY, SEED)
+  const queryClient = useQueryClient()
   const { user } = useAuth()
   const logActivity = useLogActivity()
   return useMutation({
     mutationFn: async (input: CustomerGroupInput) => {
-      const row: CustomerGroupRow = { id: idSeq++, ...input }
-      update((current) => [...current, row])
-      return { id: row.id }
+      const form = new URLSearchParams()
+      form.set('action', 'add')
+      form.set('label', input.label)
+      form.set('description', input.description)
+      form.set('prod_discount', String(input.discount))
+      form.set('dis_type', String(input.discountType))
+      form.set('dis_method', String(input.discountMethod))
+      const { data } = await axios.post<{ success: boolean; cust_group_id?: number; message?: string }>(
+        '/societe/new_card_ajax.php',
+        form,
+        { transformResponse: (raw) => JSON.parse(String(raw).trim()) },
+      )
+      if (!data.success || !data.cust_group_id) throw new Error(data.message ?? 'Failed to create customer group.')
+      return { id: data.cust_group_id }
     },
     onSuccess: (_result, input) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
       logActivity({ label: `New customer group ${input.label} added`, category: 'other', authorName })
     },
   })
 }
 
+// societe/new_card_ajax.php?action=update_group_info reads `label` from the
+// request but never actually uses it in either UPDATE branch (confirmed by
+// reading the file directly) — a real backend limitation, not a frontend
+// bug: label can only be set at creation, not changed afterward. Still sent
+// here (matches what the legacy page's own edit form posts), but callers
+// should not expect a label change to stick — see the disabled Ref field in
+// CustomerGroupCreateForm.tsx's edit mode.
 export function useUpdateCustomerGroup() {
-  const [, update] = useLocalCollection(QUERY_KEY, SEED)
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, input }: { id: number; input: CustomerGroupInput }) => {
-      update((current) => current.map((g) => (g.id === id ? { id, ...input } : g)))
+      const form = new URLSearchParams()
+      form.set('action', 'update_group_info')
+      form.set('id', String(id))
+      form.set('label', input.label)
+      form.set('description', input.description)
+      form.set('prod_discount1', String(input.discount))
+      form.set('dis_type1', String(input.discountType))
+      form.set('dis_method1', String(input.discountMethod))
+      const { data } = await axios.post<{ success: boolean; message?: string }>(
+        '/societe/new_card_ajax.php',
+        form,
+        { transformResponse: (raw) => JSON.parse(String(raw).trim()) },
+      )
+      if (!data.success) throw new Error(data.message ?? 'Failed to save changes.')
       return { id }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
     },
   })
 }
 
+// new_card.php?action=delete&id=X is a plain GET (confirmed live: real
+// `DELETE FROM llx_custom_group ... llx_group_price_product`, no token/
+// confirmation of its own) — the confirm() dialog in CustomerGroupList.tsx's
+// handleDelete is the only safety gate, same as every other delete in this
+// app.
 export function useDeleteCustomerGroup() {
-  const [, update] = useLocalCollection(QUERY_KEY, SEED)
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      update((current) => current.filter((g) => g.id !== id))
+      const res = await fetch(`/societe/new_card.php?action=delete&id=${id}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       return { id }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
     },
   })
 }

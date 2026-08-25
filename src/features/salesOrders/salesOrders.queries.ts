@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 
 export interface OrderRow {
+  id: number
   ref: string
   refCustomer: string
   projectRef: string
@@ -45,6 +46,7 @@ interface RawOrderItem {
 
 function toRow(raw: RawOrderItem): OrderRow {
   return {
+    id: raw.id,
     ref: raw.ref ?? '',
     refCustomer: raw.refCustomer ?? '',
     projectRef: raw.projectRef ?? '',

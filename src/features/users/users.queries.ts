@@ -154,26 +154,103 @@ export function useUsersSummary() {
   })
 }
 
-// Looks up one user by id out of the already-fetched summary list (see
-// useUsersSummary) — no separate GET /api/users/:id/ endpoint exists, and
-// none is needed since the list is fetched in full already.
-export function useUser(id: string | number | undefined) {
-  const { data, isLoading, isError, error } = useUsersSummary()
+// GET /api/users/:id equivalent doesn't exist (confirmed live: /api/users/
+// and /api/users/detail/ both 404 on the currently-active backend — the
+// same dead-old-REST-namespace pattern already found for /api/orders/
+// elsewhere in this app) — but userprofile/api/user.php?id=X is real: it's
+// the JSON API behind the newer userprofile/index.php SPA page (found by
+// watching that page's own network traffic while checking its Permissions
+// tab — see userPermissions.queries.ts). It returns everything useUser and
+// useUserDetail below need for one arbitrary user id, in one call, so both
+// hooks share a single query instead of firing two separate requests for
+// data that comes from the same real endpoint.
+interface RawUserProfileWorkProfile {
+  office_phone: string | null
+  office_fax: string | null
+  address: string | null
+  zip: string | null
+  town: string | null
+  datelastlogin: string | null
+  dateemployment: string | null
+  dateemploymentend: string | null
+  datestartvalidity: string | null
+  dateendvalidity: string | null
+  birth: string | null
+  thm: number | null
+  tjm: number | null
+  weeklyhours: number | null
+}
+
+interface RawUserProfileUser {
+  id: number
+  login: string
+  firstname: string
+  lastname: string
+  fullname: string
+  email: string | null
+  office_phone: string | null
+  office_fax: string | null
+  user_mobile: string | null
+  personal_mobile: string | null
+  job: string | null
+  gender: string | null
+  employee: number
+  admin: number
+  statut: number
+  address: string | null
+  zip: string | null
+  town: string | null
+  supervisor: string | number | null
+  birth: string | null
+  dateemployment: string | null
+  dateemploymentend: string | null
+  work_profile: RawUserProfileWorkProfile
+}
+
+interface RawUserProfileResponse {
+  ok: boolean
+  user: RawUserProfileUser
+}
+
+function useUserProfileQuery(id: string | number | undefined) {
   const numericId = typeof id === 'string' ? Number(id) : id
-  const user = numericId !== undefined && !Number.isNaN(numericId) ? data?.users.find((u) => u.id === numericId) : undefined
+  return useQuery({
+    queryKey: ['users', 'profile', numericId],
+    queryFn: async (): Promise<RawUserProfileUser> => {
+      const res = await fetch(`/userprofile/api/user.php?id=${numericId}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: RawUserProfileResponse = await res.json()
+      if (!data.ok) throw new Error('Legacy backend rejected the request.')
+      return data.user
+    },
+    enabled: numericId !== undefined && !Number.isNaN(numericId),
+  })
+}
+
+export function useUser(id: string | number | undefined) {
+  const { data, isLoading, isError, error } = useUserProfileQuery(id)
+  const user: UserRow | undefined = data
+    ? {
+        id: data.id,
+        login: data.login,
+        name: data.fullname || `${data.firstname} ${data.lastname}`.trim(),
+        employee: !!data.employee,
+        phone: data.office_phone || data.user_mobile || data.personal_mobile || '',
+        email: data.email ?? '',
+        gender: data.gender ?? '',
+        designation: data.job ?? '',
+        lastLogin: data.work_profile.datelastlogin ? formatDateTimeAmPm(data.work_profile.datelastlogin) : '',
+        status: data.statut === 1 ? 'Enabled' : 'Disabled',
+        isAdmin: !!data.admin,
+        // No distinct super-admin signal in this endpoint's response (that's
+        // a multi-company/entity=0 concept this single-user API doesn't
+        // expose) — false rather than a guess.
+        isSuperAdmin: false,
+      }
+    : undefined
   return { user, isLoading, isError, error }
 }
 
-// Raw shape from GET /api/users/detail/?id= (api/users/detail/index.php) —
-// real, direct SQL against llx_user (address/zip/town/country/state,
-// creation date+creator, supervisor, salary/thm/tjm/weeklyhours, employment
-// and login-validity date ranges, birth, notes, social links). Built for
-// this exact page (its own header comment says so: "matching
-// htdocs/user/card.php's view mode") but was never wired up — UserDetail.tsx
-// used only the narrower list-row shape from useUser above, which is why the
-// User tab's Supervisor/Salary/Employment/Address fields, and the left
-// panel's Created-on/Created-by, showed blank despite this real data
-// existing all along.
 export interface UserDetailData {
   id: number
   login: string
@@ -209,20 +286,51 @@ export interface UserDetailData {
   weeklyHours: number | null
 }
 
+// countryLabel/stateLabel, createdAt/creatorLogin, and note aren't part of
+// userprofile/api/user.php's response (that endpoint has country_id/
+// state_id as bare numeric ids with no label, and creation metadata +
+// notes live on separate userprofile/api/* endpoints this pass doesn't
+// wire up) — null rather than a guess, same honesty convention as the rest
+// of this file.
 export function useUserDetail(id: string | number | undefined) {
-  const numericId = typeof id === 'string' ? Number(id) : id
-  const query = useQuery({
-    queryKey: ['users', 'detail', numericId],
-    queryFn: async (): Promise<UserDetailData> => {
-      const { data } = await api.get<WebEnvelope<UserDetailData>>('/users/detail/', { params: { id: numericId } })
-      return data.data
-    },
-    enabled: numericId !== undefined && !Number.isNaN(numericId),
-    // Same api/users/ gap as useUsersSummary above — permanent 404, no
-    // point retrying.
-    retry: false,
-  })
-  return { detail: query.data, isLoading: query.isLoading, isError: query.isError, error: query.error }
+  const { data, isLoading, isError, error } = useUserProfileQuery(id)
+  const detail: UserDetailData | undefined = data
+    ? {
+        id: data.id,
+        login: data.login,
+        name: data.fullname || `${data.firstname} ${data.lastname}`.trim(),
+        admin: !!data.admin,
+        superAdmin: false,
+        employee: !!data.employee,
+        gender: data.gender,
+        job: data.job,
+        address: data.work_profile.address || data.address,
+        zip: data.work_profile.zip || data.zip,
+        town: data.work_profile.town || data.town,
+        countryLabel: null,
+        stateLabel: null,
+        mobile: data.user_mobile || data.personal_mobile,
+        officePhone: data.work_profile.office_phone || data.office_phone,
+        officeFax: data.work_profile.office_fax || data.office_fax,
+        email: data.email,
+        enabled: data.statut === 1,
+        lastLogin: data.work_profile.datelastlogin,
+        createdAt: null,
+        creatorLogin: null,
+        note: null,
+        dateEmployment: data.dateemployment || data.work_profile.dateemployment,
+        dateEmploymentEnd: data.dateemploymentend || data.work_profile.dateemploymentend,
+        dateStartValidity: data.work_profile.datestartvalidity,
+        dateEndValidity: data.work_profile.dateendvalidity,
+        birth: data.birth || data.work_profile.birth,
+        supervisorName: data.supervisor !== null ? String(data.supervisor) : null,
+        salary: null,
+        hourlyCost: data.work_profile.thm,
+        dailyCost: data.work_profile.tjm,
+        weeklyHours: data.work_profile.weeklyhours,
+      }
+    : undefined
+  return { detail, isLoading, isError, error }
 }
 
 // GET /api/customers/list/'s creatorName (see customers.queries.ts) is a

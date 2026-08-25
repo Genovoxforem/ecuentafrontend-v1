@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Warehouse, Plus, Boxes, Package, CircleDollarSign } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { useProductOptions } from '../../products/products.queries'
-import { useWarehouses } from '../warehouseExtras.queries'
+import { useWarehouseList } from '../warehouseExtras.queries'
+import { formatMoney } from '../../../utils/format'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 function StatTile({ label, value, icon: Icon }: { label: string; value: string | number; icon: typeof Warehouse }) {
   return (
@@ -20,13 +21,14 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: string |
   )
 }
 
-// Warehouses are local-only (see warehouseExtras.queries.ts — no
-// /api/warehouses/ endpoint exists), but "Total Products" is real (GET
-// /api/products/, the same catalog Warehouses Area's dashboard tiles use).
+// Warehouses now come from the real product/stock/list.php page (see
+// warehouseExtras.queries.ts) — "Total Products"/"Total Stock"/"Total Stock
+// Value" stay sourced from /api/products/, the same real catalog the
+// Warehouses Area dashboard's own tiles use.
 export function WarehouseListPage() {
-  const warehouses = useWarehouses()
+  const { warehouses, isLoading, isError, error, refetch } = useWarehouseList()
   const { data: products } = useProductOptions()
-  const totalStockValue = useMemo(() => (products ?? []).reduce((sum, p) => sum + p.priceExclTax * p.stock, 0), [products])
+  const totalStockValue = (products ?? []).reduce((sum, p) => sum + p.priceExclTax * p.stock, 0)
 
   return (
     <div className="space-y-4">
@@ -46,40 +48,50 @@ export function WarehouseListPage() {
         <StatTile label="Total Stock Value" value={`${totalStockValue.toFixed(2)} ZMW`} icon={CircleDollarSign} />
       </div>
 
-      <Card className="!p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-4 py-2.5">Ref</th>
-              <th className="font-medium px-4 py-2.5">Short Name Location</th>
-              <th className="font-medium px-4 py-2.5">Environment</th>
-              <th className="font-medium px-4 py-2.5 text-right">Input Stock Value</th>
-              <th className="font-medium px-4 py-2.5 text-right">Value For Sell</th>
-              <th className="font-medium px-4 py-2.5">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {warehouses.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-4 text-text-faint italic">
-                  No Data Available In Table
-                </td>
+      {isLoading ? (
+        <LegacyLoadingCard label="Loading warehouses…" />
+      ) : isError ? (
+        <LegacyErrorCard title="Couldn't load warehouses" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+      ) : (
+        <Card className="!p-0 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <th className="font-medium px-4 py-2.5">Ref</th>
+                <th className="font-medium px-4 py-2.5">Short Name Location</th>
+                <th className="font-medium px-4 py-2.5">Environment</th>
+                <th className="font-medium px-4 py-2.5 text-right">Input Stock Value</th>
+                <th className="font-medium px-4 py-2.5 text-right">Value For Sell</th>
+                <th className="font-medium px-4 py-2.5">Status</th>
               </tr>
-            ) : (
-              warehouses.map((w) => (
-                <tr key={w.ref} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-brand">{w.shortName || w.addIn}</td>
-                  <td className="px-4 py-3 text-text-muted">{w.shortName}</td>
-                  <td className="px-4 py-3 text-text-muted">Master Entity</td>
-                  <td className="px-4 py-3 text-right text-text-muted">0.00</td>
-                  <td className="px-4 py-3 text-right text-text-muted">0.00</td>
-                  <td className="px-4 py-3 text-text-muted">{w.status}</td>
+            </thead>
+            <tbody>
+              {warehouses.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 text-text-faint italic">
+                    No Data Available In Table
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </Card>
+              ) : (
+                warehouses.map((w) => (
+                  <tr key={w.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 text-brand">
+                      <Link to={ROUTES.warehouseDetail.replace(':id', String(w.id))} className="hover:underline">
+                        {w.ref}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-text-muted">{w.shortName}</td>
+                    <td className="px-4 py-3 text-text-muted">{w.environment}</td>
+                    <td className="px-4 py-3 text-right text-text-muted">{w.inputStockValue ? formatMoney(w.inputStockValue) : ''}</td>
+                    <td className="px-4 py-3 text-right text-text-muted">{formatMoney(w.valueForSell)}</td>
+                    <td className="px-4 py-3 text-text-muted">{w.statusLabel}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
     </div>
   )
 }

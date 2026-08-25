@@ -1,146 +1,153 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
-import { useProductFormOptions } from '../zra/createProduct.queries'
 import { useLanguageOptions } from '../users/users.queries'
 import { useCustomerGroupsSummary } from './customerGroups.queries'
 import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
-import {
-  DICTIONARY_IDS,
-  parseCurrenciesDocument,
-  parseThirdPartyTypesDocument,
-  parseWorkforceDocument,
-  looksLikeLegacyLoginPage,
-  type DictionaryOption,
-} from './legacyDictionaryParser'
 
-// Fallback country list when /zra/product-form-options/ API is unavailable
-const FALLBACK_COUNTRIES = [
-  { value: 'ZM', label: 'Zambia' },
-  { value: 'ZA', label: 'South Africa' },
-  { value: 'BW', label: 'Botswana' },
-  { value: 'KE', label: 'Kenya' },
-  { value: 'TZ', label: 'Tanzania' },
-  { value: 'MZ', label: 'Mozambique' },
-  { value: 'MW', label: 'Malawi' },
-  { value: 'UG', label: 'Uganda' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'US', label: 'United States' },
-  { value: 'CN', label: 'China' },
-  { value: 'IN', label: 'India' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'FR', label: 'France' },
-  { value: 'JP', label: 'Japan' },
-  { value: 'AU', label: 'Australia' },
-  { value: 'CA', label: 'Canada' },
-  { value: 'BR', label: 'Brazil' },
-]
-
-// The legacy create form (societe/card.php) hardcodes this exact 3-option
-// list inline (<select name="nrc_id">NRC/Passport/Driving license</select>)
-// rather than reading it from a database dictionary — confirmed by reading
-// that file directly. So this is real parity with the live system, not a
-// placeholder: there is no NRC table to fetch from on either app.
+// societe/card.php?type=c|f|p hardcodes this exact 3-option list inline
+// (<select name="nrc_id">NRC/Passport/Driving license</select>) rather than
+// reading it from a database dictionary — confirmed by reading that file
+// directly, and confirmed again live in societe/api/meta.php?action=
+// wizard_options's own `nrc_types` field, which returns these same 3 values.
 const NRC_OPTIONS = [
   { value: 'NRC', label: 'NRC' },
   { value: 'Passport', label: 'Passport' },
   { value: 'Driving license', label: 'Driving license' },
 ]
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
+// GET societe/api/meta.php?action=wizard_options — the real endpoint behind
+// the legacy "New Third Party" wizard's own dropdowns (found by watching the
+// wizard's own network traffic: clicking "+New Customer" on
+// societe/list.php?type=c fires this exact request, not /api/customers/
+// lookups/ or any admin/dict.php page). One call replaces what used to be
+// five separate sources (a dead /customers/lookups/ endpoint plus three
+// admin/dict.php scrapes plus /zra/product-form-options/'s country list) —
+// and several of those old sources were flat wrong: e.g. `currencies` here
+// is llx_multicurrency's 3 actually-configured currencies (INR/USD/ZMW),
+// not the 100+ entry ISO reference list admin/dict.php?id=9 returns, most of
+// which this deployment can't actually post a customer against.
+// Auth is the same session-cookie convention as every other societe/api/*
+// endpoint (sc_meta_field_options() only requires $user->hasRight('societe',
+// 'lire') — confirmed by reading the file directly), and this is a plain GET
+// read with no CSRF token requirement (unlike societes.php's mutations).
+interface WizardOptionsResponse {
+  ok: boolean
+  countries: Array<{ id: number; code: string; label: string }>
+  currencies: Array<{ id: string; code: string; label: string }>
+  typent: Array<{ id: number; label: string }>
+  effectif: Array<{ id: number; label: string }>
+  juridical: Array<{ id: number; code: string; label: string }>
+  incoterms: Array<{ id: number; label: string }>
+  users: Array<{ id: number; name: string; login: string }>
+  categories_customer: Array<{ id: number; label: string }>
+  categories_supplier: Array<{ id: number; label: string }>
+  nrc_types: Array<{ id: string; label: string }>
+  default_country_id: number | null
 }
 
-// GET /api/customers/lookups/ (api/customers/lookups/index.php) — real,
-// direct SQL against the same dictionary tables societe/card.php's own
-// select_* helpers use (llx_c_typent, llx_c_forme_juridique, llx_c_effectif,
-// llx_c_incoterms, llx_multicurrency, llx_entity, llx_user, llx_categorie).
-// This single endpoint already existed and was fully unused before this —
-// see thirdPartyFormOptions below, which now sources 6 previously-hardcoded
-// dropdowns from it instead of inline JS constants.
+async function fetchWizardOptions(): Promise<WizardOptionsResponse> {
+  const res = await fetch('/societe/api/meta.php?action=wizard_options', { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const data: WizardOptionsResponse = await res.json()
+  if (!data.ok) throw new Error('Legacy backend rejected the wizard_options request.')
+  return data
+}
+
+// Same shape this app's other consumer (OrderCreateForm.tsx's Currency
+// dropdown) already reads via useCustomerLookups().currencies — kept as-is
+// so that call site didn't need to change when this stopped being a dead
+// endpoint and started returning the real llx_multicurrency rows instead.
 export interface CustomerLookups {
   defaultCountryId: number | null
+  countries: Array<{ id: number; label: string }>
   currencies: Array<{ code: string; name: string }>
   legalForms: Array<{ id: number; label: string }>
-  typent: Array<{ id: number; code: string; label: string }>
+  typent: Array<{ id: number; label: string }>
   effectifs: Array<{ id: number; label: string }>
   incoterms: Array<{ id: number; code: string }>
-  entities: Array<{ id: number; label: string }>
   salesReps: Array<{ id: number; name: string }>
   custCategories: Array<{ id: number; label: string }>
   vendorCategories: Array<{ id: number; label: string }>
-  nextCustomerCode: string
-  nextVendorCode: string
+}
+
+function dedupeByLabel<T extends { label: string }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  const result: T[] = []
+  for (const row of rows) {
+    if (seen.has(row.label)) continue
+    seen.add(row.label)
+    result.push(row)
+  }
+  return result
 }
 
 export function useCustomerLookups() {
   return useQuery({
-    queryKey: ['customers', 'lookups'],
+    queryKey: ['customers', 'wizardOptions'],
     queryFn: async (): Promise<CustomerLookups> => {
-      const { data } = await api.get<WebEnvelope<CustomerLookups>>('/customers/lookups/')
-      return data.data
+      const data = await fetchWizardOptions()
+      return {
+        defaultCountryId: data.default_country_id,
+        countries: data.countries.map((c) => ({ id: c.id, label: c.label })),
+        currencies: data.currencies.map((c) => ({ code: c.code, name: c.label })),
+        // This global (unfiltered-by-country) legal-forms list genuinely has
+        // duplicate labels across different countries' forms sharing a name
+        // (e.g. "Sociedad Anónima" appears under at least 3 different ids —
+        // confirmed live) — the <select>s this feeds key/look up by label
+        // text (see ThirdPartyCreateForm.tsx's selectedBusinessEntityId),
+        // same constraint every other dropdown in this app already has, so
+        // duplicates are collapsed to their first occurrence rather than
+        // producing duplicate React keys.
+        legalForms: dedupeByLabel(data.juridical),
+        typent: data.typent.filter((t) => t.label).map((t) => ({ id: t.id, label: t.label })),
+        effectifs: data.effectif.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label })),
+        incoterms: data.incoterms.filter((i) => i.id > 0).map((i) => ({ id: i.id, code: i.label })),
+        salesReps: data.users.map((u) => ({ id: u.id, name: u.name })),
+        custCategories: data.categories_customer.map((c) => ({ id: c.id, label: c.label })),
+        vendorCategories: data.categories_supplier.map((c) => ({ id: c.id, label: c.label })),
+      }
     },
     staleTime: 1000 * 60 * 10,
-    // /customers/lookups/ doesn't exist on the currently-active backend (see
-    // BackendUnavailable.tsx) — a permanent 404, so retrying is pointless.
-    retry: false,
+    // Real, working endpoint (confirmed live) — unlike the old /customers/
+    // lookups/ this replaced, a failure here is more likely transient (e.g.
+    // a race against establishLegacySession() still finishing) than a
+    // permanent 404, so default retry behavior applies.
   })
 }
 
-// Currency/Third-party type/Workforce dictionaries — /customers/lookups/
-// (used above) is a confirmed 404, but the real Dolibarr admin dictionary
-// pages themselves (admin/dict.php?id=9|8|19) are live on this backend and
-// session-cookie authenticated, same as every other legacy-scrape source in
-// this app (see legacyDictionaryParser.ts for how the id-to-dictionary
-// mapping and row structure were verified). Business entity type
-// (id=1/llx_c_forme_juridique) was checked too but has zero rows for
-// Zambia, so it's deliberately left out here — still sourced from the dead
-// lookups endpoint below, same "not available" state as before.
-async function fetchLegacyDictionary(id: number): Promise<Document> {
-  const res = await fetch(`/admin/dict.php?id=${id}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy dictionary backend returned ${res.status}.`)
-  const html = await res.text()
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  if (looksLikeLegacyLoginPage(doc)) throw new Error('Not signed into the legacy backend.')
-  return doc
+// GET societe/api/meta.php?action=states&country_id=X — the real endpoint
+// behind the wizard's own reactive State/Province field (select_state(),
+// societe/card.php), found the same way as wizard_options above. Replaces
+// the old /api/users/states/ call, which was a permanent 404 on this
+// backend (api/users/ doesn't exist at all) and always left this field
+// empty.
+export interface StateOption {
+  value: string
+  label: string
 }
-
-export function useLegacyDictionary(kind: keyof typeof DICTIONARY_IDS, parse: (doc: Document) => DictionaryOption[]) {
+export function useStatesByCountry(countryId: string | undefined) {
   return useQuery({
-    queryKey: ['customers', 'legacyDictionary', kind],
-    queryFn: async () => parse(await fetchLegacyDictionary(DICTIONARY_IDS[kind])),
-    staleTime: 1000 * 60 * 30,
-    // Unlike /customers/lookups/ above (retry: false because that's a
-    // confirmed permanent 404), this endpoint is real and working — a
-    // failure here is more likely a transient race against
-    // establishLegacySession() still finishing (this form can be the
-    // first legacy-scrape page visited right after login), so default
-    // retry behavior applies instead of giving up after one attempt.
+    queryKey: ['customers', 'wizardStates', countryId],
+    queryFn: async (): Promise<StateOption[]> => {
+      const res = await fetch(`/societe/api/meta.php?action=states&country_id=${countryId}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: { ok: boolean; states: Array<{ id: number; label: string }> } = await res.json()
+      if (!data.ok) return []
+      return data.states.map((s) => ({ value: String(s.id), label: s.label }))
+    },
+    enabled: !!countryId,
+    staleTime: 1000 * 60 * 10,
   })
 }
 
 // societe/api/societes.php (the real endpoint the legacy "New Third Party"
 // wizard itself posts to — see ThirdPartyCreateForm.tsx's create mutation)
 // enforces Dolibarr's own CSRF token check on mutations, unlike the
-// read-only societe/api/list.php this app already uses for the Customers
-// list. Confirmed live: the token is both a `societeToken` JS global AND a
-// hidden `<input name="token">` on any authenticated societe/list.php page,
-// tied to the PHP session rather than that specific page — scraping it from
-// a plain fetch (no JS execution needed) works exactly like every other
-// legacy-HTML value this app reads.
-//
-// That same page also solves a second problem: societes.php's country_id
-// field needs Dolibarr's real numeric llx_c_country.rowid (confirmed live —
-// Zambia is 239), but useProductFormOptions()'s countries (sourced from
-// /zra/product-form-options/, built for the Product form's own needs) use
-// the ISO alpha-2 code as their value instead ("ZM"). Rather than fetch a
-// second page just for this, the real <select name="country_id"> on this
-// same societe/list.php response already carries the correct numeric id
-// against each country's "Name (CODE)" text — scraped once here and
-// returned alongside the token.
+// read-only societe/api/* GETs this app already uses elsewhere. Confirmed
+// live: the token is both a `societeToken` JS global AND a hidden
+// `<input name="token">` on any authenticated societe/list.php page, tied to
+// the PHP session rather than that specific page.
 export interface SocieteFormContext {
   token: string
-  countryIdByCode: Record<string, string>
 }
 export async function fetchSocieteFormContext(): Promise<SocieteFormContext> {
   const res = await fetch('/societe/list.php?type=c', { credentials: 'same-origin' })
@@ -148,43 +155,7 @@ export async function fetchSocieteFormContext(): Promise<SocieteFormContext> {
   const html = await res.text()
   const tokenMatch = html.match(/name=["']token["']\s+value=["']([a-f0-9]+)["']/) ?? html.match(/societeToken\s*=\s*['"]([a-f0-9]+)['"]/)
   if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  const countryIdByCode: Record<string, string> = {}
-  doc.querySelectorAll('select[name="country_id"] option').forEach((opt) => {
-    const codeMatch = (opt.textContent ?? '').match(/\(([A-Z]{2})\)\s*$/)
-    const value = opt.getAttribute('value')
-    if (codeMatch && value) countryIdByCode[codeMatch[1]] = value
-  })
-  return { token: tokenMatch[1], countryIdByCode }
-}
-
-// GET /api/users/states/?countryId= (api/users/states/index.php) — real,
-// llx_c_departements joined to llx_c_regions for the given country. Legacy's
-// own State/Province field (select_state($country_code), societe/card.php)
-// is exactly this reactive-to-country behavior — a flat, country-independent
-// state list (what this app previously reused the Country list as a
-// placeholder for) can't represent that, so this is a separate hook the
-// create form calls whenever its selected country changes.
-export interface StateOption {
-  value: string
-  label: string
-}
-export function useStatesByCountry(countryId: string | undefined) {
-  return useQuery({
-    queryKey: ['users', 'states', countryId],
-    queryFn: async (): Promise<StateOption[]> => {
-      const { data } = await api.get<WebEnvelope<Array<{ id: number; label: string }>>>('/users/states/', { params: { countryId } })
-      return data.data.map((s) => ({ value: String(s.id), label: s.label }))
-    },
-    enabled: !!countryId,
-    staleTime: 1000 * 60 * 10,
-    // api/users/ (and therefore /users/states/) doesn't exist at all on the
-    // currently-active backend — a permanent 404. Deliberately not surfaced
-    // as a form-level error: callers just get an empty state list back (see
-    // stateOptions below), same "graceful, non-blocking" treatment as any
-    // other optional dropdown source failing.
-    retry: false,
-  })
+  return { token: tokenMatch[1] }
 }
 
 export interface ThirdPartyFormOptions {
@@ -208,64 +179,44 @@ export interface ThirdPartyFormOptions {
 
 // Combined hook that fetches all form options needed for the Third Party creation form
 export function useThirdPartyFormOptions() {
-  const { data: productOptions, isLoading: productsLoading } = useProductFormOptions()
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
   const { data: groupsSummary, isError: groupsIsError, error: groupsError } = useCustomerGroupsSummary()
   const { data: lookups, isLoading: lookupsLoading, isError: lookupsIsError, error: lookupsError } = useCustomerLookups()
-  const { data: currencyDict, isLoading: currencyLoading } = useLegacyDictionary('currencies', parseCurrenciesDocument)
-  const { data: thirdPartyTypeDict, isLoading: thirdPartyTypeLoading } = useLegacyDictionary('thirdPartyTypes', parseThirdPartyTypesDocument)
-  const { data: workforceDict, isLoading: workforceLoading } = useLegacyDictionary('workforce', parseWorkforceDocument)
 
-  // /customers/lookups/ and /customers/groups/ both don't exist on the
-  // currently-active backend — when either is down, several of the
-  // dropdowns built below (Business entity type, Incoterms, Environment,
-  // Sales rep, Categories, Customer Group, next Customer/Vendor code) come
-  // back as empty rather than the real dictionary data. Currency,
-  // Third-party type, and Workforce are sourced from the real legacy
-  // dict.php pages instead (see useLegacyDictionary above), so they're
-  // excluded from this flag — it only needs to explain the gaps that are
-  // still genuinely unfilled.
   const optionsUnavailable = (lookupsIsError && isBackendUnavailable(lookupsError)) || (groupsIsError && isBackendUnavailable(groupsError))
 
-  // Use fallback countries if API doesn't return any (e.g., /zra/product-form-options/ unavailable)
-  const countries = (productOptions?.countries && productOptions.countries.length > 0) ? productOptions.countries : FALLBACK_COUNTRIES
-
   const languages = languageOptions?.map((lang) => ({ value: lang.code, label: lang.label })) ?? []
-
   const customerGroups = groupsSummary?.groups?.map((group) => ({ value: String(group.id), label: group.label })) ?? []
 
-  const currencies = currencyDict ?? []
-  const businessEntityTypes = lookups?.legalForms?.map((f) => ({ value: String(f.id), label: f.label })) ?? []
-  const thirdPartyTypes = thirdPartyTypeDict ?? []
-  const workforce = workforceDict ?? []
-  const incoterms = lookups?.incoterms?.map((i) => ({ value: String(i.id), label: i.code })) ?? []
-  const environment = lookups?.entities?.map((e) => ({ value: String(e.id), label: e.label })) ?? []
-  const salesReps = lookups?.salesReps?.map((r) => ({ value: String(r.id), label: r.name })) ?? []
-  const custCategories = lookups?.custCategories?.map((c) => ({ value: String(c.id), label: c.label })) ?? []
-  const vendorCategories = lookups?.vendorCategories?.map((c) => ({ value: String(c.id), label: c.label })) ?? []
-
   const options: ThirdPartyFormOptions = {
-    countries,
+    countries: lookups?.countries?.map((c) => ({ value: String(c.id), label: c.label })) ?? [],
     defaultCountryId: lookups?.defaultCountryId ?? null,
-    currencies,
-    businessEntityTypes,
-    thirdPartyTypes,
+    currencies: lookups?.currencies?.map((c) => ({ value: c.code, label: c.name })) ?? [],
+    businessEntityTypes: lookups?.legalForms?.map((f) => ({ value: String(f.id), label: f.label })) ?? [],
+    thirdPartyTypes: lookups?.typent?.map((t) => ({ value: String(t.id), label: t.label })) ?? [],
     nrcTypes: NRC_OPTIONS,
-    workforce,
+    workforce: lookups?.effectifs?.map((e) => ({ value: String(e.id), label: e.label })) ?? [],
     languages,
-    incoterms,
-    environment,
+    incoterms: lookups?.incoterms?.map((i) => ({ value: String(i.id), label: i.code })) ?? [],
+    // No Dolibarr dictionary or wizard_options field backs this on this
+    // install (confirmed: no `entities`/multi-company data anywhere in
+    // wizard_options's response, and no matching <select> on the real
+    // wizard page either) — left empty rather than faked.
+    environment: [],
     customerGroups,
-    salesReps,
-    custCategories,
-    vendorCategories,
-    nextCustomerCode: lookups?.nextCustomerCode ?? '',
-    nextVendorCode: lookups?.nextVendorCode ?? '',
+    salesReps: lookups?.salesReps?.map((r) => ({ value: String(r.id), label: r.name })) ?? [],
+    custCategories: lookups?.custCategories?.map((c) => ({ value: String(c.id), label: c.label })) ?? [],
+    vendorCategories: lookups?.vendorCategories?.map((c) => ({ value: String(c.id), label: c.label })) ?? [],
+    // The real wizard's own Customer/Vendor code fields render blank too
+    // (confirmed live) — Dolibarr generates these server-side on submit
+    // ("auto"), there's no next-code preview to show.
+    nextCustomerCode: '',
+    nextVendorCode: '',
   }
 
   return {
     data: options,
-    isLoading: productsLoading || languagesLoading || lookupsLoading || currencyLoading || thirdPartyTypeLoading || workforceLoading,
+    isLoading: languagesLoading || lookupsLoading,
     isError: false,
     optionsUnavailable,
   }

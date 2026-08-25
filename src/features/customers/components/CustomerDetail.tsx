@@ -26,14 +26,32 @@ import {
   Check,
   BadgeCheck,
   TriangleAlert,
+  Plus,
+  Bot,
+  Mail,
+  Phone,
+  ExternalLink,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useCustomerDetail, useUpdateCustomer, type CustomerProfile, type CustomerEditableFields } from '../customerDetail.queries'
-import { useRecentActivity } from '../../agenda/agenda.queries'
+import {
+  useCustomerLedger,
+  useCustomerActivities,
+  useCustomerContacts,
+  useCustomerContracts,
+  useCustomerTab,
+  useCustomerAgenda,
+  stripBackendPrefix,
+  type ActivityType,
+  type ActivityItem,
+  type AgendaDay,
+  type ContractSummaryCard,
+} from '../customerDetailTabs.queries'
 
 // Native rebuild of the legacy Third-Party detail page
 // (societe/card.php?socid=X) — the page a real "New Third Party" creation
@@ -44,13 +62,14 @@ import { useRecentActivity } from '../../agenda/agenda.queries'
 //
 // The legacy page exposes 20 distinct tabs (deduped from its own `tabs`
 // array — a few, like "note"/"notes" and "document"/"documents", are just
-// aliases of each other). Only Third-party, Notes, and Activities have a
-// real backing data source on this backend (the full profile call for the
-// first two, this app's existing local session-activity log — already the
-// honest, established pattern elsewhere, e.g. ProductDetail's Activity
-// Timeline — for the third). The rest render an honest "not built yet" card
-// rather than fabricated content, same convention as the Dictionary Setup
-// page.
+// aliases of each other). Third-party, Notes, Transactions, Activities,
+// Contacts/Addresses, Contract-Follow, Customer, and Events/Agenda all have
+// real backing data (see customerDetailTabs.queries.ts for how the six
+// non-profile tabs' own societe/api/{transactions,activities,contacts,
+// contracts,customer,agenda}.php endpoints were found — by watching this
+// exact page's own network traffic while switching tabs, not guessed). The
+// remaining tabs render an honest "not built yet" card rather than
+// fabricated content, same convention as the Dictionary Setup page.
 
 function SectionIcon({ icon: Icon, color }: { icon: React.ComponentType<{ size?: number; className?: string }>; color: IconColor }) {
   return (
@@ -117,30 +136,54 @@ function NotBuiltCard({ label }: { label: string }) {
   )
 }
 
+// Labels below are read straight from the real backend's own tab-bar
+// template (societe/templates/layout.php's $navItems array — the
+// authoritative source for what this exact page renders, not a guess from
+// a screenshot): each is either $langs->trans('<TransKey>') resolved
+// against the real English strings, or (for the four SPA-only additions
+// with no translation key) the literal hardcoded label in that same file.
+// Two real, load-bearing findings that weren't obvious from the UI alone:
+//   - 'rib' and 'paymentmodes' are NOT two different tabs — same file,
+//     same array entry (route 'paymentmodes', internal type 'rib', one
+//     label "Payment Information") — confirmed by the explicit `rib:
+//     'paymentmodes'` alias map in societe/assets/js/app.js. The previous
+//     version of this list had them as two separate tabs by mistake.
+//   - 'customer' has no static label at all in that file — its real label
+//     is computed per-record ("Prospect" / "Customer" / "Prospect |
+//     Customer", or hidden entirely when neither) — see CUSTOMER_TAB_LABEL
+//     below, driven by the same real client_label the backend already
+//     computes (CustomerProfile.clientLabel).
 const TABS = [
   { key: 'societe', label: 'Third-party', icon: Info },
   { key: 'transactions', label: 'Transactions', icon: ShoppingCart },
   { key: 'activities', label: 'Activities', icon: CalendarClock },
   { key: 'contacts', label: 'Contacts/Addresses', icon: Users2 },
   { key: 'contracts', label: 'Contract-Follow', icon: FileStack },
-  { key: 'customer', label: 'Customer', icon: BadgeDollarSign },
+  { key: 'customer', label: '', icon: BadgeDollarSign },
+  { key: 'agenda', label: 'Events/Agenda', icon: CalendarClock },
   { key: 'projects', label: 'Projects', icon: Briefcase },
   { key: 'tickets', label: 'Tickets', icon: Ticket },
   { key: 'expenses', label: 'Expenses', icon: Wallet },
-  { key: 'consumption', label: 'Consumption', icon: BadgeDollarSign },
-  { key: 'paymentmodes', label: 'Payment Modes', icon: Wallet },
-  { key: 'notify', label: 'Notify', icon: Bell },
+  { key: 'consumption', label: 'Related Items', icon: BadgeDollarSign },
+  { key: 'paymentmodes', label: 'Payment Information', icon: Landmark },
+  { key: 'notify', label: 'Notifications', icon: Bell },
   { key: 'notes', label: 'Notes', icon: StickyNote },
-  { key: 'documents', label: 'Documents', icon: Paperclip },
-  { key: 'agenda', label: 'Events/Agenda', icon: CalendarClock },
+  { key: 'documents', label: 'Linked Files', icon: Paperclip },
   { key: 'pricing_groups', label: 'Pricing Groups', icon: Tags },
-  { key: 'accounting_ar', label: 'Accounting AR', icon: BookOpen },
-  { key: 'accounting_ap', label: 'Accounting AP', icon: BookOpen },
+  { key: 'accounting_ar', label: 'Accounts Receivable', icon: BookOpen },
+  { key: 'accounting_ap', label: 'Accounts Payable', icon: BookOpen },
   { key: 'general_ledger', label: 'General Ledger', icon: BookOpen },
-  { key: 'rib', label: 'RIB', icon: Landmark },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
+
+// client===1 -> "Customer", client===2 -> "Prospect", client===3 -> both,
+// client===0 -> tab hidden entirely — matches societe/templates/layout.php's
+// own $customerNavLabel logic exactly (CustomerProfile.clientLabel is the
+// same value the real backend already computes with this rule).
+function customerTabLabel(data: CustomerProfile): string {
+  return data.clientLabel
+}
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>()
@@ -349,18 +392,26 @@ export function CustomerDetail() {
 
             <div className="border-t border-border">
               <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden -mx-6 px-6" style={{ scrollBehavior: 'smooth' }}>
-                {TABS.map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setTab(key)}
-                    className={`flex items-center gap-1.5 shrink-0 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
-                      tab === key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'
-                    }`}
-                  >
-                    <Icon size={14} className="shrink-0" /> {label}
-                  </button>
-                ))}
+                {TABS.filter((t) => t.key !== 'customer' || customerTabLabel(data)).map(({ key, label, icon: Icon }) => {
+                  const displayLabel = key === 'customer' ? customerTabLabel(data) : label
+                  // Real count from the same profile fetch (task_count +
+                  // call_count + meeting_count) — confirmed live against the
+                  // reference page's own "2" badge on this exact tab.
+                  const badgeCount = key === 'agenda' ? data.taskCount + data.callCount + data.meetingCount : 0
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setTab(key)}
+                      className={`flex items-center gap-1.5 shrink-0 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+                        tab === key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'
+                      }`}
+                    >
+                      <Icon size={14} className="shrink-0" /> {displayLabel}
+                      {badgeCount > 0 && <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badgeCount}</span>}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </Card>
@@ -370,8 +421,13 @@ export function CustomerDetail() {
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
         {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} />}
         {tab === 'notes' && <NotesTab data={data} />}
-        {tab === 'activities' && <ActivitiesTab />}
-        {tab !== 'societe' && tab !== 'notes' && tab !== 'activities' && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
+        {tab === 'transactions' && <TransactionsTab socid={id} />}
+        {tab === 'activities' && <ActivitiesTab socid={id} />}
+        {tab === 'contacts' && <ContactsTab socid={id} />}
+        {tab === 'contracts' && <ContractsTab socid={id} />}
+        {tab === 'customer' && <CustomerTab socid={id} profile={data} />}
+        {tab === 'agenda' && <AgendaTab socid={id} />}
+        {!['societe', 'notes', 'transactions', 'activities', 'contacts', 'contracts', 'customer', 'agenda'].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
       </div>
     </div>
   )
@@ -495,36 +551,506 @@ function NotesTab({ data }: { data: CustomerProfile }) {
   )
 }
 
-// Same honest, session-local activity pattern already used elsewhere in
-// this app (e.g. ProductDetail's Activity Timeline) — no real llx_actioncomm
-// endpoint exists on this backend (see agenda.queries.ts's own header
-// comment), so this shows what's actually happened this session rather than
-// fabricating history. Not filtered to this specific third party since the
-// underlying log has no per-record linkage — shows the general recent feed.
-function ActivitiesTab() {
-  const { data } = useRecentActivity({ category: 'thirdparty', limit: 20 })
+// The six tab components below all use the same real
+// societe/api/{transactions,activities,contacts,contracts,customer,
+// agenda}.php namespace — see customerDetailTabs.queries.ts's header
+// comment for how it was found (watching societe/card.php?socid=X's own
+// network traffic while switching tabs). This superseded an earlier version
+// of this file that showed a session-local activity log here instead,
+// mistakenly assumed to be the only real option before this real,
+// per-third-party backend was found.
+
+function TransactionsTab({ socid }: { socid: string | undefined }) {
+  const today = new Date()
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  const toInputDate = (d: Date) => d.toISOString().slice(0, 10)
+  const toUsDate = (iso: string) => {
+    const [y, m, d] = iso.split('-')
+    return `${m}/${d}/${y}`
+  }
+
+  const [fromDate, setFromDate] = useState(toInputDate(monthStart))
+  const [toDate, setToDate] = useState(toInputDate(monthEnd))
+  const { data, isLoading, isError, error, refetch } = useCustomerLedger(socid, toUsDate(fromDate), toUsDate(toDate))
+
+  if (isLoading) return <LegacyLoadingCard label="Loading transactions…" />
+  if (isError || !data) {
+    return <LegacyErrorCard title="Couldn't load transactions" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  }
+
+  const middleRows = data.rows.filter((r) => r.type === 'row')
+
+  function getExportData() {
+    const rows = data!.rows.map((r) => [
+      r.date,
+      r.entry_type,
+      r.reference,
+      r.contra,
+      r.description,
+      r.debit ? formatMoney(r.debit) : '',
+      r.credit ? formatMoney(r.credit) : '',
+      formatMoney(r.cumulative),
+    ])
+    return { headers: ['Date', 'Entry Type', 'Reference', 'Contra Acc.', 'Description', 'Debit', 'Credit', 'Cumulative'], rows }
+  }
+
+  return (
+    <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-text-faint">Date Range:</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5" />
+          <span className="text-text-faint text-sm">–</span>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5" />
+        </div>
+        <TableExportButtons title={data.account_title} getExportData={getExportData} />
+      </div>
+      <div className="p-4 overflow-x-auto">
+        <h3 className="font-semibold text-text! mb-3">{data.account_title}</h3>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+              <th className="font-medium py-2 pr-3">Date</th>
+              <th className="font-medium py-2 pr-3">Entry Type</th>
+              <th className="font-medium py-2 pr-3">Reference</th>
+              <th className="font-medium py-2 pr-3">Contra Acc.</th>
+              <th className="font-medium py-2 pr-3">Description</th>
+              <th className="font-medium py-2 pr-3 text-right">Debit</th>
+              <th className="font-medium py-2 pr-3 text-right">Credit</th>
+              <th className="font-medium py-2 text-right">Cumulative</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((r, i) => (
+              <tr key={i} className={`border-b border-border last:border-0 ${r.type !== 'row' ? 'font-semibold' : ''}`}>
+                <td className="py-2 pr-3 text-text-muted">{r.date}</td>
+                <td className="py-2 pr-3 text-text-muted">{r.entry_type}</td>
+                <td className="py-2 pr-3 text-text-muted">{r.reference}</td>
+                <td className="py-2 pr-3 text-text-muted">{r.contra}</td>
+                <td className="py-2 pr-3 text-text!">{r.description}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{r.debit ? formatMoney(r.debit) : ''}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{r.credit ? formatMoney(r.credit) : ''}</td>
+                <td className="py-2 text-right tabular-nums text-text!">{formatMoney(r.cumulative)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {middleRows.length === 0 && <p className="text-center text-text-faint text-sm py-6">No Transactions Found For This Period</p>}
+      </div>
+    </Card>
+  )
+}
+
+const ACTIVITY_STATUS_BADGE: Record<string, string> = {
+  done: 'bg-success-bg text-success-fg',
+  open: 'bg-warning-bg text-warning-fg',
+  todo: 'bg-warning-bg text-warning-fg',
+  inprogress: 'bg-info-bg text-info-fg',
+  closed: 'bg-neutral-bg text-neutral-fg',
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (!status) return <span className="text-text-faint">—</span>
+  const cls = ACTIVITY_STATUS_BADGE[status.toLowerCase()] ?? 'bg-neutral-bg text-neutral-fg'
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+}
+
+function ActivityTable({ items, emptyLabel }: { items: ActivityItem[]; emptyLabel: string }) {
+  if (items.length === 0) return <p className="text-sm text-text-faint italic py-4 text-center">{emptyLabel}</p>
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+          <th className="font-medium py-2 pr-3">Subject</th>
+          <th className="font-medium py-2 pr-3">Date</th>
+          <th className="font-medium py-2 pr-3">Priority</th>
+          <th className="font-medium py-2 pr-3">Accounting Needs</th>
+          <th className="font-medium py-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr key={item.id} className="border-b border-border last:border-0">
+            <td className="py-2 pr-3">
+              <p className="font-medium text-text!">{item.subject}</p>
+              {item.description && <p className="text-xs text-text-faint">{item.description}</p>}
+            </td>
+            <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{item.duedate || item.createddate}</td>
+            <td className="py-2 pr-3 text-text-muted capitalize">{item.priority}</td>
+            <td className="py-2 pr-3 text-text-muted capitalize">{item.relatedto}</td>
+            <td className="py-2">
+              <StatusBadge status={item.status} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function ActivitySubtab({ socid, type }: { socid: string | undefined; type: ActivityType }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerActivities(socid, type)
+  if (isLoading) return <LegacyLoadingCard label={`Loading ${type}…`} />
+  if (isError || !data) {
+    return <LegacyErrorCard title={`Couldn't load ${type}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  }
+  return (
+    <div className="space-y-4">
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">Open Activity</h3>
+          <span className="text-xs text-text-faint">{data.open.length}</span>
+        </div>
+        <div className="px-4 py-2 overflow-x-auto">
+          <ActivityTable items={data.open} emptyLabel="No open items." />
+        </div>
+      </Card>
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">Close Activity</h3>
+          <span className="text-xs text-text-faint">{data.closed.length}</span>
+        </div>
+        <div className="px-4 py-2 overflow-x-auto">
+          <ActivityTable items={data.closed} emptyLabel="No closed items." />
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+const ACTIVITY_SUBTABS: Array<{ key: ActivityType | 'timeline'; label: string }> = [
+  { key: 'tasks', label: 'Tasks' },
+  { key: 'meetings', label: 'Meetings' },
+  { key: 'calls', label: 'Calls' },
+  { key: 'timeline', label: 'Timeline' },
+]
+
+function ActivitiesTab({ socid }: { socid: string | undefined }) {
+  const [subtab, setSubtab] = useState<ActivityType | 'timeline'>('tasks')
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-1 border-b border-border">
+        {ACTIVITY_SUBTABS.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setSubtab(s.key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${subtab === s.key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {subtab === 'timeline' ? <AgendaTab socid={socid} /> : <ActivitySubtab socid={socid} type={subtab} />}
+    </div>
+  )
+}
+
+function ContactsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerContacts(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading contacts…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load contacts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  return (
+    <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h3 className="font-semibold text-text!">Contacts</h3>
+        <a
+          href={`/societe/contact.php?socid=${socid}&action=create`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        >
+          <Plus size={14} /> Add contact
+        </a>
+      </div>
+      <div className="p-4">
+        {data.rows.length === 0 ? (
+          <p className="text-sm text-text-faint italic py-6 text-center">No contacts yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                <th className="font-medium py-2 pr-3">Name</th>
+                <th className="font-medium py-2 pr-3">Position</th>
+                <th className="font-medium py-2 pr-3">Email</th>
+                <th className="font-medium py-2">Phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((c) => (
+                <tr key={c.id} className="border-b border-border last:border-0">
+                  <td className="py-2 pr-3 font-medium text-text!">{[c.firstname, c.lastname].filter(Boolean).join(' ')}</td>
+                  <td className="py-2 pr-3 text-text-muted">{c.poste}</td>
+                  <td className="py-2 pr-3 text-text-muted">
+                    {c.email && (
+                      <span className="flex items-center gap-1">
+                        <Mail size={12} /> {c.email}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 text-text-muted">
+                    {c.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone size={12} /> {c.phone}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+const CONTRACT_CARD_COLORS: IconColor[] = ['blue', 'green', 'amber', 'violet']
+
+function ContractSummaryCardView({ card, color }: { card: ContractSummaryCard; color: IconColor }) {
   return (
     <Card className="!h-auto">
-      <SectionHeader icon={CalendarClock} color="indigo">
-        Recent Activity (this session)
-      </SectionHeader>
-      {data.length === 0 ? (
-        <p className="text-sm text-text-faint italic py-6 text-center">No third-party activity logged yet this session.</p>
-      ) : (
-        <ul className="space-y-3">
-          {data.map((e, i) => (
-            <li key={e.id} className={`flex items-start gap-3 py-2 ${i !== data.length - 1 ? 'border-b border-border' : ''}`}>
-              <span className="w-2 h-2 rounded-full bg-brand mt-1.5 shrink-0" />
-              <div>
-                <p className="text-sm text-text!">{e.label}</p>
-                <p className="text-xs text-text-faint">
-                  {e.authorName} · {new Date(e.date).toLocaleString()}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="flex items-center gap-2 mb-2">
+        <SectionIcon icon={FileStack} color={color} />
+        <h4 className="text-xs font-semibold text-text-faint uppercase tracking-wide">{card.title}</h4>
+      </div>
+      <div className="flex items-baseline gap-4">
+        {card.items.map((it) => (
+          <div key={it.label}>
+            <p className="text-lg font-bold text-text!">{it.value}</p>
+            <p className="text-xs text-text-faint">{it.label}</p>
+          </div>
+        ))}
+      </div>
     </Card>
+  )
+}
+
+function ContractsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerContracts(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading contracts…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load contracts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {data.summary.cards.map((card, i) => (
+          <ContractSummaryCardView key={card.title} card={card} color={CONTRACT_CARD_COLORS[i % CONTRACT_CARD_COLORS.length]} />
+        ))}
+      </div>
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">Contracts</h3>
+          <a
+            href={stripBackendPrefix(data.urls.create)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+          >
+            <Plus size={14} /> New contract
+          </a>
+        </div>
+        <div className="p-4 overflow-x-auto">
+          {data.rows.length === 0 ? (
+            <p className="text-sm text-text-faint italic py-6 text-center">No contracts linked to this third party.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Ref</th>
+                  <th className="font-medium py-2 pr-3">Date</th>
+                  <th className="font-medium py-2 pr-3">Sales reps</th>
+                  <th className="font-medium py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.ref} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 font-medium text-text!">{r.ref}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.date_contract}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.sales_representatives}</td>
+                    <td className="py-2 text-text-muted">{r.service_status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function CustomerTab({ socid, profile }: { socid: string | undefined; profile: CustomerProfile }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerTab(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading customer info…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load customer info" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  const prospectLevelLabel = data.prospect_levels.find((p) => p.code === data.prospectlevel)?.label
+  const stcommLabel = data.stcomms.find((s) => s.id === data.stcomm_id)?.label
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Proposals</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.proposals_kpi.total_ht)}</p>
+          <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.proposals_kpi.opened)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Orders</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.orders_kpi.total_ht)}</p>
+          <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.orders_kpi.opened)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Invoices</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(profile.kpiInvoice)}</p>
+          <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.outstanding.total_ht)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Customer Credit / Advance</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.advance)}</p>
+          <p className="text-xs text-text-faint">Discount: {data.remise_percent}%</p>
+        </Card>
+      </div>
+
+      <Card className="!h-auto">
+        <InfoRow label="Prospect / Customer" value={data.client_label} />
+        <InfoRow label="Customer Code" value={data.code_client} />
+        <InfoRow label="Accounting Code" value={data.code_compta} />
+        <InfoRow label="Discount %" value={data.remise_percent ? `${data.remise_percent}%` : ''} />
+        <InfoRow label="Payment Terms" value={data.cond_reglement_label} />
+        <InfoRow label="Payment Mode" value={data.mode_reglement_label} />
+        <InfoRow label="Prospect Level" value={prospectLevelLabel} />
+        <InfoRow label="Prospect Status" value={stcommLabel} />
+        <InfoRow label="Sales Reps" value={data.sales_reps.join(', ')} />
+        <InfoRow label="Categories" value={data.categories.join(', ')} />
+      </Card>
+
+      <div className="flex flex-wrap gap-2">
+        {data.buttons
+          .filter((b) => b.visible)
+          .map((b) =>
+            b.refused ? (
+              <span
+                key={b.key}
+                title={b.title}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-faint opacity-60 cursor-not-allowed"
+              >
+                {b.label}
+              </span>
+            ) : (
+              <a
+                key={b.key}
+                href={stripBackendPrefix(b.url)}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
+              >
+                {b.label} <ExternalLink size={12} />
+              </a>
+            ),
+          )}
+      </div>
+    </div>
+  )
+}
+
+const AGENDA_STATUS_BADGE: Record<string, string> = {
+  done: 'bg-success-bg text-success-fg',
+  todo: 'bg-warning-bg text-warning-fg',
+  inprogress: 'bg-info-bg text-info-fg',
+}
+
+function AgendaTimelineList({ days }: { days: AgendaDay[] }) {
+  if (days.length === 0) return <p className="text-sm text-text-faint italic py-8 text-center">No events found.</p>
+  return (
+    <div className="space-y-6">
+      {days.map((day) => (
+        <div key={day.date}>
+          <div className="inline-block px-2.5 py-1 rounded-md bg-brand/10 text-brand text-xs font-semibold mb-3">{day.date_label}</div>
+          <div className="space-y-3">
+            {day.events.map((ev) => (
+              <div key={ev.id} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-surface-hover text-text-muted shrink-0 mt-0.5">
+                  {ev.type.includes('AUTO') ? <Bot size={14} /> : <CalendarClock size={14} />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-text-faint mb-0.5">{ev.time}</p>
+                  {ev.url ? (
+                    <a href={stripBackendPrefix(ev.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                      {ev.label}
+                    </a>
+                  ) : (
+                    <p className="font-medium text-text!">{ev.label}</p>
+                  )}
+                  <p className="text-xs text-text-faint mt-0.5 italic">
+                    {ev.type_label} · {ev.user}
+                  </p>
+                  {ev.note && <p className="text-sm text-text-muted mt-1">{ev.note}</p>}
+                </div>
+                <span
+                  className={`inline-block px-2 py-0.5 rounded text-xs font-medium shrink-0 ${AGENDA_STATUS_BADGE[ev.status] ?? 'bg-neutral-bg text-neutral-fg'}`}
+                >
+                  {ev.status_label}
+                  {ev.late ? ' · Late' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AgendaTab({ socid }: { socid: string | undefined }) {
+  const [type, setType] = useState('')
+  const [status, setStatus] = useState('')
+  const [user, setUser] = useState('')
+  const [search, setSearch] = useState('')
+  const { data, isLoading, isError, error, refetch } = useCustomerAgenda(socid, { type, status, user, search })
+
+  if (isLoading) return <LegacyLoadingCard label="Loading agenda…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load agenda" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-4">
+      <Card className="!h-auto">
+        <div className="flex flex-wrap items-center gap-3">
+          <select value={type} onChange={(e) => setType(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
+            {data.filters.types.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
+            {data.filters.statuses.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select value={user} onChange={(e) => setUser(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
+            {data.filters.users.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search label"
+            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 flex-1 min-w-[160px]"
+          />
+        </div>
+      </Card>
+      <Card className="!h-auto">
+        <AgendaTimelineList days={data.timeline} />
+      </Card>
+    </div>
   )
 }

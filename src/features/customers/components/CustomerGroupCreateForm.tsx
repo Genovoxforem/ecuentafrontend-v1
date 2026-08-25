@@ -104,7 +104,16 @@ export function CustomerGroupCreateForm() {
       <Card className="flex-1">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
           <Field label="Ref" required>
-            <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className={inputClasses} placeholder="e.g. Wholesale, VIP, Staff" />
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className={inputClasses}
+              placeholder="e.g. Wholesale, VIP, Staff"
+              disabled={isEdit}
+              title={isEdit ? "The legacy backend that stores customer groups doesn't support changing the label after creation." : undefined}
+            />
+            {isEdit && <p className="mt-1 text-xs text-text-faint">Label can't be changed after creation.</p>}
           </Field>
           <Field label="Description">
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputClasses} min-h-[42px]`} rows={1} />

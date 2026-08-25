@@ -18,7 +18,30 @@ const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
 // Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
 // one list so the dev proxy below and the generated production .htaccess
 // (see htaccessPlugin) can never drift apart from each other.
-const BACKEND_OWNED_PATHS = ['/api', '/custom', '/takeposnew', '/takepos', '/index.php', '/accountancy', '/product', '/variants', '/projet', '/categories', '/comm', '/core', '/societe', '/productinfo', '/admin'] as const
+const BACKEND_OWNED_PATHS = [
+  '/api',
+  '/custom',
+  '/takeposnew',
+  '/takepos',
+  '/index.php',
+  '/quicklinks_ajax.php',
+  '/accountancy',
+  '/product',
+  '/variants',
+  '/projet',
+  '/categories',
+  '/comm',
+  '/core',
+  '/societe',
+  '/productinfo',
+  '/admin',
+  '/contrat',
+  '/commande',
+  '/compta',
+  '/fichinter',
+  '/userprofile',
+  '/expensereport',
+] as const
 
 // Production deploys this build's dist/ output onto the backend's own
 // origin (e.g. https://demo1.ecuenta.online), alongside its existing PHP
@@ -103,6 +126,11 @@ export default defineConfig({
       // app has no route of its own at this path, so carving it out here is
       // safe the same way '/custom' and '/takeposnew' already are.
       '^/index\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Real AJAX handler behind the legacy "New Warehouse" quick-create
+      // form (POST type=savewarehouse, INSERT INTO llx_entrepot — confirmed
+      // by reading quicklinks_ajax.php directly) — a root-level PHP file
+      // this app has no route of its own at, same as index.php above.
+      '^/quicklinks_ajax\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       // Legacy accounting/bookkeeping reports (Ledger, Journals) have no
       // REST API — generalLedger.queries.ts fetches these PHP-rendered pages
       // directly (same-origin, DOLSESSID-cookie-authenticated via
@@ -164,6 +192,24 @@ export default defineConfig({
       // so a plain prefix is safe, but anchored anyway to match the rest
       // of this list.
       '^/admin(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Contract-Follow / Customer tab action buttons (societe/api/
+      // contracts.php + customer.php) return real legacy URLs for creating
+      // contracts/orders/invoices/job cards — contrat, commande, compta, and
+      // fichinter aren't otherwise proxied yet, so linking to any of those
+      // 404'd in dev until now (production doesn't need this, see the
+      // comment above BACKEND_OWNED_PATHS — same origin there already).
+      '^/contrat(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/commande(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/compta(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/fichinter(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Real per-user Permissions/User-info API (userprofile/api/*), found
+      // by watching userprofile/index.php?id=X's own network traffic — see
+      // userPermissions.queries.ts.
+      '^/userprofile(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Real Purchase Invoice / Landed Cost Invoice / User dropdown options
+      // for the Landed Cost create page (expensereport/landedcostbilled.php)
+      // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.
+      '^/expensereport(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

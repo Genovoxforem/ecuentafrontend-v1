@@ -152,12 +152,20 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
   const languageOptions = formOptions?.languages?.map(l => l.label) ?? []
   const incotermOptions = formOptions?.incoterms?.map(i => i.label) ?? []
   const environmentOptions = formOptions?.environment?.map(e => e.label) ?? []
+  const salesRepOptions = formOptions?.salesReps?.map(r => r.label) ?? []
+  const custCategoryOptions = formOptions?.custCategories?.map(c => c.label) ?? []
+  const vendorCategoryOptions = formOptions?.vendorCategories?.map(c => c.label) ?? []
 
   return [
-    { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
+    { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Closed'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
     { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
     { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text', icon: UserCog, section: 'Status & Assignment' },
-    { key: 'salesRep', label: 'Assigned to sales representative', type: 'text', icon: UserRound, section: 'Status & Assignment' },
+    // Labeled "Allocate commercial" on the real legacy wizard (confirmed
+    // live: <select name="commercial">) — same field, same payload key
+    // (commercial) as this app's read-only "Sales Reps" row on the Customer
+    // detail tab (societe/api/customer.php's sales_reps), not a separate
+    // concept from "sales representative".
+    { key: 'salesRep', label: 'Allocate commercial', type: 'select', options: salesRepOptions, icon: UserRound, section: 'Status & Assignment' },
     { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
     { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
 
@@ -170,17 +178,21 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
     { key: 'nrc', label: 'NRC', type: 'select', options: nrcOptions, icon: FileText, section: 'Business & Tax' },
     { key: 'nrcNumber', label: 'NRC Number', type: 'text', icon: Hash, section: 'Business & Tax' },
     { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
-    { key: 'vatId', label: 'VAT ID', type: 'text', icon: Receipt, section: 'Business & Tax' },
+    // Labeled "VAT Intra" on the real legacy wizard — this is Dolibarr's
+    // tva_intra field (EU-style VAT/intracommunity number), confirmed by
+    // this form's own create payload already sending it as tva_intra.
+    { key: 'vatId', label: 'VAT Intra', type: 'text', icon: Receipt, section: 'Business & Tax' },
     { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
     { key: 'workforce', label: 'Workforce', type: 'select', options: workforceOptions, icon: Users, section: 'Business & Tax' },
     { key: 'languageDefault', label: 'Language default', type: 'select', options: languageOptions, icon: Languages, section: 'Business & Tax' },
     { key: 'incoterms', label: 'Incoterms', type: 'select', options: incotermOptions, icon: Ship, section: 'Business & Tax' },
+    { key: 'incotermLocation', label: 'Incoterm location', type: 'text', icon: MapPin, section: 'Business & Tax' },
     { key: 'environment', label: 'Environment', type: 'select', options: environmentOptions, defaultValue: environmentOptions[0], icon: Server, section: 'Business & Tax' },
     { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
     { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
 
-    { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
-    { key: 'vendorTags', label: 'Vendors tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
+    { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'select', options: custCategoryOptions, icon: Tags, section: 'Tags & Documents' },
+    { key: 'vendorTags', label: 'Vendors tags/categories', type: 'select', options: vendorCategoryOptions, icon: Tags, section: 'Tags & Documents' },
     { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
   ]
 }
@@ -342,6 +354,12 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const selectedCurrencyCode = formOptions?.currencies?.find((c) => c.label === values.currency)?.value
   const selectedThirdPartyTypeId = formOptions?.thirdPartyTypes?.find((t) => t.label === values.thirdPartyType)?.value
   const selectedWorkforceId = formOptions?.workforce?.find((w) => w.label === values.workforce)?.value
+  const selectedCustomerGroupId = formOptions?.customerGroups?.find((g) => g.label === values.customerGroup)?.value
+  const selectedBusinessEntityId = formOptions?.businessEntityTypes?.find((b) => b.label === values.businessEntityType)?.value
+  const selectedIncotermId = formOptions?.incoterms?.find((i) => i.label === values.incoterms)?.value
+  const selectedSalesRepId = formOptions?.salesReps?.find((r) => r.label === values.salesRep)?.value
+  const selectedCustCategoryId = formOptions?.custCategories?.find((c) => c.label === values.custProspTags)?.value
+  const selectedVendorCategoryId = formOptions?.vendorCategories?.find((c) => c.label === values.vendorTags)?.value
 
   // Build steps with dynamic form options — cheap pure functions, no need to
   // memoize across every field-level state update this component makes.
@@ -375,7 +393,8 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
       const isVendorNow = values.vendor === 'Yes'
       const client = isVendorNow ? 0 : values.prospectCustomer === 'Prospect' ? 2 : values.prospectCustomer === 'Not prospect, Not customer' ? 0 : 1
       const type = isVendorNow ? 'f' : values.prospectCustomer === 'Prospect' ? 'p' : 'c'
-      const { token, countryIdByCode } = await fetchSocieteFormContext()
+      const { token } = await fetchSocieteFormContext()
+      const selectedNrcValue = formOptions?.nrcTypes?.find((n) => n.label === values.nrc)?.value
       const payload = {
         name_title: values.nameTitle,
         name: values.firstName.trim(),
@@ -385,40 +404,43 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
         idprof1: values.tpin.trim(),
         idprof2: values.trackingId || '',
         name_alias: values.aliasName || '',
-        group_id: '',
+        group_id: selectedCustomerGroupId || '',
         phone: values.phone || '',
         customer_code: values.customerCode || 'auto',
         email: values.email || '',
-        // selectedCountryId is the ISO alpha-2 code (this app's
-        // /zra/product-form-options/ source uses that as its option value),
-        // but societes.php needs Dolibarr's real numeric country rowid —
-        // countryIdByCode (scraped alongside the token, see
-        // fetchSocieteFormContext) converts it.
-        country_id: (selectedCountryId && countryIdByCode[selectedCountryId]) || '',
+        // formOptions.countries' value is already the real numeric
+        // llx_c_country.rowid (see thirdPartyOptions.queries.ts's
+        // useCustomerLookups — sourced directly from societe/api/meta.php's
+        // wizard_options, which returns that id, not an ISO code), so this
+        // needs no further lookup/conversion before submitting.
+        country_id: selectedCountryId || '',
         supplier_code: values.vendorCode || (isVendorNow ? 'auto' : ''),
         branch_code: values.branchCode || '',
         address: values.address || '',
         multicurrency_code: selectedCurrencyCode || '',
         typent_id: selectedThirdPartyTypeId || '',
-        status: values.status === 'Close' ? 0 : 1,
+        status: values.status === 'Closed' ? 0 : 1,
         supervisor_det: values.supervisorDetails || '',
         employer_name: values.employerName || '',
         employee_num: values.employeeNumber || '',
-        usermode: values.thirdPartyMode === 'privileged' ? '2' : '1',
+        // societe/api/meta.php's own usermode_options confirms the real
+        // values: 1=unprivileged, 0=privileged (not 2 — the previous mapping
+        // here submitted an invalid value for "privileged").
+        usermode: values.thirdPartyMode === 'privileged' ? '0' : '1',
         zipcode: values.zipCode || '',
         town: values.city || '',
         state_id: selectedStateId || '',
         fax: values.fax || '',
-        forme_juridique_code: '',
-        nrc_id: '',
+        forme_juridique_code: selectedBusinessEntityId || '',
+        nrc_id: selectedNrcValue || '',
         nrc_num: values.nrcNumber || '',
         document: {},
         assujtva_value: values.salesTaxUsed === 'No' ? 0 : 1,
         tva_intra: values.vatId || '',
         effectif_id: selectedWorkforceId || '',
         capital: values.capital || '',
-        fk_incoterms: '',
-        location_incoterms: '',
+        fk_incoterms: selectedIncotermId || '',
+        location_incoterms: values.incotermLocation || '',
         barcode: values.barcode || '',
         url: values.web || '',
         facebook: values.facebook || '',
@@ -434,9 +456,9 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
         viber: values.viber || '',
         github: values.github || '',
         type,
-        commercial: [],
-        custcats: [],
-        suppcats: [],
+        commercial: selectedSalesRepId ? [selectedSalesRepId] : [],
+        custcats: selectedCustCategoryId ? [selectedCustCategoryId] : [],
+        suppcats: selectedVendorCategoryId ? [selectedVendorCategoryId] : [],
         action: 'create',
         token,
       }
