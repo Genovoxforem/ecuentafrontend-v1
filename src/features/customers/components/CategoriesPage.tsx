@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Tag, Plus, Search, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { isBackendUnavailable, BackendUnavailableCard, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { useCategories, useCreateCategory, type CategoryType } from '../categories.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -11,7 +12,7 @@ const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 // the same table, just filtered by category type.
 export function CategoriesPage({ type, title }: { type: CategoryType; title: string }) {
   const [search, setSearch] = useState('')
-  const { data, isLoading, isError } = useCategories(type, search)
+  const { data, isLoading, isError, error: queryError } = useCategories(type, search)
   const createCategory = useCreateCategory(type)
 
   const [showForm, setShowForm] = useState(false)
@@ -33,7 +34,9 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
           setLabel('')
           setShowForm(false)
         },
-        onError: () => setError('Could not save this tag — please try again.'),
+        onError: (err) => {
+          if (!isBackendUnavailable(err)) setError('Could not save this tag — please try again.')
+        },
       },
     )
   }
@@ -51,16 +54,22 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
 
       {showForm && (
         <Card className="!h-auto">
-          {error && <p className="text-sm font-medium text-danger mb-3">{error}</p>}
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Name</label>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
-            </div>
-            <button type="button" disabled={createCategory.isPending} onClick={handleSave} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-              Save
-            </button>
-          </div>
+          {createCategory.isError && isBackendUnavailable(createCategory.error) ? (
+            <BackendUnavailableInline feature={title} />
+          ) : (
+            <>
+              {error && <p className="text-sm font-medium text-danger mb-3">{error}</p>}
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-xs text-text-faint mb-1">Name</label>
+                  <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
+                </div>
+                <button type="button" disabled={createCategory.isPending} onClick={handleSave} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+                  Save
+                </button>
+              </div>
+            </>
+          )}
         </Card>
       )}
 
@@ -72,24 +81,28 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
         </div>
       </div>
 
-      <Card className="!h-auto space-y-2">
-        {isLoading ? (
-          <p className="text-sm text-text-faint italic">Loading…</p>
-        ) : isError ? (
-          <p className="text-sm text-danger">Could not load tags/categories.</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-text-faint italic">No tags/categories yet.</p>
-        ) : (
-          items.map((c) => (
-            <div key={c.id} className="flex items-center gap-2">
-              <div className="flex-1 flex items-center justify-between rounded-md bg-brand/10 px-3 py-1.5 text-sm text-text!">
-                <span>{c.label}</span>
+      {isError && isBackendUnavailable(queryError) ? (
+        <BackendUnavailableCard feature={title} />
+      ) : (
+        <Card className="!h-auto space-y-2">
+          {isLoading ? (
+            <p className="text-sm text-text-faint italic">Loading…</p>
+          ) : isError ? (
+            <p className="text-sm text-danger">Could not load tags/categories.</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-text-faint italic">No tags/categories yet.</p>
+          ) : (
+            items.map((c) => (
+              <div key={c.id} className="flex items-center gap-2">
+                <div className="flex-1 flex items-center justify-between rounded-md bg-brand/10 px-3 py-1.5 text-sm text-text!">
+                  <span>{c.label}</span>
+                </div>
+                <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded bg-brand text-white text-xs font-bold">{c.itemCount}</span>
               </div>
-              <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded bg-brand text-white text-xs font-bold">{c.itemCount}</span>
-            </div>
-          ))
-        )}
-      </Card>
+            ))
+          )}
+        </Card>
+      )}
     </div>
   )
 }

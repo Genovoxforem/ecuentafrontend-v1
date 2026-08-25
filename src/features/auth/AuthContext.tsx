@@ -4,6 +4,8 @@ import { loginRequest, fetchMe, type LoginCredentials } from './auth.api'
 import { establishLegacySession } from './legacySession'
 
 export interface AuthUser {
+  id: string
+  entity: string
   firstname: string
   lastname: string
   login: string
@@ -20,6 +22,13 @@ interface AuthContextValue {
   login: (credentials: LoginCredentials) => Promise<AuthUser>
   logout: () => void
   hasRight: (module: string, action: string) => boolean
+  // Set only when a 401 from a protected call force-logged the user out
+  // (expired/invalid token) — not on an explicit Log Out click, which calls
+  // logout() directly and never touches this. LoginModule reads it to show
+  // "your session expired" instead of silently landing back on a blank
+  // login form with no explanation.
+  sessionExpiredMessage: string | null
+  clearSessionExpiredMessage: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -28,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [rights, setRights] = useState<Record<string, Record<string, boolean>>>({})
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'anonymous'>('loading')
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
 
   const logout = useCallback(() => {
     setStoredToken(null)
@@ -36,8 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous')
   }, [])
 
+  const clearSessionExpiredMessage = useCallback(() => setSessionExpiredMessage(null), [])
+
   useEffect(() => {
-    registerUnauthorizedHandler(logout)
+    // Distinct from the plain `logout` the Navbar's Log Out button calls
+    // directly — this path only runs when the 401 interceptor (api/axios.ts)
+    // fires, i.e. a protected call was rejected with an expired/invalid
+    // token, not a user-initiated logout.
+    registerUnauthorizedHandler(() => {
+      setSessionExpiredMessage('Your session expired — please sign in again.')
+      logout()
+    })
   }, [logout])
 
   useEffect(() => {
@@ -59,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    setSessionExpiredMessage(null)
     const data = await loginRequest(credentials)
     setStoredToken(data.bearer_token ?? data.api_key ?? data.token ?? null)
     // Fire-and-forget: optional, never blocks/fails the real login below.
@@ -80,8 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, rights, status, login, logout, hasRight }),
-    [user, rights, status, login, logout, hasRight],
+    () => ({ user, rights, status, login, logout, hasRight, sessionExpiredMessage, clearSessionExpiredMessage }),
+    [user, rights, status, login, logout, hasRight, sessionExpiredMessage, clearSessionExpiredMessage],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

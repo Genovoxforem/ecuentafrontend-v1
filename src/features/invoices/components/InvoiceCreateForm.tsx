@@ -9,6 +9,7 @@ import { useCustomerOptions } from '../../customers/customerOptions'
 import { useProductOptions } from '../../products/products.queries'
 import { useCreateInvoice, type NewInvoiceLine } from '../invoiceCreate.queries'
 import { formatMoney } from '../../../utils/format'
+import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const INVOICE_TYPES = ['Standard invoice', 'Lpo', 'Export', 'Template invoice', 'Credit note']
 
@@ -92,7 +93,11 @@ export function InvoiceCreateForm() {
       },
       {
         onSuccess: () => navigate(ROUTES.invoiceList),
-        onError: () => setFormError('Could not create this invoice — please try again.'),
+        // POST /api/invoices/list/ doesn't exist on the current backend (see
+        // BackendUnavailable.tsx) — this create draft action gets the honest "not available"
+        // message instead of the generic retry-suggesting one.
+        onError: (err) =>
+          setFormError(isBackendUnavailable(err) ? "Creating an invoice isn't available on this backend yet." : 'Could not create this invoice — please try again.'),
       },
     )
   }

@@ -59,8 +59,10 @@ const PurchasesModule = lazy(() => import('./modules/purchases/PurchasesModule')
 const WarehousesModule = lazy(() => import('./modules/warehouses/WarehousesModule').then((m) => ({ default: m.WarehousesModule })))
 const WarehouseCreateModule = lazy(() => import('./modules/warehouses/WarehouseModules').then((m) => ({ default: m.WarehouseCreateModule })))
 const WarehouseListModule = lazy(() => import('./modules/warehouses/WarehouseModules').then((m) => ({ default: m.WarehouseListModule })))
+const WarehouseDetailModule = lazy(() => import('./modules/warehouses/WarehouseModules').then((m) => ({ default: m.WarehouseDetailModule })))
 const InventoryCreateModule = lazy(() => import('./modules/warehouses/InventoryModules').then((m) => ({ default: m.InventoryCreateModule })))
 const InventoryListModule = lazy(() => import('./modules/warehouses/InventoryModules').then((m) => ({ default: m.InventoryListModule })))
+const InventoryDetailModule = lazy(() => import('./modules/warehouses/InventoryModules').then((m) => ({ default: m.InventoryDetailModule })))
 const LandedCostCreateModule = lazy(() => import('./modules/warehouses/LandedCostModules').then((m) => ({ default: m.LandedCostCreateModule })))
 const LandedCostListModule = lazy(() => import('./modules/warehouses/LandedCostModules').then((m) => ({ default: m.LandedCostListModule })))
 const ShipmentSearchModule = lazy(() => import('./modules/warehouses/ShipmentModules').then((m) => ({ default: m.ShipmentSearchModule })))
@@ -109,6 +111,7 @@ const LinkedFilesManualTreeModule = lazy(() => import('./modules/usersDashboard/
 const LinkedFilesAutomaticTreeModule = lazy(() => import('./modules/usersDashboard/LinkedFilesAreaModule').then((m) => ({ default: m.LinkedFilesAutomaticTreeModule })))
 const CustomersListModule = lazy(() => import('./modules/customers/CustomersListModule').then((m) => ({ default: m.CustomersListModule })))
 const CustomerCreateModule = lazy(() => import('./modules/customers/CustomerCreateModule').then((m) => ({ default: m.CustomerCreateModule })))
+const CustomerDetailModule = lazy(() => import('./modules/customers/CustomerDetailModule').then((m) => ({ default: m.CustomerDetailModule })))
 const ProspectsListModule = lazy(() => import('./modules/customers/ProspectsListModule').then((m) => ({ default: m.ProspectsListModule })))
 const ProspectCreateModule = lazy(() => import('./modules/customers/ProspectCreateModule').then((m) => ({ default: m.ProspectCreateModule })))
 const CustomerGroupListModule = lazy(() => import('./modules/customers/CustomerGroupListModule').then((m) => ({ default: m.CustomerGroupListModule })))
@@ -149,6 +152,7 @@ const ProjectCategoryCreateModule = lazy(() => import('./modules/projects/Projec
 const SupplierProposalStatsModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.SupplierProposalStatsModule })))
 const OrdersListModule = lazy(() => import('./modules/salesOrders/OrdersListModule').then((m) => ({ default: m.OrdersListModule })))
 const OrderCreateModule = lazy(() => import('./modules/salesOrders/OrderCreateModule').then((m) => ({ default: m.OrderCreateModule })))
+const OrderDetailModule = lazy(() => import('./modules/salesOrders/OrderDetailModule').then((m) => ({ default: m.OrderDetailModule })))
 const OrderStatisticsModule = lazy(() => import('./modules/salesOrders/OrderStatisticsModule').then((m) => ({ default: m.OrderStatisticsModule })))
 const ContractsListModule = lazy(() => import('./modules/contracts/ContractsListModule').then((m) => ({ default: m.ContractsListModule })))
 const ContractCreateModule = lazy(() => import('./modules/contracts/ContractCreateModule').then((m) => ({ default: m.ContractCreateModule })))
@@ -174,6 +178,8 @@ const ProductsListModule = lazy(() => import('./modules/products/ProductsListMod
 const ServicesListModule = lazy(() => import('./modules/products/ServicesListModule').then((m) => ({ default: m.ServicesListModule })))
 const ProductAreaModule = lazy(() => import('./modules/products/ProductAreaModule').then((m) => ({ default: m.ProductAreaModule })))
 const ProductCreateModule = lazy(() => import('./modules/products/ProductCreateModule').then((m) => ({ default: m.ProductCreateModule })))
+const ProductDetailModule = lazy(() => import('./modules/products/ProductDetailModule').then((m) => ({ default: m.ProductDetailModule })))
+const ProductEditModule = lazy(() => import('./modules/products/ProductEditModule').then((m) => ({ default: m.ProductEditModule })))
 const ServiceCreateModule = lazy(() => import('./modules/products/ServiceCreateModule').then((m) => ({ default: m.ServiceCreateModule })))
 const ProductStatisticsModule = lazy(() => import('./modules/products/ProductStatisticsModule').then((m) => ({ default: m.ProductStatisticsModule })))
 const ServiceStatisticsModule = lazy(() => import('./modules/products/ServiceStatisticsModule').then((m) => ({ default: m.ServiceStatisticsModule })))
@@ -251,8 +257,10 @@ function App() {
                   <Route path={ROUTES.warehouseDashboard} element={<RouteBoundary><WarehousesModule /></RouteBoundary>} />
                   <Route path={ROUTES.warehouseCreate} element={<RouteBoundary><WarehouseCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.warehouseList} element={<RouteBoundary><WarehouseListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.warehouseDetail} element={<RouteBoundary><WarehouseDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.inventoryCreate} element={<RouteBoundary><InventoryCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.inventoryList} element={<RouteBoundary><InventoryListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.inventoryDetail} element={<RouteBoundary><InventoryDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.landedCostCreate} element={<RouteBoundary><LandedCostCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.landedCostList} element={<RouteBoundary><LandedCostListModule /></RouteBoundary>} />
                   <Route path={ROUTES.shipmentList} element={<RouteBoundary><ShipmentSearchModule /></RouteBoundary>} />
@@ -301,6 +309,7 @@ function App() {
                   <Route path={ROUTES.userDocumentsAutomatic} element={<RouteBoundary><LinkedFilesAutomaticTreeModule /></RouteBoundary>} />
                   <Route path={ROUTES.customerList} element={<RouteBoundary><CustomersListModule /></RouteBoundary>} />
                   <Route path={ROUTES.customersCreate} element={<RouteBoundary><CustomerCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.customerDetail} element={<RouteBoundary><CustomerDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.prospectList} element={<RouteBoundary><ProspectsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.prospectsCreate} element={<RouteBoundary><ProspectCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.customerGroupList} element={<RouteBoundary><CustomerGroupListModule /></RouteBoundary>} />
@@ -314,6 +323,7 @@ function App() {
                   <Route path={ROUTES.orderList} element={<RouteBoundary><OrdersListModule /></RouteBoundary>} />
                   <Route path={ROUTES.orderCreate} element={<RouteBoundary><OrderCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.orderStats} element={<RouteBoundary><OrderStatisticsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.orderDetail} element={<RouteBoundary><OrderDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.contractList} element={<RouteBoundary><ContractsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.contractCreate} element={<RouteBoundary><ContractCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.contractServices} element={<RouteBoundary><ServicesDetailsModule /></RouteBoundary>} />
@@ -367,6 +377,8 @@ function App() {
                   <Route path={ROUTES.serviceList} element={<RouteBoundary><ServicesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.productArea} element={<RouteBoundary><ProductAreaModule /></RouteBoundary>} />
                   <Route path={ROUTES.productCreate} element={<RouteBoundary><ProductCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productDetail} element={<RouteBoundary><ProductDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productEdit} element={<RouteBoundary><ProductEditModule /></RouteBoundary>} />
                   <Route path={ROUTES.serviceCreate} element={<RouteBoundary><ServiceCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.productStats} element={<RouteBoundary><ProductStatisticsModule /></RouteBoundary>} />
                   <Route path={ROUTES.serviceStats} element={<RouteBoundary><ServiceStatisticsModule /></RouteBoundary>} />

@@ -6,7 +6,6 @@ import {
   Check,
   X,
   LoaderCircle,
-  TriangleAlert,
   ChevronLeft,
   ChevronRight,
   Contact,
@@ -50,10 +49,11 @@ import { Card } from '../dashboard/DashboardKit'
 import { StickyFormShell } from '../layout/StickyFormShell'
 import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
 import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
-import { api } from '../../../api/axios'
+import axios from 'axios'
 import { useLogActivity } from '../../../features/agenda/agenda.queries'
 import { useAuth } from '../../../features/auth/AuthContext'
-import { useThirdPartyFormOptions, useStatesByCountry } from '../../../features/customers/thirdPartyOptions.queries'
+import { useThirdPartyFormOptions, useStatesByCountry, fetchSocieteFormContext } from '../../../features/customers/thirdPartyOptions.queries'
+import { ROUTES } from '../../../routes'
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 
@@ -91,6 +91,10 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
   // Safe defaults if formOptions is null or properties are missing
   const countryOptions = formOptions?.countries?.map(c => c.label) ?? ['Zambia']
   const currencyOptions = formOptions?.currencies?.map(c => c.label) ?? ['Zambian Kwacha (ZMW)']
+  // Real dictionary data is alphabetical (Afghanistan Afghani first) — for
+  // this Zambia-focused deployment, default to the real Zambian Kwacha
+  // entry when present instead of whatever's alphabetically first.
+  const defaultCurrencyLabel = currencyOptions.find((label) => /zambia/i.test(label)) ?? currencyOptions[0] ?? 'Zambian Kwacha (ZMW)'
   const customerGroupOptions = formOptions?.customerGroups?.map(g => g.label) ?? []
   const thirdPartyTypeOptions = formOptions?.thirdPartyTypes?.map(t => t.label) ?? []
   
@@ -134,7 +138,7 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
   fields.push(
     { key: 'country', label: 'Country', type: 'select', options: countryOptions, defaultValue: countryOptions[0] ?? 'Zambia', icon: Globe, section: 'Location & Currency' },
     { key: 'address', label: 'Address', type: 'text', icon: MapPin, section: 'Location & Currency' },
-    { key: 'currency', label: 'Currency', type: 'select', options: currencyOptions, defaultValue: currencyOptions[0] ?? 'Zambian Kwacha (ZMW)', icon: Coins, section: 'Location & Currency' },
+    { key: 'currency', label: 'Currency', type: 'select', options: currencyOptions, defaultValue: defaultCurrencyLabel, icon: Coins, section: 'Location & Currency' },
     { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: thirdPartyTypeOptions, icon: Layers, section: 'Location & Currency' },
   )
   return fields
@@ -148,12 +152,20 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
   const languageOptions = formOptions?.languages?.map(l => l.label) ?? []
   const incotermOptions = formOptions?.incoterms?.map(i => i.label) ?? []
   const environmentOptions = formOptions?.environment?.map(e => e.label) ?? []
+  const salesRepOptions = formOptions?.salesReps?.map(r => r.label) ?? []
+  const custCategoryOptions = formOptions?.custCategories?.map(c => c.label) ?? []
+  const vendorCategoryOptions = formOptions?.vendorCategories?.map(c => c.label) ?? []
 
   return [
-    { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Close'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
+    { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Closed'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
     { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
     { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text', icon: UserCog, section: 'Status & Assignment' },
-    { key: 'salesRep', label: 'Assigned to sales representative', type: 'text', icon: UserRound, section: 'Status & Assignment' },
+    // Labeled "Allocate commercial" on the real legacy wizard (confirmed
+    // live: <select name="commercial">) — same field, same payload key
+    // (commercial) as this app's read-only "Sales Reps" row on the Customer
+    // detail tab (societe/api/customer.php's sales_reps), not a separate
+    // concept from "sales representative".
+    { key: 'salesRep', label: 'Allocate commercial', type: 'select', options: salesRepOptions, icon: UserRound, section: 'Status & Assignment' },
     { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
     { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
 
@@ -166,17 +178,21 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
     { key: 'nrc', label: 'NRC', type: 'select', options: nrcOptions, icon: FileText, section: 'Business & Tax' },
     { key: 'nrcNumber', label: 'NRC Number', type: 'text', icon: Hash, section: 'Business & Tax' },
     { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
-    { key: 'vatId', label: 'VAT ID', type: 'text', icon: Receipt, section: 'Business & Tax' },
+    // Labeled "VAT Intra" on the real legacy wizard — this is Dolibarr's
+    // tva_intra field (EU-style VAT/intracommunity number), confirmed by
+    // this form's own create payload already sending it as tva_intra.
+    { key: 'vatId', label: 'VAT Intra', type: 'text', icon: Receipt, section: 'Business & Tax' },
     { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
     { key: 'workforce', label: 'Workforce', type: 'select', options: workforceOptions, icon: Users, section: 'Business & Tax' },
     { key: 'languageDefault', label: 'Language default', type: 'select', options: languageOptions, icon: Languages, section: 'Business & Tax' },
     { key: 'incoterms', label: 'Incoterms', type: 'select', options: incotermOptions, icon: Ship, section: 'Business & Tax' },
+    { key: 'incotermLocation', label: 'Incoterm location', type: 'text', icon: MapPin, section: 'Business & Tax' },
     { key: 'environment', label: 'Environment', type: 'select', options: environmentOptions, defaultValue: environmentOptions[0], icon: Server, section: 'Business & Tax' },
     { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
     { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
 
-    { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
-    { key: 'vendorTags', label: 'Vendors tags/categories', type: 'text', icon: Tags, section: 'Tags & Documents' },
+    { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'select', options: custCategoryOptions, icon: Tags, section: 'Tags & Documents' },
+    { key: 'vendorTags', label: 'Vendors tags/categories', type: 'select', options: vendorCategoryOptions, icon: Tags, section: 'Tags & Documents' },
     { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
   ]
 }
@@ -242,8 +258,14 @@ function NameField({
   )
 }
 
+// Real response shape from societe/api/societes.php?action=create,
+// confirmed live: {"ok":true,"message":"Third party created","id":2071,
+// "societe":{...},"redirect":"/.../societe/card.php?socid=2071"}. Errors
+// use `error` in place of `ok:true` (not directly captured live, but
+// matches this endpoint's list.php sibling's own {ok, error} convention).
 interface CreateThirdPartyResponse {
-  success: boolean
+  ok: boolean
+  id?: number
   error?: string
   message?: string
 }
@@ -305,6 +327,22 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     setValues((prev) => ({ ...prev, country: (home ?? formOptions.countries[0]).label }))
   }, [formOptions?.countries, formOptions?.defaultCountryId])
 
+  // Same stale-fallback problem as Country above: `values.currency` starts
+  // out as the bare fallback string 'Zambian Kwacha (ZMW)' (buildStep1's
+  // own fallback, used before formOptions loads), which doesn't exactly
+  // match any real option once the live dict.php currency list arrives
+  // (its real label is just 'Zambian Kwacha', no code suffix) — left alone
+  // the <select> silently falls back to its first (alphabetical) option,
+  // "Afghanistan Afghani". Snap to the real Zambian Kwacha entry once real
+  // data loads, same "never overwrite an actual user selection" guard.
+  useEffect(() => {
+    if (!formOptions?.currencies?.length) return
+    const isRealCurrency = formOptions.currencies.some((c) => c.label === values.currency)
+    if (isRealCurrency) return
+    const zmw = formOptions.currencies.find((c) => /zambia/i.test(c.label))
+    setValues((prev) => ({ ...prev, currency: (zmw ?? formOptions.currencies[0]).label }))
+  }, [formOptions?.currencies])
+
   // State/Province is reactive to the selected Country — legacy's own field
   // (select_state($country_code), societe/card.php) works the same way — so
   // it's fetched separately from the rest of useThirdPartyFormOptions rather
@@ -312,6 +350,16 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const selectedCountryId = formOptions?.countries?.find((c) => c.label === values.country)?.value
   const { data: stateOptionsData } = useStatesByCountry(selectedCountryId)
   const stateOptions = stateOptionsData?.map((s) => s.label) ?? []
+  const selectedStateId = stateOptionsData?.find((s) => s.label === values.stateProvince)?.value
+  const selectedCurrencyCode = formOptions?.currencies?.find((c) => c.label === values.currency)?.value
+  const selectedThirdPartyTypeId = formOptions?.thirdPartyTypes?.find((t) => t.label === values.thirdPartyType)?.value
+  const selectedWorkforceId = formOptions?.workforce?.find((w) => w.label === values.workforce)?.value
+  const selectedCustomerGroupId = formOptions?.customerGroups?.find((g) => g.label === values.customerGroup)?.value
+  const selectedBusinessEntityId = formOptions?.businessEntityTypes?.find((b) => b.label === values.businessEntityType)?.value
+  const selectedIncotermId = formOptions?.incoterms?.find((i) => i.label === values.incoterms)?.value
+  const selectedSalesRepId = formOptions?.salesReps?.find((r) => r.label === values.salesRep)?.value
+  const selectedCustCategoryId = formOptions?.custCategories?.find((c) => c.label === values.custProspTags)?.value
+  const selectedVendorCategoryId = formOptions?.vendorCategories?.find((c) => c.label === values.vendorTags)?.value
 
   // Build steps with dynamic form options — cheap pure functions, no need to
   // memoize across every field-level state update this component makes.
@@ -329,35 +377,107 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
 
   const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
 
-  // POST /api/customer/?action=create — read api/customer/index.php's
-  // handleCreateCustomer() directly: `name` and `tpin` are both hard
-  // requirements (missing tpin fails with "TPIN (Tax PIN) is required"),
-  // and email/phone/address/zip/town are read and applied as-is. There is
-  // no `type`/`client`/supplier param this handler reads at all — it
-  // unconditionally sets client=1 (plain customer) and never touches the
-  // fournisseur flag, regardless of what's sent. See the vendor-variant
-  // warning banner below for what that means for this form.
+  // POST societe/api/societes.php — the REAL endpoint the legacy "New Third
+  // Party" wizard itself submits to (captured live: opening
+  // societe/list.php?type=c|p|f and completing the actual wizard fires this
+  // exact request, not /api/customer/). Confirmed live across all three
+  // variants which fields distinguish them:
+  //   Customer: client=1, fournisseur=0      Prospect: client=2, fournisseur=0
+  //   Vendor:   client=0, fournisseur=1, supplier_code set instead of customer_code
+  // This is a mutation, so — unlike societe/api/list.php's read-only calls
+  // elsewhere in this app — it enforces Dolibarr's own CSRF check, hence the
+  // token fetch (see fetchSocieteToken). Response shape confirmed live:
+  // {ok, message, id, societe, redirect} on success.
   const createMutation = useMutation({
     mutationFn: async () => {
-      const body = new URLSearchParams()
-      body.set('name', values.name.trim())
-      body.set('tpin', values.tpin.trim())
-      if (values.email) body.set('email', values.email)
-      if (values.phone) body.set('phone', values.phone)
-      if (values.address) body.set('address', values.address)
-      if (values.city) body.set('town', values.city)
-      if (values.zipCode) body.set('zip', values.zipCode)
-      const { data } = await api.post<CreateThirdPartyResponse>('/customer/?action=create', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      const isVendorNow = values.vendor === 'Yes'
+      const client = isVendorNow ? 0 : values.prospectCustomer === 'Prospect' ? 2 : values.prospectCustomer === 'Not prospect, Not customer' ? 0 : 1
+      const type = isVendorNow ? 'f' : values.prospectCustomer === 'Prospect' ? 'p' : 'c'
+      const { token } = await fetchSocieteFormContext()
+      const selectedNrcValue = formOptions?.nrcTypes?.find((n) => n.label === values.nrc)?.value
+      const payload = {
+        name_title: values.nameTitle,
+        name: values.firstName.trim(),
+        lastname: values.lastName.trim(),
+        client,
+        fournisseur: isVendorNow ? 1 : 0,
+        idprof1: values.tpin.trim(),
+        idprof2: values.trackingId || '',
+        name_alias: values.aliasName || '',
+        group_id: selectedCustomerGroupId || '',
+        phone: values.phone || '',
+        customer_code: values.customerCode || 'auto',
+        email: values.email || '',
+        // formOptions.countries' value is already the real numeric
+        // llx_c_country.rowid (see thirdPartyOptions.queries.ts's
+        // useCustomerLookups — sourced directly from societe/api/meta.php's
+        // wizard_options, which returns that id, not an ISO code), so this
+        // needs no further lookup/conversion before submitting.
+        country_id: selectedCountryId || '',
+        supplier_code: values.vendorCode || (isVendorNow ? 'auto' : ''),
+        branch_code: values.branchCode || '',
+        address: values.address || '',
+        multicurrency_code: selectedCurrencyCode || '',
+        typent_id: selectedThirdPartyTypeId || '',
+        status: values.status === 'Closed' ? 0 : 1,
+        supervisor_det: values.supervisorDetails || '',
+        employer_name: values.employerName || '',
+        employee_num: values.employeeNumber || '',
+        // societe/api/meta.php's own usermode_options confirms the real
+        // values: 1=unprivileged, 0=privileged (not 2 — the previous mapping
+        // here submitted an invalid value for "privileged").
+        usermode: values.thirdPartyMode === 'privileged' ? '0' : '1',
+        zipcode: values.zipCode || '',
+        town: values.city || '',
+        state_id: selectedStateId || '',
+        fax: values.fax || '',
+        forme_juridique_code: selectedBusinessEntityId || '',
+        nrc_id: selectedNrcValue || '',
+        nrc_num: values.nrcNumber || '',
+        document: {},
+        assujtva_value: values.salesTaxUsed === 'No' ? 0 : 1,
+        tva_intra: values.vatId || '',
+        effectif_id: selectedWorkforceId || '',
+        capital: values.capital || '',
+        fk_incoterms: selectedIncotermId || '',
+        location_incoterms: values.incotermLocation || '',
+        barcode: values.barcode || '',
+        url: values.web || '',
+        facebook: values.facebook || '',
+        skype: values.skype || '',
+        twitter: values.twitter || '',
+        linkedin: values.linkedin || '',
+        instagram: values.instagram || '',
+        snapchat: values.snapchat || '',
+        googleplus: values.googlePlus || '',
+        youtube: values.youtube || '',
+        whatsapp: values.whatsapp || '',
+        diaspora: values.diaspora || '',
+        viber: values.viber || '',
+        github: values.github || '',
+        type,
+        commercial: selectedSalesRepId ? [selectedSalesRepId] : [],
+        custcats: selectedCustCategoryId ? [selectedCustCategoryId] : [],
+        suppcats: selectedVendorCategoryId ? [selectedVendorCategoryId] : [],
+        action: 'create',
+        token,
+      }
+      const { data } = await axios.post<CreateThirdPartyResponse>('/societe/api/societes.php', payload, {
+        headers: { 'Content-Type': 'application/json' },
       })
-      if (!data.success) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [variant === 'vendor' ? 'vendors' : 'customers', 'summary'] })
       const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
       logActivity({ label: `New ${variant} added: ${values.name.trim()}`, category: 'thirdparty', authorName })
-      navigate(cancelPath)
+      // Land on the real detail page (native rebuild of societe/card.php)
+      // instead of the list — matches what the legacy wizard itself does on
+      // create. Falls back to cancelPath only if the response somehow
+      // didn't carry an id (shouldn't happen given data.ok was already
+      // checked above, but this mutation's return type marks id optional).
+      navigate(data.id ? ROUTES.customerDetail.replace(':id', String(data.id)) : cancelPath)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create third party'),
   })
@@ -381,8 +501,15 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     }
     // Matches the reference wizard: Third-party type only turns mandatory
     // (red label) once Prospect/Customer is set to "Prospect" — confirmed
-    // by comparing societe/card.php?type=c vs type=p directly.
-    if (values.prospectCustomer === 'Prospect' && !values.thirdPartyType) {
+    // by comparing societe/card.php?type=c vs type=p directly. The `> 0`
+    // guard is defensive, not currently load-bearing: thirdPartyTypes now
+    // comes from the real admin/dict.php?id=8 scrape (13 real options), so
+    // this requirement is satisfiable again. Left in place in case that
+    // source ever goes down the way /customers/lookups/ already has —
+    // requiring a value nothing can satisfy would permanently block every
+    // Prospect submission with no way forward, same failure mode this line
+    // was originally added to fix.
+    if (values.prospectCustomer === 'Prospect' && !values.thirdPartyType && (formOptions?.thirdPartyTypes?.length ?? 0) > 0) {
       setFormError('Third-party type is required for prospects.')
       setStep(0)
       return
@@ -406,6 +533,8 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             </div>
           </div>
         }
+        footerLeft={null}
+        footerRight={null}
       >
         <Card className="!h-auto flex-1 flex items-center justify-center min-h-96">
           <div className="flex flex-col items-center gap-3">
@@ -432,15 +561,15 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             </div>
           </div>
 
-          {variant === 'vendor' && (
-            <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
-              <TriangleAlert size={18} className="text-warning-fg shrink-0 mt-0.5" />
-              <p className="text-xs text-warning-fg">
-                The backend's create endpoint has no way to flag a record as a supplier — reading its source directly confirms it always creates a plain customer record
-                regardless of what's submitted here. This will save as a customer, not a vendor, in the real database.
-              </p>
-            </Card>
-          )}
+          {/* Vendor/Prospect used to show a warning banner here explaining that
+              /api/customer/?action=create always saved a plain customer
+              regardless of variant. That's no longer true — this form now
+              submits to societe/api/societes.php, the real endpoint the
+              legacy wizard itself uses, which correctly reads client/
+              fournisseur (confirmed live per-variant: Customer client=1,
+              Prospect client=2, Vendor client=0+fournisseur=1). No banner
+              needed since the save is now correct. */}
+
 
           <div className="flex items-center">
             {steps.map((s, i) => {

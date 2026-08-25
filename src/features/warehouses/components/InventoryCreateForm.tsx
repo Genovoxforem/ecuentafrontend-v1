@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
+import { useCreateInventoryReal, useWarehouses, todayIso } from '../warehouseExtras.queries'
 import { useProductOptions } from '../../products/products.queries'
-import { useCreateInventory, useWarehouses, todayIso } from '../warehouseExtras.queries'
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -20,23 +20,36 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
+// Submits to the real product/inventory/card.php?action=add (see
+// warehouseExtras.queries.ts) instead of the session-only local stub this
+// used to be. Product is a real optional field on the create form
+// (fk_product — "Inventory for a specific product") that an earlier pass
+// missed by reading two non-adjacent chunks of the real page's HTML and
+// skipping the section in between; confirmed live it sits right after
+// Warehouse.
 export function InventoryCreateForm() {
   const navigate = useNavigate()
-  const createInventory = useCreateInventory()
+  const createInventory = useCreateInventoryReal()
   const warehouses = useWarehouses()
   const { data: products } = useProductOptions()
 
   const [ref, setRef] = useState('')
   const [label, setLabel] = useState('')
-  const [warehouseRef, setWarehouseRef] = useState('')
-  const [productLabel, setProductLabel] = useState('')
+  const [warehouseId, setWarehouseId] = useState('')
+  const [productId, setProductId] = useState('')
   const [valueDate, setValueDate] = useState('')
   const [error, setError] = useState('')
 
   function handleCreate() {
     if (!ref.trim()) return setError('Ref. is required!')
-    createInventory({ label, warehouseRef, productLabel, valueDate: valueDate || todayIso() })
-    navigate(ROUTES.inventoryList)
+    setError('')
+    createInventory.mutate(
+      { ref: ref.trim(), label, warehouseId, productId, valueDate: valueDate || todayIso() },
+      {
+        onSuccess: () => navigate(ROUTES.inventoryList),
+        onError: (err) => setError(err instanceof Error ? err.message : 'Failed to create inventory.'),
+      },
+    )
   }
 
   return (
@@ -54,20 +67,20 @@ export function InventoryCreateForm() {
           <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
         </Field>
         <Field label="Warehouse">
-          <select value={warehouseRef} onChange={(e) => setWarehouseRef(e.target.value)} className={selectCls}>
+          <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={selectCls}>
             <option value="">Select…</option>
             {warehouses.map((w) => (
-              <option key={w.ref} value={w.ref}>
+              <option key={w.id} value={w.id}>
                 {w.shortName || w.ref}
               </option>
             ))}
           </select>
         </Field>
         <Field label="Product">
-          <select value={productLabel} onChange={(e) => setProductLabel(e.target.value)} className={selectCls}>
+          <select value={productId} onChange={(e) => setProductId(e.target.value)} className={selectCls}>
             <option value="">Select…</option>
             {(products ?? []).map((p) => (
-              <option key={p.id} value={p.label}>
+              <option key={p.id} value={p.id}>
                 {p.ref} — {p.label}
               </option>
             ))}
@@ -84,11 +97,20 @@ export function InventoryCreateForm() {
       </div>
 
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => navigate(ROUTES.inventoryList)} className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.inventoryList)}
+          className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover"
+        >
           Cancel
         </button>
-        <button type="button" onClick={handleCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          Create
+        <button
+          type="button"
+          disabled={createInventory.isPending}
+          onClick={handleCreate}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          {createInventory.isPending && <LoaderCircle size={14} className="animate-spin" />} Create
         </button>
       </div>
     </div>

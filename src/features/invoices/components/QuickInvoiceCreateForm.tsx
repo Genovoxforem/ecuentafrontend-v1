@@ -9,6 +9,7 @@ import { useCustomerOptions } from '../../customers/customerOptions'
 import { useProductOptions } from '../../products/products.queries'
 import { useCreateInvoice } from '../invoiceCreate.queries'
 import { formatMoney } from '../../../utils/format'
+import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 // Real POST /api/invoices/list/ create (see invoiceCreate.queries.ts) —
 // same real endpoint InvoiceCreateForm.tsx uses, just a single-line form
@@ -57,7 +58,11 @@ export function QuickInvoiceCreateForm() {
       { customerId, date, lines: [{ productId, label, qty, unitPriceHt, vatRate }] },
       {
         onSuccess: () => navigate(ROUTES.invoiceList),
-        onError: () => setFormError('Could not create this invoice — please try again.'),
+        // POST /api/invoices/list/ doesn't exist on the current backend (see
+        // BackendUnavailable.tsx) — this create draft action gets the honest "not available"
+        // message instead of the generic retry-suggesting one.
+        onError: (err) =>
+          setFormError(isBackendUnavailable(err) ? "Creating an invoice isn't available on this backend yet." : 'Could not create this invoice — please try again.'),
       },
     )
   }

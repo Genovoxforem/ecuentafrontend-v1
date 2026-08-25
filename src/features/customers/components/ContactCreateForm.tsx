@@ -4,6 +4,7 @@ import { UserPlus, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { useCustomerOptions, useVendorOptions } from '../customerOptions'
 import { useThirdPartyFormOptions } from '../thirdPartyOptions.queries'
 import { useCreateContact, type ContactKind } from '../contacts.queries'
@@ -114,7 +115,9 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
       },
       {
         onSuccess: () => navigate(listRoute),
-        onError: () => setFormError('Could not save this contact — please try again.'),
+        onError: (err) => {
+          if (!isBackendUnavailable(err)) setFormError('Could not save this contact — please try again.')
+        },
       },
     )
   }
@@ -277,7 +280,11 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
         </Card>
       )}
 
-      {formError && <p className="text-sm text-danger">{formError}</p>}
+      {createContact.isError && isBackendUnavailable(createContact.error) ? (
+        <BackendUnavailableInline feature="Contacts" />
+      ) : (
+        formError && <p className="text-sm text-danger">{formError}</p>
+      )}
     </StickyFormShell>
   )
 }

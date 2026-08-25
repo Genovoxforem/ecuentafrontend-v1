@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Warehouse } from 'lucide-react'
+import { Warehouse, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { useProductFormOptions } from '../../zra/createProduct.queries'
-import { useCreateWarehouse } from '../warehouseExtras.queries'
+import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
+import { useCreateWarehouseReal, useWarehouses } from '../warehouseExtras.queries'
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -20,14 +20,23 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
+// Submits to the real quicklinks_ajax.php?type=savewarehouse handler (a
+// genuine INSERT INTO llx_entrepot — see warehouseExtras.queries.ts) instead
+// of the session-only local stub this used to be. "Add in" (fk_parent) and
+// Country now use real data sources: the real warehouse list itself, and
+// the real numeric llx_c_country ids from societe/api/meta.php's
+// wizard_options (the same source the Third Party create wizard uses) —
+// quicklinks_ajax.php's own country_id column needs that numeric id, not an
+// ISO code.
 export function WarehouseCreateForm() {
   const navigate = useNavigate()
-  const createWarehouse = useCreateWarehouse()
-  const { data: formOptions } = useProductFormOptions()
+  const createWarehouse = useCreateWarehouseReal()
+  const { data: lookups } = useCustomerLookups()
+  const existingWarehouses = useWarehouses()
 
   const [ref, setRef] = useState('')
   const [shortName, setShortName] = useState('')
-  const [addIn, setAddIn] = useState('New Warehouse')
+  const [fkParent, setFkParent] = useState('')
   const [zip, setZip] = useState('')
   const [description, setDescription] = useState('')
   const [address, setAddress] = useState('')
@@ -36,14 +45,18 @@ export function WarehouseCreateForm() {
   const [phone, setPhone] = useState('')
   const [fax, setFax] = useState('')
   const [status, setStatus] = useState<'Open' | 'Closed'>('Open')
-  const [tags, setTags] = useState('')
   const [error, setError] = useState('')
 
   function handleCreate() {
     if (!ref.trim()) return setError('Ref. is required!')
-    const countryLabel = formOptions?.countries.find((c) => c.value === countryId)?.label ?? ''
-    createWarehouse({ shortName, addIn, zip, description, address, city, countryLabel, phone, status })
-    navigate(ROUTES.warehouseList)
+    setError('')
+    createWarehouse.mutate(
+      { ref: ref.trim(), shortName, fkParent, description, address, zip, city, countryId, phone, fax, status },
+      {
+        onSuccess: () => navigate(ROUTES.warehouseList),
+        onError: (err) => setError(err instanceof Error ? err.message : 'Failed to create warehouse.'),
+      },
+    )
   }
 
   return (
@@ -61,8 +74,13 @@ export function WarehouseCreateForm() {
           <input value={shortName} onChange={(e) => setShortName(e.target.value)} className={inputCls} />
         </Field>
         <Field label="Add in">
-          <select value={addIn} onChange={(e) => setAddIn(e.target.value)} className={selectCls}>
-            <option>New Warehouse</option>
+          <select value={fkParent} onChange={(e) => setFkParent(e.target.value)} className={selectCls}>
+            <option value="">None</option>
+            {existingWarehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.ref}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label="Zip Code">
@@ -80,8 +98,8 @@ export function WarehouseCreateForm() {
         <Field label="Country">
           <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={selectCls}>
             <option value="">Select…</option>
-            {(formOptions?.countries ?? []).map((c) => (
-              <option key={c.value} value={c.value}>
+            {(lookups?.countries ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
                 {c.label}
               </option>
             ))}
@@ -99,17 +117,23 @@ export function WarehouseCreateForm() {
             <option>Closed</option>
           </select>
         </Field>
-        <Field label="Tags/categories">
-          <input value={tags} onChange={(e) => setTags(e.target.value)} className={inputCls} />
-        </Field>
       </div>
 
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => navigate(ROUTES.warehouseList)} className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.warehouseList)}
+          className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover"
+        >
           Cancel
         </button>
-        <button type="button" onClick={handleCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          Create
+        <button
+          type="button"
+          disabled={createWarehouse.isPending}
+          onClick={handleCreate}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          {createWarehouse.isPending && <LoaderCircle size={14} className="animate-spin" />} Create
         </button>
       </div>
     </div>

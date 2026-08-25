@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Users, ChevronDown, LoaderCircle } from 'lucide-react'
 import { useZraCustomerLookup, type ZraCustomerRecord } from '../zra.queries'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 
 const dash = (v: string) => (v && v !== 'null' ? v : '-')
 
@@ -84,9 +85,13 @@ export function ZraCustomerLookup() {
       </div>
 
       {lookup.isError && (
-        <p className="text-sm text-danger">
-          {lookup.error instanceof Error ? lookup.error.message : 'Could not reach the ZRA gateway — please try again.'}
-        </p>
+        isBackendUnavailable(lookup.error) ? (
+          <BackendUnavailableInline feature="ZRA Customer lookup" />
+        ) : (
+          <p className="text-sm text-danger">
+            {lookup.error instanceof Error ? lookup.error.message : 'Could not reach the ZRA gateway — please try again.'}
+          </p>
+        )
       )}
 
       {lookup.data && lookup.data.length === 0 && <p className="text-sm text-text-faint">No matching customer found for that TPIN.</p>}

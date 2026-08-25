@@ -169,7 +169,7 @@ function AuthInput({ placeholder, type = 'text', icon, tone = 'plain', value, on
 
 export function LoginModule() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, sessionExpiredMessage, clearSessionExpiredMessage } = useAuth()
   const { data: entities } = useEntities()
   const entityOptions: DropdownOption[] = (entities ?? []).map((e) => ({ value: String(e.id), label: e.label }))
   const [username, setUsername] = useState('')
@@ -224,13 +224,22 @@ export function LoginModule() {
 
               <h1 className="mb-6 text-center text-xl font-semibold text-slate-800">Sign In to your Account</h1>
 
+              {sessionExpiredMessage && (
+                <p className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-center text-sm font-medium text-amber-800">
+                  {sessionExpiredMessage}
+                </p>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-3">
                 <AuthInput
                   name="username"
                   placeholder="username"
                   icon={<IconUser className="h-7 w-7" />}
                   value={username}
-                  onChange={setUsername}
+                  onChange={(value) => {
+                    setUsername(value)
+                    if (sessionExpiredMessage) clearSessionExpiredMessage()
+                  }}
                 />
                 <AuthInput
                   name="password"

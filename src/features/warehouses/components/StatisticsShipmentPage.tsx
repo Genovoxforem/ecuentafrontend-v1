@@ -5,6 +5,7 @@ import { SearchableSelect } from '../../../shared/components/forms/SearchableSel
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useUsersSummary } from '../../users/users.queries'
 import { useShipmentStats } from '../shipmentStats.queries'
+import { BackendUnavailableInline, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -19,7 +20,7 @@ export function StatisticsShipmentPage() {
   const [thirdParty, setThirdParty] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [year, setYear] = useState(String(new Date().getFullYear()))
-  const { data: stats, isLoading: statsLoading } = useShipmentStats(Number(year), thirdParty, createdBy)
+  const { data: stats, isLoading: statsLoading, error: statsError } = useShipmentStats(Number(year), thirdParty, createdBy)
 
   const customerOptions = (customers ?? []).map((c) => ({ value: c.id, label: c.name }))
   const userOptions = (usersSummary?.users ?? []).map((u) => ({ value: String(u.id), label: u.name }))
@@ -64,52 +65,61 @@ export function StatisticsShipmentPage() {
 
           <div>
             <h3 className="text-sm font-semibold text-brand mb-3">Number of shipments by month</h3>
-            <div className="flex items-end gap-2 h-40 border-l border-b border-border pl-2 pb-1">
-              {MONTHS.map((m, i) => {
-                const count = byMonth[i] ?? 0
-                const heightPct = count === 0 ? 0 : Math.max(4, (count / maxCount) * 100)
-                return (
-                  <div key={m} className="flex-1 flex flex-col items-center justify-end h-full" title={`${m}: ${count}`}>
-                    <span className="text-[10px] text-text-muted mb-0.5">{count > 0 ? count : ''}</span>
-                    <div className="w-full bg-brand rounded-t-sm" style={{ height: `${heightPct}%` }} />
-                    <span className="text-[10px] text-text-faint mt-1">{m}</span>
-                  </div>
-                )
-              })}
-            </div>
+            {/* api/shipments/stats/ doesn't exist on the current backend (see
+                BackendUnavailable.tsx) — this is a small dashboard tile, not a whole page, so
+                it gets the inline variant rather than a full Card-shaped empty state. */}
+            {isBackendUnavailable(statsError) ? (
+              <BackendUnavailableInline feature="Shipment Statistics" />
+            ) : (
+              <div className="flex items-end gap-2 h-40 border-l border-b border-border pl-2 pb-1">
+                {MONTHS.map((m, i) => {
+                  const count = byMonth[i] ?? 0
+                  const heightPct = count === 0 ? 0 : Math.max(4, (count / maxCount) * 100)
+                  return (
+                    <div key={m} className="flex-1 flex flex-col items-center justify-end h-full" title={`${m}: ${count}`}>
+                      <span className="text-[10px] text-text-muted mb-0.5">{count > 0 ? count : ''}</span>
+                      <div className="w-full bg-brand rounded-t-sm" style={{ height: `${heightPct}%` }} />
+                      <span className="text-[10px] text-text-faint mt-1">{m}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        <table className="w-full text-sm mt-4">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium py-2">Year</th>
-              <th className="font-medium py-2 text-right">Number Of Shipments</th>
-            </tr>
-          </thead>
-          <tbody>
-            {statsLoading ? (
-              <tr>
-                <td colSpan={2} className="py-3 text-text-faint italic">
-                  Loading…
-                </td>
+        {!isBackendUnavailable(statsError) && (
+          <table className="w-full text-sm mt-4">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                <th className="font-medium py-2">Year</th>
+                <th className="font-medium py-2 text-right">Number Of Shipments</th>
               </tr>
-            ) : !stats?.byYear.length ? (
-              <tr>
-                <td colSpan={2} className="py-3 text-text-faint italic">
-                  No data.
-                </td>
-              </tr>
-            ) : (
-              stats.byYear.map((y) => (
-                <tr key={y.year} className="border-b border-border last:border-0">
-                  <td className="py-2 text-brand font-medium">{y.year}</td>
-                  <td className="py-2 text-right tabular-nums text-text!">{y.count}</td>
+            </thead>
+            <tbody>
+              {statsLoading ? (
+                <tr>
+                  <td colSpan={2} className="py-3 text-text-faint italic">
+                    Loading…
+                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : !stats?.byYear.length ? (
+                <tr>
+                  <td colSpan={2} className="py-3 text-text-faint italic">
+                    No data.
+                  </td>
+                </tr>
+              ) : (
+                stats.byYear.map((y) => (
+                  <tr key={y.year} className="border-b border-border last:border-0">
+                    <td className="py-2 text-brand font-medium">{y.year}</td>
+                    <td className="py-2 text-right tabular-nums text-text!">{y.count}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
 
         <p className="text-xs text-text-faint mt-3">Statistics conducted on shipments only validated. Date used is date of validation of shipment (planed delivery date is not always known).</p>
       </Card>

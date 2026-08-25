@@ -4,6 +4,7 @@ import { Users, Plus, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { ROUTES } from '../../../routes'
 import { useContacts, type ContactKind } from '../contacts.queries'
 
@@ -26,7 +27,7 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
-  const { data, isLoading, isError } = useContacts(kind, search, page, perPage)
+  const { data, isLoading, isError, error } = useContacts(kind, search, page, perPage)
   const createRoute = kind === 'vendor' ? ROUTES.vendorContactCreate : ROUTES.contactCreate
 
   useEffect(() => {
@@ -110,8 +111,12 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-4 text-danger">
-                      Could not load contacts.
+                    <td colSpan={8} className="px-4 py-4">
+                      {isBackendUnavailable(error) ? (
+                        <BackendUnavailableInline feature={`${KIND_LABEL[kind]} Contacts`} />
+                      ) : (
+                        <span className="text-danger">Could not load contacts.</span>
+                      )}
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (

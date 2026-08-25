@@ -3,6 +3,7 @@ import { Flag } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
 import { usePayments } from '../payments.queries'
+import { BackendUnavailableCard, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -19,7 +20,7 @@ function firstOfMonthIso() {
 // endpoint (no bank-reconciliation join) — shown honestly as "-" rather
 // than guessed.
 export function PaymentsListPage() {
-  const { data, isLoading, isError } = usePayments()
+  const { data, isLoading, isError, error } = usePayments()
   const [from, setFrom] = useState(firstOfMonthIso())
   const [to, setTo] = useState(todayIso())
   const [applied, setApplied] = useState({ from: firstOfMonthIso(), to: todayIso() })
@@ -36,6 +37,20 @@ export function PaymentsListPage() {
   }, [rows, applied])
 
   const total = filtered.reduce((sum, r) => sum + r.amount, 0)
+
+  // api/payments/ doesn't exist on the current backend (see BackendUnavailable.tsx) — shows
+  // the honest unavailable state instead of an empty-looking "No Data Available In Table" row
+  // that reads as if the account simply has no payments.
+  if (isBackendUnavailable(error)) {
+    return (
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Flag size={20} className="text-brand" /> Report Area
+        </h2>
+        <BackendUnavailableCard feature="Payments" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

@@ -17,20 +17,7 @@ import {
   XCircle,
   UsersRound,
   Paperclip,
-  Users,
-  User,
   FolderOpen,
-  FileText,
-  ShoppingCart,
-  Receipt,
-  CalendarDays,
-  Layers,
-  Tag,
-  Star,
-  Wrench,
-  FileSignature,
-  Archive,
-  Truck,
   Plus,
   ListChecks,
   ChevronDown,
@@ -47,48 +34,13 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useUser, useUserDetail, useLanguageOptions } from '../users.queries'
+import { useUserPermissions, useToggleUserPermission } from '../userPermissions.queries'
 import { useRecentActivity } from '../../agenda/agenda.queries'
 import { formatDateTimeAmPm, formatDate, formatMoney } from '../../../utils/format'
+import { BackendUnavailableCard, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 const RELATED_OBJECT_COLUMNS = ['Type', 'Ref.', 'Date', 'Amount (Excl.)', 'Status']
-
-// Reference card's "Permissions" tab left-hand module list — labels, icons
-// and right-count badges reproduced from the reference screenshot as static
-// scaffold (same "visual scaffold, no backing data" precedent as
-// GroupsList.tsx's own GROUPS const): this app's users API has no per-user,
-// per-module rights endpoint at all (the one rights endpoint that exists,
-// api/user/index.php, only covers the currently-logged-in user, for 6
-// modules, not an arbitrary user id across all of these), so there's no
-// real data to show for any of this yet.
-const PERMISSION_MODULES = [
-  { key: 'users-groups', label: 'Users & Groups', count: 7, icon: UsersRound },
-  { key: 'members', label: 'Members', count: 7, icon: Users },
-  { key: 'third-parties', label: 'Third Parties', count: 9, icon: User },
-  { key: 'dms-ecm', label: 'DMS / ECM', count: 3, icon: FolderOpen },
-  { key: 'quotations', label: 'Quotations', count: 5, icon: FileText },
-  { key: 'sales-orders', label: 'Sales Orders', count: 4, icon: ShoppingCart },
-  { key: 'invoices', label: 'Invoices', count: 7, icon: Receipt },
-  { key: 'vendors', label: 'Vendors', count: 12, icon: Building2 },
-  { key: 'projects-leads', label: 'Projects or Leads', count: 8, icon: Briefcase },
-  { key: 'events-agenda', label: 'Events/Agenda', count: 7, icon: CalendarDays },
-  { key: 'resources', label: 'Resources', count: 4, icon: Layers },
-  { key: 'tags-categories', label: 'Tags/Categories', count: 3, icon: Tag },
-  { key: 'products', label: 'Products', count: 4, icon: Star },
-  { key: 'services', label: 'Services', count: 4, icon: Wrench },
-  { key: 'vendor-quotations', label: 'Vendor Quotations', count: 4, icon: FileSignature },
-  { key: 'stocks', label: 'Stocks', count: 5, icon: Archive },
-  { key: 'shipments', label: 'Shipments', count: 7, icon: Truck },
-] as const
-
-const USER_GROUP_RIGHTS = [
-  'Read other users and groups',
-  'Create/modify other users, groups and permissions',
-  'Modify other users password',
-  'Delete or disable other users',
-  "Create/modify his own user information",
-  'Modify his own password',
-  'Export users',
-]
 
 const ACTIVITY_SUBTABS = ['Tasks', 'Meetings', 'Calls', 'Timeline'] as const
 type ActivitySubtab = (typeof ACTIVITY_SUBTABS)[number]
@@ -127,9 +79,81 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Real per-module/per-right permission state from userprofile/api/
+// permissions.php (see userPermissions.queries.ts's header comment for how
+// this was found) — replaces the previous static scaffold that had no real
+// data behind any of it. Checkboxes call the real save endpoint
+// (add_right/del_right) when the backend says this account can edit this
+// user's rights (`canEdit`); otherwise they're shown read-only, matching
+// what the real backend itself would reject anyway.
+function PermissionsTab({ userId, permModule, setPermModule }: { userId: string | undefined; permModule: string | null; setPermModule: (key: string) => void }) {
+  const { data, isLoading, isError, error, refetch } = useUserPermissions(userId)
+  const toggle = useToggleUserPermission(userId)
+
+  if (isLoading) return <LegacyLoadingCard label="Loading permissions…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load permissions" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  const activeModuleKey = permModule && data.modules.some((m) => m.id === permModule) ? permModule : (data.modules[0]?.id ?? null)
+  const activeModule = data.modules.find((m) => m.id === activeModuleKey)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2 px-1">
+        <p className="text-xs text-text-faint">{data.nbRights} direct right(s) granted</p>
+        {!data.canEdit && <p className="text-xs text-text-faint italic">Read-only — your account can't edit this user's permissions.</p>}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden">
+        <div className="border-b sm:border-b-0 sm:border-r border-border max-h-96 overflow-y-auto">
+          {data.modules.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setPermModule(m.id)}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm border-b border-border last:border-0 ${
+                activeModuleKey === m.id ? 'bg-brand text-white' : 'text-text-muted hover:bg-surface-hover'
+              }`}
+            >
+              <span className="flex-1 truncate">{m.label}</span>
+              <span className={`text-xs rounded px-1.5 ${activeModuleKey === m.id ? 'bg-white/20' : 'bg-surface text-text-faint'}`}>{m.perms.length}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4">
+          {activeModule ? (
+            <>
+              <p className="flex items-center gap-2 font-semibold text-text! mb-3">
+                <UsersRound size={14} className="text-brand" /> {activeModule.label}
+              </p>
+              <div className="space-y-1">
+                {activeModule.perms.map((right) => (
+                  <label key={right.id} className={`flex items-center gap-2 py-1.5 text-sm ${right.granted ? 'text-text!' : 'text-text-muted'}`}>
+                    <input
+                      type="checkbox"
+                      checked={right.granted}
+                      disabled={!data.canEdit || toggle.isPending}
+                      onChange={(e) => toggle.mutate({ rightId: right.id, grant: e.target.checked })}
+                      className="rounded border-input-border"
+                    />
+                    {right.label}
+                    {right.inherited && !right.direct && <span className="text-xs text-text-faint italic">(via group)</span>}
+                  </label>
+                ))}
+              </div>
+              {toggle.isError && <p className="text-sm text-danger mt-2">{toggle.error instanceof Error ? toggle.error.message : 'Failed to update permission.'}</p>}
+            </>
+          ) : (
+            <p className="text-sm text-text-faint italic">No permission modules found.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function UserDetail() {
   const { id } = useParams<{ id: string }>()
-  const { user, isLoading } = useUser(id)
+  const { user, isLoading, isError, error } = useUser(id)
   const { detail } = useUserDetail(id)
   // "<zip> <town>, <country> - <state>" — matches the reference card's own
   // location pill format. Real data from GET /api/users/detail/ (llx_user's
@@ -143,7 +167,7 @@ export function UserDetail() {
     : ''
   const [tab, setTab] = useState<Tab>('User')
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
-  const [permModule, setPermModule] = useState<(typeof PERMISSION_MODULES)[number]['key']>('users-groups')
+  const [permModule, setPermModule] = useState<string | null>(null)
   const [activitySubtab, setActivitySubtab] = useState<ActivitySubtab>('Tasks')
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -171,6 +195,21 @@ export function UserDetail() {
     return (
       <div className="-m-6 flex-1 flex items-center justify-center">
         <p className="text-sm text-text-muted">Loading…</p>
+      </div>
+    )
+  }
+
+  // api/users/ doesn't exist at all on the currently-active backend — show
+  // the honest unavailable state instead of the misleading "No user found"
+  // message below, which would otherwise imply a bad id rather than a
+  // missing backend.
+  if (isError && isBackendUnavailable(error)) {
+    return (
+      <div className="-m-6 flex-1 flex flex-col items-center justify-center gap-3">
+        <BackendUnavailableCard feature="User details" />
+        <Link to={ROUTES.usersDashboard} className="text-sm text-brand hover:underline">
+          Back to Users list
+        </Link>
       </div>
     )
   }
@@ -403,51 +442,7 @@ export function UserDetail() {
                 </div>
               )}
 
-              {tab === 'Permissions' && (
-                <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden -m-4">
-                  <div className="border-b sm:border-b-0 sm:border-r border-border max-h-80 overflow-y-auto">
-                    {PERMISSION_MODULES.map((m) => (
-                      <button
-                        key={m.key}
-                        type="button"
-                        onClick={() => setPermModule(m.key)}
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm border-b border-border last:border-0 ${
-                          permModule === m.key ? 'bg-brand text-white' : 'text-text-muted hover:bg-surface-hover'
-                        }`}
-                      >
-                        <m.icon size={14} className="shrink-0" />
-                        <span className="flex-1 truncate">{m.label}</span>
-                        <span className={`text-xs rounded px-1.5 ${permModule === m.key ? 'bg-white/20' : 'bg-surface text-text-faint'}`}>{m.count}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="p-4">
-                    {permModule === 'users-groups' ? (
-                      <>
-                        <p className="flex items-center gap-2 font-semibold text-text! mb-3">
-                          <UsersRound size={14} className="text-brand" /> Users & Groups
-                        </p>
-                        <label className="flex items-center gap-2 text-sm font-medium text-text! mb-2 pb-2 border-b border-border" title="Not built yet">
-                          <input type="checkbox" checked readOnly disabled className="rounded border-input-border" /> Select All
-                        </label>
-                        <div className="space-y-1">
-                          {USER_GROUP_RIGHTS.map((right) => (
-                            <label key={right} className="flex items-center gap-2 py-1.5 text-sm text-text-muted" title="Not built yet">
-                              <input type="checkbox" checked readOnly disabled className="rounded border-input-border" /> {right}
-                            </label>
-                          ))}
-                        </div>
-                        <button type="button" disabled title="Not built yet" className="mt-4 rounded-lg bg-neutral-bg px-4 py-2 text-sm font-medium text-text-faint cursor-default">
-                          Save Rights
-                        </button>
-                      </>
-                    ) : (
-                      <p className="text-sm text-text-faint italic">Permission details for this module aren't built yet.</p>
-                    )}
-                  </div>
-                </div>
-              )}
+              {tab === 'Permissions' && <PermissionsTab userId={id} permModule={permModule} setPermModule={setPermModule} />}
 
               {tab === 'Tasks/Activities' && (
                 <div className="-m-4">

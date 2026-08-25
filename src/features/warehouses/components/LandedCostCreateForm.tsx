@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck } from 'lucide-react'
+import { Truck, Info } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useAuth } from '../../auth/AuthContext'
-import { useCreateLandedCost, todayIso } from '../warehouseExtras.queries'
+import { useCreateLandedCost, useLandedCostFormOptions, todayIso } from '../warehouseExtras.queries'
+import { formatMoney } from '../../../utils/format'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const selectCls = inputCls + ' appearance-none'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -24,16 +26,29 @@ export function LandedCostCreateForm() {
   const navigate = useNavigate()
   const createLandedCost = useCreateLandedCost()
   const { user } = useAuth()
-  const userLabel = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : ''
+  const { data: formOptions } = useLandedCostFormOptions()
+  const fallbackUserLabel = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : ''
 
   const [startDate, setStartDate] = useState(todayIso())
-  const [purchaseInvoice, setPurchaseInvoice] = useState('')
+  const [userId, setUserId] = useState('')
+  const [purchaseInvoiceId, setPurchaseInvoiceId] = useState('')
   const [note, setNote] = useState('')
-  const [landedCostInvoice, setLandedCostInvoice] = useState('')
+  const [landedCostInvoiceId, setLandedCostInvoiceId] = useState('')
   const [landedExpense, setLandedExpense] = useState('')
 
+  // Defaults to the real create page's own default (the currently logged-in
+  // user) once it loads — never overwrites an actual user selection.
+  useEffect(() => {
+    if (userId || !formOptions?.users?.length) return
+    const match = formOptions.users.find((u) => u.label.includes(fallbackUserLabel)) ?? formOptions.users[0]
+    if (match) setUserId(String(match.id))
+  }, [formOptions?.users, fallbackUserLabel, userId])
+
   function handleCreate() {
-    createLandedCost({ startDate, userName: userLabel, purchaseInvoice, landedCostInvoice, landedExpense, note })
+    const userLabel = formOptions?.users.find((u) => String(u.id) === userId)?.label ?? fallbackUserLabel
+    const purchaseInvoiceRef = formOptions?.vendorInvoices.find((i) => String(i.id) === purchaseInvoiceId)?.ref ?? ''
+    const landedCostInvoiceRef = formOptions?.landedCostInvoices.find((i) => String(i.id) === landedCostInvoiceId)?.ref ?? ''
+    createLandedCost({ startDate, userName: userLabel, purchaseInvoice: purchaseInvoiceRef, landedCostInvoice: landedCostInvoiceRef, landedExpense, note })
     navigate(ROUTES.landedCostList)
   }
 
@@ -54,20 +69,54 @@ export function LandedCostCreateForm() {
             </div>
           </Field>
           <Field label="User" required>
-            <input value={userLabel} disabled className={inputCls + ' w-full'} />
+            <select value={userId} onChange={(e) => setUserId(e.target.value)} className={selectCls + ' w-full'}>
+              <option value="">Select…</option>
+              {(formOptions?.users ?? []).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Purchase Invoice">
-            <input value={purchaseInvoice} onChange={(e) => setPurchaseInvoice(e.target.value)} className={inputCls + ' w-full'} />
+            <select value={purchaseInvoiceId} onChange={(e) => setPurchaseInvoiceId(e.target.value)} className={selectCls + ' w-full'}>
+              <option value="">Select…</option>
+              {(formOptions?.vendorInvoices ?? []).map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.ref} — {i.vendorName} ({formatMoney(i.amount)})
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Note (private)">
             <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls + ' w-full'} />
           </Field>
           <Field label="Landed Cost Invoice">
-            <input value={landedCostInvoice} onChange={(e) => setLandedCostInvoice(e.target.value)} className={inputCls + ' w-full'} />
+            <select value={landedCostInvoiceId} onChange={(e) => setLandedCostInvoiceId(e.target.value)} className={selectCls + ' w-full'}>
+              <option value="">Select…</option>
+              {(formOptions?.landedCostInvoices ?? []).map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.ref}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Landed Expense">
             <input value={landedExpense} onChange={(e) => setLandedExpense(e.target.value)} className={inputCls + ' w-full'} />
           </Field>
+        </div>
+
+        {/* Purchase Invoice only lists the real backend's first page of
+            vendor invoices (~10 of the real total) — later pages load via an
+            AJAX call this pass didn't wire up. Landed Expense stays a plain
+            text field: the real page's own picker for it is a bespoke modal
+            this pass couldn't safely reverse-engineer a save contract for. */}
+        <div className="flex items-start gap-2 mb-4 text-xs text-text-faint">
+          <Info size={13} className="shrink-0 mt-0.5" />
+          <span>
+            User, Purchase Invoice, and Landed Cost Invoice are real data from the backend. Purchase Invoice shows only the first page of real invoices; Landed Expense isn't wired to a real source yet, and
+            saving here stays local to this browser tab.
+          </span>
         </div>
 
         <div className="overflow-x-auto">

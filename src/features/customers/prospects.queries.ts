@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import axios from 'axios'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
+import { parseSocieteListRow, type RawSocieteListRow } from './societeListParser'
+import { toThirdPartyRow } from './customers.queries'
 
 export interface ProspectsSummary {
   totalCustomers: number
@@ -11,76 +13,55 @@ export interface ProspectsSummary {
   customers: ThirdPartyRow[]
 }
 
-// Same real endpoints as customers.queries.ts, just with type=p — prospects
-// aren't a separate backend resource, they're societe rows with client=2 (or
-// 3 for customer+prospect), and both api/customers/summary/ and
-// api/customers/list/ already branch on this same type param. See
-// customers.queries.ts for the full field-by-field confirmation.
-interface SummaryPayload {
-  total: number
-  createdThisMonth: number
-  outstandingBalance: number
-  defaultCountryCount: number
-  otherCountryCount: number
+interface SocieteListResponse {
+  ok: boolean
+  iTotalRecords: number
+  data: RawSocieteListRow[]
 }
 
-interface ListItem {
-  id: number
-  name: string
-  tpin: string | null
-  trackingId: string | null
-  isCustomer: boolean
-  isProspect: boolean
-  isVendor: boolean
-  statusLabel: 'Open' | 'Closed'
-  email: string
-  phone: string
-  countryLabel: string | null
-  currencyCode: string
-  outstandingBalance: number
-  salesReps: string | null
-  createdAt: string
-  creatorName: string
-}
+// Same deployment-wide assumption as customers.queries.ts (no API exposes a
+// configured "default country" to compare against).
+const DEFAULT_COUNTRY = 'Zambia'
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
-
-function toRow(item: ListItem): ThirdPartyRow {
-  return {
-    name: item.name ?? '',
-    country: item.countryLabel ?? '',
-    outstandingBalance: item.outstandingBalance,
-    tpin: item.tpin ?? '',
-    salesRep: item.salesReps ?? '',
-    email: item.email ?? '',
-    phone: item.phone ?? '',
-    nature: item.isCustomer && item.isProspect ? 'Customer, Prospect' : 'Prospect',
-    trackingId: item.trackingId ?? '',
-    creationDate: item.createdAt ?? '',
-    creatorName: item.creatorName ?? '',
-    status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
-  }
-}
-
+// societe/api/list.php with type=p — the exact same real, working endpoint
+// customers.queries.ts already uses for type=c, confirmed live to return
+// prospect rows too (recordsTotal: 9 on this backend, each row's cust_type
+// HTML carrying a title="Prospect" badge). This used to call
+// /api/customers/{summary,list}/?type=p, both permanent 404s on the
+// currently-active backend — see customers.queries.ts's own header comment
+// for the full BOM/parsing details this mirrors.
 export function useProspectsSummary() {
   return useQuery({
     queryKey: ['customers', 'summary', 'prospects'],
     queryFn: async (): Promise<ProspectsSummary> => {
-      const [summaryRes, listRes] = await Promise.all([
-        api.get<WebEnvelope<SummaryPayload>>('/customers/summary/', { params: { type: 'p' } }),
-        api.get<WebEnvelope<{ items: ListItem[]; total: number }>>('/customers/list/', { params: { type: 'p', page: 1, limit: 500 } }),
-      ])
-      const s = summaryRes.data.data
-      const rows = listRes.data.data.items.map(toRow)
+      const res = await axios.post<string>(
+        '/societe/api/list.php',
+        new URLSearchParams({ draw: '1', start: '0', length: '-1', type: 'p', contextpage: 'prospectlist' }),
+        { transformResponse: (data) => data },
+      )
+      const body: SocieteListResponse = JSON.parse(res.data.trim())
+
+      const parsed = body.data.map(parseSocieteListRow)
+      const now = new Date()
+
+      const rows: ThirdPartyRow[] = parsed.map(toThirdPartyRow)
+
+      const createdThisMonth = parsed.filter((item) => {
+        if (!item.creationDateIso) return false
+        const d = new Date(item.creationDateIso)
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      }).length
+
+      const outstandingBalance = parsed.reduce((sum, item) => sum + item.outstandingBalance, 0)
+      const defaultCountryCustomers = parsed.filter((item) => item.country === DEFAULT_COUNTRY).length
+      const otherCountryCustomers = parsed.length - defaultCountryCustomers
+
       return {
-        totalCustomers: s.total,
-        createdThisMonth: s.createdThisMonth,
-        outstandingBalance: s.outstandingBalance,
-        defaultCountryCustomers: s.defaultCountryCount,
-        otherCountryCustomers: s.otherCountryCount,
+        totalCustomers: body.iTotalRecords ?? parsed.length,
+        createdThisMonth,
+        outstandingBalance,
+        defaultCountryCustomers,
+        otherCountryCustomers,
         customers: rows,
       }
     },

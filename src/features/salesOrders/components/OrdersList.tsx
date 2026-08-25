@@ -183,7 +183,11 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
               ) : (
                 pageOrders.map((o) => (
                   <tr key={o.ref} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{o.ref}</td>
+                    <td className="px-4 py-3">
+                      <Link to={ROUTES.orderDetail.replace(':id', String(o.id))} className="text-brand hover:underline">
+                        {o.ref}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{o.refCustomer}</td>
                     <td className="px-4 py-3 text-text-muted">{o.projectRef}</td>
                     <td className="px-4 py-3 text-text!">{o.thirdParty}</td>

@@ -138,35 +138,83 @@ function NavLeaf({ item, depth = 0, navigate, location }: { item: NavLeafItem; d
   )
 }
 
-// Recursive: a group can itself contain groups (real depth varies by module
-// — most are 2 levels, a few like Employee/General Ledger go to 3).
-function NavGroup({ item, depth, navigate, location }: { item: { label: string; items: NavItem[] }; depth: number; navigate: NavigateFunction; location: Location }) {
-  const [open, setOpen] = useState(() => itemContainsCurrent(item, location.pathname))
+// Controlled — open/toggle come from the NavItemList that renders this
+// group's own siblings, not local state, so that list can enforce
+// "only one sibling open at a time" (accordion). See NavItemList below.
+function NavGroup({
+  item,
+  depth,
+  navigate,
+  location,
+  isOpen,
+  onToggle,
+}: {
+  item: { label: string; items: NavItem[] }
+  depth: number
+  navigate: NavigateFunction
+  location: Location
+  isOpen: boolean
+  onToggle: () => void
+}) {
   return (
     <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         style={{ paddingLeft: `${1.5 + depth * 0.75}rem` }}
         className={`w-full flex items-center justify-between gap-2 pr-2.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
-          open ? 'text-white' : 'text-white/45 hover:text-white/80'
+          isOpen ? 'text-white' : 'text-white/45 hover:text-white/80'
         }`}
       >
         <span className="truncate">{item.label}</span>
-        <CaretDown size={12} weight="bold" className={`shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`} />
+        <CaretDown size={12} weight="bold" className={`shrink-0 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`} />
       </button>
-      {open && (
+      {/* Only mounted while open, so its own NavItemList's accordion state
+          (which of ITS children is open) starts fresh — re-finds whichever
+          child holds the current page — each time this group opens, rather
+          than remembering a stale selection from a previous visit. */}
+      {isOpen && (
         <div className="mt-0.5 space-y-0.5">
-          {item.items.map((sub) =>
-            isGroupItem(sub) ? (
-              <NavGroup key={sub.label} item={sub} depth={depth + 1} navigate={navigate} location={location} />
-            ) : (
-              <NavLeaf key={sub.label} item={sub} depth={depth + 1} navigate={navigate} location={location} />
-            ),
-          )}
+          <NavItemList items={item.items} depth={depth + 1} navigate={navigate} location={location} />
         </div>
       )}
     </div>
+  )
+}
+
+// Owns "which single child is open" for one list of sibling items — the
+// accordion coordinator shared by MenuList's top-level items and every
+// NavGroup's nested children, so opening one sibling always closes
+// whichever other sibling (same immediate parent) was open, at every level
+// of nesting, without touching ancestors or descendants (those belong to a
+// different NavItemList instance entirely).
+function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; depth: number; navigate: NavigateFunction; location: Location }) {
+  const [openLabel, setOpenLabel] = useState<string | null>(
+    () => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname))?.label ?? null,
+  )
+  return (
+    <>
+      {items.map((item, i) =>
+        // Index-qualified: the dynamic backend menu (ecuenta9) can
+        // legitimately contain sibling items with the same label (e.g. two
+        // different "Statistics" pages under one section) — label alone
+        // isn't a safe React key there, unlike the hand-curated static
+        // fallback nav where it always was.
+        isGroupItem(item) ? (
+          <NavGroup
+            key={`${item.label}-${i}`}
+            item={item}
+            depth={depth}
+            navigate={navigate}
+            location={location}
+            isOpen={openLabel === item.label}
+            onToggle={() => setOpenLabel((cur) => (cur === item.label ? null : item.label))}
+          />
+        ) : (
+          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} />
+        ),
+      )}
+    </>
   )
 }
 
@@ -206,13 +254,7 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
             {isOpen && (
               <div className="mt-0.5 mb-1 space-y-0.5">
                 {section.items.length === 0 && <p className="text-xs italic text-white/30 pl-6 py-1">Nothing here yet.</p>}
-                {section.items.map((item) =>
-                  isGroupItem(item) ? (
-                    <NavGroup key={item.label} item={item} depth={0} navigate={navigate} location={location} />
-                  ) : (
-                    <NavLeaf key={item.label} item={item} navigate={navigate} location={location} />
-                  ),
-                )}
+                <NavItemList items={section.items} depth={0} navigate={navigate} location={location} />
               </div>
             )}
           </div>

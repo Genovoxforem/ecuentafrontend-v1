@@ -19,6 +19,11 @@ function matchesSearch(row: ThirdPartyRow, query: string) {
 }
 
 export interface ThirdPartyRow {
+  // Real societe.rowid, parsed from the list row's own card.php?socid= link
+  // (see societeListParser.ts) — null only if that link was somehow missing
+  // from a row's HTML, in which case the name renders as plain text instead
+  // of a dead link.
+  id: number | null
   name: string
   country: string
   outstandingBalance: number
@@ -372,13 +377,15 @@ export function ThirdPartyList({
                 </tr>
               ) : (
                 pageRows.map((r, i) => (
-                  // r.name isn't guaranteed unique (backend data can have
-                  // two rows with the same display name, e.g. duplicate
-                  // "customer5" entries) and there's no real id field on
-                  // ThirdPartyRow — index within this read-only, paginated
-                  // slice is stable and always unique.
+                  // r.name isn't guaranteed unique (backend data can have two
+                  // rows with the same display name, e.g. duplicate
+                  // "customer5" entries) — index within this read-only,
+                  // paginated slice is stable and always unique for the key,
+                  // independent of r.id (used below only for the row link).
                   <tr key={i} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{r.name}</td>
+                    <td className="px-4 py-3 text-brand">
+                      {r.id ? <Link to={ROUTES.customerDetail.replace(':id', String(r.id))} className="hover:underline">{r.name}</Link> : r.name}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{r.country}</td>
                     <td className="px-4 py-3 text-text! tabular-nums">{formatMoney(r.outstandingBalance)} ZMW</td>
                     <td className="px-4 py-3 text-text-muted">{r.tpin}</td>

@@ -7,13 +7,20 @@ interface RawCustomerOption {
   id: number
   name: string
   is_supplier: number
+  code_client: string | null
+  tpin: string | null
+  country: string | null
 }
 interface CustomersResponse {
   customers: RawCustomerOption[]
 }
 
 // GET /api/customers/?type=customer — same list endpoint the Customers
-// page uses, fetched here just for id+name for use in <select> pickers.
+// page uses, fetched here for use in <select>/SearchableSelect pickers.
+// code_client/tpin/country are real columns (code_client, siren, and a
+// fk_pays join added to this endpoint specifically for the reference
+// layout's own rich customer search — Form::select_thirdparty_list() shows
+// "ref | Tpin: x | Country: y" per result the same way).
 // `enabled` lets callers that pick between this and useVendorOptions() by a
 // `kind` prop skip the unused query instead of firing both on every render.
 export function useCustomerOptions(enabled = true) {
@@ -21,7 +28,13 @@ export function useCustomerOptions(enabled = true) {
     queryKey: ['customers', 'options', 'customer'],
     queryFn: async () => {
       const { data } = await api.get<CustomersResponse>('/customers/', { params: { type: 'customer', limit: 250 } })
-      return (data.customers ?? []).map((c) => ({ id: String(c.id), name: c.name || '(unnamed)' }))
+      return (data.customers ?? []).map((c) => ({
+        id: String(c.id),
+        name: c.name || '(unnamed)',
+        ref: c.code_client ?? '',
+        tpin: c.tpin ?? '',
+        country: c.country ?? '',
+      }))
     },
     staleTime: 1000 * 60,
     enabled,
