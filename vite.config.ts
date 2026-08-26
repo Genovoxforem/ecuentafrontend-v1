@@ -210,6 +210,16 @@ export default defineConfig({
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.
       '^/expensereport(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Shipments list (expedition/list.php) has no REST API either — same
+      // client-side scrape pattern as Warehouses/Inventories, see
+      // expeditionHtmlParser.ts / expedition.queries.ts. No React route
+      // starts with /expedition (the app's own shipment routes all live
+      // under /warehouses/shipments/...), so a plain prefix is safe, but
+      // anchored anyway to match the rest of this list. Without this rule,
+      // the fetch in dev falls through to Vite's own SPA index.html (a
+      // silent 200 with zero real rows) instead of reaching the backend —
+      // caught live by browser-testing this page, not by inspection.
+      '^/expedition(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

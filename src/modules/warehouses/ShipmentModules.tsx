@@ -6,14 +6,16 @@ import { PackingListPage } from '../../features/warehouses/components/PackingLis
 export function ShipmentSearchModule() {
   return <ShipmentSearchPage />
 }
+// viewStatut 0/1/2 — Draft/Validated/Processed, matching the same status
+// dropdown expedition/list.php itself offers (see expeditionHtmlParser.ts).
 export function ShipmentDraftModule() {
-  return <ShipmentStatusList title="List Of Shipments" />
+  return <ShipmentStatusList title="List Of Shipments" viewStatut={0} />
 }
 export function ShipmentValidatedModule() {
-  return <ShipmentStatusList title="List Of Shipments" />
+  return <ShipmentStatusList title="List Of Shipments" viewStatut={1} />
 }
 export function ShipmentProcessedModule() {
-  return <ShipmentStatusList title="List Of Shipments" />
+  return <ShipmentStatusList title="List Of Shipments" viewStatut={2} />
 }
 export function StatisticsShipmentModule() {
   return <StatisticsShipmentPage />

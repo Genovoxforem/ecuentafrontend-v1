@@ -31,6 +31,9 @@ import {
   Mail,
   Phone,
   ExternalLink,
+  Trash2,
+  Upload,
+  Download,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -46,6 +49,22 @@ import {
   useCustomerContracts,
   useCustomerTab,
   useCustomerAgenda,
+  useCustomerTickets,
+  useCustomerConsumption,
+  useCustomerPaymentModes,
+  useAddPaymentMode,
+  useDeletePaymentMode,
+  useCustomerNotify,
+  useAddNotify,
+  useRemoveNotify,
+  useCustomerDocuments,
+  useUploadDocument,
+  useDeleteDocument,
+  useCustomerPricingGroups,
+  useAssignPricingGroup,
+  useCustomerAccountingAr,
+  useCustomerAccountingAp,
+  useCustomerGeneralLedger,
   stripBackendPrefix,
   type ActivityType,
   type ActivityItem,
@@ -427,7 +446,34 @@ export function CustomerDetail() {
         {tab === 'contracts' && <ContractsTab socid={id} />}
         {tab === 'customer' && <CustomerTab socid={id} profile={data} />}
         {tab === 'agenda' && <AgendaTab socid={id} />}
-        {!['societe', 'notes', 'transactions', 'activities', 'contacts', 'contracts', 'customer', 'agenda'].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
+        {tab === 'tickets' && <TicketsTab socid={id} />}
+        {tab === 'consumption' && <ConsumptionTab socid={id} />}
+        {tab === 'paymentmodes' && <PaymentModesTab socid={id} />}
+        {tab === 'notify' && <NotifyTab socid={id} />}
+        {tab === 'documents' && <DocumentsTab socid={id} />}
+        {tab === 'pricing_groups' && <PricingGroupsTab socid={id} />}
+        {tab === 'accounting_ar' && <AccountingTab socid={id} kind="ar" />}
+        {tab === 'accounting_ap' && <AccountingTab socid={id} kind="ap" />}
+        {tab === 'general_ledger' && <GeneralLedgerTab socid={id} />}
+        {![
+          'societe',
+          'notes',
+          'transactions',
+          'activities',
+          'contacts',
+          'contracts',
+          'customer',
+          'agenda',
+          'tickets',
+          'consumption',
+          'paymentmodes',
+          'notify',
+          'documents',
+          'pricing_groups',
+          'accounting_ar',
+          'accounting_ap',
+          'general_ledger',
+        ].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
       </div>
     </div>
   )
@@ -1052,5 +1098,591 @@ function AgendaTab({ socid }: { socid: string | undefined }) {
         <AgendaTimelineList days={data.timeline} />
       </Card>
     </div>
+  )
+}
+
+// The nine tab components below all use the same real
+// societe/api/{tickets,consumption,paymentmodes,notify,documents,
+// pricing_groups,accounting_ar,accounting_ap,general_ledger}.php namespace
+// as the six above — see customerDetailTabs.queries.ts for how each one's
+// exact request/response contract was confirmed (reading the actual PHP
+// source, not guessed). These replace what used to be NotBuiltCard for
+// these tab keys.
+
+function TicketsTab({ socid }: { socid: string | undefined }) {
+  const [status, setStatus] = useState('openall')
+  const { data, isLoading, isError, error, refetch } = useCustomerTickets(socid, status)
+  if (isLoading) return <LegacyLoadingCard label="Loading tickets…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load tickets" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  return (
+    <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-text!">Tickets</h3>
+          <span className="text-xs text-text-faint">{data.count}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
+            {data.filter_options.status.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {data.can_create && (
+            <a
+              href={stripBackendPrefix(data.urls.create)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+            >
+              <Plus size={14} /> New ticket
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="p-4 overflow-x-auto">
+        {data.rows.length === 0 ? (
+          <p className="text-sm text-text-faint italic py-6 text-center">No tickets found.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                <th className="font-medium py-2 pr-3">Ref</th>
+                <th className="font-medium py-2 pr-3">Subject</th>
+                <th className="font-medium py-2 pr-3">Type</th>
+                <th className="font-medium py-2 pr-3">Severity</th>
+                <th className="font-medium py-2 pr-3">Author</th>
+                <th className="font-medium py-2 pr-3">Assigned</th>
+                <th className="font-medium py-2 pr-3">Date</th>
+                <th className="font-medium py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((t) => (
+                <tr key={t.id} className="border-b border-border last:border-0">
+                  <td className="py-2 pr-3 font-medium text-text!">
+                    <a href={stripBackendPrefix(t.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                      {t.ref}
+                    </a>
+                  </td>
+                  <td className="py-2 pr-3 text-text!">{t.subject}</td>
+                  <td className="py-2 pr-3 text-text-muted">{t.type_label}</td>
+                  <td className="py-2 pr-3 text-text-muted">{t.severity_label}</td>
+                  <td className="py-2 pr-3 text-text-muted">{t.author}</td>
+                  <td className="py-2 pr-3 text-text-muted">{t.assigned_to}</td>
+                  <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{t.date_created}</td>
+                  <td className="py-2">
+                    <StatusBadge status={t.status_label} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+const CONSUMPTION_CARD_COLORS: IconColor[] = ['blue', 'green', 'amber', 'violet', 'indigo', 'green']
+
+function ConsumptionTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerConsumption(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading related items…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load related items" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  const sectionKeys = Object.keys(data.sections).filter((k) => data.sections[k].length > 0 || (data.summary[k] ?? 0) > 0)
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Object.entries(data.summary).map(([key, count]) => (
+          <Card key={key} className="!h-auto">
+            <p className="text-xs text-text-faint uppercase tracking-wide">{data.section_labels[key] ?? key}</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{count}</p>
+          </Card>
+        ))}
+      </div>
+      {sectionKeys.length === 0 ? (
+        <Card className="!h-auto">
+          <p className="text-sm text-text-faint italic py-6 text-center">No related items found.</p>
+        </Card>
+      ) : (
+        sectionKeys.map((key, i) => (
+          <Card key={key} className="!h-auto !p-0 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+              <SectionIcon icon={BadgeDollarSign} color={CONSUMPTION_CARD_COLORS[i % CONSUMPTION_CARD_COLORS.length]} />
+              <h3 className="font-semibold text-text!">{data.section_labels[key] ?? key}</h3>
+            </div>
+            <div className="p-4 overflow-x-auto">
+              {data.sections[key].length === 0 ? (
+                <p className="text-sm text-text-faint italic py-2 text-center">None.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                      <th className="font-medium py-2 pr-3">Ref</th>
+                      <th className="font-medium py-2 pr-3">Date</th>
+                      <th className="font-medium py-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.sections[key].map((row) => (
+                      <tr key={row.id} className="border-b border-border last:border-0">
+                        <td className="py-2 pr-3 font-medium text-text!">
+                          {row.url ? (
+                            <a href={stripBackendPrefix(row.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                              {row.ref}
+                            </a>
+                          ) : (
+                            row.ref
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-text-muted">{row.date}</td>
+                        <td className="py-2 text-text!">{formatMoney(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </Card>
+        ))
+      )}
+    </div>
+  )
+}
+
+function PaymentModesTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerPaymentModes(socid)
+  const addMode = useAddPaymentMode(socid)
+  const deleteMode = useDeletePaymentMode(socid)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ label: '', bank: '', number: '', iban: '', bic: '' })
+
+  if (isLoading) return <LegacyLoadingCard label="Loading payment modes…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load payment modes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-4">
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">Payment Modes</h3>
+          {data.can_edit && (
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+            >
+              <Plus size={14} /> Add
+            </button>
+          )}
+        </div>
+        {showForm && (
+          <div className="p-4 border-b border-border grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input placeholder="Label *" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            <input placeholder="Bank *" value={form.bank} onChange={(e) => setForm({ ...form, bank: e.target.value })} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            <input placeholder="Account number" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            <input placeholder="IBAN" value={form.iban} onChange={(e) => setForm({ ...form, iban: e.target.value })} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            <input placeholder="BIC" value={form.bic} onChange={(e) => setForm({ ...form, bic: e.target.value })} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <button
+                type="button"
+                disabled={!form.label || !form.bank || addMode.isPending}
+                onClick={() => addMode.mutate(form, { onSuccess: () => { setForm({ label: '', bank: '', number: '', iban: '', bic: '' }); setShowForm(false) } })}
+                className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              >
+                {addMode.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-hover">
+                Cancel
+              </button>
+              {addMode.isError && <span className="text-xs text-danger-fg">{addMode.error instanceof Error ? addMode.error.message : 'Failed to add.'}</span>}
+            </div>
+          </div>
+        )}
+        <div className="p-4 overflow-x-auto">
+          {data.rows.length === 0 ? (
+            <p className="text-sm text-text-faint italic py-6 text-center">No payment modes yet.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Label</th>
+                  <th className="font-medium py-2 pr-3">Bank</th>
+                  <th className="font-medium py-2 pr-3">Number</th>
+                  <th className="font-medium py-2 pr-3">IBAN</th>
+                  <th className="font-medium py-2 pr-3">BIC</th>
+                  {data.can_edit && <th className="font-medium py-2" />}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 font-medium text-text!">
+                      {r.label} {r.default_rib === 1 && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand/10 text-brand">Default</span>}
+                    </td>
+                    <td className="py-2 pr-3 text-text-muted">{r.bank}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.number}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.iban}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.bic}</td>
+                    {data.can_edit && (
+                      <td className="py-2 text-right">
+                        <button type="button" onClick={() => deleteMode.mutate(r.id)} className="p-1 rounded text-text-faint hover:text-danger-fg hover:bg-danger-bg" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function NotifyTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerNotify(socid)
+  const addNotify = useAddNotify(socid)
+  const removeNotify = useRemoveNotify(socid)
+  const [actionId, setActionId] = useState('')
+  const [contactId, setContactId] = useState('')
+
+  if (isLoading) return <LegacyLoadingCard label="Loading notifications…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load notifications" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-4">
+      {data.can_edit && (
+        <Card className="!h-auto">
+          <SectionHeader icon={Bell} color="amber">
+            Add notification
+          </SectionHeader>
+          <div className="flex flex-wrap items-end gap-3">
+            <select value={actionId} onChange={(e) => setActionId(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 flex-1 min-w-[180px]">
+              <option value="">Select an event…</option>
+              {data.available.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 flex-1 min-w-[180px]">
+              <option value="">Select a contact…</option>
+              {data.contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!actionId || !contactId || addNotify.isPending}
+              onClick={() =>
+                addNotify.mutate(
+                  { actionId: Number(actionId), contactId: Number(contactId) },
+                  { onSuccess: () => { setActionId(''); setContactId('') } },
+                )
+              }
+              className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            >
+              {addNotify.isPending ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+          {addNotify.isError && <p className="text-xs text-danger-fg mt-2">{addNotify.error instanceof Error ? addNotify.error.message : 'Failed to add.'}</p>}
+        </Card>
+      )}
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">Notifications</h3>
+        </div>
+        <div className="p-4 overflow-x-auto">
+          {data.assigned.length === 0 ? (
+            <p className="text-sm text-text-faint italic py-6 text-center">No notifications configured.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Event</th>
+                  <th className="font-medium py-2 pr-3">Contact</th>
+                  {data.can_edit && <th className="font-medium py-2" />}
+                </tr>
+              </thead>
+              <tbody>
+                {data.assigned.map((r) => (
+                  <tr key={r.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 font-medium text-text!">{r.label}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.contact_name}</td>
+                    {data.can_edit && (
+                      <td className="py-2 text-right">
+                        <button type="button" onClick={() => removeNotify.mutate(r.id)} className="p-1 rounded text-text-faint hover:text-danger-fg hover:bg-danger-bg" title="Remove">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function DocumentsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerDocuments(socid)
+  const upload = useUploadDocument(socid)
+  const del = useDeleteDocument(socid)
+
+  if (isLoading) return <LegacyLoadingCard label="Loading linked files…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load linked files" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h3 className="font-semibold text-text!">Linked Files</h3>
+        {data.can_edit && (
+          <label className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover cursor-pointer">
+            <Upload size={14} /> {upload.isPending ? 'Uploading…' : 'Upload'}
+            <input
+              type="file"
+              className="hidden"
+              disabled={upload.isPending}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) upload.mutate(file)
+                e.target.value = ''
+              }}
+            />
+          </label>
+        )}
+      </div>
+      {upload.isError && <p className="text-xs text-danger-fg px-4 pt-2">{upload.error instanceof Error ? upload.error.message : 'Upload failed.'}</p>}
+      <div className="p-4 overflow-x-auto">
+        {data.rows.length === 0 ? (
+          <p className="text-sm text-text-faint italic py-6 text-center">No linked files.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                <th className="font-medium py-2 pr-3">Name</th>
+                <th className="font-medium py-2 pr-3">Size</th>
+                <th className="font-medium py-2 pr-3">Date</th>
+                <th className="font-medium py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((f) => (
+                <tr key={f.name} className="border-b border-border last:border-0">
+                  <td className="py-2 pr-3 font-medium text-text!">{f.name}</td>
+                  <td className="py-2 pr-3 text-text-muted">{f.size}</td>
+                  <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{f.date}</td>
+                  <td className="py-2 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <a href={stripBackendPrefix(f.download_url)} target="_blank" rel="noreferrer" className="p-1 rounded text-text-faint hover:text-brand hover:bg-surface-hover" title="Download">
+                        <Download size={14} />
+                      </a>
+                      {data.can_edit && (
+                        <button type="button" onClick={() => del.mutate(f.name)} className="p-1 rounded text-text-faint hover:text-danger-fg hover:bg-danger-bg" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function PricingGroupsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerPricingGroups(socid)
+  const assign = useAssignPricingGroup(socid)
+  const [selected, setSelected] = useState('')
+
+  if (isLoading) return <LegacyLoadingCard label="Loading pricing groups…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load pricing groups" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  const current = data.rows.find((g) => g.id === data.group_id)
+
+  return (
+    <div className="space-y-4">
+      <Card className="!h-auto">
+        <SectionHeader icon={Tags} color="violet">
+          Assigned Pricing Group
+        </SectionHeader>
+        <InfoRow label="Current group" value={current?.label ?? 'None'} />
+        {current && <InfoRow label="Discount" value={current.discount ? `${current.discount}${current.discount_type === '1' ? '%' : ''}` : ''} />}
+        {data.can_edit && data.rows.length > 0 && (
+          <div className="flex items-center gap-2 pt-3">
+            <select value={selected} onChange={(e) => setSelected(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 flex-1">
+              <option value="">Select a group…</option>
+              {data.rows.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!selected || assign.isPending}
+              onClick={() => assign.mutate(Number(selected), { onSuccess: () => setSelected('') })}
+              className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            >
+              {assign.isPending ? 'Saving…' : 'Assign'}
+            </button>
+          </div>
+        )}
+        {assign.isError && <p className="text-xs text-danger-fg mt-2">{assign.error instanceof Error ? assign.error.message : 'Failed to assign.'}</p>}
+      </Card>
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">All Pricing Groups</h3>
+        </div>
+        <div className="p-4 overflow-x-auto">
+          {data.rows.length === 0 ? (
+            <p className="text-sm text-text-faint italic py-6 text-center">{data.message ?? 'No pricing groups defined yet.'}</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Label</th>
+                  <th className="font-medium py-2 pr-3">Discount</th>
+                  <th className="font-medium py-2">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((g) => (
+                  <tr key={g.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 font-medium text-text!">{g.label}</td>
+                    <td className="py-2 pr-3 text-text-muted">{g.discount ? `${g.discount}${g.discount_type === '1' ? '%' : ''}` : ''}</td>
+                    <td className="py-2 text-text-muted">{g.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function AccountingTab({ socid, kind }: { socid: string | undefined; kind: 'ar' | 'ap' }) {
+  const arQuery = useCustomerAccountingAr(kind === 'ar' ? socid : undefined)
+  const apQuery = useCustomerAccountingAp(kind === 'ap' ? socid : undefined)
+  const { data, isLoading, isError, error, refetch } = (kind === 'ar' ? arQuery : apQuery) as ReturnType<typeof useCustomerAccountingAr>
+  const label = kind === 'ar' ? 'Accounts Receivable' : 'Accounts Payable'
+
+  if (isLoading) return <LegacyLoadingCard label={`Loading ${label.toLowerCase()}…`} />
+  if (isError || !data) return <LegacyErrorCard title={`Couldn't load ${label.toLowerCase()}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Total Invoiced</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.summary.total_invoiced)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Total Paid</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.summary.total_paid)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Total Open</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.summary.total_open)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Open Invoices</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{data.summary.open_count}</p>
+        </Card>
+      </div>
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-text!">Open Invoices</h3>
+        </div>
+        <div className="p-4 overflow-x-auto">
+          {data.rows.length === 0 ? (
+            <p className="text-sm text-text-faint italic py-6 text-center">No open invoices.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Ref</th>
+                  <th className="font-medium py-2 pr-3">Date</th>
+                  <th className="font-medium py-2 pr-3">Due</th>
+                  <th className="font-medium py-2 pr-3 text-right">Total</th>
+                  <th className="font-medium py-2 pr-3 text-right">Paid</th>
+                  <th className="font-medium py-2 text-right">Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 font-medium text-text!">{r.ref}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.date}</td>
+                    <td className="py-2 pr-3 text-text-muted">{r.due_date}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{formatMoney(r.total_ttc)}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{formatMoney(r.paid)}</td>
+                    <td className="py-2 text-right tabular-nums text-text!">{formatMoney(r.open)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function GeneralLedgerTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerGeneralLedger(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading general ledger…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load general ledger" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  return (
+    <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="px-4 py-3 border-b border-border">
+        <h3 className="font-semibold text-text!">General Ledger{data.code_compta && ` — ${data.code_compta}`}</h3>
+      </div>
+      <div className="p-4 overflow-x-auto">
+        {data.rows.length === 0 ? (
+          <p className="text-sm text-text-faint italic py-6 text-center">No movements found.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                <th className="font-medium py-2 pr-3">Date</th>
+                <th className="font-medium py-2 pr-3">Source</th>
+                <th className="font-medium py-2 pr-3">Label</th>
+                <th className="font-medium py-2 pr-3">Account</th>
+                <th className="font-medium py-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((m) => (
+                <tr key={`${m.source}-${m.id}`} className="border-b border-border last:border-0">
+                  <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{m.date}</td>
+                  <td className="py-2 pr-3 text-text-muted capitalize">{m.source}</td>
+                  <td className="py-2 pr-3 text-text!">{m.label}</td>
+                  <td className="py-2 pr-3 text-text-muted">{m.account}</td>
+                  <td className={`py-2 text-right tabular-nums ${m.amount < 0 ? 'text-danger-fg' : 'text-text!'}`}>{formatMoney(m.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Card>
   )
 }

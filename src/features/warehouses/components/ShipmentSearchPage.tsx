@@ -9,10 +9,14 @@ const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 
 const COLUMNS = ['Ref.Id', 'Customer Name', 'Order Status', 'Order Price', 'Order Date', 'Action']
 
-// No shipment endpoint exists on this backend (no /api/shipments/,
-// /api/expeditions/ — confirmed) — the search filters below use real data
-// (customers, users), but there's no shipment/sales-order-to-shipment
-// pipeline to search over, so results are honestly always empty.
+// This page's own "yet to create / created" split is a sales-order-to-
+// shipment search that has no equivalent data source found yet (neither
+// the bespoke /api/* namespace nor a scraped legacy page) — the search
+// filters below use real data (customers, users), but results are
+// honestly always empty. Note this is different from Shipments' plain
+// list, which does have a real source now — see ShipmentStatusList.tsx /
+// expedition.queries.ts (expedition/list.php, scraped the same way
+// Warehouses/Inventories already are).
 export function ShipmentSearchPage() {
   const { data: customersSummary } = useCustomersSummary()
   const { data: usersSummary } = useUsersSummary()
