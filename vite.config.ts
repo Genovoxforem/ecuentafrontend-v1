@@ -41,6 +41,10 @@ const BACKEND_OWNED_PATHS = [
   '/fichinter',
   '/userprofile',
   '/expensereport',
+  '/expedition',
+  '/fourn',
+  '/supplier_proposal',
+  '/reception',
 ] as const
 
 // Production deploys this build's dist/ output onto the backend's own
@@ -131,6 +135,11 @@ export default defineConfig({
       // by reading quicklinks_ajax.php directly) — a root-level PHP file
       // this app has no route of its own at, same as index.php above.
       '^/quicklinks_ajax\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Real generated-document download links (FormFile::getDocumentsLink()'s
+      // own href target, e.g. the Quotations list's per-row PDF download
+      // icon) — a root-level PHP file this app has no route of its own at,
+      // same as index.php above.
+      '^/document\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       // Legacy accounting/bookkeeping reports (Ledger, Journals) have no
       // REST API — generalLedger.queries.ts fetches these PHP-rendered pages
       // directly (same-origin, DOLSESSID-cookie-authenticated via
@@ -210,6 +219,24 @@ export default defineConfig({
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.
       '^/expensereport(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Sales Order Detail's "Shipments - Delivery Receipts" tab
+      // (expedition/shipment.php?id=X) — same no-REST-API scrape pattern as
+      // the rest of orderCardParser.ts. No React route starts with
+      // /expedition, so a plain prefix is safe, but anchored anyway to
+      // match the rest of this list.
+      '^/expedition(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Third-Party Detail's native "Vendor" tab (societe/api/supplier.php)
+      // links out to the real fourn/commande and fourn/purchase create
+      // pages for its "Create Order"/"Create Invoice Or Credit Note"
+      // buttons — see CustomerDetail.tsx's VendorTab.
+      '^/fourn(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Same tab's "Create A Price Request" button.
+      '^/supplier_proposal(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Purchase Order Detail's "Item Receipts" tab links to each real
+      // reception record (reception/card.php?id=X, Reception::getNomUrl())
+      // — no React route starts with /reception, so a plain prefix is
+      // safe, but anchored anyway to match the rest of this list.
+      '^/reception(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
     },
   },
 })

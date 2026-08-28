@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   X,
@@ -31,6 +31,7 @@ import {
   Mail,
   Phone,
   ExternalLink,
+  Truck,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -45,6 +46,7 @@ import {
   useCustomerContacts,
   useCustomerContracts,
   useCustomerTab,
+  useVendorTab,
   useCustomerAgenda,
   stripBackendPrefix,
   type ActivityType,
@@ -160,6 +162,7 @@ const TABS = [
   { key: 'contacts', label: 'Contacts/Addresses', icon: Users2 },
   { key: 'contracts', label: 'Contract-Follow', icon: FileStack },
   { key: 'customer', label: '', icon: BadgeDollarSign },
+  { key: 'vendor', label: 'Vendor', icon: Truck },
   { key: 'agenda', label: 'Events/Agenda', icon: CalendarClock },
   { key: 'projects', label: 'Projects', icon: Briefcase },
   { key: 'tickets', label: 'Tickets', icon: Ticket },
@@ -185,11 +188,19 @@ function customerTabLabel(data: CustomerProfile): string {
   return data.clientLabel
 }
 
+// Valid TABS keys, for sanitizing an externally-supplied ?tab= query param
+// (e.g. the Vendor List's "Nature Of Third Party" column linking straight
+// to the Vendor tab) — an unknown/stale value silently falls back to the
+// default 'societe' tab rather than rendering a broken NotBuiltCard.
+const TAB_KEYS = new Set(TABS.map((t) => t.key))
+
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data, isLoading, isError, error, refetch } = useCustomerDetail(id)
-  const [tab, setTab] = useState<TabKey>('societe')
+  const requestedTab = searchParams.get('tab')
+  const [tab, setTab] = useState<TabKey>(requestedTab && TAB_KEYS.has(requestedTab as TabKey) ? (requestedTab as TabKey) : 'societe')
   const [isEditing, setIsEditing] = useState(false)
   const [formValues, setFormValues] = useState<CustomerEditableFields>({})
   const updateCustomer = useUpdateCustomer(Number(id))
@@ -392,7 +403,7 @@ export function CustomerDetail() {
 
             <div className="border-t border-border">
               <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden -mx-6 px-6" style={{ scrollBehavior: 'smooth' }}>
-                {TABS.filter((t) => t.key !== 'customer' || customerTabLabel(data)).map(({ key, label, icon: Icon }) => {
+                {TABS.filter((t) => (t.key !== 'customer' || customerTabLabel(data)) && (t.key !== 'vendor' || data.isVendor)).map(({ key, label, icon: Icon }) => {
                   const displayLabel = key === 'customer' ? customerTabLabel(data) : label
                   // Real count from the same profile fetch (task_count +
                   // call_count + meeting_count) — confirmed live against the
@@ -426,8 +437,9 @@ export function CustomerDetail() {
         {tab === 'contacts' && <ContactsTab socid={id} />}
         {tab === 'contracts' && <ContractsTab socid={id} />}
         {tab === 'customer' && <CustomerTab socid={id} profile={data} />}
+        {tab === 'vendor' && <VendorTab socid={id} />}
         {tab === 'agenda' && <AgendaTab socid={id} />}
-        {!['societe', 'notes', 'transactions', 'activities', 'contacts', 'contracts', 'customer', 'agenda'].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
+        {!['societe', 'notes', 'transactions', 'activities', 'contacts', 'contracts', 'customer', 'vendor', 'agenda'].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
       </div>
     </div>
   )
@@ -951,6 +963,81 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
               </a>
             ),
           )}
+      </div>
+    </div>
+  )
+}
+
+// Native rebuild of fourn/card.php's own "VENDOR" tab, backed by the real
+// societe/api/supplier.php endpoint (see customerDetailTabs.queries.ts's
+// VendorTabResponse comment for exactly which fields were confirmed live
+// and which real-page sub-lines this endpoint doesn't expose).
+function VendorTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useVendorTab(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading vendor info…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load vendor info" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Price Requests</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.proposals_kpi.total_ht)}</p>
+          <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.proposals_kpi.opened)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Orders</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.orders_kpi.total_ht)}</p>
+          <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.orders_kpi.opened)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Invoices</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.supplier_outstanding.total_ht)}</p>
+          <p className="text-xs text-text-faint">Current Outstanding Bill: {formatMoney(data.supplier_outstanding.opened)}</p>
+        </Card>
+        <Card className="!h-auto">
+          <p className="text-xs text-text-faint uppercase tracking-wide">Capital / Advance</p>
+          <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(Number(data.fields.capital) || 0)}</p>
+          <p className="text-xs text-text-faint">Advance: {formatMoney(data.fields.advance)}</p>
+        </Card>
+      </div>
+
+      <Card className="!h-auto">
+        <InfoRow label="Vendor Code" value={data.code_fournisseur} />
+        <InfoRow label="Vendor Accounting Code" value={data.code_compta_fournisseur} />
+        <InfoRow label="VAT ID" value={data.fields.tva_intra} />
+        <InfoRow label="Payment Terms" value={data.cond_reglement_label} />
+        <InfoRow label="Payment Type" value={data.mode_reglement_label} />
+        <InfoRow label="Relative Discount" value={data.fields.remise_percent ? `${data.fields.remise_percent}%` : ''} />
+        <InfoRow label="Absolute Discount" value={data.fields.remise_absolue ? formatMoney(data.fields.remise_absolue) : ''} />
+        <InfoRow label="Vendors Tags/Categories" value={data.fields.categories.join(', ')} />
+      </Card>
+
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={stripBackendPrefix(data.buttons.create_proposal)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
+        >
+          Create A Price Request <ExternalLink size={12} />
+        </a>
+        <a
+          href={stripBackendPrefix(data.buttons.create_order)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
+        >
+          Create Order <ExternalLink size={12} />
+        </a>
+        <a
+          href={stripBackendPrefix(data.buttons.create_invoice)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
+        >
+          Create Invoice Or Credit Note <ExternalLink size={12} />
+        </a>
       </div>
     </div>
   )

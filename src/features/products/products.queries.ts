@@ -705,7 +705,7 @@ export function useProductDashboard(id: string | undefined, page: number = 1) {
 // even though Content-Type says application/json (same quirk confirmed live
 // on societe/api/list.php) — transformResponse + trim() before JSON.parse
 // sidesteps that rather than depending on a backend fix.
-async function callProductInfoFile(file: string, action: string, params: Record<string, string>) {
+export async function callProductInfoFile(file: string, action: string, params: Record<string, string>) {
   const res = await axios.post<string>(`/productinfo/api/${file}`, new URLSearchParams({ action, ...params }), { transformResponse: (data) => data })
   return JSON.parse(res.data.trim()) as { success: boolean; error: string | null; data: unknown }
 }

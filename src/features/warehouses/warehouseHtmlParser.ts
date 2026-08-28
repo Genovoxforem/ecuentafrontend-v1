@@ -285,12 +285,16 @@ export interface WarehouseCard {
   id: number
   ref: string
   statusLabel: string
+  locationSummary: string
   environment: string
+  parentWarehouseName: string
+  parentWarehouseUrl: string
   description: string
   differentProductsCount: number
   totalProductsCount: number
   inputStockValue: number
   latestMovement: string
+  tags: string[]
   editUrl: string
   deleteUrl: string
   deleteRefusedTitle: string
@@ -300,6 +304,15 @@ export interface WarehouseCard {
 export function parseWarehouseCardDocument(doc: Document, id: number): WarehouseCard {
   const ref = (doc.querySelector('.ec-movement-product-card-ref')?.textContent ?? '').trim()
   const statusLabel = (doc.querySelector('.subTitle .badge-status')?.textContent ?? '').trim()
+  // The second .refidno-sub block under the name (real markup:
+  // `<div class="refidno-sub"><a ...map-marker-alt.../></a> Zambia<div
+  // style="clear:both;"></div></div>`) — the address-summary line Dolibarr
+  // itself builds from address/zip/town/country. Empty for every warehouse
+  // checked live so far (none has an address set), so this reads
+  // generically off whatever text sits there rather than a confirmed
+  // non-empty sample.
+  const refidnoSubs = Array.from(doc.querySelectorAll('.refidno-sub'))
+  const locationSummary = (refidnoSubs[1]?.textContent ?? '').trim()
 
   // The two-column info table (Environment/Description/... | Input stock
   // value/Latest movement/...) — located by its own distinctive label text
@@ -311,6 +324,12 @@ export function parseWarehouseCardDocument(doc: Document, id: number): Warehouse
     return idx >= 0 ? infoCells[idx + 1] : undefined
   }
   const environment = (afterLabel('Environment')?.textContent ?? '').trim()
+  // "Parent warehouse" is a conditional row — only present when this
+  // warehouse actually has one set (confirmed live: absent for "New
+  // Warehouse" id=9, present as a real link to MAIN_BRANCH for "mtm" id=12).
+  const parentWarehouseLink = afterLabel('Parent warehouse')?.querySelector('a')
+  const parentWarehouseName = (parentWarehouseLink?.textContent ?? '').trim()
+  const parentWarehouseUrl = parentWarehouseLink?.getAttribute('href') ?? ''
   const description = (afterLabel('Description')?.textContent ?? '').trim()
   const differentProductsCount = Number((afterLabel('Number of different products')?.textContent ?? '0').trim()) || 0
   const totalProductsCount = Number((afterLabel('Total number of products')?.textContent ?? '0').trim()) || 0
@@ -322,9 +341,25 @@ export function parseWarehouseCardDocument(doc: Document, id: number): Warehouse
   const latestMovement = latestMovementCell
     ? (Array.from(latestMovementCell.childNodes).find((n) => n.nodeType === Node.TEXT_NODE)?.textContent ?? '').replace(/\(\s*$/, '').trim()
     : ''
+  // A select2 multi-tag widget (.select2-choices-ecuenta li per chosen
+  // category) — empty on every real warehouse checked live, so this reads
+  // generically rather than against a confirmed non-empty sample.
+  const tags = Array.from(afterLabel('Tags/categories')?.querySelectorAll('.select2-choices-ecuenta li') ?? [])
+    .map((li) => (li.textContent ?? '').trim())
+    .filter(Boolean)
 
+  // These hrefs are bare-relative ("card.php?action=edit&...", no leading
+  // slash) — correct when the browser is already sitting on
+  // product/stock/card.php, but wrong once rendered inside this SPA (whose
+  // own URL is /warehouses/:id), where a relative href resolves against
+  // the SPA's own route instead. Rebuilt into the real absolute path here
+  // so stripBackendPrefix/the dev proxy route them correctly.
   const editLink = doc.querySelector('a[href*="action=edit"][href*="card.php"]')
   const deleteLink = doc.querySelector('a.butActionRefused, a[href*="action=delete"][href*="card.php"]')
+  function toAbsoluteCardUrl(relativeHref: string | null | undefined): string {
+    if (!relativeHref) return ''
+    return `/product/stock/${relativeHref.replace(/^\.?\/?/, '')}`
+  }
 
   const products: WarehouseProductRow[] = []
   doc.querySelectorAll('table#example tbody tr').forEach((row) => {
@@ -358,16 +393,101 @@ export function parseWarehouseCardDocument(doc: Document, id: number): Warehouse
     id,
     ref,
     statusLabel,
+    locationSummary,
     environment,
+    parentWarehouseName,
+    parentWarehouseUrl,
     description,
     differentProductsCount,
     totalProductsCount,
     inputStockValue,
     latestMovement,
-    editUrl: editLink?.getAttribute('href') ?? '',
-    deleteUrl: deleteLink && !deleteLink.classList.contains('butActionRefused') ? (deleteLink.getAttribute('href') ?? '') : '',
+    tags,
+    editUrl: toAbsoluteCardUrl(editLink?.getAttribute('href')),
+    deleteUrl: deleteLink && !deleteLink.classList.contains('butActionRefused') ? toAbsoluteCardUrl(deleteLink.getAttribute('href')) : '',
     deleteRefusedTitle: deleteLink?.classList.contains('butActionRefused') ? (deleteLink.getAttribute('title') ?? '') : '',
     products,
+  }
+}
+
+// product/stock/card.php?action=edit&id=X — the real Edit form (action=
+// update handler read directly from card.php, not guessed: sets
+// label/fk_parent/description/statut/lieu/address/zip/town/country_id/
+// phone/fax on the object then calls $object->update()). Field names below
+// (libelle/lieu/fk_parent/desc/address/zipcode/town/country_id/phone/fax/
+// statut) are exactly what that handler reads via GETPOST(), confirmed by
+// reading it directly, and current values/option lists come straight from
+// this same real page (verified live, warehouse id=12 "mtm" — fk_parent's
+// options already exclude this warehouse itself, since Dolibarr's own
+// selectWarehouses() does that server-side). Tags/categories is
+// deliberately left out: its real <select> ships with zero <option>s in
+// the raw HTML (populated by a separate async call this scrape doesn't
+// replicate), and the handler unconditionally calls
+// $object->setCategories(GETPOST('categories','array')) after a successful
+// update — submitting no categories field at all is equivalent to today's
+// state on every warehouse checked live (all have zero tags), so this is a
+// safe simplification, not a silent data-loss risk right now.
+export interface WarehouseSelectOption {
+  value: string
+  label: string
+}
+
+export interface WarehouseEditFormData {
+  token: string
+  ref: string
+  shortNameLocation: string
+  parentWarehouseId: string
+  parentWarehouseOptions: WarehouseSelectOption[]
+  description: string
+  address: string
+  zipCode: string
+  city: string
+  countryId: string
+  countryOptions: WarehouseSelectOption[]
+  phone: string
+  fax: string
+  status: string
+}
+
+function parseSelectField(doc: Document, name: string): { selected: string; options: WarehouseSelectOption[] } {
+  const select = doc.querySelector(`select[name="${name}"]`)
+  const options = Array.from(select?.querySelectorAll('option') ?? []).map((o) => ({
+    value: o.getAttribute('value') ?? '',
+    label: (o.textContent ?? '').trim(),
+  }))
+  const selectedOption = select?.querySelector('option[selected]')
+  return { selected: selectedOption?.getAttribute('value') ?? options[0]?.value ?? '', options }
+}
+
+export function parseWarehouseEditFormDocument(doc: Document): WarehouseEditFormData {
+  const token = doc.querySelector('input[name="token"]')?.getAttribute('value') ?? ''
+  const ref = (doc.querySelector('input[name="libelle"]') as HTMLInputElement | null)?.value ?? ''
+  const shortNameLocation = (doc.querySelector('input[name="lieu"]') as HTMLInputElement | null)?.value ?? ''
+  const parentWarehouse = parseSelectField(doc, 'fk_parent')
+  const description = (doc.querySelector('textarea[name="desc"]')?.textContent ?? '').trim()
+  const address = (doc.querySelector('textarea[name="address"]')?.textContent ?? '').trim()
+  const zipCode = (doc.querySelector('input[name="zipcode"]') as HTMLInputElement | null)?.value ?? ''
+  const city = (doc.querySelector('input[name="town"]') as HTMLInputElement | null)?.value ?? ''
+  const country = parseSelectField(doc, 'country_id')
+  const phone = (doc.querySelector('input[name="phone"]') as HTMLInputElement | null)?.value ?? ''
+  const fax = (doc.querySelector('input[name="fax"]') as HTMLInputElement | null)?.value ?? ''
+  const status = parseSelectField(doc, 'statut')
+
+  return {
+    token,
+    ref,
+    shortNameLocation,
+    parentWarehouseId: parentWarehouse.selected,
+    parentWarehouseOptions: parentWarehouse.options,
+    description,
+    address,
+    zipCode,
+    city,
+    countryId: country.selected,
+    countryOptions: country.options,
+    phone,
+    fax,
+    status: status.selected,
   }
 }
 
@@ -603,21 +723,30 @@ export function parseMovementListApiResponse(data: any): WarehouseMovementsData 
 // parseGenericTableRows for Inventory Detail, so it's reused as-is.
 //
 // The real page's own "Doc template"/language dropdowns + Generate button
-// (a POST of action=builddoc back to this same page) are deliberately NOT
-// rebuilt here: live-tested against the real backend (POSTing the exact
-// same model=standard/lang_id/token it submits) and it silently produces no
-// file — "Linked files" still reads None afterwards, so the stock module's
-// "standard" ODT/PDF template is missing or misconfigured server-side on
-// this deployment. Rebuilding a Generate button that replicates this
-// no-op would just be a second copy of a real backend bug (frontend-only
-// scope on this app; backend PHP is never edited).
+// (form id="builddoc_form", POSTs action=builddoc back to this same page —
+// same real field contract as orderCardParser.ts's parseDocGenOptions())
+// were previously found, in an earlier live test against this backend, to
+// silently produce no file — "Linked files" still read None afterwards,
+// suggesting the stock module's "standard" ODT/PDF template is missing or
+// misconfigured server-side on this deployment. Rebuilt anyway per an
+// explicit request to match the real UI; if that finding still holds,
+// clicking Generate here will accurately mirror the real page's own no-op
+// rather than hide it.
 export interface WarehouseLinkedFile {
   name: string
   url: string
 }
 
+export interface WarehouseDocGenOptions {
+  token: string
+  modelOptions: WarehouseSelectOption[]
+  langOptions: WarehouseSelectOption[]
+  defaultLang: string
+}
+
 export interface WarehouseEventsData {
   linkedFiles: WarehouseLinkedFile[]
+  docGen: WarehouseDocGenOptions
   events: LinkedEventRow[]
   addEventUrl: string
   createdByName: string
@@ -644,6 +773,21 @@ export function parseWarehouseEventsDocument(doc: Document): WarehouseEventsData
       return { name: text, url: '' }
     })
     .filter((f): f is WarehouseLinkedFile => !!f)
+
+  const builddocForm = doc.querySelector('#builddoc_form')
+  const docGenToken = builddocForm?.querySelector('input[name="token"]')?.getAttribute('value') ?? ''
+  const modelSelect = builddocForm?.querySelector('select[name="model"]')
+  const modelOptions: WarehouseSelectOption[] = Array.from(modelSelect?.querySelectorAll('option') ?? []).map((o) => ({
+    value: o.getAttribute('value') ?? '',
+    label: (o.textContent ?? '').trim(),
+  }))
+  const langSelect = builddocForm?.querySelector('select#lang_id')
+  const langOptions: WarehouseSelectOption[] = Array.from(langSelect?.querySelectorAll('option') ?? []).map((o) => ({
+    value: o.getAttribute('value') ?? '',
+    label: (o.textContent ?? '').trim(),
+  }))
+  const defaultLang = langSelect?.querySelector('option[selected]')?.getAttribute('value') ?? langOptions[0]?.value ?? 'en_US'
+  const docGen: WarehouseDocGenOptions = { token: docGenToken, modelOptions, langOptions, defaultLang }
 
   const events: LinkedEventRow[] = parseGenericTableRows(doc, ['Ref.', 'Date', 'By', 'Type', 'Title'])
     .map((row) => {
@@ -675,6 +819,7 @@ export function parseWarehouseEventsDocument(doc: Document): WarehouseEventsData
 
   return {
     linkedFiles,
+    docGen,
     events,
     addEventUrl,
     createdByName: (createdByLink?.querySelector('.usertext')?.textContent ?? createdByLink?.textContent ?? '').trim(),

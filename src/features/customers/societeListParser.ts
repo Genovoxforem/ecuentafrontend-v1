@@ -31,6 +31,7 @@ export interface SocieteListRow {
   phone: string
   isCustomer: boolean
   isProspect: boolean
+  isVendor: boolean
   trackingId: string
   creatorName: string
   creationDateIso: string
@@ -95,11 +96,18 @@ function parseEmailPhone(html: string): { email: string; phone: string } {
   return { email, phone }
 }
 
-// cust_type: one or more <a title="Prospect|Customer|Supplier"> tags.
-function parseCustType(html: string): { isCustomer: boolean; isProspect: boolean } {
+// cust_type: one or more <a title="Vendor|Customer|Prospect"> tags —
+// verified live against a real type=f (vendor) row: a third-party that's
+// simultaneously a customer/vendor/prospect carries all three, e.g.
+// `<a title="Vendor">V</a> <a title="Customer">C</a> <a class="...
+// opacitymedium" title="Prospect">P</a>` (the "opacitymedium" class marks
+// an inactive/not-really-a-prospect marker, not distinguished here since
+// no consumer currently needs that nuance).
+function parseCustType(html: string): { isCustomer: boolean; isProspect: boolean; isVendor: boolean } {
   return {
     isCustomer: html.includes('title="Customer"'),
     isProspect: html.includes('title="Prospect"'),
+    isVendor: html.includes('title="Vendor"'),
   }
 }
 
@@ -132,7 +140,7 @@ export function parseSocieteListRow(raw: RawSocieteListRow): SocieteListRow {
   const { socid, name } = parseCustName(raw.cust_name)
   const { country, currency } = parseCurrencyCountry(raw.currency_country)
   const { email, phone } = parseEmailPhone(raw.email_phone)
-  const { isCustomer, isProspect } = parseCustType(raw.cust_type)
+  const { isCustomer, isProspect, isVendor } = parseCustType(raw.cust_type)
   const { creatorName, creationDateIso } = parseDate(raw.date)
 
   return {
@@ -147,6 +155,7 @@ export function parseSocieteListRow(raw: RawSocieteListRow): SocieteListRow {
     phone,
     isCustomer,
     isProspect,
+    isVendor,
     trackingId: raw.tracking?.trim() ?? '',
     creatorName,
     creationDateIso,

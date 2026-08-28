@@ -8,41 +8,40 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { api } from '../../../api/axios'
+import { fetchLegacyDocument } from '../../../shared/legacyHtmlFetch'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
-import { useProductOptions } from '../../products/products.queries'
-import { useProductFormOptions } from '../../zra/createProduct.queries'
+import { useProductOptions, callProductInfoFile } from '../../products/products.queries'
+import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 import { useLogActivity } from '../../agenda/agenda.queries'
 import { useAuth } from '../../auth/AuthContext'
+import { parseOrderDictionaries, looksLikeLegacyLoginPage, type OrderDictionaries } from '../orderFormOptionsParser'
 import { QuickCustomerCreateModal } from './QuickCustomerCreateModal'
 import { QuickProductCreateModal } from './QuickProductCreateModal'
 
 interface ProjectOption {
-  id: number
+  id: string
   ref: string
   title: string
 }
 
-// GET /api/salesorder/?action=get_projects — this backend's own contract
-// differs by environment: the version this form was originally built
-// against (ecnta10) returned all active projects (fk_statut = 1)
-// unconditionally, matching the reference layout's project <select> query
-// in commande/salesorder/index_v2.php. The current backend (ecuenta9)
-// requires a `socid` param and 400s ("Customer ID is required") without
-// one, filtering to that customer's own projects instead. Gating this
-// query on customerId (and passing socid) satisfies ecuenta9's contract
-// and is harmless on ecnta10 too (socid is simply an extra param it never
-// reads) — it just means the Project dropdown only populates once a
-// customer is picked, same order the rest of the form already expects.
-function useProjectOptions(socid: string) {
+// GET /api/projects.php — a real, working endpoint confirmed live on this
+// backend (queries llx_projet WHERE fk_statut = 1, no customer/socid filter
+// at all). The Project field isn't a per-customer relationship the way the
+// legacy /api/salesorder/?action=get_projects action treats it (that one
+// filters to a single customer's own linked projects, and stayed
+// permanently empty on this deployment since the only real project here
+// has no customer linked to it — confirmed live) — this shows every open
+// project regardless of customer, matching what this dropdown is actually
+// meant to offer.
+function useProjectOptions() {
   return useQuery({
-    queryKey: ['salesorder', 'projects', socid],
+    queryKey: ['projects', 'open'],
     queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; data: ProjectOption[] }>('/salesorder/?action=get_projects', { params: { socid } })
-      return data.data ?? []
+      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
+      return data.results ?? []
     },
-    enabled: socid !== '',
     staleTime: 1000 * 60,
   })
 }
@@ -57,21 +56,36 @@ interface DictionaryResponse {
   results: Array<{ id: string | number; text: string }>
 }
 
-// GET /api/{bank_accounts,payment_types,availability_delays,shipping_methods,payment_terms}.php
-// — all 5 real Dolibarr dictionaries (llx_bank_account, llx_c_paiement,
-// llx_c_availability, llx_c_shipment_mode, llx_c_payment_term), the exact
-// same tables commande/salesorder/index_v2.php's own select_comptes() /
-// select_types_paiements() / selectAvailabilityDelay() / selectShippingMethod()
-// / select_conditions_paiements() calls read. The first two already existed
-// but 404'd via this app's X-API-Key auth (missing NOLOGIN — fixed); the
-// other three are new, added specifically for this page, matching the same
-// file structure/auth.
+// GET /api/{bank_accounts,payment_types}.php — 2 real Dolibarr dictionaries
+// (llx_bank_account, llx_c_paiement) that work via this app's X-API-Key auth
+// (they needed NOLOGIN added — already fixed). /api/availability_delays.php,
+// /api/shipping_methods.php, and /api/payment_terms.php were added
+// alongside them but are a genuine 404 on this backend (checked live) — see
+// useOrderDictionaries below for the real replacement.
 function useDictionary(path: string) {
   return useQuery({
     queryKey: ['dictionary', path],
     queryFn: async (): Promise<DictionaryOption[]> => {
       const { data } = await api.get<DictionaryResponse>(path)
       return data.success ? data.results.map((r) => ({ id: String(r.id), text: r.text })) : []
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+
+// The three dead dictionary endpoints' real replacement — see
+// orderFormOptionsParser.ts's header comment. commande/salesorder/index_v2.php
+// is a real, ~1600-line legacy page (the actual "New Order" wizard this
+// app's own form is modeled on) that renders these as plain <select>
+// options straight from the same DB tables; fetched once and cached like
+// any other legacy scrape in this app.
+function useOrderDictionaries() {
+  return useQuery({
+    queryKey: ['salesorder', 'dictionaries'],
+    queryFn: async (): Promise<OrderDictionaries> => {
+      const doc = await fetchLegacyDocument('/commande/salesorder/index_v2.php')
+      if (looksLikeLegacyLoginPage(doc)) return { availabilityDelays: [], shippingMethods: [], paymentTerms: [] }
+      return parseOrderDictionaries(doc)
     },
     staleTime: 1000 * 60 * 10,
   })
@@ -132,6 +146,39 @@ function useCustomerDefaults(socid: string) {
   })
 }
 
+// The product catalog (/api/products/, used by the entry row's picker) has
+// no cost_price value in its response at all on this backend — confirmed by
+// reading its real schema live (the key is simply absent from every row).
+// The reference layout has this exact same gap: its own product-search
+// action (commande/salesorder/api/order_handler.php's handleSearchProducts())
+// never selects a cost_price column either, so its Cost Price field always
+// ends up showing "NaN" when a product is picked (parseFloat(undefined) with
+// no fallback, read directly in commande/salesorder/js/salesorder.js). The
+// one real, working source for a product's actual cost price is the Product
+// Detail page's own Supplier Prices tab data (productinfo/api/supplier_api.php,
+// already confirmed real elsewhere in this app) — fetched here per selected
+// product instead of repeating the reference layout's own broken result.
+function useProductCostPrice(productId: string) {
+  return useQuery({
+    queryKey: ['productinfo', 'supplier-cost-price', productId],
+    queryFn: async (): Promise<number> => {
+      const body = await callProductInfoFile('supplier_api.php', 'view', { id: productId })
+      if (!body.success) return 0
+      const data = body.data as { cost_price?: string | number } | undefined
+      return Number(data?.cost_price ?? 0) || 0
+    },
+    enabled: productId !== '',
+    staleTime: 1000 * 60,
+  })
+}
+
+// '1' = percentage off the line (the reference layout's own "%" option),
+// '2' = a flat amount off the line (its "P" option) — verified directly
+// against commande/salesorder/index_v2.php's real <select id="line_discount_type">
+// (<option value="1">%</option><option value="2">P</option>) and its
+// OrderManager.calculateInlineTotal()'s real math for each type.
+type DiscountType = '1' | '2'
+
 interface OrderLine {
   key: number
   productId: string
@@ -148,8 +195,38 @@ interface OrderLine {
   // same way the entry row and the reference layout do — not sent on
   // submit, vatRate carries the real numeric rate for that.
   vatCode: string
+  // The raw entered number — its meaning depends on discountType (a percent
+  // for '1', a flat currency amount for '2').
   discountPct: number
+  discountType: DiscountType
   costPrice: number
+}
+
+// Same math as OrderManager.calculateInlineTotal() in
+// commande/salesorder/js/salesorder.js, read directly from source: '1' takes
+// a percentage off the qty×unitPrice(Excl.) subtotal; '2' subtracts a flat
+// amount from that same subtotal directly, before VAT is applied either way.
+function lineExclAfterDiscount(qty: number, unitPrice: number, discount: number, discountType: DiscountType): number {
+  if (discountType === '2') return qty * unitPrice - discount
+  return qty * unitPrice * (1 - discount / 100)
+}
+
+function lineTotalIncl(qty: number, unitPrice: number, vatRate: number, discount: number, discountType: DiscountType): number {
+  return lineExclAfterDiscount(qty, unitPrice, discount, discountType) * (1 + vatRate / 100)
+}
+
+// Commande::addline() (called directly by api/salesorder/index.php's own
+// handleCreateOrder(), read from its real source) only ever accepts a
+// remise_percent param — there's no flat-amount discount parameter at all
+// (its only other discount-shaped arg, fk_remise_except, refers to applying
+// a customer's pre-existing absolute credit note, not a manually entered
+// line amount). A '2' (flat amount) line is converted to the equivalent
+// percentage here so the real backend still ends up with the correct total,
+// even though it can't preserve *how* the discount was entered.
+function discountToRemisePercent(qty: number, unitPrice: number, discount: number, discountType: DiscountType): number {
+  if (discountType === '1') return discount
+  const subtotal = qty * unitPrice
+  return subtotal > 0 ? (discount / subtotal) * 100 : 0
 }
 
 let lineKeySeq = 0
@@ -166,6 +243,12 @@ const WIZARD_STEPS = [
   { title: 'Items', subtitle: 'Add products/services' },
   { title: 'Complete Order', subtitle: 'Review amounts & confirm' },
 ]
+
+// Hides the native up/down spinner on number inputs (Chrome/Safari via the
+// pseudo-elements, Firefox via -moz-appearance) — scoped to this file's own
+// Item Table entry row rather than shared inputClasses, since that's used
+// by number inputs across the rest of the app too.
+const noSpinnerCls = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 export function OrderCreateForm() {
   const today = new Date().toISOString().slice(0, 10)
@@ -186,6 +269,7 @@ export function OrderCreateForm() {
   const [draftUnitPrice, setDraftUnitPrice] = useState(0)
   const [draftQty, setDraftQty] = useState(1)
   const [draftDiscountPct, setDraftDiscountPct] = useState(0)
+  const [draftDiscountType, setDraftDiscountType] = useState<DiscountType>('1')
   const [draftCostPrice, setDraftCostPrice] = useState(0)
   const [editingLineKey, setEditingLineKey] = useState<number | null>(null)
   const [projectId, setProjectId] = useState('')
@@ -245,25 +329,26 @@ export function OrderCreateForm() {
       })),
     [products],
   )
-  const { data: projects, isLoading: projectsLoading } = useProjectOptions(customerId)
-  // Warehouses: real (llx_entrepot via zra/product-form-options/, already
-  // used elsewhere in the app). Currency/Incoterms: real
-  // (customers/lookups/, llx_multicurrency / llx_c_incoterms). Bank
-  // account/Payment Type/Payment Terms/Availability delay/Shipping method:
-  // now all 5 real dictionaries too (see useDictionary above) — the first
-  // two existed but were unreachable via X-API-Key (fixed by adding
-  // NOLOGIN), the other three are new endpoints added for this page,
-  // mirroring exactly what commande/salesorder/index_v2.php's own
-  // select_comptes()/select_types_paiements()/selectAvailabilityDelay()/
-  // selectShippingMethod()/select_conditions_paiements() calls read.
-  const { data: formOptions } = useProductFormOptions()
+  const { data: projects } = useProjectOptions()
+  // Warehouses: real (product/stock/list.php scrape — /api/zra/product-form-options/
+  // this form used before is a genuine 404 on this backend, checked live —
+  // see warehouseExtras.queries.ts's useWarehouses(), already built and
+  // verified for the Warehouses feature earlier this session). Currency/
+  // Incoterms: real (customers/lookups/, llx_multicurrency / llx_c_incoterms).
+  // Bank account/Payment Type: real dictionaries (see useDictionary above).
+  // Availability delay/Shipping method/Payment Terms: also real, but from
+  // commande/salesorder/index_v2.php's own rendered <select>s rather than a
+  // REST route — see useOrderDictionaries above.
+  const warehouseList = useWarehouses()
   const { data: lookups } = useCustomerLookups()
   const { data: customerDefaults } = useCustomerDefaults(customerId)
+  const { data: draftProductCostPrice } = useProductCostPrice(draftProductId)
   const { data: bankAccounts } = useDictionary('/bank_accounts.php')
   const { data: paymentTypes } = useDictionary('/payment_types.php')
-  const { data: availabilityDelays } = useDictionary('/availability_delays.php')
-  const { data: shippingMethods } = useDictionary('/shipping_methods.php')
-  const { data: paymentTerms } = useDictionary('/payment_terms.php')
+  const { data: orderDictionaries } = useOrderDictionaries()
+  const availabilityDelays = orderDictionaries?.availabilityDelays
+  const shippingMethods = orderDictionaries?.shippingMethods
+  const paymentTerms = orderDictionaries?.paymentTerms
   const [currencyCode, setCurrencyCode] = useState('')
   const [exchangeRate, setExchangeRate] = useState('1.0')
   const [bankAccountId, setBankAccountId] = useState('')
@@ -293,6 +378,14 @@ export function OrderCreateForm() {
     if (customerDefaults.shippingMethodId) setShippingMethodId((prev) => prev || String(customerDefaults.shippingMethodId))
   }, [customerDefaults])
 
+  // Cost Price for the draft row's selected product isn't available from the
+  // already-loaded catalog (see useProductCostPrice's own header comment) —
+  // it arrives asynchronously from a separate real endpoint, so it's synced
+  // in here once that request resolves rather than inline in pickDraftProduct.
+  useEffect(() => {
+    if (draftProductId && draftProductCostPrice !== undefined) setDraftCostPrice(draftProductCostPrice)
+  }, [draftProductId, draftProductCostPrice])
+
   function pickDraftProduct(productId: string) {
     const product = products?.find((p) => String(p.id) === productId)
     setDraftProductId(productId)
@@ -300,7 +393,7 @@ export function OrderCreateForm() {
     setDraftUnitPrice(product?.priceExclTax ?? 0)
     setDraftVatRate(product?.vatRatePct ?? 0)
     setDraftVatCode(product?.vatCode ?? '')
-    setDraftCostPrice(product?.costPrice ?? 0)
+    setDraftCostPrice(0)
   }
 
   function resetDraftLine() {
@@ -311,6 +404,7 @@ export function OrderCreateForm() {
     setDraftUnitPrice(0)
     setDraftQty(1)
     setDraftDiscountPct(0)
+    setDraftDiscountType('1')
     setDraftCostPrice(0)
     setEditingLineKey(null)
   }
@@ -348,6 +442,7 @@ export function OrderCreateForm() {
       vatRate: draftVatRate,
       vatCode: draftVatCode,
       discountPct: draftDiscountPct,
+      discountType: draftDiscountType,
       costPrice: draftCostPrice,
     }
     setLines((prev) => (editingLineKey != null ? prev.map((l) => (l.key === editingLineKey ? line : l)) : [...prev, line]))
@@ -364,6 +459,7 @@ export function OrderCreateForm() {
     setDraftUnitPrice(line.unitPrice)
     setDraftQty(line.qty)
     setDraftDiscountPct(line.discountPct)
+    setDraftDiscountType(line.discountType)
     setDraftCostPrice(line.costPrice)
     setEditingLineKey(key)
   }
@@ -373,8 +469,8 @@ export function OrderCreateForm() {
     if (editingLineKey === key) resetDraftLine()
   }
 
-  const total = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100), 0)
-  const totalTax = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100) * (l.vatRate / 100), 0)
+  const total = lines.reduce((sum, l) => sum + lineExclAfterDiscount(l.qty, l.unitPrice, l.discountPct, l.discountType), 0)
+  const totalTax = lines.reduce((sum, l) => sum + lineExclAfterDiscount(l.qty, l.unitPrice, l.discountPct, l.discountType) * (l.vatRate / 100), 0)
   const totalQty = lines.reduce((sum, l) => sum + l.qty, 0)
 
   // POST /api/salesorder/?action=create — full real contract, read directly
@@ -420,7 +516,7 @@ export function OrderCreateForm() {
             subprice: l.unitPrice,
             qty: l.qty,
             tva_tx: l.vatRate,
-            remise_percent: l.discountPct,
+            remise_percent: discountToRemisePercent(l.qty, l.unitPrice, l.discountPct, l.discountType),
           })),
       }
       const { data } = await api.post<CreateOrderResponse>('/salesorder/?action=create', body)
@@ -494,7 +590,7 @@ export function OrderCreateForm() {
   }
 
   const selectedCustomerName = customers?.find((c) => c.id === customerId)?.name ?? ''
-  const selectedWarehouseName = formOptions?.warehouses?.find((w) => w.value === warehouse)?.label ?? ''
+  const selectedWarehouseName = warehouseList.find((w) => String(w.id) === warehouse)?.ref ?? ''
   const selectedProject = projects?.find((p) => String(p.id) === projectId)
   const selectedProjectLabel = selectedProject ? `${selectedProject.ref} — ${selectedProject.title}` : ''
   const selectedPaymentTypeName = paymentTypes?.find((p) => p.id === paymentTypeId)?.text ?? ''
@@ -638,16 +734,16 @@ export function OrderCreateForm() {
                   </span>
                   <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)} className={inputClasses}>
                     <option value="">Select a warehouse</option>
-                    {formOptions?.warehouses?.map((w) => (
-                      <option key={w.value} value={w.value}>
-                        {w.label}
+                    {warehouseList.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.ref}
                       </option>
                     ))}
                   </select>
                 </div>
                 <Field label="Project">
-                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={!customerId} className={inputClasses}>
-                    <option value="">{!customerId ? 'Select a customer first' : projectsLoading ? 'Loading…' : '-- Select --'}</option>
+                  <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClasses}>
+                    <option value="">Select a project</option>
                     {projects?.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.ref} — {p.title}
@@ -805,7 +901,7 @@ export function OrderCreateForm() {
                       <th className="font-medium px-4 py-2.5 w-28">Unit Price (Excl.)</th>
                       <th className="font-medium px-4 py-2.5 w-28">Unit Price (Incl.)</th>
                       <th className="font-medium px-4 py-2.5 w-20">Qty</th>
-                      <th className="font-medium px-4 py-2.5 w-20">Disc. %</th>
+                      <th className="font-medium px-4 py-2.5 w-40">Disc.</th>
                       <th className="font-medium px-4 py-2.5 w-28">Cost Price</th>
                       <th className="font-medium px-4 py-2.5 w-32 text-right">Total (Incl.)</th>
                       <th className="w-24 text-center">Action</th>
@@ -821,6 +917,11 @@ export function OrderCreateForm() {
                         layout, but not sent on submit (see mutationFn above). */}
                     <tr className="border-b border-border align-top bg-surface-alt/50">
                       <td className="px-4 py-2 space-y-1">
+                        {/* No visible Description box here — matches the reference layout
+                            exactly: its own #line_desc_input is a real field
+                            (type="hidden", display:none), never shown to the user. It's
+                            populated from the selected product automatically (pickDraftProduct
+                            below) and only ever read back on submit. */}
                         <SearchableSelect
                           value={draftProductId}
                           onChange={pickDraftProduct}
@@ -828,13 +929,6 @@ export function OrderCreateForm() {
                           placeholder="Select Predefined Product/Services"
                           onAddNew={() => setShowProductModal(true)}
                           addNewLabel="Add New Product"
-                        />
-                        <input
-                          type="text"
-                          value={draftDescription}
-                          onChange={(e) => setDraftDescription(e.target.value)}
-                          placeholder="Description"
-                          className={inputClasses}
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -855,7 +949,7 @@ export function OrderCreateForm() {
                           step="0.01"
                           value={draftUnitPrice}
                           onChange={(e) => setDraftUnitPrice(Number(e.target.value))}
-                          className={inputClasses}
+                          className={`${inputClasses} ${noSpinnerCls}`}
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -868,21 +962,45 @@ export function OrderCreateForm() {
                             const incl = Number(e.target.value)
                             setDraftUnitPrice(draftVatRate > 0 ? incl / (1 + draftVatRate / 100) : incl)
                           }}
-                          className={inputClasses}
+                          className={`${inputClasses} ${noSpinnerCls}`}
                         />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="number" min={0} step="0.01" value={draftQty} onChange={(e) => setDraftQty(Number(e.target.value))} className={inputClasses} />
                       </td>
                       <td className="px-4 py-2">
                         <input
                           type="number"
                           min={0}
-                          max={100}
-                          value={draftDiscountPct}
-                          onChange={(e) => setDraftDiscountPct(Number(e.target.value))}
-                          className={inputClasses}
+                          step="0.01"
+                          value={draftQty}
+                          onChange={(e) => setDraftQty(Number(e.target.value))}
+                          className={`${inputClasses} ${noSpinnerCls}`}
                         />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-stretch gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={draftDiscountType === '1' ? 100 : undefined}
+                            step="0.01"
+                            value={draftDiscountPct}
+                            onChange={(e) => setDraftDiscountPct(Number(e.target.value))}
+                            // Matches the reference layout's own line_discount_input exactly
+                            // (onclick="this.select()") — selects the default 0 on focus so
+                            // the first keystroke replaces it instead of appending to it.
+                            onFocus={(e) => e.target.select()}
+                            className={`${inputClasses} ${noSpinnerCls} w-20 px-2`}
+                          />
+                          {/* '%' (percentage) / 'P' (flat amount) — matches the reference
+                              layout's own line_discount_type select exactly (values 1/2). */}
+                          <select
+                            value={draftDiscountType}
+                            onChange={(e) => setDraftDiscountType(e.target.value as DiscountType)}
+                            className={`${inputClasses} w-16 px-2`}
+                          >
+                            <option value="1">%</option>
+                            <option value="2">P</option>
+                          </select>
+                        </div>
                       </td>
                       <td className="px-4 py-2">
                         <input
@@ -891,12 +1009,12 @@ export function OrderCreateForm() {
                           step="0.01"
                           value={draftCostPrice}
                           onChange={(e) => setDraftCostPrice(Number(e.target.value))}
-                          title="Not sent on submit — this endpoint's addline() call hardcodes cost price to 0"
-                          className={inputClasses}
+                          title="Auto-filled from Supplier Prices — not sent on submit, this endpoint's addline() call hardcodes cost price to 0"
+                          className={`${inputClasses} ${noSpinnerCls}`}
                         />
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-text-muted">
-                        {formatMoney(draftQty * draftUnitPrice * (1 - draftDiscountPct / 100) * (1 + draftVatRate / 100))}
+                        {formatMoney(lineTotalIncl(draftQty, draftUnitPrice, draftVatRate, draftDiscountPct, draftDiscountType))}
                       </td>
                       <td className="px-2 py-2 text-center">
                         <button
@@ -910,8 +1028,7 @@ export function OrderCreateForm() {
                     </tr>
 
                     {lines.map((line) => {
-                      const lineExclDiscount = line.qty * line.unitPrice * (1 - line.discountPct / 100)
-                      const lineIncl = lineExclDiscount * (1 + line.vatRate / 100)
+                      const lineIncl = lineTotalIncl(line.qty, line.unitPrice, line.vatRate, line.discountPct, line.discountType)
                       const unitPriceIncl = line.unitPrice * (1 + line.vatRate / 100)
                       return (
                         <tr key={line.key} className="border-b border-border align-top">
@@ -922,7 +1039,10 @@ export function OrderCreateForm() {
                           <td className="px-4 py-2.5 text-right tabular-nums text-text-muted">{formatMoney(line.unitPrice)}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-text-muted">{formatMoney(unitPriceIncl)}</td>
                           <td className="px-4 py-2.5 text-center tabular-nums text-text-muted">{formatNumber(line.qty)}</td>
-                          <td className="px-4 py-2.5 text-center tabular-nums text-text-muted">{line.discountPct}%</td>
+                          <td className="px-4 py-2.5 text-center tabular-nums text-text-muted">
+                            {line.discountPct}
+                            {line.discountType === '1' ? '%' : ' (flat)'}
+                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-text-muted">{line.costPrice ? formatMoney(line.costPrice) : '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-text!">{formatMoney(lineIncl)}</td>
                           <td className="px-2 py-2 text-center whitespace-nowrap">
@@ -1055,7 +1175,10 @@ export function OrderCreateForm() {
                         </td>
                         <td className="py-1.5 pr-3 text-right tabular-nums text-text-muted">{formatMoney(line.unitPrice)}</td>
                         <td className="py-1.5 pr-3 text-center tabular-nums text-text-muted">{formatNumber(line.qty)}</td>
-                        <td className="py-1.5 text-center tabular-nums text-text-muted">{line.discountPct}%</td>
+                        <td className="py-1.5 text-center tabular-nums text-text-muted">
+                          {line.discountPct}
+                          {line.discountType === '1' ? '%' : ' (flat)'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

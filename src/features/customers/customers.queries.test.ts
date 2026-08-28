@@ -14,6 +14,7 @@ const base: SocieteListRow = {
   phone: '0977000000',
   isCustomer: true,
   isProspect: false,
+  isVendor: false,
   trackingId: 'CU001',
   creatorName: 'Voxforem Admin',
   creationDateIso: '2026-04-30T12:49:00.000Z',

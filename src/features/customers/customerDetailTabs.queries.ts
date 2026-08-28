@@ -234,6 +234,48 @@ export function useCustomerTab(socid: string | undefined) {
   })
 }
 
+// --- Vendor tab (fourn/card.php's real data, confirmed live) ------------
+// societe/api/supplier.php is a real, already-built sibling of customer.php
+// above — read directly and confirmed live (socid=6, "Vendor2"): real KPIs
+// (proposals_kpi/orders_kpi/supplier_outstanding), real payment-term/mode
+// labels, real category list, and real action-button URLs
+// (create_proposal/create_order/create_invoice point at the actual
+// supplier_proposal/fourn.commande/fourn.purchase create pages). No
+// separate "invoices_kpi" bucket exists in the response the way
+// proposals/orders each have one — supplier_outstanding.total_ht is used
+// for the "Invoices" stat tile here since it's the only real invoiced-
+// amount figure this endpoint returns; the real page's "Current
+// Outstanding Bill"/"Advance" tiles map to supplier_outstanding.opened and
+// fields.advance respectively (no Used/Pending breakdown exists in this
+// response, so that real sub-line isn't reproduced).
+export interface VendorTabResponse {
+  fournisseur: number
+  code_fournisseur: string
+  code_compta_fournisseur: string
+  supplier_outstanding: { total_ht: number; opened: number }
+  orders_kpi: { total_ht: number; opened: number }
+  proposals_kpi: { total_ht: number; opened: number }
+  cond_reglement_label: string
+  mode_reglement_label: string
+  fields: {
+    tva_intra: string
+    capital: string
+    advance: number
+    remise_percent: number
+    remise_absolue: number
+    categories: string[]
+  }
+  buttons: { create_proposal: string; create_order: string; create_invoice: string }
+}
+
+export function useVendorTab(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'vendorTab'],
+    queryFn: () => fetchJson<VendorTabResponse>(`/societe/api/supplier.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
 // --- Events/Agenda (full activity timeline) ------------------------------
 
 export interface AgendaEvent {

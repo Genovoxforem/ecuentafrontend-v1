@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
+import { LEGACY_SESSION_EXPIRED_PREFIX } from '../../shared/components/BackendUnavailable'
 import { parseSocieteListRow, type RawSocieteListRow, type SocieteListRow } from './societeListParser'
 
 export interface CustomersSummary {
@@ -67,7 +68,19 @@ export function useCustomersSummary() {
         new URLSearchParams({ draw: '1', start: '0', length: '-1', type: 'c', contextpage: 'customerlist' }),
         { transformResponse: (data) => data },
       )
-      const body: SocieteListResponse = JSON.parse(res.data.trim())
+      const trimmed = res.data.trim()
+      // This endpoint is authenticated via the separate Dolibarr session
+      // cookie legacySession.ts establishes at login (see that file's own
+      // comment) — when it's stale or was never established (a reloaded
+      // tab, a long-lived session), the request doesn't error, it silently
+      // 200s with Dolibarr's own login page HTML instead of JSON (confirmed
+      // live by calling this same endpoint with no session cookie). Check
+      // for that up front rather than letting JSON.parse throw an opaque
+      // SyntaxError CustomersListModule couldn't tell apart from a real bug.
+      if (trimmed.startsWith('<')) {
+        throw new Error(`${LEGACY_SESSION_EXPIRED_PREFIX}societe/api/list.php returned a login page instead of JSON.`)
+      }
+      const body: SocieteListResponse = JSON.parse(trimmed)
 
       const parsed = body.data.map(parseSocieteListRow)
       const now = new Date()
