@@ -10,6 +10,7 @@ import {
   parseInventoryCardDocument,
   parseMovementListApiResponse,
   parseWarehouseEventsDocument,
+  parseWarehouseEditFormDocument,
   looksLikeLegacyLoginPage,
   type WarehouseListRow,
   type InventoryListRow,
@@ -18,6 +19,7 @@ import {
   type InventoryCard,
   type WarehouseMovementsData,
   type WarehouseEventsData,
+  type WarehouseEditFormData,
 } from './warehouseHtmlParser'
 
 // Warehouses and Inventories both turned out to have real backends after
@@ -126,6 +128,64 @@ export function useWarehouseDetail(id: string | undefined) {
   })
 }
 
+// product/stock/card.php?action=edit&id=X — see warehouseHtmlParser.ts's
+// parseWarehouseEditFormDocument() comment for the real field names/option
+// sources this and the mutation below rely on.
+export function useWarehouseEditForm(id: string | undefined) {
+  return useQuery({
+    queryKey: ['warehouses', 'editForm', id],
+    queryFn: async (): Promise<WarehouseEditFormData> => {
+      const doc = await fetchLegacyDocument('/product/stock/card.php', new URLSearchParams({ action: 'edit', id: id ?? '' }))
+      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      return parseWarehouseEditFormDocument(doc)
+    },
+    enabled: !!id,
+  })
+}
+
+export function useUpdateWarehouse(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      token: string
+      ref: string
+      shortNameLocation: string
+      parentWarehouseId: string
+      description: string
+      address: string
+      zipCode: string
+      city: string
+      countryId: string
+      phone: string
+      fax: string
+      status: string
+    }) => {
+      const body = new URLSearchParams()
+      body.set('token', input.token)
+      body.set('action', 'update')
+      body.set('id', id ?? '')
+      body.set('libelle', input.ref)
+      body.set('lieu', input.shortNameLocation)
+      body.set('fk_parent', input.parentWarehouseId)
+      body.set('desc', input.description)
+      body.set('address', input.address)
+      body.set('zipcode', input.zipCode)
+      body.set('town', input.city)
+      body.set('country_id', input.countryId)
+      body.set('phone', input.phone)
+      body.set('fax', input.fax)
+      body.set('statut', input.status)
+      const res = await fetch('/product/stock/card.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouses', 'detail', id] })
+      queryClient.invalidateQueries({ queryKey: ['warehouses', 'editForm', id] })
+      queryClient.invalidateQueries({ queryKey: WAREHOUSE_LIST_KEY })
+    },
+  })
+}
+
 export interface WarehouseMovementFilters {
   dateRange?: string
   productId?: string
@@ -177,6 +237,30 @@ export function useWarehouseEvents(id: string | undefined) {
       return parseWarehouseEventsDocument(doc)
     },
     enabled: !!id,
+  })
+}
+
+// POSTs the real action=builddoc handler on product/stock/events.php's own
+// #builddoc_form (see warehouseHtmlParser.ts's WarehouseEventsData comment
+// for the field contract and the earlier finding that this may silently
+// produce no file on this deployment).
+export function useGenerateWarehouseDoc(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { token: string; model: string; langId: string }) => {
+      const body = new URLSearchParams()
+      body.set('action', 'builddoc')
+      body.set('token', input.token)
+      body.set('buttongeneratetype', 'Generate')
+      body.set('model', input.model)
+      body.set('lang_id', input.langId)
+      body.set('builddoc_generatebutton', 'Generate')
+      const res = await fetch(`/product/stock/events.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouses', 'events', id] })
+    },
   })
 }
 

@@ -154,10 +154,26 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
               ) : (
                 pageOrders.map((o) => (
                   <tr key={o.ref} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{o.ref}</td>
+                    <td className="px-4 py-3 text-brand">
+                      {o.id ? (
+                        <Link to={ROUTES.purchaseOrderDetail.replace(':id', String(o.id))} className="hover:underline">
+                          {o.ref}
+                        </Link>
+                      ) : (
+                        o.ref
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{o.refOrderVendor}</td>
                     <td className="px-4 py-3 text-text-muted">{o.requestAuthor}</td>
-                    <td className="px-4 py-3 text-text!">{o.thirdParty}</td>
+                    <td className="px-4 py-3 text-text!">
+                      {o.socid ? (
+                        <Link to={`${ROUTES.customerDetail.replace(':id', String(o.socid))}?tab=vendor`} className="hover:underline">
+                          {o.thirdParty}
+                        </Link>
+                      ) : (
+                        o.thirdParty
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{o.city}</td>
                     <td className="px-4 py-3 text-text-muted">{o.zipCode}</td>
                     <td className="px-4 py-3 text-text-muted whitespace-nowrap">{o.orderDate}</td>

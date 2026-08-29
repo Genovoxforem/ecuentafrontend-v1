@@ -37,10 +37,8 @@ import {
   FileUp,
   Percent,
   Receipt,
-  Languages,
   Landmark,
   Ship,
-  Server,
   ScanLine,
   Paperclip,
   Share2,
@@ -123,17 +121,34 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
       maxLength: 10,
       validate: (v) => (TPIN_PATTERN.test(v) ? null : 'Must be exactly 10 digits'),
     },
-    { key: 'trackingId', label: 'Tracking Id', type: 'text', icon: Hash, section: 'Identity' },
+    // Labeled "ID Prof 2" on the real legacy wizard — this is Dolibarr's
+    // idprof2 field (confirmed by this form's own create payload, which
+    // already sends it as idprof2), not a distinct "tracking" concept.
+    { key: 'trackingId', label: 'ID Prof 2', type: 'text', icon: Hash, section: 'Identity' },
     { key: 'aliasName', label: 'Alias name (commercial, trademark, ...)', type: 'text', icon: Tag, section: 'Identity' },
     { key: 'customerGroup', label: 'Customer Group', type: 'select', options: customerGroupOptions, icon: Users, placeholder: 'Select a group', section: 'Identity' },
     { key: 'phone', label: 'Phone', type: 'text', icon: Phone, section: 'Contact Info' },
-    { key: 'email', label: 'EMail', type: 'text', icon: Mail, section: 'Contact Info' },
-    { key: 'customerCode', label: 'Customer Code', type: 'text', defaultValue: formOptions?.nextCustomerCode ?? '', icon: Hash, section: 'Classification' },
+    { key: 'customerCode', label: 'Customer code', type: 'text', defaultValue: formOptions?.nextCustomerCode ?? '', icon: Hash, section: 'Contact Info' },
+    { key: 'email', label: 'Email', type: 'text', icon: Mail, section: 'Contact Info' },
     { key: 'vendor', label: 'Vendor', type: 'select', options: ['No', 'Yes'], defaultValue: isVendor ? 'Yes' : 'No', icon: Truck, section: 'Classification' },
-    { key: 'vendorCode', label: 'Vendor Code', type: 'text', defaultValue: formOptions?.nextVendorCode ?? '', icon: Hash, section: 'Classification' },
+    // Labeled "Supplier code" on the real legacy wizard — Dolibarr's own
+    // French-derived terminology for a vendor ("fournisseur"); same
+    // supplier_code payload field either way.
+    { key: 'vendorCode', label: 'Supplier code', type: 'text', defaultValue: formOptions?.nextVendorCode ?? '', icon: Hash, section: 'Classification' },
   ]
   if (isVendor) {
-    fields.push({ key: 'branchCode', label: 'Branch Code', type: 'text', icon: Building2, section: 'Classification' })
+    // The real backend rejects a non-empty branch_code that isn't exactly 3
+    // characters (societe/api/societes.php's sc_societes_validate_create,
+    // read directly) — validating this client-side surfaces that rule
+    // immediately instead of only after a failed submission.
+    fields.push({
+      key: 'branchCode',
+      label: 'Branch Code',
+      type: 'text',
+      icon: Building2,
+      section: 'Classification',
+      validate: (v) => (v === '' || v.length === 3 ? null : 'Must be exactly 3 characters'),
+    })
   }
   fields.push(
     { key: 'country', label: 'Country', type: 'select', options: countryOptions, defaultValue: countryOptions[0] ?? 'Zambia', icon: Globe, section: 'Location & Currency' },
@@ -149,51 +164,57 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
   const businessEntityOptions = formOptions?.businessEntityTypes?.map(b => b.label) ?? []
   const nrcOptions = formOptions?.nrcTypes?.map(n => n.label) ?? []
   const workforceOptions = formOptions?.workforce?.map(w => w.label) ?? []
-  const languageOptions = formOptions?.languages?.map(l => l.label) ?? []
   const incotermOptions = formOptions?.incoterms?.map(i => i.label) ?? []
-  const environmentOptions = formOptions?.environment?.map(e => e.label) ?? []
   const salesRepOptions = formOptions?.salesReps?.map(r => r.label) ?? []
   const custCategoryOptions = formOptions?.custCategories?.map(c => c.label) ?? []
   const vendorCategoryOptions = formOptions?.vendorCategories?.map(c => c.label) ?? []
 
   return [
     { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Closed'], defaultValue: 'Open', icon: CircleDot, section: 'Status & Assignment' },
-    { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
     { key: 'supervisorDetails', label: 'Supervisor Details', type: 'text', icon: UserCog, section: 'Status & Assignment' },
+    { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
+    { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
+    { key: 'thirdPartyMode', label: 'Third-party Mode', type: 'select', options: ['unprivileged', 'privileged'], defaultValue: 'unprivileged', icon: Shield, section: 'Status & Assignment' },
     // Labeled "Allocate commercial" on the real legacy wizard (confirmed
     // live: <select name="commercial">) — same field, same payload key
     // (commercial) as this app's read-only "Sales Reps" row on the Customer
     // detail tab (societe/api/customer.php's sales_reps), not a separate
     // concept from "sales representative".
     { key: 'salesRep', label: 'Allocate commercial', type: 'select', options: salesRepOptions, icon: UserRound, section: 'Status & Assignment' },
-    { key: 'employerName', label: 'Employer Name', type: 'text', icon: Building2, section: 'Status & Assignment' },
-    { key: 'employeeNumber', label: 'Employee Number', type: 'text', icon: BadgeCheck, section: 'Status & Assignment' },
 
     { key: 'zipCode', label: 'Zip Code', type: 'text', icon: MapPin, section: 'Address Details' },
-    { key: 'city', label: 'City', type: 'text', icon: MapPin, section: 'Address Details' },
-    { key: 'stateProvince', label: 'State/Province', type: 'select', options: stateOptions, icon: MapIcon, section: 'Address Details' },
+    // Labeled "Town" on the real legacy wizard — Dolibarr's own town field
+    // (same `town` payload key this form already sends).
+    { key: 'city', label: 'Town', type: 'text', icon: MapPin, section: 'Address Details' },
+    { key: 'stateProvince', label: 'State', type: 'select', options: stateOptions, icon: MapIcon, section: 'Address Details' },
     { key: 'fax', label: 'Fax', type: 'text', icon: Printer, section: 'Address Details' },
 
-    { key: 'businessEntityType', label: 'Business entity type', type: 'select', options: businessEntityOptions, icon: Briefcase, section: 'Business & Tax' },
+    // Labeled "Juridical status" on the real legacy wizard — Dolibarr's
+    // forme_juridique_code field (same payload key this form already
+    // sends), not a separate "business entity type" concept.
+    { key: 'businessEntityType', label: 'Juridical status', type: 'select', options: businessEntityOptions, icon: Briefcase, section: 'Business & Tax' },
     { key: 'nrc', label: 'NRC', type: 'select', options: nrcOptions, icon: FileText, section: 'Business & Tax' },
     { key: 'nrcNumber', label: 'NRC Number', type: 'text', icon: Hash, section: 'Business & Tax' },
-    { key: 'salesTaxUsed', label: 'Sales tax used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
+    { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Business & Tax' },
+    // Labeled "VAT is used" on the real legacy wizard — same
+    // assujtva_value payload field this form already sends.
+    { key: 'salesTaxUsed', label: 'VAT is used', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: Percent, section: 'Business & Tax' },
     // Labeled "VAT Intra" on the real legacy wizard — this is Dolibarr's
     // tva_intra field (EU-style VAT/intracommunity number), confirmed by
     // this form's own create payload already sending it as tva_intra.
     { key: 'vatId', label: 'VAT Intra', type: 'text', icon: Receipt, section: 'Business & Tax' },
-    { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
     { key: 'workforce', label: 'Workforce', type: 'select', options: workforceOptions, icon: Users, section: 'Business & Tax' },
-    { key: 'languageDefault', label: 'Language default', type: 'select', options: languageOptions, icon: Languages, section: 'Business & Tax' },
-    { key: 'incoterms', label: 'Incoterms', type: 'select', options: incotermOptions, icon: Ship, section: 'Business & Tax' },
-    { key: 'incotermLocation', label: 'Incoterm location', type: 'text', icon: MapPin, section: 'Business & Tax' },
-    { key: 'environment', label: 'Environment', type: 'select', options: environmentOptions, defaultValue: environmentOptions[0], icon: Server, section: 'Business & Tax' },
-    { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Business & Tax' },
-    { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Business & Tax' },
+    { key: 'capital', label: 'Capital', type: 'text', icon: Landmark, section: 'Business & Tax' },
 
-    { key: 'custProspTags', label: 'Cust./Prosp. tags/categories', type: 'select', options: custCategoryOptions, icon: Tags, section: 'Tags & Documents' },
-    { key: 'vendorTags', label: 'Vendors tags/categories', type: 'select', options: vendorCategoryOptions, icon: Tags, section: 'Tags & Documents' },
-    { key: 'documentUpload', label: 'Document upload', type: 'file', icon: FileUp, section: 'Tags & Documents' },
+    // Labeled "Customers/Prospects categories" and "Suppliers categories"
+    // on the real legacy wizard — same custcats/suppcats payload fields
+    // this form already sends.
+    { key: 'custProspTags', label: 'Customers/Prospects categories', type: 'select', options: custCategoryOptions, icon: Tags, section: 'Categories & Links' },
+    { key: 'vendorTags', label: 'Suppliers categories', type: 'select', options: vendorCategoryOptions, icon: Tags, section: 'Categories & Links' },
+    { key: 'incoterms', label: 'Incoterm', type: 'select', options: incotermOptions, icon: Ship, section: 'Categories & Links' },
+    { key: 'incotermLocation', label: 'Incoterm location', type: 'text', icon: MapPin, section: 'Categories & Links' },
+    { key: 'barcode', label: 'Barcode', type: 'text', icon: ScanLine, section: 'Categories & Links' },
+    { key: 'web', label: 'Web', type: 'text', icon: Link2, section: 'Categories & Links' },
   ]
 }
 
@@ -462,8 +483,14 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
         action: 'create',
         token,
       }
+      // validateStatus lets a real 400/403 validation rejection (e.g.
+      // "Please enter a valid branch code. Must be exactly 3 characters")
+      // reach the `data.ok` check below instead of axios throwing its own
+      // generic "Request failed with status code 400" first and discarding
+      // the real reason in the response body.
       const { data } = await axios.post<CreateThirdPartyResponse>('/societe/api/societes.php', payload, {
         headers: { 'Content-Type': 'application/json' },
+        validateStatus: () => true,
       })
       if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
       return data

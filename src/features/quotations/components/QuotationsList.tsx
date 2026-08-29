@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, CalendarDays } from 'lucide-react'
+import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, CalendarDays, TriangleAlert, FileDown } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
+import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import type { QuotationRow, QuotationsSummary } from '../quotations.queries'
 
 const COLUMNS = ['Ref', 'Ref. Customer', 'Project Ref', 'Third-Party', 'City', 'Zip Code', 'Date', 'End Date', 'Amount (Excl. Tax)', 'Author', 'Sales Representatives Of Third Party', 'Status']
@@ -157,10 +158,46 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
               ) : (
                 pageQuotations.map((q) => (
                   <tr key={q.ref} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{q.ref}</td>
+                    <td className="px-4 py-3 text-brand">
+                      <span className="flex items-center gap-1.5">
+                        {q.id ? (
+                          <Link to={ROUTES.quotationDetail.replace(':id', String(q.id))} className="hover:underline">
+                            {q.ref}
+                          </Link>
+                        ) : (
+                          q.ref
+                        )}
+                        {/* Real signals carried by the reference cell on the legacy page itself
+                            (img_warning()/getDocumentsLink()) — not decorative. */}
+                        {q.isLate && (
+                          <span title="Late — validity date has passed while this quotation is still open" className="shrink-0">
+                            <TriangleAlert size={13} className="text-warning" />
+                          </span>
+                        )}
+                        {q.documentUrl && (
+                          <a
+                            href={stripBackendPrefix(q.documentUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Download the generated PDF for this quotation"
+                            className="text-text-faint hover:text-brand shrink-0"
+                          >
+                            <FileDown size={13} />
+                          </a>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{q.refCustomer}</td>
                     <td className="px-4 py-3 text-text-muted">{q.projectRef}</td>
-                    <td className="px-4 py-3 text-text!">{q.thirdParty}</td>
+                    <td className="px-4 py-3 text-text!">
+                      {q.socid ? (
+                        <Link to={`${ROUTES.customerDetail.replace(':id', String(q.socid))}?tab=customer`} className="hover:underline">
+                          {q.thirdParty}
+                        </Link>
+                      ) : (
+                        q.thirdParty
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{q.city}</td>
                     <td className="px-4 py-3 text-text-muted">{q.zipCode}</td>
                     <td className="px-4 py-3 text-text-muted whitespace-nowrap">{q.date}</td>

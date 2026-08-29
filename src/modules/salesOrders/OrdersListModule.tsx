@@ -5,10 +5,11 @@ import { BackendUnavailableCard, isBackendUnavailable } from '../../shared/compo
 export function OrdersListModule() {
   const { data: summary, isError, error } = useSalesOrdersSummary()
 
-  // api/orders/ and api/orders/summary/ don't exist on the current backend (see
-  // BackendUnavailable.tsx) — both 404, which useSalesOrdersSummary's Promise.all
-  // surfaces as this query's error. Distinguished from a genuinely different
-  // load failure so that one still gets the plain "could not load" message.
+  // useSalesOrdersSummary now reads the real commande/salesoredr_ajax_list.php
+  // endpoint (see salesOrders.queries.ts) instead of the dead api/orders/ routes,
+  // so this shouldn't fire in normal operation — kept as a fallback in case the
+  // legacy backend itself is ever unreachable, distinguished from a genuinely
+  // different load failure so that one still gets the plain "could not load" message.
   if (isBackendUnavailable(error)) {
     return <BackendUnavailableCard feature="Sales Orders" />
   }

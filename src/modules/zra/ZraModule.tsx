@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import { useZraSummary } from '../../features/zra/zra.queries'
 import { ZraOverview } from '../../features/zra/components/ZraOverview'
-import { BackendUnavailableCard, isBackendUnavailable } from '../../shared/components/BackendUnavailable'
+import { isLegacySessionExpired, LegacySessionExpiredCard } from '../../shared/components/BackendUnavailable'
+import { useAuth } from '../../features/auth/AuthContext'
 
 export function ZraModule() {
   const [year, setYear] = useState<number | null>(null)
   const { data: summary, isError, error } = useZraSummary(year ?? undefined)
+  const { logout } = useAuth()
 
-  // api/zra/summary/ doesn't exist on the current backend (see BackendUnavailable.tsx) —
-  // shown instead of the generic "Could not load" message below.
-  if (isBackendUnavailable(error)) {
-    return <BackendUnavailableCard feature="ZRA Synchronization Overview" />
+  // custom/zra/zra_filter_api.php's own session cookie is stale/missing
+  // (see customers.queries.ts's equivalent comment) — the one real fix is
+  // signing in again.
+  if (isError && isLegacySessionExpired(error)) {
+    return <LegacySessionExpiredCard feature="The ZRA dashboard" onLogout={logout} />
   }
 
   return (

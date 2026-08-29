@@ -395,7 +395,18 @@ export function ThirdPartyList({
                       <br />
                       {r.phone}
                     </td>
-                    <td className="px-4 py-3 text-text-muted">{r.nature}</td>
+                    <td className="px-4 py-3 text-text-muted">
+                      {r.id ? (
+                        <Link
+                          to={`${ROUTES.customerDetail.replace(':id', String(r.id))}?tab=${r.nature.includes('Vendor') ? 'vendor' : 'customer'}`}
+                          className="text-brand hover:underline"
+                        >
+                          {r.nature}
+                        </Link>
+                      ) : (
+                        r.nature
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{r.trackingId}</td>
                     <td className="px-4 py-3">
                       <CreatorCell name={r.creatorName} date={r.creationDate} />

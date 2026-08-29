@@ -160,6 +160,7 @@ const ServicesDetailsModule = lazy(() => import('./modules/contracts/ServicesDet
 const ContractReportModule = lazy(() => import('./modules/contracts/ContractReportModule').then((m) => ({ default: m.ContractReportModule })))
 const QuotationsListModule = lazy(() => import('./modules/quotations/QuotationsListModule').then((m) => ({ default: m.QuotationsListModule })))
 const QuotationCreateModule = lazy(() => import('./modules/quotations/QuotationCreateModule').then((m) => ({ default: m.QuotationCreateModule })))
+const QuotationDetailModule = lazy(() => import('./modules/quotations/QuotationDetailModule').then((m) => ({ default: m.QuotationDetailModule })))
 const QuotationStatisticsModule = lazy(() => import('./modules/quotations/QuotationStatisticsModule').then((m) => ({ default: m.QuotationStatisticsModule })))
 const InvoicesListModule = lazy(() => import('./modules/invoices/InvoicesListModule').then((m) => ({ default: m.InvoicesListModule })))
 const InvoiceCreateModule = lazy(() => import('./modules/invoices/InvoiceCreateModule').then((m) => ({ default: m.InvoiceCreateModule })))
@@ -172,6 +173,7 @@ const InvoiceStatisticsModule = lazy(() => import('./modules/invoices/InvoiceSta
 const AdvancePaymentListModule = lazy(() => import('./modules/invoices/AdvancePaymentListModule').then((m) => ({ default: m.AdvancePaymentListModule })))
 const PurchaseOrdersListModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrdersListModule').then((m) => ({ default: m.PurchaseOrdersListModule })))
 const PurchaseOrderCreateModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrderCreateModule').then((m) => ({ default: m.PurchaseOrderCreateModule })))
+const PurchaseOrderDetailModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrderDetailModule').then((m) => ({ default: m.PurchaseOrderDetailModule })))
 const SupplierProposalsListModule = lazy(() => import('./modules/supplierProposals/SupplierProposalsListModule').then((m) => ({ default: m.SupplierProposalsListModule })))
 const SupplierProposalCreateModule = lazy(() => import('./modules/supplierProposals/SupplierProposalCreateModule').then((m) => ({ default: m.SupplierProposalCreateModule })))
 const ProductsListModule = lazy(() => import('./modules/products/ProductsListModule').then((m) => ({ default: m.ProductsListModule })))
@@ -330,6 +332,7 @@ function App() {
                   <Route path={ROUTES.contractReport} element={<RouteBoundary><ContractReportModule /></RouteBoundary>} />
                   <Route path={ROUTES.quotationList} element={<RouteBoundary><QuotationsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.quotationCreate} element={<RouteBoundary><QuotationCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.quotationDetail} element={<RouteBoundary><QuotationDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.quotationStats} element={<RouteBoundary><QuotationStatisticsModule /></RouteBoundary>} />
                   <Route path={ROUTES.invoiceList} element={<RouteBoundary><InvoicesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.invoiceAbandoned} element={<RouteBoundary><AbandonedInvoicesModule /></RouteBoundary>} />
@@ -345,6 +348,7 @@ function App() {
                   <Route path={ROUTES.importCustomers} element={<RouteBoundary><ImportCustomersModule /></RouteBoundary>} />
                   <Route path={ROUTES.purchaseOrderList} element={<RouteBoundary><PurchaseOrdersListModule /></RouteBoundary>} />
                   <Route path={ROUTES.purchaseOrderCreate} element={<RouteBoundary><PurchaseOrderCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.purchaseOrderDetail} element={<RouteBoundary><PurchaseOrderDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.purchaseOrderStats} element={<RouteBoundary><PurchaseOrderStatisticsModule /></RouteBoundary>} />
                   <Route path={ROUTES.supplierProposalArea} element={<RouteBoundary><VendorProposalsAreaModule /></RouteBoundary>} />
                   <Route path={ROUTES.supplierProposalList} element={<RouteBoundary><SupplierProposalsListModule /></RouteBoundary>} />

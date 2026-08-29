@@ -4,17 +4,19 @@ import { useAsycudaImportList, useAsycudaImportCount, useZraUpdateImport, type A
 import { CreateProductModal } from './CreateProductModal'
 import { SplitDetailsModal } from './SplitDetailsModal'
 import { CancelReasonModal } from './CancelReasonModal'
-import { ListPagination, PER_PAGE } from './ZraListChrome'
-import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
+import { ListPagination, PER_PAGE, SearchBox } from './ZraListChrome'
+import { isLegacySessionExpired } from '../../../shared/components/BackendUnavailable'
 
-// The approve/cancel/split-approve mutations below all submit to the LIVE ZRA
-// gateway through api/zra/asycuda-imports/update/, which is one of the
-// api/zra/* routes missing entirely on this backend (see
-// BackendUnavailable.tsx) — every one of those actions now 404s. Centralized
-// here so the three call sites below (approve/cancel/split) all give the
-// same honest message instead of a raw "Request failed with status code 404".
+// The approve/cancel/split-approve mutations below all submit to the LIVE
+// ZRA gateway through custom/zra/zraupdateimport.php — a real, working
+// endpoint on this backend (see asycudaImport.queries.ts). The one
+// realistic failure mode for a same-origin, legacy-session-cookie-
+// authenticated endpoint like this is a stale/missing session (see
+// isLegacySessionExpired) — centralized here so all three call sites below
+// (approve/cancel/split) give the same honest message instead of a raw
+// error.
 function describeUpdateError(err: unknown): string {
-  if (isBackendUnavailable(err)) return "Updating ASYCUDA imports isn't available on this backend yet."
+  if (isLegacySessionExpired(err)) return 'Your session has expired — log out and back in, then try again.'
   return err instanceof Error ? err.message : 'Update failed — please try again.'
 }
 
@@ -28,16 +30,18 @@ const NOTES = [
 
 // The row HTML below (declHtml/supplierHtml/itemHtml/invoiceHtml/
 // quantityHtml/actionsHtml) is rendered verbatim from the real backend's
-// /api/zra/asycuda-imports/ endpoint, which itself proxies the legacy
-// ecuenta9 install's custom/zra/zra-import_ajax.php (see that file's
-// $approveOnclick/$createProductOnclick/$splitOnclick/$cancelOnclick). Those
-// buttons' onclick attributes call global window.fn* functions with the
-// exact same {proid,itemNm,itemSeq,hsCd,taskCd,dclDe,dclRefNum} shape the
-// legacy jQuery used — this bridges them into this app's own React state and
-// the real /zra/asycuda-imports/update/ endpoint instead of duplicating the
-// legacy jQuery. The per-row Suggestions modal markup is stripped server-side
-// (legacy_strip_overlays, to keep payload size sane at ~2800 rows), so "View
-// Suggestions" renders but has no panel to open.
+// custom/zra/zra-import_ajax.php (read directly, not guessed — see
+// asycudaImport.queries.ts for the field-rename mapping). Those buttons'
+// onclick attributes call global window.fn* functions with the exact same
+// {proid,itemNm,itemSeq,hsCd,taskCd,dclDe,dclRefNum} shape the legacy
+// jQuery used — this bridges them into this app's own React state and the
+// real custom/zra/zraupdateimport.php endpoint instead of duplicating the
+// legacy jQuery. Unlike the old ecnta10-side proxy this used to call, the
+// real endpoint does NOT strip the per-row Suggestions modal markup — its
+// PHP source builds the full modal inline for any row with a similar-but-
+// not-exact product match — so "View Suggestions" should now open a real
+// panel; the specific live rows checked happened to be exact-match
+// (Approve button only), so this hasn't been directly exercised yet.
 declare global {
   interface Window {
     fnapproveasycuda?: (item: AsycudaUpdateItem) => void
@@ -47,16 +51,21 @@ declare global {
   }
 }
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
+
 export function AsycudaImportList() {
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(PER_PAGE)
   const [declRefInput, setDeclRefInput] = useState('')
   const [declRefFilter, setDeclRefFilter] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [createProductTaskCode, setCreateProductTaskCode] = useState<string | null>(null)
   const [splitRow, setSplitRow] = useState<AsycudaImportRow | null>(null)
   const [cancelItem, setCancelItem] = useState<AsycudaUpdateItem | null>(null)
 
-  const { data, isLoading, isError, error, refetch } = useAsycudaImportList({ page, perPage: PER_PAGE, declRefNum: declRefFilter })
+  const { data, isLoading, isError, error, refetch } = useAsycudaImportList({ page, perPage, declRefNum: declRefFilter, search })
   const { data: totalCount } = useAsycudaImportCount(declRefFilter)
   const updateImport = useZraUpdateImport()
 
@@ -144,51 +153,78 @@ export function AsycudaImportList() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_1fr] gap-4">
-        <div>
-          <label className="block text-xs font-medium text-text-muted mb-1">Declaration reference number</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={declRefInput}
-              onChange={(e) => setDeclRefInput(e.target.value)}
-              className="flex-1 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-            />
+      <div className="rounded-lg border border-border bg-surface-alt px-4 py-3 text-sm text-text-muted">
+        <p className="flex items-center gap-1.5 font-medium text-text! mb-1.5">
+          <Info size={14} className="text-brand" /> Note
+        </p>
+        <ul className="space-y-1 list-disc list-inside">
+          {NOTES.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-text-muted mb-1">Declaration reference number</label>
+        <div className="flex gap-2 max-w-md">
+          <input
+            type="text"
+            value={declRefInput}
+            onChange={(e) => setDeclRefInput(e.target.value)}
+            className="flex-1 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setPage(1)
+              setDeclRefFilter(declRefInput.trim())
+            }}
+            className="px-3 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+          >
+            Filter
+          </button>
+          {declRefFilter && (
             <button
               type="button"
               onClick={() => {
+                setDeclRefInput('')
+                setDeclRefFilter('')
                 setPage(1)
-                setDeclRefFilter(declRefInput.trim())
               }}
-              className="px-3 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+              className="px-3 h-9 rounded-md text-sm font-medium bg-surface-alt text-text-muted hover:bg-surface-hover"
             >
-              Filter
+              Clear
             </button>
-            {declRefFilter && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDeclRefInput('')
-                  setDeclRefFilter('')
-                  setPage(1)
-                }}
-                className="px-3 h-9 rounded-md text-sm font-medium bg-surface-alt text-text-muted hover:bg-surface-hover"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+          )}
         </div>
+      </div>
 
-        <div className="rounded-lg border border-border bg-surface-alt px-4 py-3 text-sm text-text-muted">
-          <p className="flex items-center gap-1.5 font-medium text-text! mb-1.5">
-            <Info size={14} className="text-brand" /> Note
-          </p>
-          <ul className="space-y-1 list-disc list-inside">
-            {NOTES.map((note) => (
-              <li key={note}>{note}</li>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-sm text-text-muted">
+          <select
+            value={perPage}
+            onChange={(e) => {
+              setPerPage(Number(e.target.value))
+              setPage(1)
+            }}
+            className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
             ))}
-          </ul>
+          </select>
+          entries per page
+        </label>
+        <div className="w-full sm:w-80">
+          <SearchBox
+            value={searchInput}
+            onChange={setSearchInput}
+            onSubmit={() => {
+              setPage(1)
+              setSearch(searchInput.trim())
+            }}
+            placeholder="Search supplier, agent, product, HS code…"
+          />
         </div>
       </div>
 
@@ -217,8 +253,8 @@ export function AsycudaImportList() {
             {isError && (
               <tr>
                 <td colSpan={8} className="p-0">
-                  {isBackendUnavailable(error) ? (
-                    <BackendUnavailableInline feature="ZRA ASYCUDA Import Items" />
+                  {isLegacySessionExpired(error) ? (
+                    <p className="px-3 py-8 text-center text-danger">Your session has expired — log out and back in, then retry.</p>
                   ) : (
                     <p className="px-3 py-8 text-center text-danger">Could not load ASYCUDA import items.</p>
                   )}
