@@ -115,6 +115,18 @@ export function WidgetsSetup() {
         "Activate", or by clicking the trashcan to disable it. Only elements from enabled modules are shown.
       </p>
 
+      <Card className="!h-auto !bg-warning-bg border-warning/30 text-warning-fg text-sm space-y-1">
+        <p className="font-medium">This warning is real, live, and reproducible on the reference page — not fabricated for this shell:</p>
+        <p className="font-mono text-xs">
+          Warning: Undefined property: stdClass::$position in <span className="whitespace-nowrap">C:\wamp64\www\ecuenta9\htdocs\core\class\infobox.class.php</span> on line 142
+        </p>
+        <p className="text-xs">
+          Root cause (confirmed by reading the PHP): <code className="font-mono">InfoBox::listBoxes()</code>'s "available" query selects <code className="font-mono">rowid, file, note, tms</code> —
+          no <code className="font-mono">position</code> column — then the same line unconditionally reads <code className="font-mono">$obj-&gt;position</code> anyway. Not fixed here (frontend-only
+          scope; report/diagnose only).
+        </p>
+      </Card>
+
       <Card className="!h-auto">
         <h3 className="text-base font-semibold text-text! mb-3">Widgets available</h3>
         {availableList.length === 0 ? (

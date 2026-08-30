@@ -344,3 +344,98 @@ export function useUpdateCustomer(id: number) {
     },
   })
 }
+
+// societe/api/notes.php — real, editable Public/Private notes, confirmed by
+// reading that file directly (Societe::update_note() under the hood).
+// Replaces the earlier read-only NotesTab, which only displayed
+// CustomerProfile.notePublic/notePrivate from the main profile fetch.
+export function useSaveCustomerNotes(socid: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fields: { note_public?: string; note_private?: string }) => {
+      const { token } = await fetchSocieteFormContext()
+      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
+        `/societe/api/notes.php?socid=${socid}`,
+        { token, ...fields },
+        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
+      )
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to save notes')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid] })
+    },
+  })
+}
+
+// societe/api/documents.php — real multipart upload straight into
+// documents/societe/<id>/, confirmed by reading that file directly
+// (dol_move_uploaded_file against the real upload_dir).
+export function useUploadCustomerDocument(socid: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const { token } = await fetchSocieteFormContext()
+      const form = new FormData()
+      form.append('token', token)
+      form.append('file', file)
+      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(`/societe/api/documents.php?socid=${socid}`, form, { validateStatus: () => true })
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to upload file')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'documents'] })
+    },
+  })
+}
+
+// societe/api/notify.php?action=add — real INSERT into llx_notify_def,
+// confirmed by reading that file directly.
+export function useAddCustomerNotification(socid: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fields: { action_id: number; contact_id: number }) => {
+      const { token } = await fetchSocieteFormContext()
+      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
+        `/societe/api/notify.php?socid=${socid}`,
+        { token, action: 'add', ...fields },
+        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
+      )
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to add notification')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'notifications'] })
+    },
+  })
+}
+
+// societe/api/paymentmodes.php — real INSERT into llx_societe_rib (or a real
+// CompanyBankAccount::create() when that class is present on this
+// deployment), confirmed by reading that file directly.
+export interface NewPaymentModeInput {
+  label: string
+  bank: string
+  number?: string
+  iban?: string
+  bic?: string
+}
+
+export function useCreatePaymentMode(socid: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fields: NewPaymentModeInput) => {
+      const { token } = await fetchSocieteFormContext()
+      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
+        `/societe/api/paymentmodes.php?socid=${socid}`,
+        { token, action: 'create', ...fields },
+        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
+      )
+      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to add payment mode')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'paymentmodes'] })
+    },
+  })
+}

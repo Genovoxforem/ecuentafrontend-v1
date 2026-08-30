@@ -1,8 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { formatDateTimeAmPm } from '../../utils/format'
 import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
+import { fetchSocieteFormContext } from '../customers/thirdPartyOptions.queries'
 
 export interface LanguageOption {
   code: string
@@ -75,36 +76,28 @@ export interface UsersSummary {
   users: UserRow[]
 }
 
-// Raw shape as returned by GET /api/users/ — id/admin/superAdmin/employee/
-// enabled come back as real JSON booleans/numbers here (unlike GET /user/'s
-// stringified flags — see auth.api.ts's RawUser comment), so no extra
-// coercion is needed beyond the ?? fallbacks below.
+// Raw shape as returned by userprofile/api/users.php?action=list (real,
+// confirmed by reading that file directly). mode=all (not 'employee',
+// despite the reference page's own URL saying mode=employee — that param
+// belongs to the classic Dolibarr user/list.php page and isn't forwarded
+// to this API; confirmed live: mode=employee here filters to 16 rows,
+// mode=all returns the real 20 matching the "Total Users" stat card and
+// the reference screenshot's own mixed Employee Yes/No rows). admin/
+// employee/statut come back as real ints (0/1), not booleans — coerced
+// below.
 interface RawUserItem {
   id: number
   login: string
   name: string
-  admin: boolean
-  superAdmin: boolean
-  employee: boolean
+  admin: number
+  employee: number
+  entity: number
   gender: string | null
   phone: string | null
   email: string | null
   designation: string | null
-  lastLogin: string | null
-  enabled: boolean
-}
-
-interface SummaryPayload {
-  totalUsers: number
-  admins: number
-  superAdmins: number
-  activeUsers: number
-  todayLoginUsers: number
-}
-
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
+  lastlogin: string
+  status: 'Enabled' | 'Disabled'
 }
 
 const QUERY_KEY = ['users', 'summary'] as const
@@ -114,43 +107,49 @@ function toRow(item: RawUserItem): UserRow {
     id: item.id,
     login: item.login,
     name: item.name ?? '',
-    employee: item.employee,
+    employee: !!item.employee,
     phone: item.phone ?? '',
     email: item.email ?? '',
     gender: item.gender ?? '',
     designation: item.designation ?? '',
-    lastLogin: item.lastLogin ? formatDateTimeAmPm(item.lastLogin) : '',
-    status: item.enabled ? 'Enabled' : 'Disabled',
-    isAdmin: item.admin,
-    isSuperAdmin: item.superAdmin,
+    lastLogin: item.lastlogin ? formatDateTimeAmPm(item.lastlogin) : '',
+    status: item.status,
+    isAdmin: !!item.admin,
+    // Matches the real stats action's own definition (admin=1 AND
+    // entity=0) — confirmed by reading that action directly, not guessed.
+    isSuperAdmin: !!item.admin && item.entity === 0,
   }
 }
 
-// GET /api/users/summary/ (stat-card counts) + GET /api/users/ (the row
-// list, limit: 500 — web_pagination()'s own clamp ceiling, same as
-// customers/list — fetched once and paginated client-side by UsersOverview).
+// userprofile/api/users.php?action=stats (stat-card counts) + ?action=list
+// (the row list, limit: 500 — this endpoint's own clamp ceiling) — real,
+// confirmed by reading that file directly. The old GET /api/users/summary/
+// and /api/users/ this used to call are both permanent 404s on the active
+// backend (confirmed live) — a completely different, dead REST namespace
+// from the real userprofile/api/* one already used elsewhere in this file
+// for single-user detail and the New User wizard.
 export function useUsersSummary() {
   return useQuery({
     queryKey: QUERY_KEY,
     queryFn: async (): Promise<UsersSummary> => {
-      const [summaryRes, listRes] = await Promise.all([
-        api.get<WebEnvelope<SummaryPayload>>('/users/summary/'),
-        api.get<WebEnvelope<{ users: RawUserItem[]; total: number }>>('/users/', { params: { page: 1, limit: 500 } }),
+      const [statsRes, listRes] = await Promise.all([
+        fetch('/userprofile/api/users.php?action=stats', { credentials: 'same-origin' }),
+        fetch('/userprofile/api/users.php?action=list&mode=all&limit=500', { credentials: 'same-origin' }),
       ])
-      const s = summaryRes.data.data
+      if (!statsRes.ok || !listRes.ok) throw new Error(`Legacy backend returned ${statsRes.status}/${listRes.status}.`)
+      const statsData: { ok: boolean; stats: { total_users: number; admins: number; superadmins: number; active_users: number; today_login_users: number } } = await statsRes.json()
+      const listData: { ok: boolean; rows: RawUserItem[] } = await listRes.json()
+      if (!statsData.ok || !listData.ok) throw new Error('Legacy backend rejected the request.')
       return {
-        totalUsers: s.totalUsers,
-        admins: s.admins,
-        superAdmins: s.superAdmins,
-        activeUsers: s.activeUsers,
-        todayLoginUsers: s.todayLoginUsers,
-        users: listRes.data.data.users.map(toRow),
+        totalUsers: statsData.stats.total_users,
+        admins: statsData.stats.admins,
+        superAdmins: statsData.stats.superadmins,
+        activeUsers: statsData.stats.active_users,
+        todayLoginUsers: statsData.stats.today_login_users,
+        users: listData.rows.map(toRow),
       }
     },
     staleTime: 1000 * 60,
-    // api/users/ doesn't exist at all on the currently-active backend (see
-    // BackendUnavailable.tsx) — a permanent 404, so retrying is pointless.
-    retry: false,
   })
 }
 
@@ -170,7 +169,10 @@ interface RawUserProfileWorkProfile {
   address: string | null
   zip: string | null
   town: string | null
+  country_id: number
+  state_id: number
   datelastlogin: string | null
+  datepreviouslogin: string | null
   dateemployment: string | null
   dateemploymentend: string | null
   datestartvalidity: string | null
@@ -179,6 +181,33 @@ interface RawUserProfileWorkProfile {
   thm: number | null
   tjm: number | null
   weeklyhours: number | null
+  accountancy_code: string | null
+  color: string | null
+  default_lang: string | null
+}
+
+// {id, name, login} — every "who" field on this endpoint (supervisor,
+// expense/holiday validators) is resolved server-side by the shared
+// up_api_user_brief() helper, never a bare id/name string. Treating any of
+// these as a primitive (as the old code did for `supervisor`, via
+// `String(data.supervisor)`) produces the literal text "[object Object]".
+interface RawUserBrief {
+  id: number
+  name: string
+  login: string
+}
+
+interface RawUserSocialLink {
+  key: string
+  label: string
+  value: string
+  url: string
+}
+
+interface RawUserDevice {
+  id: number
+  name: string
+  brand: string
 }
 
 interface RawUserProfileUser {
@@ -197,45 +226,86 @@ interface RawUserProfileUser {
   employee: number
   admin: number
   statut: number
+  socid: number
   address: string | null
   zip: string | null
   town: string | null
-  supervisor: string | number | null
+  signature: string | null
+  photo: string | null
+  photo_name: string | null
+  groups: string[]
+  group_ids: number[]
+  nb_rights: number
+  contact_phone: string
+  device: string | null
+  device_uid: string | null
+  timesheet_device: RawUserDevice | null
+  supervisor: RawUserBrief | null
+  expense_validator: RawUserBrief | null
+  holiday_validator: RawUserBrief | null
+  employee_nrc: string | null
   birth: string | null
   dateemployment: string | null
   dateemploymentend: string | null
+  social_links: RawUserSocialLink[]
   work_profile: RawUserProfileWorkProfile
+}
+
+interface RawUserProfileGroup {
+  id: number
+  name: string
 }
 
 interface RawUserProfileResponse {
   ok: boolean
+  can_edit: boolean
+  actions: {
+    can_email: boolean
+    can_whatsapp: boolean
+    can_disable: boolean
+    can_enable: boolean
+    can_delete: boolean
+    is_self: boolean
+  }
+  urls: {
+    email: string
+    whatsapp: string
+    classic_card: string
+    linked_objects: string
+  }
+  modules: {
+    expensereport: boolean
+    holiday: boolean
+  }
   user: RawUserProfileUser
+  all_groups: RawUserProfileGroup[]
 }
 
 function useUserProfileQuery(id: string | number | undefined) {
   const numericId = typeof id === 'string' ? Number(id) : id
   return useQuery({
     queryKey: ['users', 'profile', numericId],
-    queryFn: async (): Promise<RawUserProfileUser> => {
+    queryFn: async (): Promise<RawUserProfileResponse> => {
       const res = await fetch(`/userprofile/api/user.php?id=${numericId}`, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data: RawUserProfileResponse = await res.json()
       if (!data.ok) throw new Error('Legacy backend rejected the request.')
-      return data.user
+      return data
     },
     enabled: numericId !== undefined && !Number.isNaN(numericId),
   })
 }
 
 export function useUser(id: string | number | undefined) {
-  const { data, isLoading, isError, error } = useUserProfileQuery(id)
+  const { data: envelope, isLoading, isError, error } = useUserProfileQuery(id)
+  const data = envelope?.user
   const user: UserRow | undefined = data
     ? {
         id: data.id,
         login: data.login,
         name: data.fullname || `${data.firstname} ${data.lastname}`.trim(),
         employee: !!data.employee,
-        phone: data.office_phone || data.user_mobile || data.personal_mobile || '',
+        phone: data.contact_phone || data.office_phone || data.user_mobile || data.personal_mobile || '',
         email: data.email ?? '',
         gender: data.gender ?? '',
         designation: data.job ?? '',
@@ -249,6 +319,12 @@ export function useUser(id: string | number | undefined) {
       }
     : undefined
   return { user, isLoading, isError, error }
+}
+
+export interface UserBriefRef {
+  id: number
+  name: string
+  login: string
 }
 
 export interface UserDetailData {
@@ -279,57 +355,118 @@ export interface UserDetailData {
   dateStartValidity: string | null
   dateEndValidity: string | null
   birth: string | null
-  supervisorName: string | null
+  supervisor: UserBriefRef | null
+  expenseValidator: UserBriefRef | null
+  holidayValidator: UserBriefRef | null
+  employeeNrc: string | null
   salary: number | null
   hourlyCost: number | null
   dailyCost: number | null
   weeklyHours: number | null
+  photo: string | null
+  groups: string[]
+  groupIds: number[]
+  nbRights: number
+  socialLinks: Array<{ key: string; label: string; value: string; url: string }>
+  timesheetDevice: { id: number; name: string; brand: string } | null
+  canEdit: boolean
+  actions: {
+    canEmail: boolean
+    canWhatsapp: boolean
+    canDisable: boolean
+    canEnable: boolean
+    canDelete: boolean
+    isSelf: boolean
+  }
+  urls: {
+    email: string
+    whatsapp: string
+    classicCard: string
+    linkedObjects: string
+  }
+  modules: {
+    expensereport: boolean
+    holiday: boolean
+  }
+  allGroups: Array<{ id: number; name: string }>
+}
+
+function toBrief(brief: RawUserBrief | null): UserBriefRef | null {
+  return brief ? { id: brief.id, name: brief.name, login: brief.login } : null
 }
 
 // countryLabel/stateLabel, createdAt/creatorLogin, and note aren't part of
 // userprofile/api/user.php's response (that endpoint has country_id/
 // state_id as bare numeric ids with no label, and creation metadata +
-// notes live on separate userprofile/api/* endpoints this pass doesn't
-// wire up) — null rather than a guess, same honesty convention as the rest
-// of this file.
+// notes live on separate userprofile/api/* endpoints — notes now covered by
+// useUserNotes() in userDetailTabs.queries.ts) — null rather than a guess,
+// same honesty convention as the rest of this file.
 export function useUserDetail(id: string | number | undefined) {
-  const { data, isLoading, isError, error } = useUserProfileQuery(id)
-  const detail: UserDetailData | undefined = data
-    ? {
-        id: data.id,
-        login: data.login,
-        name: data.fullname || `${data.firstname} ${data.lastname}`.trim(),
-        admin: !!data.admin,
-        superAdmin: false,
-        employee: !!data.employee,
-        gender: data.gender,
-        job: data.job,
-        address: data.work_profile.address || data.address,
-        zip: data.work_profile.zip || data.zip,
-        town: data.work_profile.town || data.town,
-        countryLabel: null,
-        stateLabel: null,
-        mobile: data.user_mobile || data.personal_mobile,
-        officePhone: data.work_profile.office_phone || data.office_phone,
-        officeFax: data.work_profile.office_fax || data.office_fax,
-        email: data.email,
-        enabled: data.statut === 1,
-        lastLogin: data.work_profile.datelastlogin,
-        createdAt: null,
-        creatorLogin: null,
-        note: null,
-        dateEmployment: data.dateemployment || data.work_profile.dateemployment,
-        dateEmploymentEnd: data.dateemploymentend || data.work_profile.dateemploymentend,
-        dateStartValidity: data.work_profile.datestartvalidity,
-        dateEndValidity: data.work_profile.dateendvalidity,
-        birth: data.birth || data.work_profile.birth,
-        supervisorName: data.supervisor !== null ? String(data.supervisor) : null,
-        salary: null,
-        hourlyCost: data.work_profile.thm,
-        dailyCost: data.work_profile.tjm,
-        weeklyHours: data.work_profile.weeklyhours,
-      }
-    : undefined
+  const { data: envelope, isLoading, isError, error } = useUserProfileQuery(id)
+  const data = envelope?.user
+  const detail: UserDetailData | undefined =
+    data && envelope
+      ? {
+          id: data.id,
+          login: data.login,
+          name: data.fullname || `${data.firstname} ${data.lastname}`.trim(),
+          admin: !!data.admin,
+          superAdmin: false,
+          employee: !!data.employee,
+          gender: data.gender,
+          job: data.job,
+          address: data.work_profile.address || data.address,
+          zip: data.work_profile.zip || data.zip,
+          town: data.work_profile.town || data.town,
+          countryLabel: null,
+          stateLabel: null,
+          mobile: data.user_mobile || data.personal_mobile,
+          officePhone: data.work_profile.office_phone || data.office_phone,
+          officeFax: data.work_profile.office_fax || data.office_fax,
+          email: data.email,
+          enabled: data.statut === 1,
+          lastLogin: data.work_profile.datelastlogin,
+          createdAt: null,
+          creatorLogin: null,
+          note: null,
+          dateEmployment: data.dateemployment || data.work_profile.dateemployment,
+          dateEmploymentEnd: data.dateemploymentend || data.work_profile.dateemploymentend,
+          dateStartValidity: data.work_profile.datestartvalidity,
+          dateEndValidity: data.work_profile.dateendvalidity,
+          birth: data.birth || data.work_profile.birth,
+          supervisor: toBrief(data.supervisor),
+          expenseValidator: toBrief(data.expense_validator),
+          holidayValidator: toBrief(data.holiday_validator),
+          employeeNrc: data.employee_nrc,
+          salary: null,
+          hourlyCost: data.work_profile.thm,
+          dailyCost: data.work_profile.tjm,
+          weeklyHours: data.work_profile.weeklyhours,
+          photo: data.photo,
+          groups: data.groups,
+          groupIds: data.group_ids,
+          nbRights: data.nb_rights,
+          socialLinks: data.social_links,
+          timesheetDevice: data.timesheet_device,
+          canEdit: envelope.can_edit,
+          actions: {
+            canEmail: envelope.actions.can_email,
+            canWhatsapp: envelope.actions.can_whatsapp,
+            canDisable: envelope.actions.can_disable,
+            canEnable: envelope.actions.can_enable,
+            canDelete: envelope.actions.can_delete,
+            isSelf: envelope.actions.is_self,
+          },
+          urls: {
+            email: envelope.urls.email,
+            whatsapp: envelope.urls.whatsapp,
+            classicCard: envelope.urls.classic_card,
+            linkedObjects: envelope.urls.linked_objects,
+          },
+          modules: envelope.modules,
+          allGroups: envelope.all_groups,
+        }
+      : undefined
   return { detail, isLoading, isError, error }
 }
 
@@ -358,56 +495,190 @@ export function useEmployeeCount() {
   return data?.users.filter((u) => u.employee).length ?? 0
 }
 
-export interface NewUserInput {
-  login: string
-  firstname: string
-  lastname: string
-  email?: string
-  phone?: string
-  gender?: string
-  designation?: string
-  isAdmin: boolean
+// GET userprofile/api/users.php?action=wizard_options — real, confirmed by
+// reading that file directly: this is the exact data source behind the
+// real "New user" wizard (designations, devices, supervisors, civilities,
+// countries, languages, social network keys, and the real POS/admin token
+// quota counts shown as "Used: X / Total: Y" on the real page). Session-
+// cookie authenticated like userprofile/api/user.php elsewhere in this file.
+export interface UserWizardOptions {
+  canCreate: boolean
+  designations: string[]
+  devices: Array<{ id: number; name: string; brand: string | null }>
+  civilities: Array<{ id: string; name: string }>
+  countries: Array<{ id: number; name: string; code: string }>
+  socialNetworks: Array<{ key: string; label: string }>
+  tokens: { activeUsed: number; activeTotal: number; posUsed: number; posTotal: number }
+}
+interface RawWizardOptions {
+  ok: boolean
+  can_create: boolean
+  designations: string[]
+  devices: Array<{ id: number; device_name?: string; name?: string; brand: string | null }>
+  civilities: Array<{ id: string; name: string }>
+  countries: Array<{ id: number; name: string; code: string }>
+  social_networks: Array<{ key: string; label: string }>
+  tokens: { active_used: number; active_total: number; pos_used: number; pos_total: number }
+}
+export function useUserWizardOptions() {
+  return useQuery({
+    queryKey: ['users', 'wizard-options'],
+    queryFn: async (): Promise<UserWizardOptions> => {
+      const res = await fetch('/userprofile/api/users.php?action=wizard_options', { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: RawWizardOptions = await res.json()
+      if (!data.ok) throw new Error('Legacy backend rejected the request.')
+      return {
+        canCreate: data.can_create,
+        designations: data.designations ?? [],
+        devices: (data.devices ?? []).map((d) => ({ id: d.id, name: d.device_name ?? d.name ?? '', brand: d.brand })),
+        civilities: data.civilities ?? [],
+        countries: data.countries ?? [],
+        socialNetworks: data.social_networks ?? [],
+        tokens: {
+          activeUsed: data.tokens?.active_used ?? 0,
+          activeTotal: data.tokens?.active_total ?? 0,
+          posUsed: data.tokens?.pos_used ?? 0,
+          posTotal: data.tokens?.pos_total ?? 0,
+        },
+      }
+    },
+    staleTime: 1000 * 60,
+  })
 }
 
-let optimisticSequence = -1
+// GET userprofile/api/users.php?action=states&country_id=X — real, confirmed
+// by reading that file directly (up_users_fetch_states, llx_c_departements
+// joined to llx_c_regions).
+export interface StateOption {
+  id: number
+  name: string
+  code: string
+}
+export function useUserStateOptions(countryId: number | undefined) {
+  return useQuery({
+    queryKey: ['users', 'states', countryId ?? 0],
+    queryFn: async (): Promise<StateOption[]> => {
+      const res = await fetch(`/userprofile/api/users.php?action=states&country_id=${countryId}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: { ok: boolean; states: StateOption[] } = await res.json()
+      return data.ok ? (data.states ?? []) : []
+    },
+    enabled: !!countryId,
+    staleTime: 1000 * 60,
+  })
+}
 
-// No POST /api/users/ endpoint exists yet, so this can't actually create the
-// user server-side — it optimistically merges a row into the real summary's
-// react-query cache instead, same "feels real in the browser but doesn't
-// persist" caveat as every other local-only scaffold, just layered on top of
-// genuinely fetched data instead of an empty local seed. A refetch (page
-// reload) drops it, since the server was never told about it.
-export function useCreateUser() {
+export interface NewUserInput {
+  firstname: string
+  lastname: string
+  email: string
+  civilityCode?: string
+  gender?: 'man' | 'woman' | ''
+  userMobile?: string
+  officePhone?: string
+  employee: boolean
+  isAdmin: boolean
+  job: string
+  deviceId?: number
+  uid?: string
+  address?: string
+  zip?: string
+  town?: string
+  countryId?: number
+  stateId?: number
+  supervisorId?: number
+  expenseValidatorId?: number
+  isPosUser?: boolean
+  isKotUser?: boolean
+  apiKey?: string
+  color?: string
+  defaultLang?: string
+  note?: string
+  signature?: string
+  dateEmployment?: string
+  dateEmploymentEnd?: string
+  dateStartValidity?: string
+  dateEndValidity?: string
+  birth?: string
+  social?: Record<string, string>
+}
+
+interface CreateUserResponse {
+  ok: boolean
+  error?: string
+  id?: number
+  login?: string
+  password?: string
+}
+
+// POST userprofile/api/users.php?action=create — real, confirmed by reading
+// that file directly: a genuine Dolibarr User::create() call backing the
+// real 3-step "New user" wizard shown in the reference screenshots (basic/
+// professional/social payload shape, same field names). Reuses the same
+// session-wide Dolibarr CSRF token fetchSocieteFormContext() already
+// scrapes for societe/api/* — confirmed this endpoint checks the identical
+// currentToken()/newToken() pair, not a page-specific token.
+export function useCreateUserReal() {
   const queryClient = useQueryClient()
   const logActivity = useLogActivity()
   const { user } = useAuth()
-  return (input: NewUserInput) => {
-    const row: UserRow = {
-      id: optimisticSequence--,
-      login: input.login,
-      name: `${input.firstname} ${input.lastname}`.trim(),
-      employee: true,
-      phone: input.phone ?? '',
-      email: input.email ?? '',
-      gender: input.gender ?? '',
-      designation: input.designation ?? '',
-      lastLogin: '',
-      status: 'Enabled',
-      isAdmin: input.isAdmin,
-      isSuperAdmin: false,
-    }
-    queryClient.setQueryData<UsersSummary>(QUERY_KEY, (current) =>
-      current
-        ? {
-            ...current,
-            totalUsers: current.totalUsers + 1,
-            admins: current.admins + (input.isAdmin ? 1 : 0),
-            activeUsers: current.activeUsers + 1,
-            users: [row, ...current.users],
-          }
-        : current,
-    )
-    const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: `New user ${row.name} (${row.login}) added`, category: 'other', authorName })
-  }
+  return useMutation({
+    mutationFn: async (input: NewUserInput) => {
+      const { token } = await fetchSocieteFormContext()
+      const body = {
+        token,
+        basic: {
+          firstname: input.firstname,
+          lastname: input.lastname,
+          email: input.email,
+          civility_code: input.civilityCode ?? '',
+          gender: input.gender ?? '',
+          user_mobile: input.userMobile ?? '',
+          office_phone: input.officePhone ?? '',
+          employee: input.employee ? 1 : 0,
+          admin: input.isAdmin ? 1 : 0,
+          is_pos_user: !!input.isPosUser,
+          is_kot_user: !!input.isKotUser,
+          device: input.deviceId ?? 0,
+          uid: input.uid ?? '',
+          address: input.address ?? '',
+          zip: input.zip ?? '',
+          town: input.town ?? '',
+          country_id: input.countryId ?? 0,
+          state_id: input.stateId ?? 0,
+          fk_user: input.supervisorId ?? 0,
+          fk_user_expense_validator: input.expenseValidatorId ?? 0,
+          api_key: input.apiKey ?? '',
+        },
+        professional: {
+          job: input.job,
+          color: input.color ?? '',
+          default_lang: input.defaultLang ?? '',
+          note: input.note ?? '',
+          signature: input.signature ?? '',
+          dateemployment: input.dateEmployment ?? '',
+          dateemploymentend: input.dateEmploymentEnd ?? '',
+          datestartvalidity: input.dateStartValidity ?? '',
+          dateendvalidity: input.dateEndValidity ?? '',
+          birth: input.birth ?? '',
+        },
+        social: input.social ?? {},
+      }
+      const res = await fetch('/userprofile/api/users.php?action=create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data: CreateUserResponse = await res.json()
+      if (!data.ok) throw new Error(data.error || 'Failed to create user')
+      return data
+    },
+    onSuccess: (data, input) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
+      logActivity({ label: `New user ${input.firstname} ${input.lastname} (${data.login}) added`, category: 'other', authorName })
+    },
+  })
 }

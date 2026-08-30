@@ -1,5 +1,17 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import axios from 'axios'
+import { parseVendorInvoiceListRow, type RawVendorInvoiceListRow } from '../vendorInvoices/vendorInvoiceListParser'
+import { parsePendingSalesRow, type RawPendingSalesRow } from './pendingSalesParser'
+import { parseAutomaticPurchaseRow, type RawAutomaticPurchaseRow } from './automaticPurchaseParser'
+import { parseUnuploadedProductRow, type RawUnuploadedProductRow } from './unuploadedProductsParser'
+
+// The /api/zra/* endpoints this whole file used to call (api/zra/purchases/,
+// api/zra/customers/unuploaded/, api/zra/invoices/pending-sales/, etc.) do
+// not exist on the active backend — their own header comments said "real,
+// on the ecnta10 backend", a different WAMP instance than the one actually
+// running (ecuenta9). Confirmed live: /api/zra/ 404s entirely, no such
+// folder on disk. Real sources found instead by reading the backend
+// directly, one per list — see each hook's own comment below.
 
 interface ListParams {
   page: number
@@ -7,114 +19,36 @@ interface ListParams {
   search?: string
 }
 
-interface ListResponse<T> {
-  success: boolean
-  data: { items: T[]; total: number }
-}
-
-function useZraList<T>(key: string, path: string, params: ListParams) {
+// custom/zra/getpurchases_ajax.php — real, confirmed live (matches the
+// "ZRA Purchases" page exactly: llx_zrapurchases WHERE purchasestatus='0',
+// same "not yet actioned" filter as before). Rows are positional arrays of
+// pre-formatted HTML, not keyed objects — see automaticPurchaseParser.ts.
+export type { AutomaticPurchaseRow } from './automaticPurchaseParser'
+export function useAutomaticPurchaseList(params: ListParams) {
   return useQuery({
-    queryKey: ['zra', key, params],
-    queryFn: async (): Promise<{ items: T[]; total: number }> => {
-      const { data } = await api.get<ListResponse<T>>(path, {
-        params: { page: params.page, limit: params.perPage, search: params.search || undefined },
+    queryKey: ['zra', 'purchases', params],
+    queryFn: async () => {
+      const body = new URLSearchParams({
+        draw: '1',
+        start: String((params.page - 1) * params.perPage),
+        length: String(params.perPage),
       })
-      return data.data
+      if (params.search) body.set('search[value]', params.search)
+      const { data } = await axios.post<{ recordsTotal: number; data: RawAutomaticPurchaseRow[] }>('/custom/zra/getpurchases_ajax.php', body)
+      return { items: (data.data ?? []).map(parseAutomaticPurchaseRow), total: Number(data.recordsTotal) || 0 }
     },
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,
   })
 }
 
-// GET /api/zra/purchases/ — real, on the ecnta10 backend. Mirrors
-// custom/zra/getpurchases_ajax.php against llx_zrapurchases
-// (purchasestatus='0', hardcoded — only "not yet actioned" rows).
-export interface AutomaticPurchaseRow {
-  id: number
-  invoiceNo: string
-  saleDate: string
-  itemCount: number
-  supplierName: string
-  supplierTpin: string
-  supplierBranch: string
-  receiptTypeCode: string
-  paymentTypeCode: string
-  confirmationDate: string | null
-  remark: string | null
-  totalAmount: number
-  taxableAmount: number
-  taxAmount: number
-}
-export function useAutomaticPurchaseList(params: ListParams) {
-  return useZraList<AutomaticPurchaseRow>('purchases', '/zra/purchases/', params)
-}
-
-// GET /api/zra/customers/unuploaded/ — real, on the ecnta10 backend. Mirrors
-// societe/unuploadedcustomer.php + customer_ajax_list.php with
-// zrastatus=unupload, against llx_societe (entity 0 or current).
-export interface UnuploadedCustomerRow {
-  id: number
-  name: string
-  tpin: string
-  phone: string
-  role: 'Prospect' | 'Customer' | 'Supplier' | 'Customer & Supplier'
-  countryLabel: string
-  typeLabel: string
-  createdAt: string
-  creatorName: string
-  zraSucceeded: boolean
-  zraStatusMessage: string
-}
-export function useUnuploadedCustomersList(params: ListParams) {
-  return useZraList<UnuploadedCustomerRow>('unuploaded-customers', '/zra/customers/unuploaded/', params)
-}
-
-// POST /api/zra/customers/upload/ — real, proxies societe/ajax_zracustomer.php's
-// own type=zraupload action, which submits each selected llx_societe row to
-// the ZRA gateway's live /branches/saveBrancheCustomers endpoint (a real,
-// non-idempotent filing, not a local-only update). Not safe to auto-retry.
-export function useUploadCustomersToZra() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (ids: number[]) => {
-      const { data } = await api.post<{ success: boolean; data: { succeeded: boolean; raw: unknown } }>('/zra/customers/upload/', { ids })
-      return data.data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['zra', 'unuploaded-customers'] })
-    },
-  })
-}
-
-// GET /api/zra/invoices/pending-sales/ — real, direct SQL matching
-// compta/facture/invoice_ajax_list.php's own query (invtype=pending: same
-// WHERE zra_upload_error != '000' OR IS NULL filter) against llx_facture.
-export interface PendingSalesInvoiceRow {
-  id: number
-  ref: string
-  invoiceDate: string
-  dueDate: string | null
-  thirdParty: string
-  city: string | null
-  paymentType: string | null
-  paymentTerms: string | null
-  amountExclTax: number
-  vat: number
-  amountInclTax: number
-  author: string
-  status: string
-  zraSucceeded: boolean
-  zraStatusMessage: string
-}
-export function usePendingSalesList(params: ListParams) {
-  return useZraList<PendingSalesInvoiceRow>('pending-sales', '/zra/invoices/pending-sales/', params)
-}
-
-// GET /api/zra/invoices/pending-purchases/ — real, direct SQL matching
-// fourn/facture/facture_ajax_list.php's own query (invtype=pending: same
-// WHERE zra_upload_error != '000' OR IS NULL filter) against llx_facture_fourn.
+// fourn/facture/facture_ajax_list.php?invtype=pending — the exact same
+// real endpoint already wired for the main Purchase Invoices list this
+// session (see vendorInvoices/vendorInvoiceListParser.ts), just with the
+// real invtype=pending filter this file itself defines (WHERE
+// zra_upload_error != '000' OR IS NULL — confirmed by reading the file).
 export interface PendingPurchaseInvoiceRow {
-  id: number
+  id: number | null
   ref: string
   refVendor: string | null
   invoiceDate: string
@@ -130,48 +64,86 @@ export interface PendingPurchaseInvoiceRow {
   zraStatusMessage: string
 }
 export function usePendingPurchasesList(params: ListParams) {
-  return useZraList<PendingPurchaseInvoiceRow>('pending-purchases', '/zra/invoices/pending-purchases/', params)
+  return useQuery({
+    queryKey: ['zra', 'pending-purchases', params],
+    queryFn: async () => {
+      const body = new URLSearchParams({
+        draw: '1',
+        start: String((params.page - 1) * params.perPage),
+        length: String(params.perPage),
+        invtype: 'pending',
+        'columns[0][data]': 'ref',
+      })
+      if (params.search) body.set('search[value]', params.search)
+      const { data } = await axios.post<{ iTotalRecords: number; aaData: RawVendorInvoiceListRow[] }>('/fourn/facture/facture_ajax_list.php', body)
+      const items: PendingPurchaseInvoiceRow[] = (data.aaData ?? []).map(parseVendorInvoiceListRow).map((r) => ({
+        id: r.id,
+        ref: r.ref,
+        refVendor: r.refSupplier,
+        invoiceDate: r.invoiceDate,
+        dueDate: r.dueDate || null,
+        thirdParty: r.thirdPartyName ?? '',
+        thirdPartyAlias: r.thirdPartySubtitle || null,
+        paymentType: r.paymentTypeLabel,
+        amountExclTax: r.amountHt,
+        vat: r.amountVat,
+        amountInclTax: r.amountTtc,
+        status: r.statusLabel,
+        zraSucceeded: /success/i.test(r.zraStatus ?? ''),
+        zraStatusMessage: r.zraStatus ?? '',
+      }))
+      return { items, total: Number(data.iTotalRecords) || 0 }
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 30,
+  })
 }
 
-// GET /api/zra/stock-movements/unuploaded/ — real, direct SQL matching
-// product/stock/movement_listunuploaded.php's own query (m.zrastatus IS
-// NULL, p.fk_product_type = 0) against llx_stock_mouvement.
-export interface UnuploadedStockMovementRow {
-  id: number
-  date: string
-  productRef: string
-  productLabel: string
-  batch: string | null
-  warehouseRef: string | null
-  authorName: string
-  inventoryCode: string
-  movementLabel: string
-  movementType: string
-  qty: number
-  zraStatusMessage: string | null
-}
-export function useUnuploadedStockMovements(params: ListParams) {
-  return useZraList<UnuploadedStockMovementRow>('unuploaded-stock-movements', '/zra/stock-movements/unuploaded/', params)
+// compta/facture/invoice_ajax_list.php?invtype=pending — real, same
+// zra_upload_error filter, confirmed by reading that file directly. See
+// pendingSalesParser.ts for the (oddly-named) column mapping.
+export type { PendingSalesRow as PendingSalesInvoiceRow } from './pendingSalesParser'
+export function usePendingSalesList(params: ListParams) {
+  return useQuery({
+    queryKey: ['zra', 'pending-sales', params],
+    queryFn: async () => {
+      const body = new URLSearchParams({
+        draw: '1',
+        start: String((params.page - 1) * params.perPage),
+        length: String(params.perPage),
+        invtype: 'pending',
+      })
+      if (params.search) body.set('search[value]', params.search)
+      const { data } = await axios.post<{ iTotalRecords: number; aaData: RawPendingSalesRow[] }>('/compta/facture/invoice_ajax_list.php', body)
+      return { items: (data.aaData ?? []).map(parsePendingSalesRow), total: Number(data.iTotalRecords) || 0 }
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 30,
+  })
 }
 
-// POST /api/zra/stock-movements/upload/ — real, proxies
-// product/stock/zraallupdatestock.php's own type=zrastockupload action,
-// which submits each selected llx_stock_mouvement row to the ZRA gateway's
-// live /stock/saveStockItems + /stockMaster/saveStockMaster endpoints (a
-// real, non-idempotent filing, not a local-only update). Not safe to
-// auto-retry.
-export function useUploadStockMovementsToZra() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (ids: number[]) => {
-      const { data } = await api.post<{ success: boolean; data: { succeeded: boolean; statusMessage: string | null; raw: unknown } }>(
-        '/zra/stock-movements/upload/',
-        { ids },
-      )
-      return data.data
+// product/allproducts_ajax.php?zrastatus=unupload — real, confirmed by
+// reading that file directly (WHERE p.zracode != '000' OR p.zracode IS
+// NULL). This page never had a backend wired at all before (not even on
+// the old ecnta10 instance), so this is a fresh build rather than a
+// dead-endpoint fix.
+export type { UnuploadedProductRow } from './unuploadedProductsParser'
+export function useUnuploadedProductsList(params: ListParams) {
+  return useQuery({
+    queryKey: ['zra', 'unuploaded-products', params],
+    queryFn: async () => {
+      const body = new URLSearchParams({
+        draw: '1',
+        start: String((params.page - 1) * params.perPage),
+        length: String(params.perPage),
+        zrastatus: 'unupload',
+        'columns[0][data]': 'label',
+      })
+      if (params.search) body.set('search[value]', params.search)
+      const { data } = await axios.post<{ iTotalRecords: number; aaData: RawUnuploadedProductRow[] }>('/product/allproducts_ajax.php', body)
+      return { items: (data.aaData ?? []).map(parseUnuploadedProductRow), total: Number(data.iTotalRecords) || 0 }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['zra', 'unuploaded-stock-movements'] })
-    },
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 30,
   })
 }

@@ -1,48 +1,24 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { UsersRound, Plus, Pencil, Copy } from 'lucide-react'
+import { UsersRound, Plus, Pencil, Copy, ExternalLink } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Avatar } from '../../../shared/components/Avatar'
+import { useUserGroupsList } from '../userGroupsAndTags.queries'
+import { formatDate } from '../../../utils/format'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
-interface GroupRow {
-  name: string
-  totalUsers: number
-  members: string[]
-}
-
-// Visual scaffold, matching the reference "List of groups" card grid —
-// static placeholder roles rather than the local-only Users collection,
-// since groups/role-membership isn't modeled anywhere yet.
-const GROUPS: GroupRow[] = [
-  { name: 'Administrators', totalUsers: 2, members: ['Voxforem Admin', 'Mona Manager'] },
-  { name: 'Sales Team', totalUsers: 5, members: ['Sal S', 'Dev D', 'Chita C', 'Anila A', 'Ashwin A'] },
-  { name: 'Warehouse Staff', totalUsers: 3, members: ['Guru', 'Ashok', 'Stephen'] },
-  { name: 'POS Cashiers', totalUsers: 4, members: ['Pos12', 'Abi A', 'Sridhar S', 'Cathy Cashier'] },
-  { name: 'Accounting', totalUsers: 1, members: ['Customer1'] },
-  { name: 'Kitchen Staff', totalUsers: 0, members: [] },
-]
-
-const STACK_COLORS = ['bg-purple-500', 'bg-teal-500', 'bg-rose-500', 'bg-blue-500', 'bg-amber-500']
-
-function MemberStack({ members }: { members: string[] }) {
-  const shown = members.slice(0, 3)
-  const overflow = members.length - shown.length
-  if (members.length === 0) return null
-  return (
-    <div className="flex items-center -space-x-2">
-      {overflow > 0 && (
-        <span className="w-7 h-7 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold flex items-center justify-center ring-2 ring-surface-alt">
-          +{overflow}
-        </span>
-      )}
-      {shown.map((name, i) => (
-        <Avatar key={name} name={name} size={28} color={STACK_COLORS[i % STACK_COLORS.length]} className="text-[10px] ring-2 ring-surface-alt" />
-      ))}
-    </div>
-  )
-}
-
+// Real via user/group/user-groups-sidebarlist-ajax.php (see
+// userGroupsAndTags.queries.ts's header comment for why the reference
+// page's "Total N users" count and avatar stack aren't reproduced here —
+// no JSON source for that number exists, only the legacy page's own HTML,
+// which this app's rules say not to scrape). "Edit Role"/"Duplicate role"
+// link out to the real legacy card.php, which isn't rebuilt in this pass.
 export function GroupsList() {
+  const { data: groups, isLoading, isError, error, refetch } = useUserGroupsList()
+  const [search, setSearch] = useState('')
+
+  const filtered = (groups ?? []).filter((g) => g.name.toLowerCase().includes(search.trim().toLowerCase()))
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -54,27 +30,68 @@ export function GroupsList() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {GROUPS.map((group) => (
-          <Card key={group.name} className="gap-3">
-            <div className="flex items-start justify-between">
-              <span className="text-xs font-medium text-text-faint">
-                Total {group.totalUsers} {group.totalUsers === 1 ? 'user' : 'users'}
-              </span>
-              <MemberStack members={group.members} />
-            </div>
-            <p className="text-base font-semibold text-text!">{group.name}</p>
-            <div className="mt-auto flex items-center justify-between pt-2">
-              <button type="button" className="flex items-center gap-1 text-sm text-brand hover:underline">
-                <Pencil size={12} /> Edit Role
-              </button>
-              <button type="button" title="Duplicate role" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text-muted">
-                <Copy size={14} />
-              </button>
-            </div>
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search roles…"
+        className="w-full max-w-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 text-sm"
+      />
+
+      {isLoading && <LegacyLoadingCard label="Loading groups…" />}
+      {isError && <LegacyErrorCard title="Couldn't load groups" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+      {groups && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-text-faint italic sm:col-span-2 xl:col-span-3">No roles match "{search}".</p>
+          ) : (
+            filtered.map((group) => (
+              <Card key={group.id} className="gap-3">
+                <div className="flex items-start justify-between">
+                  <span className="text-xs font-medium text-text-faint">Created {group.createdAt ? formatDate(group.createdAt) : '—'}</span>
+                </div>
+                <p className="text-base font-semibold text-text!">{group.name}</p>
+                <div className="mt-auto flex items-center justify-between pt-2">
+                  <a
+                    href={`/user/group/card.php?id=${group.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Edit in legacy system — permissions editing isn't rebuilt here yet"
+                    className="flex items-center gap-1 text-sm text-brand hover:underline"
+                  >
+                    <Pencil size={12} /> Edit Role
+                  </a>
+                  <a
+                    href={`/user/group/card.php?action=create&copyfrompermissions=${group.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Duplicate role in legacy system"
+                    className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text-muted"
+                  >
+                    <Copy size={14} />
+                  </a>
+                </div>
+              </Card>
+            ))
+          )}
+
+          <Card className="gap-3 items-center justify-center text-center">
+            <Plus size={20} className="text-text-faint" />
+            <Link to={ROUTES.userGroupCreate} className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
+              Add New Role
+            </Link>
+            <p className="text-xs text-text-faint">Add new role, if it doesn't exist.</p>
           </Card>
-        ))}
-      </div>
+        </div>
+      )}
+
+      <p className="flex items-center gap-1.5 text-xs text-text-faint">
+        <ExternalLink size={12} />
+        <a href="/user/group/list.php" target="_blank" rel="noreferrer" className="hover:underline">
+          Open the full group grid (with member counts) in the legacy system
+        </a>
+      </p>
     </div>
   )
 }

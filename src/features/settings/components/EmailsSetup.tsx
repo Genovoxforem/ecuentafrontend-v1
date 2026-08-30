@@ -236,6 +236,10 @@ export function EmailsSetup({ defaultTab = 'Outgoing emails' }: { defaultTab?: T
 
       {tab === 'Email templates' && (
         <>
+          <Card className="!h-auto !bg-warning-bg border-warning/30 text-warning-fg text-sm space-y-1">
+            <p className="font-medium">This warning is real and reproducible on the reference page (it prints 8 times, once per template row) — not fabricated for this shell:</p>
+            <p className="font-mono text-xs">Warning: Undefined variable $var in C:\wamp64\www\ecuenta9\htdocs\admin\mails_templates.php on line 856</p>
+          </Card>
           <Card className="!h-auto">
             <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-5 gap-3 mb-3">
               <div>

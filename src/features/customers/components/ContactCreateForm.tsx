@@ -4,21 +4,11 @@ import { UserPlus, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
-import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { useCustomerOptions, useVendorOptions } from '../customerOptions'
-import { useThirdPartyFormOptions } from '../thirdPartyOptions.queries'
 import { useCreateContact, type ContactKind } from '../contacts.queries'
-import { useCategories } from '../categories.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
-
-const CIVILITY_OPTIONS = [
-  { value: 'MR', label: 'Mr.' },
-  { value: 'MME', label: 'Mrs.' },
-  { value: 'MLE', label: 'Miss' },
-  { value: 'DR', label: 'Dr.' },
-  { value: 'MTRE', label: 'Maître' },
-]
+const disabledClasses = 'w-full text-sm rounded-md border border-input-border bg-surface-hover text-text-faint px-3 py-2 cursor-not-allowed'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -32,32 +22,29 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-// Real POST /api/contacts/ create (see contacts.queries.ts) against
-// llx_socpeople — companyId from useCustomerOptions/useVendorOptions
-// (picked by `kind`, matching how api/contacts/'s own GET branches on
-// kind=customer|vendor), countryId from the real llx_c_country dictionary,
-// categoryIds from the real Contact Tags/Categories collection (see
-// categories.queries.ts, type=4 — Dolibarr doesn't split contact tags by
-// customer/vendor, so the same collection backs both). civility/facebook/
-// twitter/linkedin/whatsapp are real columns too — see that endpoint's
-// header comment for which social columns it covers.
+// Real POST societe/api/contacts.php create (see contacts.queries.ts),
+// confirmed by reading that file directly — a genuine Contact::create()
+// call, but scoped to one company (?socid=X) and limited to the fields
+// sc_contact_apply() actually maps: lastname/firstname/email/phone/
+// phone_mobile/address/zip/town/poste. Third-party is a hard requirement of
+// that endpoint (it 400s without a socid), unlike the legacy page's own
+// optional-looking dropdown — so it's marked required here to match what
+// actually happens on submit. Every other field on the real legacy page
+// (Title, Fax, Personal phone, Country, Visibility, Date of birth, Tags/
+// categories, and the whole Social Media tab) has no backing API anywhere
+// on this backend — kept in the layout to match the design, but disabled.
 export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind }) {
   const isVendor = kind === 'vendor'
   const { data: customerOpts, isLoading: customerOptsLoading } = useCustomerOptions(!isVendor)
   const { data: vendorOpts, isLoading: vendorOptsLoading } = useVendorOptions(isVendor)
-  const customers = isVendor ? vendorOpts : customerOpts
-  const customersLoading = isVendor ? vendorOptsLoading : customerOptsLoading
+  const companies = isVendor ? vendorOpts : customerOpts
+  const companiesLoading = isVendor ? vendorOptsLoading : customerOptsLoading
   const listRoute = isVendor ? ROUTES.vendorContactList : ROUTES.contactList
-  const { data: formOptions } = useThirdPartyFormOptions()
-  const countries = formOptions?.countries ?? []
-  const { data: tagsData } = useCategories(4)
-  const tags = tagsData?.items ?? []
   const createContact = useCreateContact()
   const navigate = useNavigate()
 
   const [tab, setTab] = useState<'basic' | 'social'>('basic')
   const [companyId, setCompanyId] = useState('')
-  const [civility, setCivility] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [jobPosition, setJobPosition] = useState('')
@@ -66,22 +53,8 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
   const [zip, setZip] = useState('')
   const [email, setEmail] = useState('')
   const [phonePro, setPhonePro] = useState('')
-  const [phonePerso, setPhonePerso] = useState('')
   const [phoneMobile, setPhoneMobile] = useState('')
-  const [fax, setFax] = useState('')
-  const [birthday, setBirthday] = useState('')
-  const [countryId, setCountryId] = useState('')
-  const [priv, setPriv] = useState(false)
-  const [categoryIds, setCategoryIds] = useState<number[]>([])
-  const [facebook, setFacebook] = useState('')
-  const [twitter, setTwitter] = useState('')
-  const [linkedin, setLinkedin] = useState('')
-  const [whatsapp, setWhatsapp] = useState('')
   const [formError, setFormError] = useState('')
-
-  function toggleCategory(id: number) {
-    setCategoryIds((cur) => (cur.includes(id) ? cur.filter((c) => c !== id) : [...cur, id]))
-  }
 
   function handleSubmit() {
     setFormError('')
@@ -89,35 +62,15 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
       setFormError('Last name / Label is required.')
       return
     }
+    if (!companyId) {
+      setFormError('Third-party is required.')
+      return
+    }
     createContact.mutate(
-      {
-        companyId,
-        civility,
-        firstName,
-        lastName,
-        jobPosition,
-        address,
-        town,
-        zip,
-        email,
-        phonePro,
-        phonePerso,
-        phoneMobile,
-        fax,
-        birthday,
-        countryId,
-        priv,
-        categoryIds,
-        facebook,
-        twitter,
-        linkedin,
-        whatsapp,
-      },
+      { companyId, firstName, lastName, jobPosition, address, town, zip, email, phonePro, phoneMobile },
       {
         onSuccess: () => navigate(listRoute),
-        onError: (err) => {
-          if (!isBackendUnavailable(err)) setFormError('Could not save this contact — please try again.')
-        },
+        onError: (err) => setFormError(err instanceof Error ? err.message : 'Could not save this contact — please try again.'),
       },
     )
   }
@@ -165,10 +118,10 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
             <Field label="First name">
               <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClasses} />
             </Field>
-            <Field label="Third-party">
+            <Field label="Third-party" required>
               <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={inputClasses}>
-                <option value="">{customersLoading ? 'Loading…' : 'Select a third party'}</option>
-                {customers?.map((c) => (
+                <option value="">{companiesLoading ? 'Loading…' : 'Select a third party'}</option>
+                {companies?.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -177,13 +130,8 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
             </Field>
 
             <Field label="Title">
-              <select value={civility} onChange={(e) => setCivility(e.target.value)} className={inputClasses}>
-                <option value="">Select a title</option>
-                {CIVILITY_OPTIONS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
+              <select disabled className={disabledClasses}>
+                <option>Select a title</option>
               </select>
             </Field>
             <Field label="Job position">
@@ -200,13 +148,8 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
               <input type="text" value={town} onChange={(e) => setTown(e.target.value)} className={inputClasses} />
             </Field>
             <Field label="Country">
-              <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClasses}>
-                <option value="">Select…</option>
-                {countries.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
+              <select disabled className={disabledClasses}>
+                <option>Select…</option>
               </select>
             </Field>
 
@@ -214,77 +157,58 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
               <input type="text" value={phonePro} onChange={(e) => setPhonePro(e.target.value)} className={inputClasses} />
             </Field>
             <Field label="Pers. phone">
-              <input type="text" value={phonePerso} onChange={(e) => setPhonePerso(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
             <Field label="Mobile">
               <input type="text" value={phoneMobile} onChange={(e) => setPhoneMobile(e.target.value)} className={inputClasses} />
             </Field>
 
             <Field label="Fax">
-              <input type="text" value={fax} onChange={(e) => setFax(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
             <Field label="Email">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClasses} />
             </Field>
             <Field label="Visibility">
-              <select value={priv ? '1' : '0'} onChange={(e) => setPriv(e.target.value === '1')} className={inputClasses}>
-                <option value="0">Shared</option>
-                <option value="1">Private</option>
+              <select disabled className={disabledClasses}>
+                <option>Shared</option>
               </select>
             </Field>
 
             <Field label="Date of birth">
-              <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
 
             <div className="sm:col-span-2 xl:col-span-3">
               <span className="text-sm text-text block mb-1.5">Tags/categories</span>
-              {tags.length === 0 ? (
-                <p className="text-sm text-text-faint">No contact tags yet — add one on Contact Tags/Categories first.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((t) => {
-                    const active = categoryIds.includes(t.id)
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => toggleCategory(t.id)}
-                        className={`rounded-md px-3 py-1.5 text-xs font-medium border ${active ? 'bg-brand text-white border-brand' : 'bg-input-bg text-text border-input-border hover:bg-surface-hover'}`}
-                      >
-                        {t.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              <p className="text-sm text-text-faint italic">No real API available on this backend for contact tags.</p>
             </div>
           </div>
+          <p className="text-xs text-text-faint italic mt-4">
+            Title, Fax, Pers. phone, Country, Visibility, Date of birth and Tags/categories have no real API on this backend — shown for layout reference only.
+          </p>
         </Card>
       ) : (
         <Card>
+          <p className="text-sm text-text-faint italic mb-3">No real API available on this backend for contact social media fields — shown for layout reference only.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             <Field label="Facebook">
-              <input type="text" value={facebook} onChange={(e) => setFacebook(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
             <Field label="Twitter / X">
-              <input type="text" value={twitter} onChange={(e) => setTwitter(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
             <Field label="LinkedIn">
-              <input type="text" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
             <Field label="WhatsApp">
-              <input type="text" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className={inputClasses} />
+              <input disabled className={disabledClasses} />
             </Field>
           </div>
         </Card>
       )}
 
-      {createContact.isError && isBackendUnavailable(createContact.error) ? (
-        <BackendUnavailableInline feature="Contacts" />
-      ) : (
-        formError && <p className="text-sm text-danger">{formError}</p>
-      )}
+      {formError && <p className="text-sm text-danger">{formError}</p>}
     </StickyFormShell>
   )
 }

@@ -1,17 +1,10 @@
 import { useState } from 'react'
 import { Shield, Eye, EyeOff } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { RealToggle } from './RealToggle'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button type="button" onClick={() => onChange(!checked)} className={`w-9 h-5 rounded-full transition-colors shrink-0 ${checked ? 'bg-brand' : 'bg-surface-alt border border-border'}`}>
-      <span className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
-    </button>
-  )
-}
 
 const TABS = ['Miscellaneous', 'Passwords', 'Files (upload)', 'External/Internet access', 'Audit', 'Default permissions'] as const
 type Tab = (typeof TABS)[number]
@@ -20,7 +13,11 @@ type Tab = (typeof TABS)[number]
 // (each is a Dolibarr llx_const/rights-table admin page — no REST
 // equivalent in this app's custom /api/* layer), so the whole page is
 // local-only, same convention as every other Setup page built this
-// session. Defaults below mirror the reference app's own values exactly.
+// session — EXCEPT the two <RealToggle> switches on the Miscellaneous tab,
+// which genuinely write to core/ajax/constantonoff.php (confirmed by
+// reading admin/security_other.php's own ajax_constantonoff() calls for
+// MAIN_SECURITY_ENABLECAPTCHA and MAIN_USE_ADVANCED_PERMS). Defaults below
+// mirror the reference app's own values exactly.
 
 const AUDIT_EVENTS = ['USER_LOGIN', 'USER_LOGIN_FAILED', 'USER_LOGOUT', 'USER_CREATE', 'USER_MODIFY', 'USER_NEW_PASSWORD', 'USER_ENABLEDISABLE', 'USER_DELETE', 'USERGROUP_CREATE', 'USERGROUP_MODIFY', 'USERGROUP_DELETE']
 
@@ -72,8 +69,6 @@ export function SecuritySetup() {
   const [tab, setTab] = useState<Tab>('Miscellaneous')
 
   // Miscellaneous
-  const [captcha, setCaptcha] = useState(false)
-  const [advancedPerms, setAdvancedPerms] = useState(false)
   const [sessionTimeout, setSessionTimeout] = useState('1440')
   const [appVisibleName, setAppVisibleName] = useState('')
 
@@ -155,11 +150,11 @@ export function SecuritySetup() {
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <span className="text-sm text-brand">Use Graphical Code (CAPTCHA) On Login Page</span>
-            <Toggle checked={captcha} onChange={setCaptcha} />
+            <RealToggle constName="MAIN_SECURITY_ENABLECAPTCHA" initial={false} />
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <span className="text-sm text-brand">Use The Advanced Permissions Of Some Modules</span>
-            <Toggle checked={advancedPerms} onChange={setAdvancedPerms} />
+            <RealToggle constName="MAIN_USE_ADVANCED_PERMS" initial={false} />
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
             <span>Parameters</span>
@@ -429,7 +424,11 @@ export function SecuritySetup() {
         </>
       )}
 
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (session-only — no security-config endpoint exists on this backend yet).</Card>}
+      {saved && (
+        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
+          Saved (session-only — the two Miscellaneous toggles above save live; no other security-config endpoint exists on this backend yet).
+        </Card>
+      )}
 
       {tab !== 'Files (upload)' && (
         <div className="flex justify-start">
