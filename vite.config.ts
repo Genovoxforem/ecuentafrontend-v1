@@ -36,6 +36,7 @@ const BACKEND_OWNED_PATHS = [
   '/productinfo',
   '/admin',
   '/contrat',
+  '/contact',
   '/commande',
   '/compta',
   '/fichinter',
@@ -45,6 +46,10 @@ const BACKEND_OWNED_PATHS = [
   '/fourn',
   '/supplier_proposal',
   '/reception',
+  '/user',
+  '/payroll',
+  '/loan',
+  '/expense',
 ] as const
 
 // Production deploys this build's dist/ output onto the backend's own
@@ -208,6 +213,11 @@ export default defineConfig({
       // 404'd in dev until now (production doesn't need this, see the
       // comment above BACKEND_OWNED_PATHS — same origin there already).
       '^/contrat(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Standalone Contacts/Addresses module (contact/contacts-addresses-
+      // list-ajax.php) — distinct from /contrat (Contracts) above and
+      // unrelated to the frontend's own /contacts React route (singular vs
+      // plural, and anchored with (/|$) so the two never collide).
+      '^/contact(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       '^/commande(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       '^/compta(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       '^/fichinter(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
@@ -215,6 +225,31 @@ export default defineConfig({
       // by watching userprofile/index.php?id=X's own network traffic — see
       // userPermissions.queries.ts.
       '^/userprofile(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // User Groups (list + real create) — user/group/user-groups-sidebarlist-
+      // ajax.php (real DataTables JSON, id/name/date_creation) and
+      // user/group/ajax_group.php (real create_group action, no CSRF token
+      // check server-side) — see userGroupsAndTags.queries.ts. No React
+      // route starts with bare /user (this app's own routes use
+      // /users-dashboard), so a plain prefix is safe, but anchored anyway.
+      '^/user(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Payroll — attendance_rip_ajax.php (real JSON read, Date Wise
+      // Attendance) and saveAttendance.php (real JSON write, Mark
+      // Attendance — its own hasRight() check is commented out server-side,
+      // a real live bug reported not fixed per frontend-only scope) — see
+      // payrollAttendance.queries.ts. No React route starts with bare
+      // /payroll (this app's own route is /payroll-dashboard), so a plain
+      // prefix is safe, but anchored anyway.
+      '^/payroll(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Banking — loan/loan-sidebar-list-ajax.php (real JSON, Loan List) —
+      // see banking.queries.ts. No React route starts with /loan, so a
+      // plain prefix is safe, but anchored anyway.
+      '^/loan(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Expenses — expense/ajax/expense_list.php (real JSON, Expense
+      // Reports list) and expense/api/expense_types.php (real JSON dropdown
+      // feed) — see expenses.queries.ts. This app's own routes all use
+      // /expenses (plural), so a plain /expense (singular) prefix is safe,
+      // but anchored anyway.
+      '^/expense(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       // Real Purchase Invoice / Landed Cost Invoice / User dropdown options
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.

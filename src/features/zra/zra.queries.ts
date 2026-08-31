@@ -1,6 +1,12 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { LEGACY_SESSION_EXPIRED_PREFIX } from '../../shared/components/BackendUnavailable'
+import { fetchLegacyDocument, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { looksLikeZraLoginPage, extractEmbeddedJsonData, type ZraGatewayEnvelope } from './zraGatewayParser'
+
+function textOf(doc: Document, selector: string): string {
+  return (doc.querySelector(selector)?.textContent ?? '').trim()
+}
 
 export interface ZraSyncStat {
   succeededAmount: number
@@ -190,9 +196,14 @@ export function useVsdcStatus() {
   })
 }
 
-// POST /api/zra/sales-lookup/ — real, proxies custom/zra/saleszralist.php's
-// own live lookup against the ZRA gateway's /trnsSales/selectInvoice
-// endpoint. Read-only query (not a filing), safe to call and retry.
+// custom/zra/saleszralistajax.php?cisInvcNo=X — real, confirmed by reading
+// that file directly: unconditionally calls zraworker::initialize() against
+// the live ZRA gateway's /trnsSales/selectInvoice endpoint and prints a
+// plain HTML fragment (no llxHeader, no JSON) with the receipt fields. The
+// old /api/zra/sales-lookup/ this used to call was for the inactive ecnta10
+// backend — confirmed dead here (404). Read-only query (not a filing),
+// safe to call and retry — but every call is a real hit against Zambia's
+// live tax gateway, not a local read.
 export interface SalesInvoiceLookup {
   found: boolean
   invoiceNumber?: string
@@ -206,16 +217,34 @@ export interface SalesInvoiceLookup {
 }
 export function useSalesInvoiceLookup() {
   return useMutation({
-    mutationFn: async (cisInvcNo: string) => {
-      const { data } = await api.post<{ success: boolean; data: SalesInvoiceLookup }>('/zra/sales-lookup/', { cisInvcNo })
-      return data.data
+    mutationFn: async (cisInvcNo: string): Promise<SalesInvoiceLookup> => {
+      const doc = await fetchLegacyDocument('/custom/zra/saleszralistajax.php', new URLSearchParams({ cisInvcNo }))
+      if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const block = doc.querySelector('.zra-list-view')
+      if (!block) return { found: false }
+      return {
+        found: true,
+        invoiceNumber: textOf(doc, '.zra-list-view-body p:first-child span'),
+        receiptNumber: textOf(doc, '#rcptNo'),
+        receiptDate: textOf(doc, '#vsdcRcptPbctDate'),
+        internalData: textOf(doc, '#intrlData'),
+        receiptSignature: textOf(doc, '#rcptSign'),
+        sdcId: textOf(doc, '#sdcId'),
+        mrcNumber: textOf(doc, '#mrcNo'),
+        qrCodeUrl: doc.querySelector('#qrCodeUrl')?.getAttribute('href') ?? undefined,
+      }
     },
   })
 }
 
-// POST /api/zra/customer-lookup/ — real, proxies custom/zra/customer.php's
-// own live lookup against the ZRA gateway's /customers/selectCustomer
-// endpoint, by customer TPIN. Read-only query, safe to call and retry.
+// custom/zra/customer.php?formfilteraction=search&cisInvcNo=X (real param
+// name, despite the label — confirmed by reading the file directly: it's
+// read via GETPOST('cisInvcNo') and sent to ZRA as custmTpin) — real, live
+// call to the ZRA gateway's /customers/selectCustomer endpoint. Unlike the
+// Sales Invoice lookup, this is a full Dolibarr-chrome page (llxHeader),
+// so results come back as <div class="accordion-item"> blocks to scrape,
+// not JSON. The old /api/zra/customer-lookup/ this used to call is dead
+// (inactive ecnta10 backend).
 export interface ZraCustomerRecord {
   tpin: string
   branchId: string
@@ -228,19 +257,43 @@ export interface ZraCustomerRecord {
 }
 export function useZraCustomerLookup() {
   return useMutation({
-    mutationFn: async (tpin: string) => {
-      const { data } = await api.post<{ success: boolean; data: { customers: ZraCustomerRecord[] } }>('/zra/customer-lookup/', { tpin })
-      return data.data.customers
+    mutationFn: async (tpin: string): Promise<ZraCustomerRecord[]> => {
+      const doc = await fetchLegacyDocument('/custom/zra/customer.php', new URLSearchParams({ formfilteraction: 'search', cisInvcNo: tpin }))
+      if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      // Scoped to the real page's own #accordionPanelsStayOpenExample
+      // container specifically — a bare '.accordion-item' also matches an
+      // unrelated site-wide ticket-chat widget present on every Dolibarr
+      // page, confirmed live (it shares the same Bootstrap accordion
+      // classes and would otherwise be scraped as a fake "customer").
+      return Array.from(doc.querySelectorAll('#accordionPanelsStayOpenExample .accordion-item')).map((item) => {
+        const rows = Array.from(item.querySelectorAll('.accordion-body p span')).map((span) => (span.textContent ?? '').trim())
+        const [customerTpin, branchId, customerNo, taxpayerName, tpinField, phone, email, address] = rows
+        return {
+          tpin: tpinField || customerTpin || '',
+          branchId: branchId || '',
+          customerNo: customerNo || '',
+          taxpayerName: taxpayerName || '',
+          customerTpin: customerTpin || '',
+          phone: phone || '',
+          email: email || '',
+          address: address || '',
+        }
+      })
     },
   })
 }
 
-// GET /api/zra/item-details/ — real, proxies custom/zra/selectItems.php's
-// own live lookup against the ZRA gateway's /items/selectItems endpoint —
-// this business's own registered item master list. Real quirk preserved:
-// the page's only filter field is labelled "Item Code" but is actually
-// posted to ZRA as lastReqDt (format YYYYMMDDHHmmss), not an item code
-// filter — see selectItems.php. Read-only, safe to call and retry.
+// custom/zra/selectItems.php?ZRA_dclRefNum=X — real, live call to the ZRA
+// gateway's /items/selectItems endpoint (this business's own registered
+// item master list). Confirmed by reading that file directly: a full
+// Dolibarr-chrome page that embeds the entire gateway response as
+// `var jsonData = {...}` in a <script> tag on every load — there's no
+// separate ajax URL, so this scrapes that embedded blob (see
+// zraGatewayParser.ts) rather than calling a JSON endpoint directly. Real
+// quirk preserved: the page's only filter field is labelled "Item Code"
+// but is actually sent to ZRA as lastReqDt (a date, not an item code) — see
+// that file's own $postData. The old /api/zra/item-details/ this used to
+// call is dead (inactive ecnta10 backend).
 export interface ZraItemDetail {
   itemName: string
   itemCode: string
@@ -257,15 +310,162 @@ export interface ZraItemDetail {
   tl: string
   excise: string
 }
+interface RawZraItem {
+  itemNm?: string
+  itemCd?: string
+  itemClsCd?: string
+  itemTyCd?: string
+  orgnNatCd?: string
+  pkgUnitCd?: string
+  qtyUnitCd?: string
+  btchNo?: string
+  dftPrc?: string | number
+  sftyQty?: string | number
+  vatCatCd?: string
+  iplCatCd?: string
+  tlCatCd?: string
+  exciseTxCatCd?: string
+}
 export function useZraItemDetails(lastReqDt?: string) {
   return useQuery({
     queryKey: ['zra', 'item-details', lastReqDt ?? ''],
     queryFn: async (): Promise<{ resultCode: string | null; resultMessage: string | null; items: ZraItemDetail[] }> => {
-      const { data } = await api.get<{ success: boolean; data: { resultCode: string | null; resultMessage: string | null; items: ZraItemDetail[] } }>(
-        '/zra/item-details/',
-        { params: lastReqDt ? { lastReqDt } : undefined },
-      )
-      return data.data
+      const doc = await fetchLegacyDocument('/custom/zra/selectItems.php', lastReqDt ? new URLSearchParams({ ZRA_dclRefNum: lastReqDt }) : undefined)
+      if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const envelope = extractEmbeddedJsonData(doc) as (ZraGatewayEnvelope & { data?: { itemList?: RawZraItem[] } }) | null
+      const itemList = envelope?.data?.itemList ?? []
+      return {
+        resultCode: envelope?.resultCd ?? null,
+        resultMessage: envelope?.resultMsg ?? null,
+        items: itemList.map((item) => ({
+          itemName: item.itemNm ?? '',
+          itemCode: item.itemCd ?? '',
+          itemClassCode: item.itemClsCd ?? '',
+          itemTypeCode: item.itemTyCd ?? '',
+          originCountry: item.orgnNatCd ?? '',
+          packageUnit: item.pkgUnitCd ?? '',
+          quantityUnit: item.qtyUnitCd ?? '',
+          batchNumber: item.btchNo ?? '',
+          price: item.dftPrc != null ? Number(item.dftPrc) : null,
+          safetyQuantity: item.sftyQty != null ? Number(item.sftyQty) : null,
+          vat: item.vatCatCd ?? '',
+          ipl: item.iplCatCd ?? '',
+          tl: item.tlCatCd ?? '',
+          excise: item.exciseTxCatCd ?? '',
+        })),
+      }
+    },
+    staleTime: 1000 * 30,
+  })
+}
+
+// custom/zra/selectrrpItems.php?ZRA_dclRefNum=X — real, live call to the
+// ZRA gateway's /items/selectRrpItems endpoint (Recommended Retail Price
+// list). Same embedded-JSON-on-a-full-page pattern as Item Details above.
+// No React page existed for this before at all (route was defined, never
+// wired).
+export interface ZraRrpItem {
+  manufacturerTpin: string
+  manufacturerName: string
+  itemCode: string
+  itemClassCode: string
+  itemName: string
+  originCountry: string
+  packageUnit: string
+  quantityUnit: string
+  rrp: number | null
+}
+interface RawZraRrpItem {
+  manufacturerTpin?: string
+  manufacturerName?: string
+  itemCd?: string
+  itemClsCd?: string
+  itemNm?: string
+  orgnNatCd?: string
+  pkgUnitCd?: string
+  qtyUnitCd?: string
+  rrp?: string | number
+}
+export function useZraRrpItems(lastReqDt?: string) {
+  return useQuery({
+    queryKey: ['zra', 'rrp-items', lastReqDt ?? ''],
+    queryFn: async (): Promise<{ resultCode: string | null; resultMessage: string | null; items: ZraRrpItem[] }> => {
+      const doc = await fetchLegacyDocument('/custom/zra/selectrrpItems.php', lastReqDt ? new URLSearchParams({ ZRA_dclRefNum: lastReqDt }) : undefined)
+      if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const envelope = extractEmbeddedJsonData(doc) as (ZraGatewayEnvelope & { data?: { itemList?: RawZraRrpItem[] } }) | null
+      const itemList = envelope?.data?.itemList ?? []
+      return {
+        resultCode: envelope?.resultCd ?? null,
+        resultMessage: envelope?.resultMsg ?? null,
+        items: itemList.map((item) => ({
+          manufacturerTpin: item.manufacturerTpin ?? '',
+          manufacturerName: item.manufacturerName ?? '',
+          itemCode: item.itemCd ?? '',
+          itemClassCode: item.itemClsCd ?? '',
+          itemName: item.itemNm ?? '',
+          originCountry: item.orgnNatCd ?? '',
+          packageUnit: item.pkgUnitCd ?? '',
+          quantityUnit: item.qtyUnitCd ?? '',
+          rrp: item.rrp != null ? Number(item.rrp) : null,
+        })),
+      }
+    },
+    staleTime: 1000 * 30,
+  })
+}
+
+// custom/zra/rvat_agent.php?ZRA_dclRefNum=X — real, live call to the ZRA
+// gateway's /trnsSales/selectPrincipals endpoint (registered RVAT agent
+// principals). Same embedded-JSON-on-a-full-page pattern. No React page
+// existed for this before at all.
+export interface ZraPrincipal {
+  id: string
+  tpin: string
+  tin: string
+  name: string
+  address: string
+  email: string
+  telephone: string
+  registerDate: string
+  modifyDate: string
+  accountNo: string
+}
+interface RawZraPrincipal {
+  id?: string | number
+  tpin?: string
+  tin?: string
+  principalNm?: string
+  principalAddress?: string
+  principalEmail?: string
+  principalTelNo?: string
+  regDt?: string
+  modDt?: string
+  accountNo?: string
+}
+export function useZraPrincipals(lastReqDt?: string) {
+  return useQuery({
+    queryKey: ['zra', 'principals', lastReqDt ?? ''],
+    queryFn: async (): Promise<{ resultCode: string | null; resultMessage: string | null; items: ZraPrincipal[] }> => {
+      const doc = await fetchLegacyDocument('/custom/zra/rvat_agent.php', lastReqDt ? new URLSearchParams({ ZRA_dclRefNum: lastReqDt }) : undefined)
+      if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const envelope = extractEmbeddedJsonData(doc) as (ZraGatewayEnvelope & { data?: { taxpayerPrincipalList?: RawZraPrincipal[] } }) | null
+      const list = envelope?.data?.taxpayerPrincipalList ?? []
+      return {
+        resultCode: envelope?.resultCd ?? null,
+        resultMessage: envelope?.resultMsg ?? null,
+        items: list.map((item) => ({
+          id: String(item.id ?? ''),
+          tpin: item.tpin ?? '',
+          tin: item.tin ?? '',
+          name: item.principalNm ?? '',
+          address: item.principalAddress ?? '',
+          email: item.principalEmail ?? '',
+          telephone: item.principalTelNo ?? '',
+          registerDate: item.regDt ?? '',
+          modifyDate: item.modDt ?? '',
+          accountNo: item.accountNo ?? '',
+        })),
+      }
     },
     staleTime: 1000 * 30,
   })

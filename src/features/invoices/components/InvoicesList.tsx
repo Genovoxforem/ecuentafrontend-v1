@@ -256,7 +256,11 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
                 ) : (
                   pageRows.map((r) => (
                     <tr key={r.ref} className="border-b border-border">
-                      <td className="px-4 py-3 text-brand">{r.ref}</td>
+                      <td className="px-4 py-3 text-brand">
+                        <Link to={ROUTES.invoiceDetail.replace(':id', String(r.id))} className="hover:underline">
+                          {r.ref}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-text-muted">{r.invoiceNo}</td>
                       <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.invoiceDate}</td>
                       <td className="px-4 py-3 text-text!">{r.thirdParty}</td>

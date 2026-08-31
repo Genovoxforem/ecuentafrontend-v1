@@ -128,7 +128,9 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
               ) : (
                 pageContracts.map((c) => (
                   <tr key={c.ref} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{c.ref}</td>
+                    <td className="px-4 py-3 text-brand">
+                      {c.id ? <Link to={ROUTES.contractDetail.replace(':id', String(c.id))} className="hover:underline">{c.ref}</Link> : c.ref}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{c.refCustomer}</td>
                     <td className="px-4 py-3 text-text-muted">{c.refVendor}</td>
                     <td className="px-4 py-3 text-text!">{c.thirdParty}</td>

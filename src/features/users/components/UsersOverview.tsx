@@ -226,10 +226,10 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
                   pageUsers.map((u) => (
                     <tr key={u.id} className="border-b border-border hover:bg-surface-hover/60">
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <Link to={ROUTES.userDetail.replace(':id', String(u.id))} className="flex items-center gap-2">
                           <Avatar name={u.name || u.login} color={avatarColorFor(u.login)} size={28} className="text-xs" />
-                          <span className="text-brand">{u.login}</span>
-                        </div>
+                          <span className="text-brand hover:underline">{u.login}</span>
+                        </Link>
                       </td>
                       <td className="px-4 py-3 text-text!">{u.name}</td>
                       <td className="px-4 py-3">

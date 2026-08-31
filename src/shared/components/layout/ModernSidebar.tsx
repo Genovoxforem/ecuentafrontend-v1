@@ -37,6 +37,8 @@ import { nav as bankingNav } from '../../../features/banking/banking.nav'
 import { nav as loansNav } from '../../../features/loans/loans.nav'
 import { nav as usersNav } from '../../../features/users/users.nav'
 import { nav as payrollNav } from '../../../features/payroll/payroll.nav'
+import { nav as expensesNav } from '../../../features/expenses/expenses.nav'
+import { nav as specialExpensesNav } from '../../../features/expenses/specialExpenses.nav'
 import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
 import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
 import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
@@ -65,6 +67,8 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
   loansNav,
   usersNav,
   payrollNav,
+  expensesNav,
+  specialExpensesNav,
   kitchenNav,
   fixedAssetNav,
   generalLedgerNav,

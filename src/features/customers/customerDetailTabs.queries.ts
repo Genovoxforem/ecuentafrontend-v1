@@ -224,6 +224,22 @@ export interface CustomerTabResponse {
   orders: { count: number; rows: CustomerTabDocRow[] }
   invoices: { count: number; rows: CustomerTabDocRow[] }
   buttons: CustomerTabButton[]
+  // Real, ready-made links societe/api/customer.php already returns
+  // (DOL_URL_ROOT-relative) — confirmed by reading that file directly.
+  // discount -> comm/remise.php, the real "manage discounts" page;
+  // proposals_list/orders_list/invoices_list -> the real filtered legacy
+  // list pages for this customer; *_create mirror the same create buttons
+  // already surfaced in `buttons` above, just addressable directly per KPI.
+  urls: {
+    legacy: string
+    discount: string
+    proposals_list: string
+    proposals_create: string
+    orders_list: string
+    orders_create: string
+    invoices_list: string
+    invoices_create: string
+  }
 }
 
 export function useCustomerTab(socid: string | undefined) {
@@ -332,6 +348,345 @@ export function useCustomerAgenda(socid: string | undefined, filters: AgendaFilt
       if (filters.search) params.set('search', filters.search)
       return fetchJson<AgendaResponse>(`/societe/api/agenda.php?${params.toString()}`)
     },
+    enabled: !!socid,
+  })
+}
+
+// --- Pricing Groups ---------------------------------------------------
+// societe/api/pricing_groups.php — real, global custom_group table (not
+// scoped to a single third party beyond the assigned group_id). Read-only
+// here since the real page itself only shows a plain table, no inline
+// create/edit UI, per the actual screenshot verified against.
+
+export interface PricingGroupRow {
+  id: number
+  label: string
+  discount: number
+  discount_type: string
+  customer_method: string
+  description: string
+  tms: string
+}
+
+export interface PricingGroupsResponse {
+  groups: PricingGroupRow[]
+  group_id: number
+}
+
+export function useCustomerPricingGroups(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'pricingGroups'],
+    queryFn: () => fetchJson<PricingGroupsResponse>(`/societe/api/pricing_groups.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Linked Files (Documents) ------------------------------------------
+// societe/api/documents.php — real files on disk under
+// documents/societe/<id>/, confirmed by reading the file directly
+// (dol_dir_list against the real upload_dir, real download_url via
+// document.php?modulepart=societe).
+
+export interface DocumentRow {
+  name: string
+  size: string
+  size_bytes: number
+  date: string
+  download_url: string
+}
+
+export interface DocumentsResponse {
+  can_edit: boolean
+  documents: DocumentRow[]
+}
+
+export function useCustomerDocuments(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'documents'],
+    queryFn: () => fetchJson<DocumentsResponse>(`/societe/api/documents.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Notifications -------------------------------------------------------
+// societe/api/notify.php — real notify_def rows, confirmed by reading the
+// file directly (real INNER JOIN against c_action_trigger/socpeople).
+
+export interface NotificationRow {
+  id: number
+  action_id: number
+  contact_id: number
+  contact_name: string
+  code: string
+  label: string
+}
+
+export interface NotificationOption {
+  id: number
+  code?: string
+  label: string
+  name?: string
+}
+
+export interface NotificationsResponse {
+  can_edit: boolean
+  assigned: NotificationRow[]
+  available: NotificationOption[]
+  contacts: NotificationOption[]
+}
+
+export function useCustomerNotifications(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'notifications'],
+    queryFn: () => fetchJson<NotificationsResponse>(`/societe/api/notify.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Related Items (Consumption) ----------------------------------------
+// societe/api/consumption.php — real per-table counts/rows (propal/
+// commande/facture/fichinter, or the supplier-side tables for a vendor),
+// confirmed by reading the file directly. Read-only, matches the real
+// page's own "Open list"/"All" links out rather than any inline action.
+
+export interface ConsumptionRow {
+  id: number
+  ref: string
+  date: string
+  total: number
+  url: string
+}
+
+export interface ConsumptionResponse {
+  summary: Record<string, number>
+  sections: Record<string, ConsumptionRow[]>
+  section_labels: Record<string, string>
+  urls: { legacy: string; lists: Record<string, string> }
+}
+
+export function useCustomerConsumption(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'consumption'],
+    queryFn: () => fetchJson<ConsumptionResponse>(`/societe/api/consumption.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Tickets ---------------------------------------------------------------
+// societe/api/tickets.php — real llx_ticket rows scoped to this third
+// party, confirmed by reading the file directly (real filters/status
+// options straight off c_ticket_type/c_ticket_severity).
+
+export interface TicketFilterOption {
+  value: string
+  label: string
+}
+
+export interface TicketRow {
+  id: number
+  ref: string
+  track_id: string
+  subject: string
+  type_label: string
+  severity_label: string
+  status_label: string
+  author: string
+  assigned_to: string
+  date_created: string
+  url: string
+}
+
+export interface TicketsFilters {
+  search?: string
+  status?: string
+  type?: string
+  severity?: string
+}
+
+export interface TicketsResponse {
+  count: number
+  rows: TicketRow[]
+  filters: { search: string; search_status: string; search_type: string; search_severity: string }
+  filter_options: { status: TicketFilterOption[]; types: TicketFilterOption[]; severities: TicketFilterOption[] }
+  urls: { list: string; create: string; legacy: string }
+  can_create: boolean
+}
+
+export function useCustomerTickets(socid: string | undefined, filters: TicketsFilters) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'tickets', filters],
+    queryFn: () => {
+      const params = new URLSearchParams({ socid: socid ?? '' })
+      if (filters.search) params.set('search', filters.search)
+      if (filters.status) params.set('search_status', filters.status)
+      if (filters.type) params.set('search_type', filters.type)
+      if (filters.severity) params.set('search_severity', filters.severity)
+      return fetchJson<TicketsResponse>(`/societe/api/tickets.php?${params.toString()}`)
+    },
+    enabled: !!socid,
+  })
+}
+
+// --- Projects (linked to this third party) --------------------------------
+// societe/api/projects.php — real llx_projet rows scoped to fk_soc,
+// confirmed by reading that file directly.
+
+export interface CustomerProjectRow {
+  id: number
+  ref: string
+  title: string
+  status: number
+  date_start: string
+  date_end: string
+  budget: number
+  task_count: number
+  url: string
+}
+
+export interface CustomerProjectsResponse {
+  projects: CustomerProjectRow[]
+  urls: { list: string; create: string; legacy: string }
+}
+
+export function useCustomerProjects(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'projects'],
+    queryFn: () => fetchJson<CustomerProjectsResponse>(`/societe/api/projects.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Expenses ---------------------------------------------------------
+// societe/api/expenses.php — real llx_expensereport rows when a fk_soc link
+// exists; on this deployment (no fk_soc column on expensereport or
+// expensereport_det), it always reports back a real, honest `message`
+// instead of guessing at rows — confirmed by reading that file directly.
+
+export interface ExpenseRow {
+  id: number
+  ref: string
+  date_start: string
+  date_end: string
+  total_ht: number
+  total_ttc: number
+  status: number
+  url: string
+}
+
+export interface ExpensesResponse {
+  expenses: ExpenseRow[]
+  message?: string
+  urls?: { list: string; create: string }
+}
+
+export function useCustomerExpenses(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'expenses'],
+    queryFn: () => fetchJson<ExpensesResponse>(`/societe/api/expenses.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Payment Information (bank accounts / RIB) --------------------------
+// societe/api/paymentmodes.php — real llx_societe_rib rows (or
+// CompanyBankAccount when that class is present), confirmed by reading
+// that file directly.
+
+export interface PaymentModeRow {
+  id: number
+  label: string
+  bank: string
+  number: string
+  iban: string
+  bic: string
+  default_rib: number
+}
+
+export interface PaymentModesResponse {
+  can_edit: boolean
+  paymentmodes: PaymentModeRow[]
+}
+
+export function useCustomerPaymentModes(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'paymentmodes'],
+    queryFn: () => fetchJson<PaymentModesResponse>(`/societe/api/paymentmodes.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- Accounts Receivable / Accounts Payable ------------------------------
+// societe/api/accounting_ar.php and accounting_ap.php — real open-invoice
+// summaries (llx_facture / llx_facture_fourn), confirmed by reading both
+// files directly.
+
+export interface AccountingInvoiceRow {
+  id: number
+  ref: string
+  date: string
+  due_date: string
+  total_ht: number
+  total_ttc: number
+  paid: number
+  open: number
+  status: number
+  paye: number
+}
+
+export interface AccountingSummary {
+  total_invoiced: number
+  total_paid: number
+  total_open: number
+  invoice_count: number
+  open_count: number
+}
+
+export interface AccountingResponse {
+  summary: AccountingSummary
+  invoices: AccountingInvoiceRow[]
+}
+
+export function useCustomerAccountsReceivable(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'accountingAr'],
+    queryFn: () => fetchJson<AccountingResponse>(`/societe/api/accounting_ar.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+export function useCustomerAccountsPayable(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'accountingAp'],
+    queryFn: () => fetchJson<AccountingResponse>(`/societe/api/accounting_ap.php?socid=${socid}`),
+    enabled: !!socid,
+  })
+}
+
+// --- General Ledger -----------------------------------------------------
+// societe/api/general_ledger.php — real bank movements (via bank_url) plus
+// real bookkeeping lines (accounting_bookkeeping matched on this record's
+// own accounting code), confirmed by reading that file directly.
+
+export interface LedgerMovementRow {
+  id: number
+  source: 'bank' | 'bookkeeping'
+  date: string
+  amount: number
+  label: string
+  account: string
+  debit?: number
+  credit?: number
+}
+
+export interface GeneralLedgerResponse {
+  movements: LedgerMovementRow[]
+  code_compta: string
+}
+
+export function useCustomerGeneralLedger(socid: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'generalLedger'],
+    queryFn: () => fetchJson<GeneralLedgerResponse>(`/societe/api/general_ledger.php?socid=${socid}`),
     enabled: !!socid,
   })
 }

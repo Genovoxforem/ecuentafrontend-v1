@@ -522,6 +522,7 @@ export interface InventoryCard {
   emailUrl: string
   modifyUrl: string
   validateUrl: string
+  backToDraftUrl: string
   deleteUrl: string
   relatedObjects: RelatedObjectRow[]
   linkedEvents: LinkedEventRow[]
@@ -556,6 +557,11 @@ export function parseInventoryCardDocument(doc: Document, id: number): Inventory
   const emailLink = doc.querySelector('a[href*="action=presend"]')
   const modifyLink = doc.querySelector('a[href*="action=edit"][href*="inventory/card.php"]')
   const validateLink = doc.querySelector('a[href*="action=confirm_validate"]')
+  // Once an inventory is validated, the real toolbar swaps Modify/Validate
+  // for a single "Back to draft" link (action=setdraft) instead — confirmed
+  // live against a real validated record (id=5): its real tabsAction block
+  // only contains Send email / Back to draft / Delete, no Modify/Validate.
+  const backToDraftLink = doc.querySelector('a[href*="action=setdraft"][href*="inventory/card.php"]')
   const deleteLink = doc.querySelector('a.butActionDelete, a[href*="action=delete"][href*="inventory/card.php"]')
 
   const relatedObjects: RelatedObjectRow[] = parseGenericTableRows(doc, ['Type', 'Ref.', 'Date', 'Amount (Excl.)', 'Status'])
@@ -598,6 +604,7 @@ export function parseInventoryCardDocument(doc: Document, id: number): Inventory
     emailUrl: emailLink?.getAttribute('href') ?? '',
     modifyUrl: modifyLink?.getAttribute('href') ?? '',
     validateUrl: validateLink?.getAttribute('href') ?? '',
+    backToDraftUrl: backToDraftLink?.getAttribute('href') ?? '',
     deleteUrl: deleteLink?.getAttribute('href') ?? '',
     relatedObjects,
     linkedEvents,

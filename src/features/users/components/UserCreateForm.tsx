@@ -36,21 +36,13 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { type FieldSpec, type IconType, inputClasses, StepFields } from '../../../shared/components/forms/StepFormFields'
 import { SocialLinksStep } from '../../../shared/components/forms/SocialLinksStep'
 import { todayIso } from '../../../shared/localCollection'
-import { useCreateUser, useUsersSummary, useLanguageOptions } from '../users.queries'
+import { useCreateUserReal, useUserWizardOptions, useUserStateOptions, useUsersSummary, useLanguageOptions, useUserIdByName } from '../users.queries'
 
-const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
 const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
+const GENDER_TO_REAL: Record<string, 'man' | 'woman' | ''> = { Male: 'man', Female: 'woman', '': '' }
 
 function randomApiKey() {
   return Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('')
-}
-
-// Dolibarr auto-derives a login from the name when none is typed explicitly
-// — the reference "New user" wizard (user/card.php) shown to build this
-// doesn't surface a separate Login field at all, so this stands in for that
-// same behavior rather than inventing a field that isn't in the reference.
-function deriveLogin(firstName: string, lastName: string) {
-  return `${firstName}.${lastName}`.toLowerCase().replace(/[^a-z0-9.]/g, '')
 }
 
 function PosKotField({ isPos, isKot, onChange }: { isPos: boolean; isKot: boolean; onChange: (next: { isPos: boolean; isKot: boolean }) => void }) {
@@ -136,12 +128,13 @@ function DateRangeField({
 export function UserCreateForm() {
   const { data: usersSummary } = useUsersSummary()
   const { data: languageOptions } = useLanguageOptions()
-  const createUser = useCreateUser()
+  const { data: wizardOptions } = useUserWizardOptions()
+  const createUser = useCreateUserReal()
   const navigate = useNavigate()
 
   const [step, setStep] = useState(0)
   const [values, setValues] = useState<Record<string, string>>({
-    title: 'Mr',
+    title: '',
     firstName: '',
     lastName: '',
     isAdmin: 'No',
@@ -154,7 +147,7 @@ export function UserCreateForm() {
     address: '',
     zipCode: '',
     city: '',
-    country: 'Zambia (ZM)',
+    country: '',
     stateProvince: '',
     tpin: '',
     mobile: '',
@@ -177,7 +170,6 @@ export function UserCreateForm() {
   const [loginValidityFrom, setLoginValidityFrom] = useState('')
   const [loginValidityTo, setLoginValidityTo] = useState('')
   const [formError, setFormError] = useState('')
-  const [pending, setPending] = useState(false)
 
   const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
 
@@ -188,14 +180,26 @@ export function UserCreateForm() {
   const userOptions = (usersSummary?.users ?? []).map((u) => u.name || u.login)
   const languageSelectOptions = (languageOptions ?? []).map((l) => l.label)
 
+  // Everything below is real GET userprofile/api/users.php?action=
+  // wizard_options data (see users.queries.ts) — the exact backend behind
+  // this real wizard. Selects store the display label in `values`, resolved
+  // back to the real id/code at submit time against these same lists.
+  const civilityOptions = (wizardOptions?.civilities ?? []).map((c) => c.name)
+  const designationOptions = wizardOptions?.designations ?? []
+  const countryOptions = (wizardOptions?.countries ?? []).map((c) => c.name)
+  const deviceOptions = (wizardOptions?.devices ?? []).map((d) => d.name)
+  const selectedCountryId = wizardOptions?.countries.find((c) => c.name === values.country)?.id
+  const { data: stateOptionsData } = useUserStateOptions(selectedCountryId)
+  const stateOptions = (stateOptionsData ?? []).map((s) => s.name)
+
   const IDENTITY_FIELDS: FieldSpec[] = [
-    { key: 'title', label: 'Title', type: 'select', options: TITLE_OPTIONS, defaultValue: 'Mr', icon: User },
+    { key: 'title', label: 'Title', type: 'select', options: civilityOptions, icon: User, placeholder: 'Select a title' },
     { key: 'firstName', label: 'First name', type: 'text', required: true, icon: User },
     { key: 'lastName', label: 'Last name', type: 'text', required: true, icon: User },
-    { key: 'isAdmin', label: 'Is Admin User?', type: 'select', options: ['No', 'Yes'], defaultValue: 'No', icon: Shield },
-    { key: 'posKotToken', label: 'POS/KOT User Token', type: 'text', icon: Shield },
+    { key: 'isAdmin', label: `Is Admin User? (Used: ${wizardOptions?.tokens.activeUsed ?? 0} / Total: ${wizardOptions?.tokens.activeTotal ?? 0})`, type: 'select', options: ['No', 'Yes'], defaultValue: 'No', icon: Shield },
+    { key: 'posKotToken', label: `POS/KOT User Token (Used: ${wizardOptions?.tokens.posUsed ?? 0} / Total: ${wizardOptions?.tokens.posTotal ?? 0})`, type: 'text', icon: Shield },
     { key: 'apiKey', label: 'Key for API', type: 'text', icon: Shield },
-    { key: 'designation', label: 'Designation', type: 'text', required: true, icon: Briefcase },
+    { key: 'designation', label: 'Designation', type: 'select', options: designationOptions, required: true, icon: Briefcase, placeholder: 'Select a designation' },
     { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female'], icon: UserCheck },
     { key: 'employee', label: 'Employee', type: 'select', options: ['Yes', 'No'], defaultValue: 'Yes', icon: UserCheck },
     { key: 'supervisor', label: 'Supervisor', type: 'select', options: userOptions, icon: UserCog, placeholder: 'Select a users' },
@@ -204,13 +208,13 @@ export function UserCreateForm() {
     { key: 'address', label: 'Address', type: 'text', icon: MapPin },
     { key: 'zipCode', label: 'Zip Code', type: 'text', icon: MapPin },
     { key: 'city', label: 'City', type: 'text', icon: MapPin },
-    { key: 'country', label: 'Country', type: 'select', options: ['Zambia (ZM)'], defaultValue: 'Zambia (ZM)', icon: Globe },
-    { key: 'stateProvince', label: 'State/Province', type: 'select', options: [], icon: MapIcon, placeholder: 'Select a state' },
+    { key: 'country', label: 'Country', type: 'select', options: countryOptions, icon: Globe, placeholder: 'Select Country' },
+    { key: 'stateProvince', label: 'State/Province', type: 'select', options: stateOptions, icon: MapIcon, placeholder: 'Select a state' },
     { key: 'tpin', label: 'Tpin/Aadhar', type: 'text', icon: IdCard },
     { key: 'mobile', label: 'Mobile', type: 'text', icon: Phone },
     { key: 'employeeId', label: 'Employee Id', type: 'text', icon: Hash },
-    { key: 'email', label: 'EMail', type: 'text', icon: Mail },
-    { key: 'timeSheetDevice', label: 'Time Sheet Device', type: 'select', options: [], icon: Server, placeholder: 'Select a device' },
+    { key: 'email', label: 'EMail', type: 'text', required: true, icon: Mail },
+    { key: 'timeSheetDevice', label: 'Time Sheet Device', type: 'select', options: deviceOptions, icon: Server, placeholder: 'Select a device' },
   ]
 
   const WORK_FIELDS: FieldSpec[] = [
@@ -232,6 +236,9 @@ export function UserCreateForm() {
   ]
   const isLastStep = step === steps.length - 1
 
+  const supervisorId = useUserIdByName(values.supervisor || undefined)
+  const expenseValidatorId = useUserIdByName(values.expenseValidator || undefined)
+
   function handleSubmit() {
     setFormError('')
     if (!values.firstName.trim() || !values.lastName.trim()) {
@@ -244,19 +251,74 @@ export function UserCreateForm() {
       setStep(0)
       return
     }
-    setPending(true)
-    createUser({
-      login: deriveLogin(values.firstName, values.lastName),
-      firstname: values.firstName,
-      lastname: values.lastName,
-      email: values.email,
-      phone: values.mobile,
-      gender: values.gender,
-      designation: values.designation,
-      isAdmin: values.isAdmin === 'Yes',
-    })
-    setPending(false)
-    navigate(ROUTES.usersDashboard)
+    if (!values.email.trim()) {
+      setFormError('Email is required.')
+      setStep(0)
+      return
+    }
+
+    const civilityCode = wizardOptions?.civilities.find((c) => c.name === values.title)?.id
+    const countryId = wizardOptions?.countries.find((c) => c.name === values.country)?.id
+    const stateId = stateOptionsData?.find((s) => s.name === values.stateProvince)?.id
+    const deviceId = wizardOptions?.devices.find((d) => d.name === values.timeSheetDevice)?.id
+    const languageCode = languageOptions?.find((l) => l.label === values.languageDefault)?.code
+
+    createUser.mutate(
+      {
+        firstname: values.firstName,
+        lastname: values.lastName,
+        email: values.email,
+        civilityCode,
+        gender: GENDER_TO_REAL[values.gender] ?? '',
+        userMobile: values.mobile,
+        employee: values.employee === 'Yes',
+        isAdmin: values.isAdmin === 'Yes',
+        job: values.designation,
+        deviceId,
+        uid: values.tpin,
+        address: values.address,
+        zip: values.zipCode,
+        town: values.city,
+        countryId,
+        stateId,
+        supervisorId,
+        expenseValidatorId,
+        isPosUser: isPos,
+        isKotUser: isKot,
+        apiKey: values.isAdmin === 'Yes' ? apiKey : undefined,
+        color: userColor,
+        defaultLang: languageCode,
+        note: values.note,
+        signature: values.signature,
+        dateEmployment: employmentFrom || undefined,
+        dateEmploymentEnd: employmentTo || undefined,
+        dateStartValidity: loginValidityFrom || undefined,
+        dateEndValidity: loginValidityTo || undefined,
+        birth: values.dateOfBirth || undefined,
+        social: {
+          facebook: values.facebook ?? '',
+          skype: values.skype ?? '',
+          twitter: values.twitter ?? '',
+          linkedin: values.linkedin ?? '',
+          instagram: values.instagram ?? '',
+          snapchat: values.snapchat ?? '',
+          // SocialLinksStep/SOCIAL_LINK_FIELDS stores this one under the
+          // camelCase key `googlePlus` — the real backend's own field name
+          // (wizard_options' social_networks fallback list) is lowercase
+          // `googleplus`, confirmed by reading userprofile/api/users.php.
+          googleplus: values.googlePlus ?? '',
+          youtube: values.youtube ?? '',
+          whatsapp: values.whatsapp ?? '',
+          diaspora: values.diaspora ?? '',
+          viber: values.viber ?? '',
+          github: values.github ?? '',
+        },
+      },
+      {
+        onSuccess: () => navigate(ROUTES.usersDashboard),
+        onError: (err) => setFormError(err instanceof Error ? err.message : 'Failed to create user.'),
+      },
+    )
   }
 
   return (
@@ -321,11 +383,11 @@ export function UserCreateForm() {
           {isLastStep ? (
             <button
               type="button"
-              disabled={pending}
+              disabled={createUser.isPending}
               onClick={handleSubmit}
               className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 transition-colors"
             >
-              {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create user
+              {createUser.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create user
             </button>
           ) : (
             <button

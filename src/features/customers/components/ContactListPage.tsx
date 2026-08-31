@@ -4,7 +4,6 @@ import { Users, Plus, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
-import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { ROUTES } from '../../../routes'
 import { useContacts, type ContactKind } from '../contacts.queries'
 
@@ -15,20 +14,19 @@ const KIND_LABEL: Record<ContactKind, string> = {
   vendor: 'Vendors',
 }
 
-// Real GET /api/contacts/?kind=customer|vendor data (see contacts.queries.ts)
-// — server-side search + pagination, matching how the endpoint itself is
-// built rather than fetching everything and slicing client-side. Columns
-// match the legacy List Of Contacts/Addresses page exactly (Last Name,
-// First Name, Phone, Email, Third-Party [+ company sub-line], Visibility,
-// Environment, Status) — "Environment" is real too (llx_socpeople.entity),
-// just always "Master Entity" on this single-entity install. Reused for both
-// the Sales > Customer Contacts and Purchases > Vendor Contacts pages.
+// Real POST contact/contacts-addresses-list-ajax.php data (see
+// contacts.queries.ts) — genuine DataTables JSON, confirmed live. It only
+// returns 6 raw columns (no third-party name, visibility, environment or
+// status), so Third-Party shows the real customer/supplier code instead of
+// a fabricated name, and the 3 unavailable columns are left blank rather
+// than guessed — see the note under the table header.
 export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
-  const { data, isLoading, isError, error } = useContacts(kind, search, page, perPage)
+  const { data, isLoading, isError } = useContacts(kind, search, page, perPage)
   const createRoute = kind === 'vendor' ? ROUTES.vendorContactCreate : ROUTES.contactCreate
+  const detailRoute = kind === 'vendor' ? ROUTES.vendorContactDetail : ROUTES.contactDetail
 
   useEffect(() => {
     setPage(1)
@@ -39,18 +37,8 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
 
   function getExportData() {
     return {
-      headers: ['Last Name', 'First Name', 'Phone', 'Email', 'Third-Party', 'Company', 'Visibility', 'Environment', 'Status'],
-      rows: rows.map((r) => [
-        r.lastName ?? '',
-        r.firstName ?? '',
-        r.phoneMobile || r.phonePro || r.phonePerso || '',
-        r.email ?? '',
-        r.companyName ?? '',
-        r.companyName ?? '',
-        r.priv ? 'Private' : 'Shared',
-        r.entity === 1 ? 'Master Entity' : String(r.entity),
-        r.statusLabel,
-      ]),
+      headers: ['Last Name', 'First Name', 'Phone', 'Email', 'Third-Party Code'],
+      rows: rows.map((r) => [r.lastName ?? '', r.firstName ?? '', r.phone ?? '', r.email ?? '', r.thirdPartyCode ?? '']),
     }
   }
 
@@ -87,6 +75,9 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
             </div>
             <TableExportButtons title="List Of Contacts" getExportData={getExportData} />
           </div>
+          <p className="px-4 pt-3 text-xs text-text-faint italic">
+            Visibility, Environment and Status aren't returned by the real Contacts list endpoint on this backend — shown blank.
+          </p>
 
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
@@ -112,11 +103,7 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
                 ) : isError ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-4">
-                      {isBackendUnavailable(error) ? (
-                        <BackendUnavailableInline feature={`${KIND_LABEL[kind]} Contacts`} />
-                      ) : (
-                        <span className="text-danger">Could not load contacts.</span>
-                      )}
+                      <span className="text-danger">Could not load contacts.</span>
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
@@ -128,26 +115,18 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
                 ) : (
                   rows.map((r) => (
                     <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
-                      <td className="px-4 py-3 text-brand font-medium">{r.lastName || '-'}</td>
+                      <td className="px-4 py-3">
+                        <Link to={detailRoute.replace(':id', String(r.id))} className="text-brand font-medium hover:underline">
+                          {r.lastName || '-'}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-text!">{r.firstName || '-'}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.phoneMobile || r.phonePro || r.phonePerso || '-'}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.phone || '-'}</td>
                       <td className="px-4 py-3 text-text-muted">{r.email || '-'}</td>
-                      <td className="px-4 py-3">
-                        {r.companyName ? (
-                          <div className="leading-tight">
-                            <div className="text-brand">{r.companyName}</div>
-                          </div>
-                        ) : (
-                          <span className="text-text-faint">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-text-muted">{r.priv ? 'Private' : 'Shared'}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.entity === 1 ? 'Master Entity' : r.entity}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.statusLabel === 'Enabled' ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
-                          {r.statusLabel === 'Enabled' ? 'Open' : r.statusLabel}
-                        </span>
-                      </td>
+                      <td className="px-4 py-3 text-text-muted">{r.thirdPartyCode || '-'}</td>
+                      <td className="px-4 py-3 text-text-faint">—</td>
+                      <td className="px-4 py-3 text-text-faint">—</td>
+                      <td className="px-4 py-3 text-text-faint">—</td>
                     </tr>
                   ))
                 )}

@@ -68,11 +68,21 @@ const CATEGORIES: Category[] = [
     links: [
       { label: 'Ledger Dashboard', path: ROUTES.ledgerDashboard },
       { label: 'Ledger List', path: ROUTES.ledgerList },
+      { label: 'Subledger', path: ROUTES.ledgerSubledger },
       { label: 'New Transaction', path: ROUTES.ledgerCreate },
     ],
   },
   { label: 'Projects', icon: Briefcase, links: [] },
-  { label: 'Banking', icon: Landmark, links: [] },
+  {
+    label: 'Banking',
+    icon: Landmark,
+    links: [
+      { label: 'Bank Accounts', path: ROUTES.bankingAccounts },
+      { label: 'List Entries', path: ROUTES.bankingEntries },
+      { label: 'Categories', path: ROUTES.bankingCategories },
+      { label: 'Loan List', path: ROUTES.bankingLoanList },
+    ],
+  },
   {
     label: 'Payroll',
     icon: Wallet,

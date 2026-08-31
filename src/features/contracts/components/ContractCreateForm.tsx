@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { FileEdit, Check, X, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
+import { api } from '../../../api/axios'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { useCustomerOptions } from '../../customers/customerOptions'
@@ -10,6 +12,26 @@ import { useAuth } from '../../auth/AuthContext'
 import { useCreateContract } from '../contracts.queries'
 import { todayIso } from '../../../shared/localCollection'
 import { formatMoney } from '../../../utils/format'
+
+interface ProjectOption {
+  id: string
+  ref: string
+  title: string
+}
+
+// GET /api/projects.php — same real, working endpoint used by Purchase
+// Order/Sales Order/Quotation Create forms elsewhere in this app (queries
+// llx_projet WHERE fk_statut = 1, not order-type-specific).
+function useProjectOptions() {
+  return useQuery({
+    queryKey: ['projects', 'open'],
+    queryFn: async () => {
+      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
+      return data.results ?? []
+    },
+    staleTime: 1000 * 60,
+  })
+}
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -44,8 +66,9 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 // The reference pre-assigns the logged-in user as a removable chip on each
-// rep field — shown here as a static, disabled chip (no multi-user roster
-// to pick from) rather than a fake interactive multi-select.
+// rep field — real here (the logged-in user's own real id is what actually
+// gets submitted as commercial_signature_id/commercial_suivi_id), just not
+// pickable from a roster of other users yet.
 function RepChip({ name }: { name: string }) {
   return (
     <div className={`${inputClasses} flex items-center`}>
@@ -61,6 +84,7 @@ export function ContractCreateForm() {
   const { user } = useAuth()
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: products } = useProductOptions()
+  const { data: projects, isLoading: projectsLoading } = useProjectOptions()
   const createContract = useCreateContract()
   const navigate = useNavigate()
   const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
@@ -68,7 +92,10 @@ export function ContractCreateForm() {
   const [thirdPartyId, setThirdPartyId] = useState('')
   const [refCustomer, setRefCustomer] = useState('')
   const [refVendor, setRefVendor] = useState('')
+  const [projectId, setProjectId] = useState('')
   const [date, setDate] = useState(today)
+  const [notePublic, setNotePublic] = useState('')
+  const [notePrivate, setNotePrivate] = useState('')
   const [lines, setLines] = useState<ContractLine[]>([newLine()])
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
@@ -85,17 +112,48 @@ export function ContractCreateForm() {
   const totalExclTax = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100), 0)
   const totalTax = lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 - l.discountPct / 100) * (l.vatRate / 100), 0)
 
-  function handleSubmit() {
+  async function handleSubmit(validate: boolean) {
     setFormError('')
-    const thirdParty = customers?.find((c) => c.id === thirdPartyId)
-    if (!thirdParty) {
+    if (!thirdPartyId) {
       setFormError('Third-party is required.')
       return
     }
+    if (!user) {
+      setFormError('Not signed in.')
+      return
+    }
+    if (validate && lines.every((l) => !l.description.trim())) {
+      setFormError('Please add at least one service line.')
+      return
+    }
     setPending(true)
-    createContract({ thirdParty: thirdParty.name, refCustomer, refVendor, contractDate: date, author: authorName })
-    setPending(false)
-    navigate(ROUTES.contractList)
+    try {
+      const created = await createContract(
+        {
+          socid: thirdPartyId,
+          refCustomer,
+          refVendor,
+          contractDate: date,
+          projectId: projectId || undefined,
+          notePublic,
+          notePrivate,
+          signatureRepId: user.id,
+          followUpRepId: user.id,
+          supportRepId: user.id,
+          lines: lines
+            .filter((l) => l.description.trim())
+            .map((l) => ({ productId: l.productId || undefined, description: l.description, qty: l.qty, unitPriceHt: l.unitPrice, vatRate: l.vatRate, discountPct: l.discountPct })),
+          validate,
+        },
+        authorName,
+      )
+      void created
+      navigate(ROUTES.contractList)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to create contract.')
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -112,13 +170,18 @@ export function ContractCreateForm() {
       }
       footerRight={
         <>
-          <button type="button" disabled title="Same request as Create Contract below — this backend has no separate draft-save action" className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted cursor-default opacity-60">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => handleSubmit(false)}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover disabled:opacity-60"
+          >
             Save As Draft
           </button>
           <button
             type="button"
             disabled={pending}
-            onClick={handleSubmit}
+            onClick={() => handleSubmit(true)}
             className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
             {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create Contract
@@ -169,16 +232,21 @@ export function ContractCreateForm() {
           </Field>
 
           <Field label="Project">
-            <select defaultValue="" className={inputClasses}>
-              <option value="">Select a project</option>
+            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClasses}>
+              <option value="">{projectsLoading ? 'Loading…' : 'Select a project'}</option>
+              {projects?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title} ({p.ref})
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Note (public)">
-            <input type="text" className={inputClasses} />
+            <input type="text" value={notePublic} onChange={(e) => setNotePublic(e.target.value)} className={inputClasses} />
           </Field>
 
           <Field label="Note (private)">
-            <input type="text" className={inputClasses} />
+            <input type="text" value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} className={inputClasses} />
           </Field>
         </div>
       </Card>

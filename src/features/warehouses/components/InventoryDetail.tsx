@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, X, ClipboardList, Send, Pencil, CheckCircle2, Trash2 } from 'lucide-react'
+import { ChevronLeft, X, ClipboardList, Send, Pencil, CheckCircle2, RotateCcw, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -80,6 +80,7 @@ export function InventoryDetail() {
                 <ActionLink href={data.emailUrl} icon={Send} label="Send Email" />
                 <ActionLink href={data.modifyUrl} icon={Pencil} label="Modify" />
                 <ActionLink href={data.validateUrl} icon={CheckCircle2} label="Validate" />
+                <ActionLink href={data.backToDraftUrl} icon={RotateCcw} label="Back to Draft" />
                 <ActionLink href={data.deleteUrl} icon={Trash2} label="Delete" danger />
               </div>
             </div>

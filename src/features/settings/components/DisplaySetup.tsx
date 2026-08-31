@@ -3,6 +3,7 @@ import { Monitor, Pipette } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useTheme } from '../../../context/ThemeContext'
 import { useLanguageOptions } from '../../users/users.queries'
+import { RealToggle } from './RealToggle'
 
 function Row({ label, hint, caption, children }: { label: string; hint?: string; caption?: string; children: ReactNode }) {
   return (
@@ -83,8 +84,9 @@ export function DisplaySetup() {
   // Everything below has no backing setting on this backend (this is a
   // Dolibarr const-table page — llx_const — with no REST equivalent in
   // this app's custom /api/* layer), so it's local-only, same "demo only"
-  // convention as the rest of this app's forms.
-  const [multilang, setMultilang] = useState(true)
+  // convention as the rest of this app's forms — EXCEPT the several
+  // boolean switches marked <RealToggle> below, which genuinely write to
+  // core/ajax/constantonoff.php (see RealToggle.tsx).
   const [skinTheme, setSkinTheme] = useState('')
   const [showLogoInMenu, setShowLogoInMenu] = useState(true)
   const [hideImagesTopMenu, setHideImagesTopMenu] = useState(false)
@@ -103,17 +105,12 @@ export function DisplaySetup() {
     highlightChecked: '',
   })
 
-  const [disableJsAjax, setDisableJsAjax] = useState(false)
   const [maxLengthLists, setMaxLengthLists] = useState('250')
   const [maxLengthShortLists, setMaxLengthShortLists] = useState('3')
   const [firstDayOfWeek, setFirstDayOfWeek] = useState('Monday')
   const [workingDaysRange, setWorkingDaysRange] = useState('1-5')
   const [workingHoursRange, setWorkingHoursRange] = useState('9-18')
   const [namePosition, setNamePosition] = useState('First Name Last Name')
-  const [hideUnauthorizedMenus, setHideUnauthorizedMenus] = useState(true)
-  const [hideUnauthorizedButtons, setHideUnauthorizedButtons] = useState(true)
-  const [showReportBug, setShowReportBug] = useState(false)
-  const [hideOnlineHelp, setHideOnlineHelp] = useState(false)
   const [messageOfTheDay, setMessageOfTheDay] = useState('')
 
   const [hideNeedHelp, setHideNeedHelp] = useState(true)
@@ -121,7 +118,6 @@ export function DisplaySetup() {
   const [bgImagePreview, setBgImagePreview] = useState<string | null>(null)
 
   const [consoleLoggingOpen, setConsoleLoggingOpen] = useState(true)
-  const [enableConsoleLogging, setEnableConsoleLogging] = useState(true)
 
   const [saved, setSaved] = useState(false)
   function handleSave() {
@@ -160,8 +156,8 @@ export function DisplaySetup() {
             </button>
           </div>
         </Row>
-        <Row label="Enable Multilanguage Support For Customer Or Vendor Relationships" hint="demo only">
-          <Toggle checked={multilang} onChange={setMultilang} />
+        <Row label="Enable Multilanguage Support For Customer Or Vendor Relationships">
+          <RealToggle constName="MAIN_MULTILANGS" initial={true} />
         </Row>
       </Card>
 
@@ -193,10 +189,9 @@ export function DisplaySetup() {
         <SectionPill>Miscellaneous</SectionPill>
         <Row
           label="Disable JavaScript And Ajax Functions"
-          hint="demo only"
           caption="Note: for test or debug purpose. For optimization for blind person or text browsers, you may prefer to use the setup on the profile of user"
         >
-          <Toggle checked={disableJsAjax} onChange={setDisableJsAjax} />
+          <RealToggle constName="MAIN_DISABLE_JAVASCRIPT" initial={false} />
         </Row>
         <Row label="Default Max Length For Lists" hint="demo only">
           <input value={maxLengthLists} onChange={(e) => setMaxLengthLists(e.target.value)} className={inputCls + ' max-w-xs'} />
@@ -225,17 +220,17 @@ export function DisplaySetup() {
             <option>Last Name First Name</option>
           </select>
         </Row>
-        <Row label="Hide Unauthorized Menus Also For Internal Users (just greyed otherwise)" hint="demo only">
-          <Toggle checked={hideUnauthorizedMenus} onChange={setHideUnauthorizedMenus} />
+        <Row label="Hide Unauthorized Menus Also For Internal Users (just greyed otherwise)">
+          <RealToggle constName="MAIN_MENU_HIDE_UNAUTHORIZED" initial={true} />
         </Row>
-        <Row label="Hide Unauthorized Action Buttons Also For Internal Users (just greyed otherwise)" hint="demo only">
-          <Toggle checked={hideUnauthorizedButtons} onChange={setHideUnauthorizedButtons} />
+        <Row label="Hide Unauthorized Action Buttons Also For Internal Users (just greyed otherwise)">
+          <RealToggle constName="MAIN_BUTTON_HIDE_UNAUTHORIZED" initial={true} />
         </Row>
-        <Row label='Show Link "Report A Bug"' hint="demo only">
-          <Toggle checked={showReportBug} onChange={setShowReportBug} />
+        <Row label='Show Link "Report A Bug"'>
+          <RealToggle constName="MAIN_BUGTRACK_ENABLELINK" initial={false} />
         </Row>
-        <Row label='Hide Link To Online Help "?"' hint="demo only">
-          <Toggle checked={hideOnlineHelp} onChange={setHideOnlineHelp} />
+        <Row label='Hide Link To Online Help "?"'>
+          <RealToggle constName="MAIN_HELP_DISABLELINK" initial={false} />
         </Row>
         <Row label="Message Of The Day" hint="demo only">
           <input value={messageOfTheDay} onChange={(e) => setMessageOfTheDay(e.target.value)} className={inputCls} />
@@ -263,7 +258,11 @@ export function DisplaySetup() {
         </Row>
       </Card>
 
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (session-only — nothing here besides Language/Dark Mode is backed by an endpoint yet).</Card>}
+      {saved && (
+        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
+          Saved (session-only — the toggle switches above save live as you flip them; everything else on this page has no backing endpoint yet).
+        </Card>
+      )}
 
       <div className="flex justify-start">
         <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
@@ -279,15 +278,9 @@ export function DisplaySetup() {
           <div className="mt-3">
             <Row
               label="EnableConsoleLogging"
-              hint="demo only"
               caption="Enable console.log, console.warn, and console.info in browser. Disabling improves performance in Chrome/Edge (V8 engine) by 10-20%."
             >
-              <div className="flex items-center gap-3">
-                <Toggle checked={enableConsoleLogging} onChange={setEnableConsoleLogging} />
-                <span className="text-xs text-text-muted">
-                  Current Value: <span className="font-semibold text-text!">{enableConsoleLogging ? 'ON' : 'OFF'}</span>
-                </span>
-              </div>
+              <RealToggle constName="MAIN_CONSOLE_LOGGING_ENABLED" initial={true} />
             </Row>
           </div>
         )}

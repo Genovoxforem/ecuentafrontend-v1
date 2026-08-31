@@ -32,6 +32,8 @@ import {
   Phone,
   ExternalLink,
   Truck,
+  Search,
+  Upload,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -39,7 +41,16 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useCustomerDetail, useUpdateCustomer, type CustomerProfile, type CustomerEditableFields } from '../customerDetail.queries'
+import {
+  useCustomerDetail,
+  useUpdateCustomer,
+  useSaveCustomerNotes,
+  useUploadCustomerDocument,
+  useAddCustomerNotification,
+  useCreatePaymentMode,
+  type CustomerProfile,
+  type CustomerEditableFields,
+} from '../customerDetail.queries'
 import {
   useCustomerLedger,
   useCustomerActivities,
@@ -48,11 +59,25 @@ import {
   useCustomerTab,
   useVendorTab,
   useCustomerAgenda,
+  useCustomerPricingGroups,
+  useCustomerDocuments,
+  useCustomerNotifications,
+  useCustomerConsumption,
+  useCustomerTickets,
+  useCustomerProjects,
+  useCustomerExpenses,
+  useCustomerPaymentModes,
+  useCustomerAccountsReceivable,
+  useCustomerAccountsPayable,
+  useCustomerGeneralLedger,
   stripBackendPrefix,
   type ActivityType,
   type ActivityItem,
   type AgendaDay,
   type ContractSummaryCard,
+  type CustomerTabDocRow,
+  type AccountingResponse,
+  type TicketsFilters,
 } from '../customerDetailTabs.queries'
 
 // Native rebuild of the legacy Third-Party detail page
@@ -87,6 +112,20 @@ function SectionHeader({ icon, color, children }: { icon: React.ComponentType<{ 
       <SectionIcon icon={icon} color={color} />
       <h3 className="font-semibold text-text!">{children}</h3>
     </div>
+  )
+}
+
+// Matches the real legacy page's own titre convention (a thin blue accent
+// bar to the left of a bold, brand-colored heading) — used for each tab's
+// own top-level title (Transactions, Contacts, Contracts, Agenda), as
+// distinct from SectionHeader's icon-badge style used inside the
+// Third-Party tab's field cards.
+function TabTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <h3 className={`flex items-center gap-2 font-semibold text-brand ${className}`}>
+      <span className="w-1 h-4 rounded-full bg-brand shrink-0" />
+      {children}
+    </h3>
   )
 }
 
@@ -184,6 +223,10 @@ type TabKey = (typeof TABS)[number]['key']
 // client===0 -> tab hidden entirely — matches societe/templates/layout.php's
 // own $customerNavLabel logic exactly (CustomerProfile.clientLabel is the
 // same value the real backend already computes with this rule).
+function natureBadgeLabel(data: CustomerProfile): string {
+  return data.isCustomer && data.client === 2 ? 'Prospect' : data.isCustomer ? 'Customer' : data.isVendor ? 'Vendor' : 'Third-party'
+}
+
 function customerTabLabel(data: CustomerProfile): string {
   return data.clientLabel
 }
@@ -220,7 +263,7 @@ export function CustomerDetail() {
     )
   }
 
-  const natureBadge = data.isCustomer && data.client === 2 ? 'Prospect' : data.isCustomer ? 'Customer' : data.isVendor ? 'Vendor' : 'Third-party'
+  const natureBadge = natureBadgeLabel(data)
   const displayName = [data.nameTitle, data.name, data.lastname].filter(Boolean).join(' ').trim() || data.name
 
   function startEditing() {
@@ -430,8 +473,8 @@ export function CustomerDetail() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
-        {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} />}
-        {tab === 'notes' && <NotesTab data={data} />}
+        {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} onEdit={startEditing} />}
+        {tab === 'notes' && <NotesTab data={data} socid={id} />}
         {tab === 'transactions' && <TransactionsTab socid={id} />}
         {tab === 'activities' && <ActivitiesTab socid={id} />}
         {tab === 'contacts' && <ContactsTab socid={id} />}
@@ -439,7 +482,39 @@ export function CustomerDetail() {
         {tab === 'customer' && <CustomerTab socid={id} profile={data} />}
         {tab === 'vendor' && <VendorTab socid={id} />}
         {tab === 'agenda' && <AgendaTab socid={id} />}
-        {!['societe', 'notes', 'transactions', 'activities', 'contacts', 'contracts', 'customer', 'vendor', 'agenda'].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
+        {tab === 'pricing_groups' && <PricingGroupsTab socid={id} />}
+        {tab === 'documents' && <DocumentsTab socid={id} />}
+        {tab === 'notify' && <NotificationsTab socid={id} />}
+        {tab === 'consumption' && <ConsumptionTab socid={id} />}
+        {tab === 'tickets' && <TicketsTab socid={id} />}
+        {tab === 'projects' && <ProjectsTab socid={id} />}
+        {tab === 'expenses' && <ExpensesTab socid={id} />}
+        {tab === 'paymentmodes' && <PaymentModesTab socid={id} />}
+        {tab === 'accounting_ar' && <AccountsReceivableTab socid={id} />}
+        {tab === 'accounting_ap' && <AccountsPayableTab socid={id} />}
+        {tab === 'general_ledger' && <GeneralLedgerTab socid={id} />}
+        {![
+          'societe',
+          'notes',
+          'transactions',
+          'activities',
+          'contacts',
+          'contracts',
+          'customer',
+          'vendor',
+          'agenda',
+          'pricing_groups',
+          'documents',
+          'notify',
+          'consumption',
+          'tickets',
+          'projects',
+          'expenses',
+          'paymentmodes',
+          'accounting_ar',
+          'accounting_ap',
+          'general_ledger',
+        ].includes(tab) && <NotBuiltCard label={TABS.find((t) => t.key === tab)!.label} />}
       </div>
     </div>
   )
@@ -450,14 +525,44 @@ function ThirdPartyTab({
   isEditing,
   formValues,
   setField,
+  onEdit,
 }: {
   data: CustomerProfile
   isEditing: boolean
   formValues: CustomerEditableFields
   setField: (key: keyof CustomerEditableFields) => (value: string) => void
+  onEdit: () => void
 }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="space-y-4">
+      <Card className="!h-auto">
+        <div className="flex flex-wrap items-start justify-between gap-4 p-4">
+          <div className="flex items-start gap-3">
+            <SectionIcon icon={Info} color="blue" />
+            <div>
+              <h3 className="font-semibold text-text!">Third party</h3>
+              <p className="text-xs text-text-faint mt-0.5">Identification, contact, accounting and status details for this third party.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{natureBadgeLabel(data)}</span>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
+              {data.status === 1 ? 'Active' : 'Closed'}
+            </span>
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
+              >
+                <Pencil size={14} /> Edit
+              </button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card className="!h-auto">
         <SectionHeader icon={Info} color="blue">
           Identification
@@ -540,24 +645,67 @@ function ThirdPartyTab({
         <InfoRow label="Creation Date" value={data.dateCreation} />
         <InfoRow label="Created By" value={data.createdBy} />
       </Card>
+      </div>
     </div>
   )
 }
 
-function NotesTab({ data }: { data: CustomerProfile }) {
+// societe/api/notes.php — real, editable Public/Private notes (confirmed by
+// reading that file directly: Societe::update_note() under the hood, real
+// Dolibarr CSRF token required). Replaces the earlier read-only version,
+// which only displayed CustomerProfile.notePublic/notePrivate.
+function NotesTab({ data, socid }: { data: CustomerProfile; socid: string | undefined }) {
+  const [notePublic, setNotePublic] = useState(data.notePublic ?? '')
+  const [notePrivate, setNotePrivate] = useState(data.notePrivate ?? '')
+  const [saved, setSaved] = useState(false)
+  const saveNotes = useSaveCustomerNotes(socid)
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="space-y-3">
+      <TabTitle>Notes</TabTitle>
       <Card className="!h-auto">
-        <SectionHeader icon={StickyNote} color="blue">
-          Public Note
-        </SectionHeader>
-        <p className="text-sm text-text! whitespace-pre-wrap">{data.notePublic || <span className="text-text-faint italic">No public note.</span>}</p>
-      </Card>
-      <Card className="!h-auto">
-        <SectionHeader icon={StickyNote} color="amber">
-          Private Note
-        </SectionHeader>
-        <p className="text-sm text-text! whitespace-pre-wrap">{data.notePrivate || <span className="text-text-faint italic">No private note.</span>}</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-text! mb-1.5">Public note</label>
+            <textarea
+              value={notePublic}
+              onChange={(e) => setNotePublic(e.target.value)}
+              rows={3}
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 resize-y"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-text! mb-1.5">Private note</label>
+            <textarea
+              value={notePrivate}
+              onChange={(e) => setNotePrivate(e.target.value)}
+              rows={3}
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 resize-y"
+            />
+          </div>
+          {saveNotes.isError && <p className="text-sm text-danger">{saveNotes.error instanceof Error ? saveNotes.error.message : 'Failed to save notes.'}</p>}
+          <div className="flex items-center justify-end gap-2">
+            {saved && <span className="text-xs text-success-fg">Saved.</span>}
+            <button
+              type="button"
+              disabled={saveNotes.isPending}
+              onClick={() =>
+                saveNotes.mutate(
+                  { note_public: notePublic, note_private: notePrivate },
+                  {
+                    onSuccess: () => {
+                      setSaved(true)
+                      setTimeout(() => setSaved(false), 2500)
+                    },
+                  },
+                )
+              }
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
+            >
+              <Check size={14} /> {saveNotes.isPending ? 'Saving…' : 'Save notes'}
+            </button>
+          </div>
+        </div>
       </Card>
     </div>
   )
@@ -608,7 +756,9 @@ function TransactionsTab({ socid }: { socid: string | undefined }) {
   }
 
   return (
-    <Card className="!h-auto !p-0 overflow-hidden">
+    <div className="space-y-3">
+      <TabTitle>Transactions</TabTitle>
+      <Card className="!h-auto !p-0 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
         <div className="flex items-center gap-2">
           <label className="text-xs text-text-faint">Date Range:</label>
@@ -650,7 +800,8 @@ function TransactionsTab({ socid }: { socid: string | undefined }) {
         </table>
         {middleRows.length === 0 && <p className="text-center text-text-faint text-sm py-6">No Transactions Found For This Period</p>}
       </div>
-    </Card>
+      </Card>
+    </div>
   )
 }
 
@@ -766,7 +917,7 @@ function ContactsTab({ socid }: { socid: string | undefined }) {
   return (
     <Card className="!h-auto !p-0 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="font-semibold text-text!">Contacts</h3>
+        <TabTitle>Contacts</TabTitle>
         <a
           href={`/societe/contact.php?socid=${socid}&action=create`}
           target="_blank"
@@ -841,8 +992,35 @@ function ContractSummaryCardView({ card, color }: { card: ContractSummaryCard; c
 
 function ContractsTab({ socid }: { socid: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useCustomerContracts(socid)
+  const [refFilter, setRefFilter] = useState('')
+  const [refCustomerFilter, setRefCustomerFilter] = useState('')
+  const [refSupplierFilter, setRefSupplierFilter] = useState('')
+  const [searchAll, setSearchAll] = useState('')
+  const [appliedFilters, setAppliedFilters] = useState({ ref: '', refCustomer: '', refSupplier: '', searchAll: '' })
+
   if (isLoading) return <LegacyLoadingCard label="Loading contracts…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load contracts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  function resetFilters() {
+    setRefFilter('')
+    setRefCustomerFilter('')
+    setRefSupplierFilter('')
+    setSearchAll('')
+    setAppliedFilters({ ref: '', refCustomer: '', refSupplier: '', searchAll: '' })
+  }
+
+  const filteredRows = data.rows.filter((r) => {
+    const f = appliedFilters
+    if (f.ref && !r.ref.toLowerCase().includes(f.ref.toLowerCase())) return false
+    if (f.refCustomer && !r.ref_customer.toLowerCase().includes(f.refCustomer.toLowerCase())) return false
+    if (f.refSupplier && !r.ref_supplier.toLowerCase().includes(f.refSupplier.toLowerCase())) return false
+    if (f.searchAll) {
+      const haystack = [r.ref, r.ref_customer, r.ref_supplier, r.sales_representatives, r.service_status].join(' ').toLowerCase()
+      if (!haystack.includes(f.searchAll.toLowerCase())) return false
+    }
+    return true
+  })
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -850,9 +1028,60 @@ function ContractsTab({ socid }: { socid: string | undefined }) {
           <ContractSummaryCardView key={card.title} card={card} color={CONTRACT_CARD_COLORS[i % CONTRACT_CARD_COLORS.length]} />
         ))}
       </div>
+      <Card className="!h-auto">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-faint">Ref</label>
+            <input
+              type="text"
+              value={refFilter}
+              onChange={(e) => setRefFilter(e.target.value)}
+              placeholder="Contract ref"
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 w-40"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-faint">Ref customer</label>
+            <input
+              type="text"
+              value={refCustomerFilter}
+              onChange={(e) => setRefCustomerFilter(e.target.value)}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 w-40"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-faint">Ref supplier</label>
+            <input
+              type="text"
+              value={refSupplierFilter}
+              onChange={(e) => setRefSupplierFilter(e.target.value)}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 w-40"
+            />
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+            <label className="text-xs text-text-faint">Search all</label>
+            <input
+              type="text"
+              value={searchAll}
+              onChange={(e) => setSearchAll(e.target.value)}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 w-full"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setAppliedFilters({ ref: refFilter, refCustomer: refCustomerFilter, refSupplier: refSupplierFilter, searchAll })}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover"
+          >
+            <Search size={14} /> Apply
+          </button>
+          <button type="button" onClick={resetFilters} className="px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text">
+            Reset
+          </button>
+        </div>
+      </Card>
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="font-semibold text-text!">Contracts</h3>
+          <TabTitle>Contracts</TabTitle>
           <a
             href={stripBackendPrefix(data.urls.create)}
             target="_blank"
@@ -865,6 +1094,8 @@ function ContractsTab({ socid }: { socid: string | undefined }) {
         <div className="p-4 overflow-x-auto">
           {data.rows.length === 0 ? (
             <p className="text-sm text-text-faint italic py-6 text-center">No contracts linked to this third party.</p>
+          ) : filteredRows.length === 0 ? (
+            <p className="text-sm text-text-faint italic py-6 text-center">No contracts match this filter.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -876,7 +1107,7 @@ function ContractsTab({ socid }: { socid: string | undefined }) {
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((r) => (
+                {filteredRows.map((r) => (
                   <tr key={r.ref} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3 font-medium text-text!">{r.ref}</td>
                     <td className="py-2 pr-3 text-text-muted">{r.date_contract}</td>
@@ -903,26 +1134,40 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
 
   return (
     <div className="space-y-4">
+      <TabTitle>Customer</TabTitle>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Proposals</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.proposals_kpi.total_ht)}</p>
           <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.proposals_kpi.opened)}</p>
+          <a href={stripBackendPrefix(data.urls.proposals_list)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+            View all
+          </a>
         </Card>
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Orders</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.orders_kpi.total_ht)}</p>
           <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.orders_kpi.opened)}</p>
+          <a href={stripBackendPrefix(data.urls.orders_list)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+            View all
+          </a>
         </Card>
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Invoices</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(profile.kpiInvoice)}</p>
           <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.outstanding.total_ht)}</p>
+          <a href={stripBackendPrefix(data.urls.invoices_list)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+            View all
+          </a>
         </Card>
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Customer Credit / Advance</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.advance)}</p>
           <p className="text-xs text-text-faint">Discount: {data.remise_percent}%</p>
+          <a href={stripBackendPrefix(data.urls.discount)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+            Manage discounts
+          </a>
         </Card>
       </div>
 
@@ -938,6 +1183,12 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
         <InfoRow label="Sales Reps" value={data.sales_reps.join(', ')} />
         <InfoRow label="Categories" value={data.categories.join(', ')} />
       </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <RecentDocsCard title="Recent proposals" doc={data.proposals} viewAllUrl={data.urls.proposals_list} createUrl={data.urls.proposals_create} />
+        <RecentDocsCard title="Recent orders" doc={data.orders} viewAllUrl={data.urls.orders_list} createUrl={data.urls.orders_create} />
+        <RecentDocsCard title="Recent invoices" doc={data.invoices} viewAllUrl={data.urls.invoices_list} createUrl={data.urls.invoices_create} />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {data.buttons
@@ -965,6 +1216,46 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
           )}
       </div>
     </div>
+  )
+}
+
+function RecentDocsCard({ title, doc, viewAllUrl, createUrl }: { title: string; doc: { count: number; rows: CustomerTabDocRow[] }; viewAllUrl: string; createUrl: string }) {
+  return (
+    <Card className="!h-auto !p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-text!">{title}</h3>
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{doc.count}</span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <a href={stripBackendPrefix(viewAllUrl)} target="_blank" rel="noreferrer" className="text-xs font-medium text-text-muted hover:text-text">
+            View all
+          </a>
+          <a
+            href={stripBackendPrefix(createUrl)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+          >
+            <Plus size={12} /> New
+          </a>
+        </div>
+      </div>
+      <div className="p-4">
+        {doc.rows.length === 0 ? (
+          <p className="text-sm text-text-faint italic py-4 text-center">No records yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {doc.rows.map((r, i) => (
+              <li key={r.ref ?? i} className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-medium text-text! truncate">{r.ref}</span>
+                <span className="text-text-muted shrink-0">{r.total_ht !== undefined ? formatMoney(r.total_ht) : ''}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -1102,7 +1393,8 @@ function AgendaTab({ socid }: { socid: string | undefined }) {
   if (isError || !data) return <LegacyErrorCard title="Couldn't load agenda" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      <TabTitle>Agenda</TabTitle>
       <Card className="!h-auto">
         <div className="flex flex-wrap items-center gap-3">
           <select value={type} onChange={(e) => setType(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
@@ -1137,6 +1429,733 @@ function AgendaTab({ socid }: { socid: string | undefined }) {
       </Card>
       <Card className="!h-auto">
         <AgendaTimelineList days={data.timeline} />
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/pricing_groups.php — real, global custom_group table (not
+// scoped to one third party). Read-only: the real page itself is a plain
+// table with no inline create/edit UI, confirmed against the real
+// screenshot.
+function PricingGroupsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerPricingGroups(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading pricing groups…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load pricing groups" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-3">
+      <TabTitle>Pricing groups</TabTitle>
+      <Card className="!h-auto !p-0 overflow-hidden">
+        {data.groups.length === 0 ? (
+          <p className="text-sm text-text-faint italic py-6 text-center">No pricing groups found.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2.5 px-4">Label</th>
+                  <th className="font-medium py-2.5 px-4">Discount</th>
+                  <th className="font-medium py-2.5 px-4">Discount Type</th>
+                  <th className="font-medium py-2.5 px-4">Customer Method</th>
+                  <th className="font-medium py-2.5 px-4">Description</th>
+                  <th className="font-medium py-2.5 px-4">Tms</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.groups.map((g) => (
+                  <tr key={g.id} className={`border-b border-border last:border-0 ${g.id === data.group_id ? 'bg-brand/5' : ''}`}>
+                    <td className="py-2.5 px-4 font-medium text-text!">{g.label}</td>
+                    <td className="py-2.5 px-4 text-text-muted">{g.discount}</td>
+                    <td className="py-2.5 px-4 text-text-muted">{g.discount_type}</td>
+                    <td className="py-2.5 px-4 text-text-muted">{g.customer_method}</td>
+                    <td className="py-2.5 px-4 text-text-muted">{g.description}</td>
+                    <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{g.tms}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/documents.php — real files under documents/societe/<id>/,
+// confirmed by reading that file directly (dol_dir_list against the real
+// upload_dir, real multipart upload via dol_move_uploaded_file).
+function DocumentsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerDocuments(socid)
+  const uploadDocument = useUploadCustomerDocument(socid)
+  const [file, setFile] = useState<File | null>(null)
+
+  if (isLoading) return <LegacyLoadingCard label="Loading documents…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load documents" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-3">
+      <TabTitle>Documents</TabTitle>
+      <Card className="!h-auto">
+        {data.documents.length === 0 ? (
+          <p className="text-sm text-text-faint italic mb-4">No documents yet.</p>
+        ) : (
+          <ul className="divide-y divide-border mb-4">
+            {data.documents.map((doc) => (
+              <li key={doc.name} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <a href={stripBackendPrefix(doc.download_url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline truncate">
+                  {doc.name}
+                </a>
+                <span className="text-text-faint shrink-0 flex items-center gap-3">
+                  <span>{doc.size}</span>
+                  <span>{doc.date}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data.can_edit && (
+          <div>
+            <label className="block text-sm font-semibold text-text! mb-1.5">Upload file</label>
+            {uploadDocument.isError && <p className="text-sm text-danger mb-2">{uploadDocument.error instanceof Error ? uploadDocument.error.message : 'Failed to upload file.'}</p>}
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="file"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="text-sm text-text file:mr-3 file:rounded-md file:border file:border-input-border file:bg-surface-hover file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-text"
+              />
+              <button
+                type="button"
+                disabled={!file || uploadDocument.isPending}
+                onClick={() =>
+                  file &&
+                  uploadDocument.mutate(file, {
+                    onSuccess: () => setFile(null),
+                  })
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              >
+                <Upload size={14} /> {uploadDocument.isPending ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/notify.php — real notify_def rows, confirmed by reading that
+// file directly (real INNER JOIN against c_action_trigger/socpeople; POST
+// action=add performs a real INSERT).
+function NotificationsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerNotifications(socid)
+  const addNotification = useAddCustomerNotification(socid)
+  const [actionId, setActionId] = useState('')
+  const [contactId, setContactId] = useState('')
+
+  if (isLoading) return <LegacyLoadingCard label="Loading notifications…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load notifications" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-3">
+      <TabTitle>Notifications</TabTitle>
+      <Card className="!h-auto">
+        {data.assigned.length === 0 ? (
+          <p className="text-sm text-text-faint italic mb-4">No notifications assigned.</p>
+        ) : (
+          <ul className="divide-y divide-border mb-4">
+            {data.assigned.map((n) => (
+              <li key={n.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="font-medium text-text!">{n.label}</span>
+                <span className="text-text-muted">{n.contact_name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data.can_edit && (
+          <div>
+            <h4 className="font-semibold text-text! mb-2">Add notification</h4>
+            {addNotification.isError && <p className="text-sm text-danger mb-2">{addNotification.error instanceof Error ? addNotification.error.message : 'Failed to add notification.'}</p>}
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+                <label className="text-xs text-text-faint">Event</label>
+                <select value={actionId} onChange={(e) => setActionId(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5">
+                  <option value="">—</option>
+                  {data.available.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+                <label className="text-xs text-text-faint">Contact</label>
+                <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5">
+                  <option value="">—</option>
+                  {data.contacts.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name ?? o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                disabled={!actionId || !contactId || addNotification.isPending}
+                onClick={() =>
+                  addNotification.mutate(
+                    { action_id: Number(actionId), contact_id: Number(contactId) },
+                    {
+                      onSuccess: () => {
+                        setActionId('')
+                        setContactId('')
+                      },
+                    },
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              >
+                {addNotification.isPending ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+const CONSUMPTION_SECTIONS = ['propals', 'orders', 'invoices', 'interventions', 'supplier_orders', 'supplier_invoices'] as const
+
+// societe/api/consumption.php — real per-table counts/rows (propal/
+// commande/facture/fichinter, or the supplier-side tables for a vendor),
+// confirmed by reading that file directly. Read-only, matching the real
+// page's own "Open list"/"All" links out rather than any inline action.
+function ConsumptionTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerConsumption(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading consumption…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load consumption" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  // section_labels always lists all 6 possible sections (a static map on the
+  // backend); only the ones relevant to this record's client/supplier type
+  // are actually populated in summary/sections — filter on that instead, or
+  // every customer record would also show empty Supplier orders/Supplier
+  // invoices cards the real page never displays for them.
+  const sectionKeys = CONSUMPTION_SECTIONS.filter((k) => k in data.summary)
+
+  return (
+    <div className="space-y-3">
+      <TabTitle>Consumption</TabTitle>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${sectionKeys.length > 4 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+        {sectionKeys.map((key) => (
+          <Card key={key} className="!h-auto">
+            <p className="text-xs text-text-faint uppercase tracking-wide">{data.section_labels[key]}</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{data.summary[key] ?? 0}</p>
+            <a href={stripBackendPrefix(data.urls.lists[key] ?? '')} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+              Open list
+            </a>
+          </Card>
+        ))}
+      </div>
+      {sectionKeys.map((key) => (
+        <Card key={key} className="!h-auto !p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h3 className="font-semibold text-text!">{data.section_labels[key]}</h3>
+            <a
+              href={stripBackendPrefix(data.urls.lists[key] ?? '')}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2.5 py-1 rounded-md border border-border text-xs font-medium text-text-muted hover:bg-surface-hover hover:text-text"
+            >
+              All
+            </a>
+          </div>
+          <div className="p-4">
+            {(data.sections[key] ?? []).length === 0 ? (
+              <p className="text-sm text-text-faint italic text-center py-2">No recent rows.</p>
+            ) : (
+              <ul className="space-y-2">
+                {data.sections[key].map((row) => (
+                  <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                    <a href={stripBackendPrefix(row.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline truncate">
+                      {row.ref}
+                    </a>
+                    <span className="text-text-muted shrink-0 flex items-center gap-3">
+                      <span>{row.date}</span>
+                      {row.total > 0 && <span>{formatMoney(row.total)}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+// societe/api/tickets.php — real llx_ticket rows scoped to this third
+// party, confirmed by reading that file directly (real filters/status
+// options straight off c_ticket_type/c_ticket_severity).
+function TicketsTab({ socid }: { socid: string | undefined }) {
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('openall')
+  const [type, setType] = useState('')
+  const [severity, setSeverity] = useState('')
+  const [filters, setFilters] = useState<TicketsFilters>({ status: 'openall' })
+
+  const { data, isLoading, isError, error, refetch } = useCustomerTickets(socid, filters)
+  if (isLoading) return <LegacyLoadingCard label="Loading tickets…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load tickets" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  function applyFilters() {
+    setFilters({ search, status, type, severity })
+  }
+  function resetFilters() {
+    setSearch('')
+    setStatus('openall')
+    setType('')
+    setSeverity('')
+    setFilters({ status: 'openall' })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <TabTitle>Tickets</TabTitle>
+        {data.can_create && (
+          <a
+            href={stripBackendPrefix(data.urls.create)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+          >
+            <Plus size={14} /> New ticket
+          </a>
+        )}
+      </div>
+      <Card className="!h-auto">
+        <p className="text-sm font-medium text-text! mb-3">{data.count} ticket(s)</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <label className="text-xs text-text-faint">Search</label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Ref, subject, track ID"
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-faint">Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5">
+              {data.filter_options.status.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-faint">Type</label>
+            <select value={type} onChange={(e) => setType(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5">
+              <option value="">All</option>
+              {data.filter_options.types.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-faint">Severity</label>
+            <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5">
+              <option value="">All</option>
+              {data.filter_options.severities.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="button" onClick={applyFilters} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover">
+            <Search size={14} /> Apply
+          </button>
+          <button type="button" onClick={resetFilters} className="px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text">
+            Reset
+          </button>
+        </div>
+        {data.rows.length === 0 ? (
+          <p className="text-sm text-text-faint italic text-center py-6">No tickets for this third party.</p>
+        ) : (
+          <div className="overflow-x-auto mt-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Ref</th>
+                  <th className="font-medium py-2 pr-3">Subject</th>
+                  <th className="font-medium py-2 pr-3">Type</th>
+                  <th className="font-medium py-2 pr-3">Severity</th>
+                  <th className="font-medium py-2 pr-3">Status</th>
+                  <th className="font-medium py-2">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((t) => (
+                  <tr key={t.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3">
+                      <a href={stripBackendPrefix(t.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                        {t.ref}
+                      </a>
+                    </td>
+                    <td className="py-2 pr-3 text-text!">{t.subject}</td>
+                    <td className="py-2 pr-3 text-text-muted">{t.type_label}</td>
+                    <td className="py-2 pr-3 text-text-muted">{t.severity_label}</td>
+                    <td className="py-2 pr-3 text-text-muted">{t.status_label}</td>
+                    <td className="py-2 text-text-muted">{t.date_created}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/projects.php — real llx_projet rows scoped to fk_soc,
+// confirmed by reading that file directly.
+function ProjectsTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerProjects(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading projects…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load projects" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <TabTitle>Projects</TabTitle>
+        <a
+          href={stripBackendPrefix(data.urls.create)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        >
+          <Plus size={14} /> New project
+        </a>
+      </div>
+      <Card className="!h-auto">
+        {data.projects.length === 0 ? (
+          <p className="text-sm text-text-faint italic text-center py-6">No projects linked to this third party.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Ref</th>
+                  <th className="font-medium py-2 pr-3">Title</th>
+                  <th className="font-medium py-2 pr-3">Start</th>
+                  <th className="font-medium py-2 pr-3">End</th>
+                  <th className="font-medium py-2 pr-3">Tasks</th>
+                  <th className="font-medium py-2">Budget</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.projects.map((p) => (
+                  <tr key={p.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3">
+                      <a href={stripBackendPrefix(p.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                        {p.ref}
+                      </a>
+                    </td>
+                    <td className="py-2 pr-3 text-text!">{p.title}</td>
+                    <td className="py-2 pr-3 text-text-muted">{p.date_start}</td>
+                    <td className="py-2 pr-3 text-text-muted">{p.date_end}</td>
+                    <td className="py-2 pr-3 text-text-muted">{p.task_count}</td>
+                    <td className="py-2 text-text-muted">{p.budget > 0 ? formatMoney(p.budget) : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/expenses.php — real llx_expensereport rows when a fk_soc link
+// exists; on this deployment it always reports a real, honest `message`
+// instead ("No third-party link on expense reports"), confirmed by
+// reading that file directly.
+function ExpensesTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerExpenses(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading expenses…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load expenses" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-3">
+      <TabTitle>Expenses</TabTitle>
+      <Card className="!h-auto">
+        {data.expenses.length === 0 ? (
+          <p className="text-sm text-text-faint italic text-center py-6">{data.message || 'No expense reports linked to this third party.'}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Ref</th>
+                  <th className="font-medium py-2 pr-3">Start</th>
+                  <th className="font-medium py-2 pr-3">End</th>
+                  <th className="font-medium py-2 pr-3">Total (Excl.)</th>
+                  <th className="font-medium py-2">Total (Incl.)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.expenses.map((e) => (
+                  <tr key={e.id} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3">
+                      <a href={stripBackendPrefix(e.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                        {e.ref}
+                      </a>
+                    </td>
+                    <td className="py-2 pr-3 text-text-muted">{e.date_start}</td>
+                    <td className="py-2 pr-3 text-text-muted">{e.date_end}</td>
+                    <td className="py-2 pr-3 text-text-muted">{formatMoney(e.total_ht)}</td>
+                    <td className="py-2 text-text!">{formatMoney(e.total_ttc)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/paymentmodes.php — real llx_societe_rib rows (or
+// CompanyBankAccount when present), confirmed by reading that file
+// directly. Real create action wired via useCreatePaymentMode.
+function PaymentModesTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerPaymentModes(socid)
+  const createMode = useCreatePaymentMode(socid)
+  const [showForm, setShowForm] = useState(false)
+  const [label, setLabel] = useState('')
+  const [bank, setBank] = useState('')
+  const [iban, setIban] = useState('')
+  const [bic, setBic] = useState('')
+
+  if (isLoading) return <LegacyLoadingCard label="Loading payment modes…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load payment modes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  function resetForm() {
+    setLabel('')
+    setBank('')
+    setIban('')
+    setBic('')
+    setShowForm(false)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <TabTitle>Payment modes</TabTitle>
+        {data.can_edit && (
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+          >
+            <Plus size={14} /> Add account
+          </button>
+        )}
+      </div>
+      {showForm && (
+        <Card className="!h-auto">
+          {createMode.isError && <p className="text-sm text-danger mb-2">{createMode.error instanceof Error ? createMode.error.message : 'Failed to add payment mode.'}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-text-faint">Label*</label>
+              <input value={label} onChange={(e) => setLabel(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-text-faint">Bank*</label>
+              <input value={bank} onChange={(e) => setBank(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-text-faint">IBAN</label>
+              <input value={iban} onChange={(e) => setIban(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-text-faint">BIC</label>
+              <input value={bic} onChange={(e) => setBic(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5" />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 mt-3">
+            <button type="button" onClick={resetForm} className="px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text">
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!label || !bank || createMode.isPending}
+              onClick={() => createMode.mutate({ label, bank, iban, bic }, { onSuccess: resetForm })}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
+            >
+              <Check size={14} /> {createMode.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </Card>
+      )}
+      <Card className="!h-auto">
+        {data.paymentmodes.length === 0 ? (
+          <p className="text-sm text-text-faint italic text-center py-6">No bank accounts yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {data.paymentmodes.map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="font-medium text-text!">
+                  {m.label} {m.default_rib === 1 && <span className="ml-1 text-xs text-brand">(default)</span>}
+                </span>
+                <span className="text-text-muted">
+                  {m.bank} {m.iban && `· ${m.iban}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// societe/api/accounting_ar.php / accounting_ap.php — real open-invoice
+// summaries, confirmed by reading both files directly. Shared component
+// since both return the identical AccountingResponse shape.
+function AccountingSummaryTab({
+  title,
+  useHook,
+}: {
+  title: string
+  useHook: (socid: string | undefined) => { data?: AccountingResponse; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void }
+}) {
+  return function Inner({ socid }: { socid: string | undefined }) {
+    const { data, isLoading, isError, error, refetch } = useHook(socid)
+    if (isLoading) return <LegacyLoadingCard label={`Loading ${title.toLowerCase()}…`} />
+    if (isError || !data) return <LegacyErrorCard title={`Couldn't load ${title.toLowerCase()}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+    return (
+      <div className="space-y-3">
+        <TabTitle>{title}</TabTitle>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="!h-auto">
+            <p className="text-xs text-text-faint uppercase tracking-wide">Total invoiced</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.summary.total_invoiced)}</p>
+          </Card>
+          <Card className="!h-auto">
+            <p className="text-xs text-text-faint uppercase tracking-wide">Total paid</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.summary.total_paid)}</p>
+          </Card>
+          <Card className="!h-auto">
+            <p className="text-xs text-text-faint uppercase tracking-wide">Outstanding</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.summary.total_open)}</p>
+          </Card>
+          <Card className="!h-auto">
+            <p className="text-xs text-text-faint uppercase tracking-wide">Open invoices</p>
+            <p className="text-lg font-bold text-text! mt-0.5">
+              {data.summary.open_count} / {data.summary.invoice_count}
+            </p>
+          </Card>
+        </div>
+        <Card className="!h-auto">
+          {data.invoices.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <BookOpen size={28} className="text-text-faint" />
+              <p className="text-sm font-medium text-text-faint">{title}</p>
+              <p className="text-sm text-text-faint">No records yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                    <th className="font-medium py-2 pr-3">Ref</th>
+                    <th className="font-medium py-2 pr-3">Date</th>
+                    <th className="font-medium py-2 pr-3">Due</th>
+                    <th className="font-medium py-2 pr-3">Total</th>
+                    <th className="font-medium py-2 pr-3">Paid</th>
+                    <th className="font-medium py-2">Open</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.invoices.map((inv) => (
+                    <tr key={inv.id} className="border-b border-border last:border-0">
+                      <td className="py-2 pr-3 font-medium text-text!">{inv.ref}</td>
+                      <td className="py-2 pr-3 text-text-muted">{inv.date}</td>
+                      <td className="py-2 pr-3 text-text-muted">{inv.due_date}</td>
+                      <td className="py-2 pr-3 text-text-muted">{formatMoney(inv.total_ttc)}</td>
+                      <td className="py-2 pr-3 text-text-muted">{formatMoney(inv.paid)}</td>
+                      <td className="py-2 text-text!">{formatMoney(inv.open)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    )
+  }
+}
+
+const AccountsReceivableTab = AccountingSummaryTab({ title: 'Accounts receivable', useHook: useCustomerAccountsReceivable })
+const AccountsPayableTab = AccountingSummaryTab({ title: 'Accounts payable', useHook: useCustomerAccountsPayable })
+
+// societe/api/general_ledger.php — real bank movements (via bank_url) plus
+// real bookkeeping lines matched on this record's own accounting code,
+// confirmed by reading that file directly.
+function GeneralLedgerTab({ socid }: { socid: string | undefined }) {
+  const { data, isLoading, isError, error, refetch } = useCustomerGeneralLedger(socid)
+  if (isLoading) return <LegacyLoadingCard label="Loading general ledger…" />
+  if (isError || !data) return <LegacyErrorCard title="Couldn't load general ledger" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  return (
+    <div className="space-y-3">
+      <TabTitle>General ledger</TabTitle>
+      <Card className="!h-auto">
+        {data.movements.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <BookOpen size={28} className="text-text-faint" />
+            <p className="text-sm font-medium text-text-faint">General ledger</p>
+            <p className="text-sm text-text-faint">No records yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 pr-3">Date</th>
+                  <th className="font-medium py-2 pr-3">Label</th>
+                  <th className="font-medium py-2 pr-3">Account</th>
+                  <th className="font-medium py-2">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.movements.map((m) => (
+                  <tr key={`${m.source}-${m.id}`} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3 text-text-muted">{m.date}</td>
+                    <td className="py-2 pr-3 text-text!">{m.label}</td>
+                    <td className="py-2 pr-3 text-text-muted">{m.account}</td>
+                    <td className={`py-2 ${m.amount < 0 ? 'text-danger' : 'text-text!'}`}>{formatMoney(m.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </div>
   )

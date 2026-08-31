@@ -2,17 +2,10 @@ import { useState } from 'react'
 import { FileText } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useLanguageOptions } from '../../users/users.queries'
+import { RealToggle } from './RealToggle'
 
 const inputCls = 'w-28 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = 'w-48 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none'
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button type="button" onClick={() => onChange(!checked)} className={`w-9 h-5 rounded-full transition-colors shrink-0 ${checked ? 'bg-brand' : 'bg-surface-alt border border-border'}`}>
-      <span className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
-    </button>
-  )
-}
 
 function YesNoSelect({ value, onChange }: { value: 'Yes' | 'No'; onChange: (v: 'Yes' | 'No') => void }) {
   return (
@@ -74,7 +67,6 @@ export function PdfSetup() {
   const [useFrenchPosition, setUseFrenchPosition] = useState<'Yes' | 'No'>('No')
   const [footerDetail, setFooterDetail] = useState(FOOTER_DETAIL_OPTIONS[1])
   const [secondLanguage, setSecondLanguage] = useState('')
-  const [showKitSubproducts, setShowKitSubproducts] = useState(false)
 
   const [saved, setSaved] = useState(false)
   function handleSave() {
@@ -209,12 +201,16 @@ export function PdfSetup() {
             </select>
           </Row>
           <Row label='If the feature "Enable kits (set of several products)" of module Products is used, show details of subproducts of a kit on PDF.' bold="Enable kits (set of several products)">
-            <Toggle checked={showKitSubproducts} onChange={setShowKitSubproducts} />
+            <RealToggle constName="SHOW_SUBPRODUCT_REF_IN_PDF" initial={false} />
           </Row>
         </Card>
       </div>
 
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (session-only — no PDF-config endpoint exists on this backend yet).</Card>}
+      {saved && (
+        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
+          Saved (session-only — the kit-subproducts toggle above saves live; no other PDF-config endpoint exists on this backend yet).
+        </Card>
+      )}
 
       <div>
         <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">

@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { ProjectCreateForm } from '../../features/projects/components/ProjectCreateForm'
+import { ProjectDetail } from '../../features/projects/components/ProjectDetail'
 import { ProjectsListPage } from '../../features/projects/components/ProjectsListPage'
 import { ProjectStatisticsPage } from '../../features/projects/components/ProjectStatisticsPage'
 import { TaskCreateForm } from '../../features/projects/components/TaskCreateForm'
@@ -17,6 +18,9 @@ export function ProjectEditModule() {
 }
 export function ProjectListModule() {
   return <ProjectsListPage filter="all" title="Projects" />
+}
+export function ProjectDetailModule() {
+  return <ProjectDetail />
 }
 export function ProjectOpenLeadsListModule() {
   return <ProjectsListPage filter="openLeads" title="Open Leads" />

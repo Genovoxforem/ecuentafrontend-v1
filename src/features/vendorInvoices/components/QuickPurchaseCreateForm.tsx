@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Lock, Check, X, Plus, Trash2, LoaderCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Lock, Check, X, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
 import { useVendorOptions } from '../../customers/customerOptions'
 import { useProductOptions } from '../../products/products.queries'
-import { useCreateVendorInvoice, type NewVendorInvoiceLine } from '../vendorInvoices.queries'
+import { useBankAccountOptions, useWarehouseOptionsForPurchaseInvoice, type NewVendorInvoiceLine } from '../vendorInvoices.queries'
 import { formatMoney } from '../../../utils/format'
 
 // Real llx_c_paiement codes/labels (same list InvoiceCreateForm.tsx uses
@@ -33,28 +33,30 @@ function newLine(): LineState {
   return { key: lineKeySeq++, productId: '', supplierRef: '', label: '', qty: 1, unitPriceHt: 0, vatRate: 0, discPercent: 0 }
 }
 
-// Real POST /api/purchase-invoices/ create (see vendorInvoices.queries.ts)
-// against llx_facture_fourn/llx_facture_fourn_det, matching the legacy
-// "New purchase invoice" (purchase.php) single-page quick-create flow —
-// header + item table submitted together. Warehouse/Bank account/Payment
-// Terms/Incoterms/Project/Currency stay decorative — no real backend/
-// dictionary exists for any of them on this system (confirmed: warehouses
-// have no REST endpoint at all, see warehouseExtras.queries.ts), same
-// honesty as the equivalent fields on the customer Invoice Create form.
+// fourn/facture/api/supplier_invoice_lines_api.php?action=validateInvoice
+// is CONFIRMED BROKEN for a brand-new invoice — live-tested end-to-end
+// 2026-08-29 (see vendorInvoices.queries.ts's own header comment for the
+// full trace: it creates a real draft header, then fails to save any
+// lines against that same, real, existing invoice, and never validates).
+// "Save as Draft" was already known broken the same way. Neither button
+// can actually create a purchase invoice right now, so both stay visible
+// to match the real screen but disabled — the real, working legacy page
+// is offered as the actual way to do this instead.
 export function QuickPurchaseCreateForm() {
   const { data: vendors, isLoading: vendorsLoading } = useVendorOptions()
   const { data: products } = useProductOptions()
-  const createInvoice = useCreateVendorInvoice()
-  const navigate = useNavigate()
+  const { data: bankAccounts } = useBankAccountOptions()
+  const { data: warehouses } = useWarehouseOptionsForPurchaseInvoice()
 
   const today = new Date().toISOString().slice(0, 10)
   const [vendorId, setVendorId] = useState('')
   const [refSupplier, setRefSupplier] = useState('')
   const [date, setDate] = useState(today)
+  const [warehouseId, setWarehouseId] = useState('')
+  const [fkAccount, setFkAccount] = useState('')
   const [paymentModeCode, setPaymentModeCode] = useState('')
   const [notePrivate, setNotePrivate] = useState('')
   const [lines, setLines] = useState<LineState[]>([newLine()])
-  const [formError, setFormError] = useState('')
 
   function updateLine(key: number, patch: Partial<LineState>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
@@ -69,33 +71,6 @@ export function QuickPurchaseCreateForm() {
   const totalHt = validLines.reduce((sum, l) => sum + l.qty * l.unitPriceHt * (1 - (l.discPercent ?? 0) / 100), 0)
   const totalVat = validLines.reduce((sum, l) => sum + l.qty * l.unitPriceHt * (1 - (l.discPercent ?? 0) / 100) * (l.vatRate / 100), 0)
 
-  function submit(validate: boolean) {
-    setFormError('')
-    if (!vendorId) {
-      setFormError('Vendor is required.')
-      return
-    }
-    if (validLines.length === 0) {
-      setFormError('At least one line with a product/description and quantity is required.')
-      return
-    }
-    createInvoice.mutate(
-      {
-        vendorId,
-        date,
-        refSupplier,
-        paymentModeCode,
-        notePrivate,
-        validate,
-        lines: validLines.map(({ key: _key, ...l }) => l),
-      },
-      {
-        onSuccess: () => navigate(ROUTES.vendorInvoiceList),
-        onError: () => setFormError('Could not save this invoice — please try again.'),
-      },
-    )
-  }
-
   return (
     <StickyFormShell
       header={
@@ -104,27 +79,40 @@ export function QuickPurchaseCreateForm() {
         </h2>
       }
       footerLeft={
-        <Link to={ROUTES.vendorInvoiceList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <X size={14} /> Cancel
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to={ROUTES.vendorInvoiceList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+            <X size={14} /> Cancel
+          </Link>
+          {/* Both real create paths on this backend are confirmed broken by a live
+              end-to-end test (2026-08-29) — see vendorInvoices.queries.ts's own
+              header comment for the full trace. */}
+          <a
+            href={`/fourn/facture/purchase.php${vendorId ? `?socid=${vendorId}` : ''}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+          >
+            Create in legacy system instead <ExternalLink size={13} />
+          </a>
+        </div>
       }
       footerRight={
         <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled={createInvoice.isPending}
-            onClick={() => submit(false)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover disabled:opacity-60"
+            disabled
+            title="No real path exists on this backend to save a purchase invoice — confirmed broken by a live end-to-end test (creates an orphaned draft header, then fails to save any lines against it). Use the legacy system link instead."
+            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-faint cursor-not-allowed"
           >
-            {createInvoice.isPending ? <LoaderCircle size={14} className="animate-spin" /> : null} Save as Draft
+            Save as Draft
           </button>
           <button
             type="button"
-            disabled={createInvoice.isPending}
-            onClick={() => submit(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            disabled
+            title="Confirmed broken by a live end-to-end test — creates an orphaned draft invoice with no lines and never validates. Use the legacy system link instead."
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60 cursor-not-allowed"
           >
-            {createInvoice.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Save as Invoice
+            <Check size={14} /> Save as Invoice
           </button>
         </div>
       }
@@ -253,13 +241,27 @@ export function QuickPurchaseCreateForm() {
         <div className="p-4 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
             <Field label="Warehouse" required>
-              <Select options={[]} />
+              <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={inputClasses}>
+                <option value="">Select a warehouse</option>
+                {warehouses?.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Bank account">
-                <Select options={[]} />
+              <Field label="Bank account" required>
+                <select value={fkAccount} onChange={(e) => setFkAccount(e.target.value)} className={inputClasses}>
+                  <option value="">Select a bank account</option>
+                  {bankAccounts?.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.label}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Payment Type" required>
                 <select value={paymentModeCode} onChange={(e) => setPaymentModeCode(e.target.value)} className={inputClasses}>
@@ -302,8 +304,6 @@ export function QuickPurchaseCreateForm() {
           </div>
         </div>
       </Card>
-
-      {formError && <p className="text-sm text-danger">{formError}</p>}
     </StickyFormShell>
   )
 }
