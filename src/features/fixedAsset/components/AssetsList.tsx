@@ -1,10 +1,26 @@
 import { useState } from 'react'
-import { BriefcaseBusiness, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BriefcaseBusiness } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useAssetsList } from '../fixedAssets.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { useAssetsList, type AssetRow } from '../fixedAssets.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 const PAGE_SIZE = 25
+
+type SortKey = 'ref' | 'label' | 'createdAt'
+
+function sortValue(a: AssetRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return a.ref
+    case 'label':
+      return a.label
+    case 'createdAt':
+      return a.createdAt
+  }
+}
 
 // Real via asset/assets-sidebar-list-ajax.php — see fixedAssets.queries.ts
 // for the full evidence trail (a thin, misleadingly-named sidebar-widget
@@ -14,6 +30,12 @@ const PAGE_SIZE = 25
 export function AssetsList() {
   const [page, setPage] = useState(0)
   const { data, isLoading, isError, error, refetch } = useAssetsList(page, PAGE_SIZE)
+  const rows = data?.rows ?? []
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<AssetRow, SortKey>(rows, sortValue)
+
+  function getExportData() {
+    return { headers: ['Ref', 'Label', 'Created'], rows: sortedRows.map((a) => [a.ref, a.label, a.createdAt]) }
+  }
 
   return (
     <div className="space-y-4">
@@ -26,24 +48,28 @@ export function AssetsList() {
 
       {data && (
         <>
+          <div className="flex justify-end">
+            <TableExportButtons title="Assets Details" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">Label</th>
-                  <th className="font-medium px-3 py-2">Created</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="label" sort={sort} onSort={toggleSort}>Label</Th>
+                  <Th sortKey="createdAt" sort={sort} onSort={toggleSort}>Created</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="px-3 py-4 text-text-faint italic">
                       No assets found — this module has almost no real records on this instance yet.
                     </td>
                   </tr>
                 ) : (
-                  data.rows.map((a) => (
+                  sortedRows.map((a) => (
                     <tr key={a.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">{a.ref}</td>
                       <td className="px-3 py-2 text-text-muted">{a.label}</td>
@@ -55,23 +81,7 @@ export function AssetsList() {
             </table>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <span>{data.filtered} assets</span>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded-md border border-border disabled:opacity-40">
-                <ChevronLeft size={14} />
-              </button>
-              <span>Page {page + 1}</span>
-              <button
-                type="button"
-                disabled={(page + 1) * PAGE_SIZE >= data.filtered}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-md border border-border disabled:opacity-40"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} />
         </>
       )}
     </div>

@@ -1,10 +1,38 @@
 import { useState } from 'react'
-import { ArrowLeftRight, Boxes, Layers, Banknote, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeftRight, Boxes, Layers, Banknote, Clock } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useStockMovements } from '../stockMovements.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { useStockMovements, type StockMovementRow } from '../stockMovements.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 const PAGE_SIZE = 25
+
+type SortKey = 'date' | 'product' | 'warehouse' | 'type' | 'label' | 'author' | 'qty'
+
+// This page's real backend (product/stock/ajax/movement_list_api.php)
+// paginates server-side, so only the current page's rows are ever in
+// memory — sorting applies within the loaded page, same caveat as the
+// other server-paginated lists in this app (e.g. ContactListPage.tsx).
+function sortValue(m: StockMovementRow, key: SortKey): string | number {
+  switch (key) {
+    case 'date':
+      return m.date
+    case 'product':
+      return `${m.productRef} ${m.productLabel}`
+    case 'warehouse':
+      return m.warehouseRef
+    case 'type':
+      return m.typeLabel
+    case 'label':
+      return m.label
+    case 'author':
+      return m.author
+    case 'qty':
+      return m.qty
+  }
+}
 
 // Real via product/stock/ajax/movement_list_api.php — see
 // stockMovements.queries.ts for the full evidence trail. Reads only
@@ -15,6 +43,15 @@ export function StockMovementsView({ warehouseId, productId }: { warehouseId?: n
   const { data, isLoading, isError, error, refetch } = useStockMovements({ warehouseId, productId }, page, PAGE_SIZE)
 
   const title = data?.warehouseHeader?.label || data?.productHeader?.label || 'Stock Movements'
+  const movements = data?.movements ?? []
+  const { sorted: sortedMovements, sort, toggleSort } = useSortableRows<StockMovementRow, SortKey>(movements, sortValue)
+
+  function getExportData() {
+    return {
+      headers: ['Date', 'Product', 'Warehouse', 'Type', 'Label', 'Author', 'Qty'],
+      rows: sortedMovements.map((m) => [m.date, `${m.productRef} — ${m.productLabel}`, m.warehouseRef, m.typeLabel, m.label, m.author, m.qtyDisplay]),
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -68,28 +105,32 @@ export function StockMovementsView({ warehouseId, productId }: { warehouseId?: n
             </div>
           )}
 
+          <div className="flex justify-end">
+            <TableExportButtons title="Stock Movements" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Date</th>
-                  <th className="font-medium px-3 py-2">Product</th>
-                  <th className="font-medium px-3 py-2">Warehouse</th>
-                  <th className="font-medium px-3 py-2">Type</th>
-                  <th className="font-medium px-3 py-2">Label</th>
-                  <th className="font-medium px-3 py-2">Author</th>
-                  <th className="font-medium px-3 py-2 text-right">Qty</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="date" sort={sort} onSort={toggleSort}>Date</Th>
+                  <Th sortKey="product" sort={sort} onSort={toggleSort}>Product</Th>
+                  <Th sortKey="warehouse" sort={sort} onSort={toggleSort}>Warehouse</Th>
+                  <Th sortKey="type" sort={sort} onSort={toggleSort}>Type</Th>
+                  <Th sortKey="label" sort={sort} onSort={toggleSort}>Label</Th>
+                  <Th sortKey="author" sort={sort} onSort={toggleSort}>Author</Th>
+                  <Th sortKey="qty" sort={sort} onSort={toggleSort} align="right">Qty</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.movements.length === 0 ? (
+                {sortedMovements.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-3 py-4 text-text-faint italic">
                       No stock movements found for the current month.
                     </td>
                   </tr>
                 ) : (
-                  data.movements.map((m) => (
+                  sortedMovements.map((m) => (
                     <tr key={m.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text-muted whitespace-nowrap">{m.date}</td>
                       <td className="px-3 py-2 text-text!">
@@ -107,23 +148,7 @@ export function StockMovementsView({ warehouseId, productId }: { warehouseId?: n
             </table>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <span>{data.total} movements</span>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded-md border border-border disabled:opacity-40">
-                <ChevronLeft size={14} />
-              </button>
-              <span>Page {page + 1}</span>
-              <button
-                type="button"
-                disabled={(page + 1) * PAGE_SIZE >= data.total}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-md border border-border disabled:opacity-40"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.total} onPageChange={(p) => setPage(p - 1)} edgeToEdge />
         </>
       )}
     </div>

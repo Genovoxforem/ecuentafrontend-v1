@@ -1,9 +1,30 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Warehouse, X } from 'lucide-react'
 import { useZraStockList, type ZraStockListItem } from '../zra.queries'
-import { ListHeader, TableShell, EmptyRow } from './ZraListChrome'
+import { ListHeader, EmptyRow, PER_PAGE } from './ZraListChrome'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 
 const dash = (v: string | number | null | undefined) => (v === '' || v === null || v === undefined ? '-' : v)
+
+type SortKey = 'itemCode' | 'itemClassCode' | 'itemName' | 'quantity' | 'supplyAmount'
+const PAGE_SIZE_OPTIONS = [10, 15, 25, 50, 100]
+
+function sortValue(item: ZraStockListItem, key: SortKey): string | number {
+  switch (key) {
+    case 'itemCode':
+      return item.itemCode
+    case 'itemClassCode':
+      return item.itemClassCode
+    case 'itemName':
+      return item.itemName
+    case 'quantity':
+      return item.quantity
+    case 'supplyAmount':
+      return item.supplyAmount
+  }
+}
 
 function DetailsModal({ item, onClose }: { item: ZraStockListItem; onClose: () => void }) {
   return (
@@ -76,31 +97,64 @@ function DetailsModal({ item, onClose }: { item: ZraStockListItem; onClose: () =
 // the per-movement breakdown, same as the real page's modal.
 export function ZraStockList() {
   const { data, isLoading, isError, error } = useZraStockList()
-  const items = data?.items ?? []
+  const items = useMemo(() => data?.items ?? [], [data])
   const [selected, setSelected] = useState<ZraStockListItem | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(PER_PAGE)
+
+  const { sorted: sortedItems, sort, toggleSort } = useSortableRows<ZraStockListItem, SortKey>(items, sortValue)
+  const pageItems = sortedItems.slice((page - 1) * perPage, page * perPage)
+
+  function getExportData() {
+    return {
+      headers: ['S No', 'Item Code', 'Item Classification Code', 'Item Name', 'Quantity', 'Supply Amount'],
+      rows: sortedItems.map((item) => [String(item.sno), String(dash(item.itemCode)), String(dash(item.itemClassCode)), String(dash(item.itemName)), String(item.quantity), String(item.supplyAmount)]),
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <ListHeader icon={<Warehouse size={20} className="text-brand" />} title="ZRA Stock List" count={items.length} />
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
+        <ListHeader icon={<Warehouse size={20} className="text-brand" />} title="ZRA Stock List" count={items.length} />
+        {data?.resultMessage && (
+          <p className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
+            {data.resultCode}-{data.resultMessage}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm text-text-muted">
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value))
+                setPage(1)
+              }}
+              className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            entries per page
+          </label>
+          <TableExportButtons title="ZRA Stock List" getExportData={getExportData} />
+        </div>
+      </div>
 
-      {data?.resultMessage && (
-        <p className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
-          {data.resultCode}-{data.resultMessage}
-        </p>
-      )}
-
-      <TableShell>
+      <div className="flex-1 min-h-0 overflow-y-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-surface-alt">
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium px-3 py-3">S No</th>
-              <th className="font-medium px-3 py-3">Item Code</th>
-              <th className="font-medium px-3 py-3">Item Classification Code</th>
-              <th className="font-medium px-3 py-3">Item Name</th>
-              <th className="font-medium px-3 py-3">Quantity</th>
-              <th className="font-medium px-3 py-3">Supply Amount</th>
-              <th className="font-medium px-3 py-3">Actions</th>
-            </tr>
+          <thead className="sticky top-0 z-10">
+            <TheadRow>
+              <Th>S No</Th>
+              <Th sortKey="itemCode" sort={sort} onSort={toggleSort}>Item Code</Th>
+              <Th sortKey="itemClassCode" sort={sort} onSort={toggleSort}>Item Classification Code</Th>
+              <Th sortKey="itemName" sort={sort} onSort={toggleSort}>Item Name</Th>
+              <Th sortKey="quantity" sort={sort} onSort={toggleSort}>Quantity</Th>
+              <Th sortKey="supplyAmount" sort={sort} onSort={toggleSort}>Supply Amount</Th>
+              <Th>Actions</Th>
+            </TheadRow>
           </thead>
           <tbody>
             <EmptyRow
@@ -112,7 +166,7 @@ export function ZraStockList() {
               emptyLabel="No data available"
               feature="ZRA Stock List"
             />
-            {items.map((item) => (
+            {pageItems.map((item) => (
               <tr key={item.itemCode} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3 text-text-muted">{item.sno}</td>
                 <td className="px-3 py-3 text-text-muted">{dash(item.itemCode)}</td>
@@ -133,7 +187,9 @@ export function ZraStockList() {
             ))}
           </tbody>
         </table>
-      </TableShell>
+      </div>
+
+      <ListPagination page={page} perPage={perPage} total={items.length} onPageChange={setPage} />
 
       {selected && <DetailsModal item={selected} onClose={() => setSelected(null)} />}
     </div>

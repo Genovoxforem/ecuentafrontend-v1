@@ -112,6 +112,7 @@ export function EmptyRow({
 }
 
 export function ZraStatusBadge({ synced, label }: { synced: boolean; label: string }) {
+  if (!label) return <span className="text-text-faint">-</span>
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${synced ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg'}`}>{label}</span>
   )

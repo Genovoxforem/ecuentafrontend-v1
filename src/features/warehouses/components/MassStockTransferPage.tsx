@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeftRight, Plus, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { useProductOptions } from '../../products/products.queries'
 import { useWarehouses } from '../warehouseExtras.queries'
 import { useRecordStockMovements } from '../warehouses.queries'
@@ -82,14 +83,14 @@ export function MassStockTransferPage() {
       <Card className="!p-0 !h-auto overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-3 py-2.5">Source Warehouse</th>
-              <th className="font-medium px-3 py-2.5">Target Warehouse</th>
-              <th className="font-medium px-3 py-2.5">Product</th>
-              <th className="font-medium px-3 py-2.5">Lot/Serial</th>
-              <th className="font-medium px-3 py-2.5">Qty</th>
-              <th className="font-medium px-3 py-2.5"></th>
-            </tr>
+            <TheadRow>
+              <Th>Source Warehouse</Th>
+              <Th>Target Warehouse</Th>
+              <Th>Product</Th>
+              <Th>Lot/Serial</Th>
+              <Th>Qty</Th>
+              <Th></Th>
+            </TheadRow>
           </thead>
           <tbody>
             {rows.map((row) => (

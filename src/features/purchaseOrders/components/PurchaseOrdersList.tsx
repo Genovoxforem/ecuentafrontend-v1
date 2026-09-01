@@ -5,10 +5,26 @@ import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import type { PurchaseOrderRow, PurchaseOrdersSummary } from '../purchaseOrders.queries'
 
-const COLUMNS = ['Ref', 'Ref. Order Vendor', 'Request Author', 'Third-Party', 'City', 'Zip Code', 'Order Date', 'Planned Date Of Delivery', 'Amount (Excl. Tax)', 'Status', 'Billed']
+type SortKey = 'ref' | 'refOrderVendor' | 'requestAuthor' | 'thirdParty' | 'city' | 'zipCode' | 'orderDate' | 'plannedDelivery' | 'amountExclTax' | 'status' | 'billed'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Ref', key: 'ref' },
+  { label: 'Ref. Order Vendor', key: 'refOrderVendor' },
+  { label: 'Request Author', key: 'requestAuthor' },
+  { label: 'Third-Party', key: 'thirdParty' },
+  { label: 'City', key: 'city' },
+  { label: 'Zip Code', key: 'zipCode' },
+  { label: 'Order Date', key: 'orderDate' },
+  { label: 'Planned Date Of Delivery', key: 'plannedDelivery' },
+  { label: 'Amount (Excl. Tax)', key: 'amountExclTax' },
+  { label: 'Status', key: 'status' },
+  { label: 'Billed', key: 'billed' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(order: PurchaseOrderRow, query: string) {
@@ -17,13 +33,41 @@ function matchesSearch(order: PurchaseOrderRow, query: string) {
   return [order.ref, order.refOrderVendor, order.requestAuthor, order.thirdParty, order.city, order.zipCode, order.status].some((field) => field.toLowerCase().includes(q))
 }
 
+function sortValue(row: PurchaseOrderRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return row.ref
+    case 'refOrderVendor':
+      return row.refOrderVendor
+    case 'requestAuthor':
+      return row.requestAuthor
+    case 'thirdParty':
+      return row.thirdParty
+    case 'city':
+      return row.city
+    case 'zipCode':
+      return row.zipCode
+    case 'orderDate':
+      return row.orderDate
+    case 'plannedDelivery':
+      return row.plannedDelivery
+    case 'amountExclTax':
+      return row.amountExclTax
+    case 'status':
+      return row.status
+    case 'billed':
+      return row.billed ? 1 : 0
+  }
+}
+
 export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
 
   const filteredOrders = useMemo(() => summary.orders.filter((o) => matchesSearch(o, search)), [summary.orders, search])
-  const pageOrders = filteredOrders.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedOrders, sort, toggleSort } = useSortableRows<PurchaseOrderRow, SortKey>(filteredOrders, sortValue)
+  const pageOrders = sortedOrders.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -36,7 +80,7 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
   }
 
   function getExportData() {
-    const rows = filteredOrders.map((o) => [
+    const rows = sortedOrders.map((o) => [
       o.ref,
       o.refOrderVendor,
       o.requestAuthor,
@@ -49,7 +93,7 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
       o.status,
       o.billed ? 'Yes' : 'No',
     ])
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -130,24 +174,24 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <TheadRow>
                 {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
+                  <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                    {col.label}
+                  </Th>
                 ))}
-              </tr>
+              </TheadRow>
             </thead>
             <tbody>
               {summary.orders.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No Data Available In Table
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No orders match "{search}".
                   </td>
                 </tr>

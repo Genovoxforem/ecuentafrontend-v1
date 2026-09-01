@@ -1,12 +1,41 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Receipt } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useExpenseReportsList, type ExpenseListFilters } from '../expenses.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { useExpenseReportsList, type ExpenseListFilters, type ExpenseReportRow } from '../expenses.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
 
 const PAGE_SIZE = 20
+
+type SortKey = 'ref' | 'user' | 'linkedTo' | 'dateStart' | 'totalHt' | 'totalTtc' | 'status' | 'paid'
+
+// Server-paginated (expense/ajax/expense_list.php) — sorting applies within
+// the loaded page only, same caveat as this app's other server-paginated
+// lists (ContactListPage.tsx).
+function sortValue(r: ExpenseReportRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return r.ref
+    case 'user':
+      return r.user
+    case 'linkedTo':
+      return r.linkedTo
+    case 'dateStart':
+      return r.dateStart
+    case 'totalHt':
+      return r.totalHt
+    case 'totalTtc':
+      return r.totalTtc
+    case 'status':
+      return r.status
+    case 'paid':
+      return r.paid ? 1 : 0
+  }
+}
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
 
@@ -36,10 +65,19 @@ export function ExpenseReportsList() {
   const [filters, setFilters] = useState<ExpenseListFilters>({ status: '', dateFrom: '', dateTo: '' })
   const [page, setPage] = useState(0)
   const { data, isLoading, isError, error, refetch } = useExpenseReportsList(filters, page, PAGE_SIZE)
+  const rows = data?.rows ?? []
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<ExpenseReportRow, SortKey>(rows, sortValue)
 
   function setFilter<K extends keyof ExpenseListFilters>(key: K, value: ExpenseListFilters[K]) {
     setPage(0)
     setFilters((f) => ({ ...f, [key]: value }))
+  }
+
+  function getExportData() {
+    return {
+      headers: ['Ref', 'Employee', 'Linked To', 'Period', 'Total HT', 'Total TTC', 'Status', 'Paid'],
+      rows: sortedRows.map((r) => [r.ref, r.user, r.linkedTo, `${r.dateStart} - ${r.dateEnd}`, r.totalHt, r.totalTtc, r.status, r.paid ? 'Paid' : 'Unpaid']),
+    }
   }
 
   return (
@@ -65,29 +103,33 @@ export function ExpenseReportsList() {
 
       {data && (
         <>
+          <div className="flex justify-end">
+            <TableExportButtons title="Expense Reports" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">Employee</th>
-                  <th className="font-medium px-3 py-2">Linked To</th>
-                  <th className="font-medium px-3 py-2">Period</th>
-                  <th className="font-medium px-3 py-2 text-right">Total HT</th>
-                  <th className="font-medium px-3 py-2 text-right">Total TTC</th>
-                  <th className="font-medium px-3 py-2">Status</th>
-                  <th className="font-medium px-3 py-2">Paid</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="user" sort={sort} onSort={toggleSort}>Employee</Th>
+                  <Th sortKey="linkedTo" sort={sort} onSort={toggleSort}>Linked To</Th>
+                  <Th sortKey="dateStart" sort={sort} onSort={toggleSort}>Period</Th>
+                  <Th sortKey="totalHt" sort={sort} onSort={toggleSort} align="right">Total HT</Th>
+                  <Th sortKey="totalTtc" sort={sort} onSort={toggleSort} align="right">Total TTC</Th>
+                  <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
+                  <Th sortKey="paid" sort={sort} onSort={toggleSort}>Paid</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-3 py-4 text-text-faint italic">
                       No expense reports found.
                     </td>
                   </tr>
                 ) : (
-                  data.rows.map((r) => (
+                  sortedRows.map((r) => (
                     <tr key={r.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">
                         <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
@@ -116,23 +158,7 @@ export function ExpenseReportsList() {
             </table>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <span>{data.filtered} expense reports</span>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded-md border border-border disabled:opacity-40">
-                <ChevronLeft size={14} />
-              </button>
-              <span>Page {page + 1}</span>
-              <button
-                type="button"
-                disabled={(page + 1) * PAGE_SIZE >= data.filtered}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-md border border-border disabled:opacity-40"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} />
         </>
       )}
     </div>

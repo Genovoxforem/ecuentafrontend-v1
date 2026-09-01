@@ -1,9 +1,13 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Warehouse, Plus, Boxes, Package, CircleDollarSign } from 'lucide-react'
+import { Warehouse, Plus, Boxes, Package, CircleDollarSign, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { ROUTES } from '../../../routes'
 import { useProductOptions } from '../../products/products.queries'
-import { useWarehouseList } from '../warehouseExtras.queries'
+import { useWarehouseList, type WarehouseListRow } from '../warehouseExtras.queries'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
@@ -21,6 +25,42 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: string |
   )
 }
 
+type SortKey = 'ref' | 'shortName' | 'environment' | 'inputStockValue' | 'valueForSell' | 'status'
+
+const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
+  { label: 'Ref', key: 'ref' },
+  { label: 'Short Name Location', key: 'shortName' },
+  { label: 'Environment', key: 'environment' },
+  { label: 'Input Stock Value', key: 'inputStockValue', align: 'right' },
+  { label: 'Value For Sell', key: 'valueForSell', align: 'right' },
+  { label: 'Status', key: 'status' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function matchesSearch(w: WarehouseListRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [w.ref, w.shortName, w.environment, w.statusLabel].some((field) => field.toLowerCase().includes(q))
+}
+
+function sortValue(w: WarehouseListRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return w.ref
+    case 'shortName':
+      return w.shortName
+    case 'environment':
+      return w.environment
+    case 'inputStockValue':
+      return w.inputStockValue
+    case 'valueForSell':
+      return w.valueForSell
+    case 'status':
+      return w.statusLabel
+  }
+}
+
 // Warehouses now come from the real product/stock/list.php page (see
 // warehouseExtras.queries.ts) — "Total Products"/"Total Stock"/"Total Stock
 // Value" stay sourced from /api/products/, the same real catalog the
@@ -30,9 +70,40 @@ export function WarehouseListPage() {
   const { data: products } = useProductOptions()
   const totalStockValue = (products ?? []).reduce((sum, p) => sum + p.priceExclTax * p.stock, 0)
 
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(15)
+  const [search, setSearch] = useState('')
+
+  const filteredWarehouses = useMemo(() => warehouses.filter((w) => matchesSearch(w, search)), [warehouses, search])
+  const { sorted: sortedWarehouses, sort, toggleSort } = useSortableRows<WarehouseListRow, SortKey>(filteredWarehouses, sortValue)
+  const pageWarehouses = sortedWarehouses.slice((page - 1) * perPage, page * perPage)
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
+
+  function getExportData() {
+    const rows = sortedWarehouses.map((w) => [
+      w.ref,
+      w.shortName,
+      w.environment,
+      w.inputStockValue ? formatMoney(w.inputStockValue) : '',
+      formatMoney(w.valueForSell),
+      w.statusLabel,
+    ])
+    return { headers: COLUMN_LABELS, rows }
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Warehouse size={20} className="text-brand" /> Warehouse Details
         </h2>
@@ -41,57 +112,91 @@ export function WarehouseListPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatTile label="Total Warehouses" value={warehouses.length} icon={Warehouse} />
-        <StatTile label="Total Products" value={(products ?? []).length} icon={Boxes} />
-        <StatTile label="Total Stock" value={(products ?? []).reduce((sum, p) => sum + p.stock, 0)} icon={Package} />
-        <StatTile label="Total Stock Value" value={`${totalStockValue.toFixed(2)} ZMW`} icon={CircleDollarSign} />
-      </div>
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatTile label="Total Warehouses" value={warehouses.length} icon={Warehouse} />
+          <StatTile label="Total Products" value={(products ?? []).length} icon={Boxes} />
+          <StatTile label="Total Stock" value={(products ?? []).reduce((sum, p) => sum + p.stock, 0)} icon={Package} />
+          <StatTile label="Total Stock Value" value={`${totalStockValue.toFixed(2)} ZMW`} icon={CircleDollarSign} />
+        </div>
 
-      {isLoading ? (
-        <LegacyLoadingCard label="Loading warehouses…" />
-      ) : isError ? (
-        <LegacyErrorCard title="Couldn't load warehouses" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
-      ) : (
-        <Card className="!p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                <th className="font-medium px-4 py-2.5">Ref</th>
-                <th className="font-medium px-4 py-2.5">Short Name Location</th>
-                <th className="font-medium px-4 py-2.5">Environment</th>
-                <th className="font-medium px-4 py-2.5 text-right">Input Stock Value</th>
-                <th className="font-medium px-4 py-2.5 text-right">Value For Sell</th>
-                <th className="font-medium px-4 py-2.5">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {warehouses.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-4 text-text-faint italic">
-                    No Data Available In Table
-                  </td>
-                </tr>
-              ) : (
-                warehouses.map((w) => (
-                  <tr key={w.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 text-brand">
-                      <Link to={ROUTES.warehouseDetail.replace(':id', String(w.id))} className="hover:underline">
-                        {w.ref}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-text-muted">{w.shortName}</td>
-                    <td className="px-4 py-3 text-text-muted">{w.environment}</td>
-                    <td className="px-4 py-3 text-right text-text-muted">{w.inputStockValue ? formatMoney(w.inputStockValue) : ''}</td>
-                    <td className="px-4 py-3 text-right text-text-muted">{formatMoney(w.valueForSell)}</td>
-                    <td className="px-4 py-3 text-text-muted">{w.statusLabel}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Card>
-      )}
+        {isLoading ? (
+          <LegacyLoadingCard label="Loading warehouses…" />
+        ) : isError ? (
+          <LegacyErrorCard title="Couldn't load warehouses" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+        ) : (
+          <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+            <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+              <select
+                value={perPage}
+                onChange={(e) => handlePerPageChange(Number(e.target.value))}
+                className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <div className="relative w-48">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Search"
+                  className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+                />
+              </div>
+              <TableExportButtons title="Warehouse Details" getExportData={getExportData} />
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <TheadRow>
+                    {COLUMNS.map((col) => (
+                      <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.align}>
+                        {col.label}
+                      </Th>
+                    ))}
+                  </TheadRow>
+                </thead>
+                <tbody>
+                  {warehouses.length === 0 ? (
+                    <tr>
+                      <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
+                        No Data Available In Table
+                      </td>
+                    </tr>
+                  ) : filteredWarehouses.length === 0 ? (
+                    <tr>
+                      <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
+                        No warehouses match "{search}".
+                      </td>
+                    </tr>
+                  ) : (
+                    pageWarehouses.map((w) => (
+                      <tr key={w.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-3 text-brand">
+                          <Link to={ROUTES.warehouseDetail.replace(':id', String(w.id))} className="hover:underline">
+                            {w.ref}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-text-muted">{w.shortName}</td>
+                        <td className="px-4 py-3 text-text-muted">{w.environment}</td>
+                        <td className="px-4 py-3 text-right text-text-muted">{w.inputStockValue ? formatMoney(w.inputStockValue) : ''}</td>
+                        <td className="px-4 py-3 text-right text-text-muted">{formatMoney(w.valueForSell)}</td>
+                        <td className="px-4 py-3 text-text-muted">{w.statusLabel}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+      <ListPagination page={page} perPage={perPage} total={filteredWarehouses.length} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }

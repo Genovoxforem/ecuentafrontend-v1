@@ -1,10 +1,19 @@
 import { useState } from 'react'
-import { Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Users } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useMembersList } from '../members.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { useMembersList, type MemberRow } from '../members.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 const PAGE_SIZE = 25
+
+type SortKey = 'ref' | 'firstname' | 'lastname' | 'company' | 'login' | 'type' | 'email' | 'endOfSubscription' | 'status'
+
+function sortValue(m: MemberRow, key: SortKey): string | number {
+  return m[key]
+}
 
 // Real via adherents/ajax/ajax_adherents_list.php — see members.queries.ts
 // for the full evidence trail. This module has zero real members on this
@@ -13,6 +22,15 @@ const PAGE_SIZE = 25
 export function MembersList() {
   const [page, setPage] = useState(0)
   const { data, isLoading, isError, error, refetch } = useMembersList(page, PAGE_SIZE)
+  const rows = data?.rows ?? []
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<MemberRow, SortKey>(rows, sortValue)
+
+  function getExportData() {
+    return {
+      headers: ['Ref', 'First Name', 'Last Name', 'Company', 'Login', 'Type', 'Email', 'End Of Subscription', 'Status'],
+      rows: sortedRows.map((m) => [m.ref, m.firstname, m.lastname, m.company, m.login, m.type, m.email, m.endOfSubscription, m.status]),
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -25,30 +43,34 @@ export function MembersList() {
 
       {data && (
         <>
+          <div className="flex justify-end">
+            <TableExportButtons title="Members" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">First Name</th>
-                  <th className="font-medium px-3 py-2">Last Name</th>
-                  <th className="font-medium px-3 py-2">Company</th>
-                  <th className="font-medium px-3 py-2">Login</th>
-                  <th className="font-medium px-3 py-2">Type</th>
-                  <th className="font-medium px-3 py-2">Email</th>
-                  <th className="font-medium px-3 py-2">End Of Subscription</th>
-                  <th className="font-medium px-3 py-2">Status</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="firstname" sort={sort} onSort={toggleSort}>First Name</Th>
+                  <Th sortKey="lastname" sort={sort} onSort={toggleSort}>Last Name</Th>
+                  <Th sortKey="company" sort={sort} onSort={toggleSort}>Company</Th>
+                  <Th sortKey="login" sort={sort} onSort={toggleSort}>Login</Th>
+                  <Th sortKey="type" sort={sort} onSort={toggleSort}>Type</Th>
+                  <Th sortKey="email" sort={sort} onSort={toggleSort}>Email</Th>
+                  <Th sortKey="endOfSubscription" sort={sort} onSort={toggleSort}>End Of Subscription</Th>
+                  <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-3 py-4 text-text-faint italic">
                       No members found — this module has no real records on this instance yet.
                     </td>
                   </tr>
                 ) : (
-                  data.rows.map((m, i) => (
+                  sortedRows.map((m, i) => (
                     <tr key={i} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">{m.ref}</td>
                       <td className="px-3 py-2 text-text-muted">{m.firstname}</td>
@@ -68,23 +90,7 @@ export function MembersList() {
             </table>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <span>{data.filtered} members</span>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded-md border border-border disabled:opacity-40">
-                <ChevronLeft size={14} />
-              </button>
-              <span>Page {page + 1}</span>
-              <button
-                type="button"
-                disabled={(page + 1) * PAGE_SIZE >= data.filtered}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-md border border-border disabled:opacity-40"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} />
         </>
       )}
     </div>

@@ -1,13 +1,42 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Ticket as TicketIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Ticket as TicketIcon } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useTicketsList, useTicketStats } from '../tickets.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { useTicketsList, useTicketStats, type TicketRow } from '../tickets.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
 
 const PAGE_SIZE = 20
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none'
+
+type SortKey = 'ref' | 'subject' | 'type' | 'thirdParty' | 'author' | 'assignedTo' | 'dateCreate' | 'status'
+
+// This page's real backend (ticket/ticket_list_ajax.php) paginates
+// server-side, so sorting applies within the loaded page only — same
+// caveat as this app's other server-paginated lists (ContactListPage.tsx).
+function sortValue(t: TicketRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return t.ref
+    case 'subject':
+      return t.subject
+    case 'type':
+      return t.type ?? ''
+    case 'thirdParty':
+      return t.thirdParty ?? ''
+    case 'author':
+      return t.author
+    case 'assignedTo':
+      return t.assignedTo ?? ''
+    case 'dateCreate':
+      return t.dateCreate
+    case 'status':
+      return t.status
+  }
+}
 
 // Real via ticket/ticket_list_ajax.php (list + "My Assigned Tickets", same
 // endpoint with mode=mine) and ticket/ticket_stats_ajax.php (stat cards) —
@@ -19,6 +48,15 @@ export function TicketsList({ defaultMine = false }: { defaultMine?: boolean }) 
   const [page, setPage] = useState(0)
   const { data: stats } = useTicketStats()
   const { data, isLoading, isError, error, refetch } = useTicketsList({ status, mine }, page, PAGE_SIZE)
+  const rows = data?.rows ?? []
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<TicketRow, SortKey>(rows, sortValue)
+
+  function getExportData() {
+    return {
+      headers: ['Ref', 'Subject', 'Type', 'Third Party', 'Author', 'Assigned To', 'Created', 'Status'],
+      rows: sortedRows.map((t) => [t.ref, t.subject, t.type ?? '', t.thirdParty ?? '', t.author, t.assignedTo ?? '', t.dateCreate, t.status]),
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -83,29 +121,33 @@ export function TicketsList({ defaultMine = false }: { defaultMine?: boolean }) 
 
       {data && (
         <>
+          <div className="flex justify-end">
+            <TableExportButtons title="Tickets" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">Subject</th>
-                  <th className="font-medium px-3 py-2">Type</th>
-                  <th className="font-medium px-3 py-2">Third Party</th>
-                  <th className="font-medium px-3 py-2">Author</th>
-                  <th className="font-medium px-3 py-2">Assigned To</th>
-                  <th className="font-medium px-3 py-2">Created</th>
-                  <th className="font-medium px-3 py-2">Status</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="subject" sort={sort} onSort={toggleSort}>Subject</Th>
+                  <Th sortKey="type" sort={sort} onSort={toggleSort}>Type</Th>
+                  <Th sortKey="thirdParty" sort={sort} onSort={toggleSort}>Third Party</Th>
+                  <Th sortKey="author" sort={sort} onSort={toggleSort}>Author</Th>
+                  <Th sortKey="assignedTo" sort={sort} onSort={toggleSort}>Assigned To</Th>
+                  <Th sortKey="dateCreate" sort={sort} onSort={toggleSort}>Created</Th>
+                  <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-3 py-4 text-text-faint italic">
                       No tickets found.
                     </td>
                   </tr>
                 ) : (
-                  data.rows.map((t) => (
+                  sortedRows.map((t) => (
                     <tr key={t.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">
                         <Link to={ROUTES.ticketDetail.replace(':id', String(t.id))} className="text-brand hover:underline">
@@ -128,23 +170,7 @@ export function TicketsList({ defaultMine = false }: { defaultMine?: boolean }) 
             </table>
           </Card>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <span>{data.filtered} tickets</span>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="p-1.5 rounded-md border border-border disabled:opacity-40">
-                <ChevronLeft size={14} />
-              </button>
-              <span>Page {page + 1}</span>
-              <button
-                type="button"
-                disabled={(page + 1) * PAGE_SIZE >= data.filtered}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-md border border-border disabled:opacity-40"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} />
         </>
       )}
     </div>

@@ -4,14 +4,38 @@ import { Users, Plus, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { ROUTES } from '../../../routes'
-import { useContacts, type ContactKind } from '../contacts.queries'
+import { useContacts, type ContactKind, type ContactRow } from '../contacts.queries'
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 const KIND_LABEL: Record<ContactKind, string> = {
   customer: 'Customers',
   vendor: 'Vendors',
+}
+
+type SortKey = 'lastName' | 'firstName' | 'phone' | 'email' | 'thirdPartyCode'
+
+// This page's real backend (contact/contacts-addresses-list-ajax.php) paginates
+// server-side, so only the current page's rows are ever in memory — sorting
+// applies within the loaded page, same as the rest of this app's other
+// server-paginated ZRA DataTables-backed lists (no full-dataset sort exists
+// to wire against without fetching everything, which this endpoint doesn't
+// support via a `length=-1` escape hatch the way societe/api/list.php does).
+function sortValue(r: ContactRow, key: SortKey): string | number {
+  switch (key) {
+    case 'lastName':
+      return r.lastName ?? ''
+    case 'firstName':
+      return r.firstName ?? ''
+    case 'phone':
+      return r.phone ?? ''
+    case 'email':
+      return r.email ?? ''
+    case 'thirdPartyCode':
+      return r.thirdPartyCode ?? ''
+  }
 }
 
 // Real POST contact/contacts-addresses-list-ajax.php data (see
@@ -34,11 +58,12 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
 
   const rows = data?.items ?? []
   const total = data?.total ?? 0
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<ContactRow, SortKey>(rows, sortValue)
 
   function getExportData() {
     return {
       headers: ['Last Name', 'First Name', 'Phone', 'Email', 'Third-Party Code'],
-      rows: rows.map((r) => [r.lastName ?? '', r.firstName ?? '', r.phone ?? '', r.email ?? '', r.thirdPartyCode ?? '']),
+      rows: sortedRows.map((r) => [r.lastName ?? '', r.firstName ?? '', r.phone ?? '', r.email ?? '', r.thirdPartyCode ?? '']),
     }
   }
 
@@ -81,17 +106,17 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
 
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface z-[1]">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                  <th className="font-medium px-4 py-2.5">Last Name</th>
-                  <th className="font-medium px-4 py-2.5">First Name</th>
-                  <th className="font-medium px-4 py-2.5">Phone</th>
-                  <th className="font-medium px-4 py-2.5">Email</th>
-                  <th className="font-medium px-4 py-2.5">Third-Party</th>
-                  <th className="font-medium px-4 py-2.5">Visibility</th>
-                  <th className="font-medium px-4 py-2.5">Environment</th>
-                  <th className="font-medium px-4 py-2.5">Status</th>
-                </tr>
+              <thead className="sticky top-0 z-10">
+                <TheadRow>
+                  <Th sortKey="lastName" sort={sort} onSort={toggleSort}>Last Name</Th>
+                  <Th sortKey="firstName" sort={sort} onSort={toggleSort}>First Name</Th>
+                  <Th sortKey="phone" sort={sort} onSort={toggleSort}>Phone</Th>
+                  <Th sortKey="email" sort={sort} onSort={toggleSort}>Email</Th>
+                  <Th sortKey="thirdPartyCode" sort={sort} onSort={toggleSort}>Third-Party</Th>
+                  <Th>Visibility</Th>
+                  <Th>Environment</Th>
+                  <Th>Status</Th>
+                </TheadRow>
               </thead>
               <tbody>
                 {isLoading ? (
@@ -113,7 +138,7 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r) => (
+                  sortedRows.map((r) => (
                     <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
                       <td className="px-4 py-3">
                         <Link to={detailRoute.replace(':id', String(r.id))} className="text-brand font-medium hover:underline">

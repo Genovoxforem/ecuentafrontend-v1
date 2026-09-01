@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Truck } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useUsersSummary } from '../../users/users.queries'
@@ -91,10 +92,10 @@ export function StatisticsShipmentPage() {
         {!isBackendUnavailable(statsError) && (
           <table className="w-full text-sm mt-4">
             <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                <th className="font-medium py-2">Year</th>
-                <th className="font-medium py-2 text-right">Number Of Shipments</th>
-              </tr>
+              <TheadRow>
+                <Th className="!px-0">Year</Th>
+                <Th className="!px-0" align="right">Number Of Shipments</Th>
+              </TheadRow>
             </thead>
             <tbody>
               {statsLoading ? (

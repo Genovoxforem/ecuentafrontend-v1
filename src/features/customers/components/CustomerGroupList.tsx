@@ -5,11 +5,26 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { useCustomerGroupsSummary, useDeleteCustomerGroup, formatDiscountMethod, type CustomerGroupRow } from '../customerGroups.queries'
 
-const EXPORT_COLUMNS = ['Label', 'Discount Method', 'Discount Type', 'Description']
+type SortKey = 'label' | 'discountMethod' | 'discountType' | 'description'
 
+const EXPORT_COLUMNS = ['Label', 'Discount Method', 'Discount Type', 'Description']
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function sortValue(g: CustomerGroupRow, key: SortKey): string | number {
+  switch (key) {
+    case 'label':
+      return g.label
+    case 'discountMethod':
+      return formatDiscountMethod(g)
+    case 'discountType':
+      return g.discountMethod === 1 ? g.discountType : -1
+    case 'description':
+      return g.description ?? ''
+  }
+}
 
 const METHOD_BADGE: Record<number, string> = {
   1: 'bg-warning-bg text-warning-fg',
@@ -34,7 +49,8 @@ export function CustomerGroupList() {
   const [search, setSearch] = useState('')
 
   const filteredGroups = useMemo(() => data.groups.filter((g) => matchesSearch(g, search)), [data.groups, search])
-  const pageGroups = filteredGroups.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedGroups, sort, toggleSort } = useSortableRows<CustomerGroupRow, SortKey>(filteredGroups, sortValue)
+  const pageGroups = sortedGroups.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -53,7 +69,7 @@ export function CustomerGroupList() {
   }
 
   function getExportData() {
-    const rows = filteredGroups.map((g) => [g.label, formatDiscountMethod(g), g.discountMethod === 1 ? TYPE_LABEL[g.discountType] : 'N/A', g.description ?? ''])
+    const rows = sortedGroups.map((g) => [g.label, formatDiscountMethod(g), g.discountMethod === 1 ? TYPE_LABEL[g.discountType] : 'N/A', g.description ?? ''])
     return { headers: EXPORT_COLUMNS, rows }
   }
 
@@ -98,14 +114,14 @@ export function CustomerGroupList() {
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-4 py-2.5 w-14">S.No</th>
-                  <th className="font-medium px-4 py-2.5">Label</th>
-                  <th className="font-medium px-4 py-2.5">Discount Method</th>
-                  <th className="font-medium px-4 py-2.5">Discount Type</th>
-                  <th className="font-medium px-4 py-2.5">Description</th>
-                  <th className="font-medium px-4 py-2.5 w-20">Action</th>
-                </tr>
+                <TheadRow>
+                  <Th className="w-14">S.No</Th>
+                  <Th sortKey="label" sort={sort} onSort={toggleSort}>Label</Th>
+                  <Th sortKey="discountMethod" sort={sort} onSort={toggleSort}>Discount Method</Th>
+                  <Th sortKey="discountType" sort={sort} onSort={toggleSort}>Discount Type</Th>
+                  <Th sortKey="description" sort={sort} onSort={toggleSort}>Description</Th>
+                  <Th className="w-20">Action</Th>
+                </TheadRow>
               </thead>
               <tbody>
                 {isLoading ? (

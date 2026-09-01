@@ -2,12 +2,33 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileBarChart, TrendingUp, TrendingDown, Scale } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { usePurchaseReport } from '../reports.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { usePurchaseReport, type PurchaseReportInvoiceRow } from '../reports.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+type SortKey = 'ref' | 'vendor' | 'refSupplier' | 'invoiceDate' | 'amount'
+
+function sortValue(inv: PurchaseReportInvoiceRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return inv.ref
+    case 'vendor':
+      return inv.vendor
+    case 'refSupplier':
+      return inv.refSupplier
+    case 'invoiceDate':
+      return inv.invoiceDate
+    case 'amount':
+      return inv.amount
+  }
+}
 
 function firstDayOfMonth(): string {
   const d = new Date()
@@ -26,7 +47,19 @@ function today(): string {
 export function PurchaseReportView() {
   const [dateFrom, setDateFrom] = useState(firstDayOfMonth())
   const [dateTo, setDateTo] = useState(today())
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
   const { data, isLoading, isError, error, refetch } = usePurchaseReport(dateFrom, dateTo)
+  const invoices = data?.invoices ?? []
+  const { sorted: sortedInvoices, sort, toggleSort } = useSortableRows<PurchaseReportInvoiceRow, SortKey>(invoices, sortValue)
+  const pageInvoices = sortedInvoices.slice((page - 1) * perPage, page * perPage)
+
+  function getExportData() {
+    return {
+      headers: ['Ref', 'Vendor', 'Ref. Vendor', 'Invoice Date', 'Amount'],
+      rows: sortedInvoices.map((inv) => [inv.ref, inv.vendor, inv.refSupplier, inv.invoiceDate, formatMoney(inv.amount)]),
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -75,26 +108,44 @@ export function PurchaseReportView() {
             </Card>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value))
+                setPage(1)
+              }}
+              className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <TableExportButtons title="Purchase Report" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">Vendor</th>
-                  <th className="font-medium px-3 py-2">Ref. Vendor</th>
-                  <th className="font-medium px-3 py-2">Invoice Date</th>
-                  <th className="font-medium px-3 py-2 text-right">Amount</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="vendor" sort={sort} onSort={toggleSort}>Vendor</Th>
+                  <Th sortKey="refSupplier" sort={sort} onSort={toggleSort}>Ref. Vendor</Th>
+                  <Th sortKey="invoiceDate" sort={sort} onSort={toggleSort}>Invoice Date</Th>
+                  <Th sortKey="amount" sort={sort} onSort={toggleSort} align="right">Amount</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.invoices.length === 0 ? (
+                {pageInvoices.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-4 text-text-faint italic">
                       No purchase invoices found for the selected period.
                     </td>
                   </tr>
                 ) : (
-                  data.invoices.map((inv) => (
+                  pageInvoices.map((inv) => (
                     <tr key={inv.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">{inv.ref}</td>
                       <td className="px-3 py-2 text-text-muted">
@@ -121,6 +172,8 @@ export function PurchaseReportView() {
               )}
             </table>
           </Card>
+
+          <ListPagination page={page} perPage={perPage} total={sortedInvoices.length} onPageChange={setPage} />
         </>
       )}
     </div>

@@ -5,11 +5,51 @@ import { Card, ICON_STYLES, type IconColor } from '../dashboard/DashboardKit'
 import { ListPagination } from '../ListPagination'
 import { TableExportButtons } from '../TableExportButtons'
 import { Avatar } from '../Avatar'
+import { Th, TheadRow, useSortableRows } from '../table/SortableTh'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { useUserIdByName } from '../../../features/users/users.queries'
 
-const COLUMNS = ['Third-Party Name', 'Country', 'Outstanding Balance', 'Tpin', 'Sales Representatives', 'Email & Phone', 'Nature Of Third Party', 'Tracking Id', 'Creation Date', 'Status']
+type SortKey = 'name' | 'country' | 'balance' | 'tpin' | 'salesRep' | 'email' | 'nature' | 'trackingId' | 'creation' | 'status'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Third-Party Name', key: 'name' },
+  { label: 'Country', key: 'country' },
+  { label: 'Outstanding Balance', key: 'balance' },
+  { label: 'Tpin', key: 'tpin' },
+  { label: 'Sales Representatives', key: 'salesRep' },
+  { label: 'Email & Phone', key: 'email' },
+  { label: 'Nature Of Third Party', key: 'nature' },
+  { label: 'Tracking Id', key: 'trackingId' },
+  { label: 'Creation Date', key: 'creation' },
+  { label: 'Status', key: 'status' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
+
+function sortValue(row: ThirdPartyRow, key: SortKey): string | number {
+  switch (key) {
+    case 'balance':
+      return row.outstandingBalance
+    case 'email':
+      return row.email || row.phone
+    case 'creation':
+      return row.creationDate ? new Date(row.creationDate).getTime() : 0
+    case 'name':
+      return row.name
+    case 'country':
+      return row.country
+    case 'tpin':
+      return row.tpin
+    case 'salesRep':
+      return row.salesRep
+    case 'nature':
+      return row.nature
+    case 'trackingId':
+      return row.trackingId
+    case 'status':
+      return row.status
+  }
+}
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(row: ThirdPartyRow, query: string) {
@@ -216,11 +256,12 @@ export function ThirdPartyList({
     setPage(1)
   }, [dateRangeKey, customFrom, customTo, search, perPage])
 
-  const pageRows = filteredRows.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<ThirdPartyRow, SortKey>(filteredRows, sortValue)
+  const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
   const activeRangeLabel = RANGE_OPTIONS.find((o) => o.key === dateRangeKey)?.label ?? 'Select Date Range'
 
   function getExportData() {
-    const rows = filteredRows.map((r) => [
+    const rows = sortedRows.map((r) => [
       r.name,
       r.country,
       `${formatMoney(r.outstandingBalance)} ZMW`,
@@ -232,7 +273,7 @@ export function ThirdPartyList({
       r.creationDate ? formatDateTimeAmPm(r.creationDate) : '',
       r.status,
     ])
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -354,24 +395,24 @@ export function ThirdPartyList({
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <TheadRow>
                 {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
+                  <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                    {col.label}
+                  </Th>
                 ))}
-              </tr>
+              </TheadRow>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No Data Available In Table
                   </td>
                 </tr>
               ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No records match your search or filter.
                   </td>
                 </tr>

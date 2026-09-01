@@ -32,6 +32,7 @@ export interface RawUnuploadedProductRow {
 export interface UnuploadedProductRow {
   id: number
   name: string
+  ref: string
   productUrl: string | null
   vatCode: string
   price: number
@@ -41,13 +42,21 @@ export interface UnuploadedProductRow {
   zraStatusMessage: string
 }
 
+// The real cell is <a>...<div class="d-flex flex-column">NAME<span
+// class="small text-muted">Ref: X</span></div></a> — NAME is the div's own
+// direct text-node child; without excluding the nested span's text,
+// `.textContent` glues them into "NAMERef: X" with no separator.
 export function parseUnuploadedProductRow(raw: RawUnuploadedProductRow): UnuploadedProductRow {
   const doc = new DOMParser().parseFromString(raw.product, 'text/html')
   const anchor = doc.querySelector('a')
+  const nameContainer = doc.querySelector('.d-flex.flex-column')
+  const nameTextNode = nameContainer ? Array.from(nameContainer.childNodes).find((n) => n.nodeType === Node.TEXT_NODE) : null
+  const refSpan = doc.querySelector('.text-muted')
 
   return {
     id: Number(raw.rowid),
-    name: (anchor?.textContent ?? cellText(raw.product)).trim(),
+    name: (nameTextNode?.textContent ?? anchor?.textContent ?? cellText(raw.product)).trim(),
+    ref: (refSpan?.textContent ?? '').replace(/^Ref:\s*/, '').trim(),
     productUrl: anchor?.getAttribute('href') ?? null,
     vatCode: raw.vat || '',
     price: parseAmount(raw.pricedet),

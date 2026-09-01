@@ -1,11 +1,40 @@
 import { useState } from 'react'
 import { Receipt } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useSalesInvoicesReport } from '../reports.queries'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { useSalesInvoicesReport, type SalesInvoiceRow } from '../reports.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { formatMoney } from '../../../utils/format'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+type SortKey = 'ref' | 'date' | 'customer' | 'paymentMode' | 'totalHt' | 'totalTtc' | 'paid' | 'remain' | 'status'
+
+function sortValue(inv: SalesInvoiceRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return inv.ref
+    case 'date':
+      return inv.date
+    case 'customer':
+      return inv.customer
+    case 'paymentMode':
+      return inv.paymentMode
+    case 'totalHt':
+      return inv.totalHt
+    case 'totalTtc':
+      return inv.totalTtc
+    case 'paid':
+      return inv.paid
+    case 'remain':
+      return inv.remain
+    case 'status':
+      return inv.status
+  }
+}
 
 function firstDayOfMonth(): string {
   const d = new Date()
@@ -31,7 +60,29 @@ const STATUS_BADGE_CLS: Record<string, string> = {
 export function SalesInvoicesReportView() {
   const [dateFrom, setDateFrom] = useState(firstDayOfMonth())
   const [dateTo, setDateTo] = useState(today())
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
   const { data, isLoading, isError, error, refetch } = useSalesInvoicesReport(dateFrom, dateTo)
+  const invoices = data?.invoices ?? []
+  const { sorted: sortedInvoices, sort, toggleSort } = useSortableRows<SalesInvoiceRow, SortKey>(invoices, sortValue)
+  const pageInvoices = sortedInvoices.slice((page - 1) * perPage, page * perPage)
+
+  function getExportData() {
+    return {
+      headers: ['Ref', 'Date', 'Customer', 'Payment Mode', 'Total (Excl.)', 'Total (Incl.)', 'Paid', 'Balance Due', 'Status'],
+      rows: sortedInvoices.map((inv) => [
+        inv.ref,
+        inv.date,
+        inv.customer,
+        inv.paymentMode,
+        formatMoney(inv.totalHt),
+        formatMoney(inv.totalTtc),
+        formatMoney(inv.paid),
+        formatMoney(inv.remain),
+        inv.status,
+      ]),
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -73,30 +124,48 @@ export function SalesInvoicesReportView() {
             </Card>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value))
+                setPage(1)
+              }}
+              className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <TableExportButtons title="Sales Invoices" getExportData={getExportData} />
+          </div>
+
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">Date</th>
-                  <th className="font-medium px-3 py-2">Customer</th>
-                  <th className="font-medium px-3 py-2">Payment Mode</th>
-                  <th className="font-medium px-3 py-2 text-right">Total (Excl.)</th>
-                  <th className="font-medium px-3 py-2 text-right">Total (Incl.)</th>
-                  <th className="font-medium px-3 py-2 text-right">Paid</th>
-                  <th className="font-medium px-3 py-2 text-right">Balance Due</th>
-                  <th className="font-medium px-3 py-2">Status</th>
-                </tr>
+                <TheadRow>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="date" sort={sort} onSort={toggleSort}>Date</Th>
+                  <Th sortKey="customer" sort={sort} onSort={toggleSort}>Customer</Th>
+                  <Th sortKey="paymentMode" sort={sort} onSort={toggleSort}>Payment Mode</Th>
+                  <Th sortKey="totalHt" sort={sort} onSort={toggleSort} align="right">Total (Excl.)</Th>
+                  <Th sortKey="totalTtc" sort={sort} onSort={toggleSort} align="right">Total (Incl.)</Th>
+                  <Th sortKey="paid" sort={sort} onSort={toggleSort} align="right">Paid</Th>
+                  <Th sortKey="remain" sort={sort} onSort={toggleSort} align="right">Balance Due</Th>
+                  <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
+                </TheadRow>
               </thead>
               <tbody>
-                {data.invoices.length === 0 ? (
+                {pageInvoices.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-3 py-4 text-text-faint italic">
                       No sales invoices found for the selected period.
                     </td>
                   </tr>
                 ) : (
-                  data.invoices.map((inv, i) => (
+                  pageInvoices.map((inv, i) => (
                     <tr key={i} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">{inv.ref}</td>
                       <td className="px-3 py-2 text-text-muted whitespace-nowrap">{inv.date}</td>
@@ -115,6 +184,8 @@ export function SalesInvoicesReportView() {
               </tbody>
             </table>
           </Card>
+
+          <ListPagination page={page} perPage={perPage} total={sortedInvoices.length} onPageChange={setPage} />
         </>
       )}
     </div>
