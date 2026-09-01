@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import { FileBadge, Check, X, Plus, Pencil, Trash2, LoaderCircle, Save, CheckCircle2, ExternalLink } from 'lucide-react'
+import { FileBadge, Check, X, Plus, Pencil, Trash2, LoaderCircle, Save, CheckCircle2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
@@ -411,14 +411,12 @@ export function QuotationCreateForm() {
         <Card className="!h-auto items-center text-center justify-center gap-3 !py-12">
           <CheckCircle2 size={40} className="text-success" />
           <h3 className="text-lg font-semibold text-text!">Quotation {createdQuotation.ref} created</h3>
-          <a
-            href={`/comm/propal/card.php?id=${createdQuotation.id}`}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to={ROUTES.quotationDetail.replace(':id', String(createdQuotation.id))}
             className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
           >
-            View quotation on legacy page <ExternalLink size={13} />
-          </a>
+            View quotation
+          </Link>
         </Card>
       </StickyFormShell>
     )

@@ -6,6 +6,16 @@
 // separate (and more robust) JSON-AJAX approach used for the main product
 // list, which these smaller reports don't have.
 
+// Real hrefs captured off scraped legacy pages carry a real numeric id in
+// their query string (e.g. "productinfo/index.php?id=43") — this pulls it
+// out so callers can route to this app's own native page for that id
+// instead of following the link out to the legacy PHP page itself.
+export function extractQueryParam(url: string | null, param: string): string | null {
+  if (!url) return null
+  const match = url.match(new RegExp(`[?&]${param}=([^&]+)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 function cellText(cell: Element | undefined | null): string {
   return (cell?.textContent ?? '').replace(/\s+/g, ' ').trim()
 }

@@ -1,12 +1,14 @@
 import type { ComponentType } from 'react'
-import { PlusCircle, ListTree, ArrowLeftRight, Tags, CreditCard, FileSignature, ClipboardList, Layers, XCircle, BarChart, Wallet2, HandCoins, Banknote } from 'lucide-react'
+import { ListTree, ArrowLeftRight, Tags, CreditCard, FileSignature, ClipboardList, Layers, XCircle, BarChart, Wallet2, Banknote } from 'lucide-react'
 import { ROUTES } from '../../routes'
 
-// Every one of these 17 pages was confirmed this session (full Banking
-// module audit) to have a real, live legacy PHP page — just no JSON API,
-// only classic form-POST/HTML. The 5 real JSON APIs found in the module
-// (Bank Accounts, Bank List, List Entries, Categories, Loan List) got their
-// own real components instead of this placeholder.
+// Every one of these pages was confirmed this session (full Banking module
+// audit) to have a real, live legacy PHP page — just no JSON API, only
+// classic form-POST/HTML. The real JSON APIs found in the module (Bank
+// Accounts, Bank List, List Entries, Categories, Loan List) got their own
+// real components instead of this placeholder; New Financial Account, New
+// Deposit, Deposit List, and New Loan got their own field-matched inert
+// pages too (see banking.nav.ts's neighbors) rather than this generic one.
 export interface BankingPlaceholder {
   path: string
   icon: ComponentType<{ size?: number; className?: string }>
@@ -15,7 +17,6 @@ export interface BankingPlaceholder {
 }
 
 export const BANKING_PLACEHOLDERS: BankingPlaceholder[] = [
-  { path: ROUTES.bankingNewAccount, icon: PlusCircle, title: 'New Financial Account', description: 'Real page: compta/bank/card.php?action=create — classic form-POST, no JSON API.' },
   { path: ROUTES.bankingEntriesByCategory, icon: ListTree, title: 'List Entries/Category', description: 'Real page: compta/bank/budget.php — classic report page, no JSON API.' },
   { path: ROUTES.bankingInternalTransfer, icon: ArrowLeftRight, title: 'Internal Transfer', description: 'Real page: compta/bank/transfer.php — classic form-POST, no JSON API.' },
   { path: ROUTES.bankingTransactionTags, icon: Tags, title: 'Tags/Categories Of Transactions', description: 'Real page: compta/bank/categ.php (manages llx_bank_categ, a different table from the account-level Categories page) — classic form-POST, no JSON API.' },
@@ -28,9 +29,6 @@ export const BANKING_PLACEHOLDERS: BankingPlaceholder[] = [
   { path: ROUTES.bankingAccountRejects, icon: XCircle, title: 'Account Rejects', description: 'Real page: compta/prelevement/rejets.php — classic list page, no JSON API.' },
   { path: ROUTES.bankingDirectDebitStats, icon: BarChart, title: 'Statistics', description: 'Real page: compta/prelevement/stats.php — classic report page, no JSON API.' },
   { path: ROUTES.bankingCheckDepositsArea, icon: Wallet2, title: 'Check Deposits Area', description: 'Real page: compta/paiement/cheque/index.php — classic page, no JSON API.' },
-  { path: ROUTES.bankingNewDeposit, icon: Wallet2, title: 'New Deposit', description: 'Real page: compta/paiement/cheque/card.php?action=create — classic form-POST, no JSON API.' },
-  { path: ROUTES.bankingDepositList, icon: Wallet2, title: 'Deposit List', description: 'Real page: compta/paiement/cheque/list.php — classic list page, no JSON API.' },
-  { path: ROUTES.bankingNewLoan, icon: HandCoins, title: 'New Loans', description: 'Real page: loan/card.php?action=create — classic form-POST, no JSON API (a real monthly-payment calculator, loan/calcmens.php, backs this form but wasn\'t wired here).' },
   {
     path: ROUTES.bankingRevolut,
     icon: Banknote,

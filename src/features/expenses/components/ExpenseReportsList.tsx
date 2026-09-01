@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useExpenseReportsList, type ExpenseListFilters } from '../expenses.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { ROUTES } from '../../../routes'
 
 const PAGE_SIZE = 20
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -88,9 +90,9 @@ export function ExpenseReportsList() {
                   data.rows.map((r) => (
                     <tr key={r.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-text!">
-                        <a href={`/expense/card.php?id=${r.id}`} target="_blank" rel="noreferrer" title="Detail view isn't rebuilt in this pass — opens the real record" className="text-brand hover:underline">
+                        <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
                           {r.ref}
-                        </a>
+                        </Link>
                       </td>
                       <td className="px-3 py-2 text-text-muted">{r.user}</td>
                       <td className="px-3 py-2 text-text-muted">{r.linkedTo}</td>

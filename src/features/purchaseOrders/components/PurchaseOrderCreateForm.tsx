@@ -510,14 +510,9 @@ export function PurchaseOrderCreateForm() {
               Total (Incl.): <span className="font-medium text-text!">{formatMoney(createdOrder.total_ttc)} ZMW</span>
             </span>
           </div>
-          <a
-            href={`/fourn/commande/card.php?id=${createdOrder.id}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-          >
-            View order on legacy page <ExternalLink size={13} />
-          </a>
+          <Link to={ROUTES.purchaseOrderDetail.replace(':id', String(createdOrder.id))} className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
+            View order
+          </Link>
         </Card>
       </StickyFormShell>
     )

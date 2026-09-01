@@ -50,6 +50,10 @@ const BACKEND_OWNED_PATHS = [
   '/payroll',
   '/loan',
   '/expense',
+  '/ticket',
+  '/kitchen',
+  '/adherents',
+  '/asset',
 ] as const
 
 // Production deploys this build's dist/ output onto the backend's own
@@ -250,6 +254,28 @@ export default defineConfig({
       // /expenses (plural), so a plain /expense (singular) prefix is safe,
       // but anchored anyway.
       '^/expense(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Tickets — ticket/ticket_list_ajax.php and ticket/ticket_stats_ajax.php
+      // (real JSON, permission-checked) — see tickets.queries.ts. This
+      // app's own routes all use /tickets (plural), so a plain /ticket
+      // (singular) prefix is safe, but anchored anyway.
+      '^/ticket(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Kitchen — kitchen/order_ajax_list.php (real JSON, Kitchen/Beverage
+      // Orders) — see kitchen.queries.ts. This app's own Kitchen routes are
+      // all hyphenated (/kitchen-dashboard, /kitchen-beverage-orders,
+      // /kitchen-create-order), never /kitchen/..., so a plain prefix here
+      // is safe, but anchored anyway.
+      '^/kitchen(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Members — adherents/ajax/ajax_adherents_list.php (real JSON,
+      // restrictedArea()-checked) — see members.queries.ts. This app's own
+      // Members routes all use /members (not /adherents), so a plain
+      // prefix here is safe, but anchored anyway.
+      '^/adherents(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      // Fixed Assets — asset/assets-sidebar-list-ajax.php (real JSON, but
+      // no permission check and thin — only 4 columns) — see
+      // fixedAssets.queries.ts. This app's own Fixed Assets routes all use
+      // /fixed-assets, so a plain /asset (singular) prefix is safe, but
+      // anchored anyway.
+      '^/asset(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
       // Real Purchase Invoice / Landed Cost Invoice / User dropdown options
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.

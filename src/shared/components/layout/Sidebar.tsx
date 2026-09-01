@@ -4,7 +4,7 @@ import { LayoutGrid, Plus, ChevronDown } from 'lucide-react'
 import type { NavItem, NavLeafItem } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
-import { PATH_SOURCE_SECTIONS } from '../../nav/pathSourceSections'
+import { PATH_SOURCE_SECTIONS, EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
@@ -234,7 +234,10 @@ export function Sidebar({ open = true }: { open?: boolean }) {
               key={section.key}
               type="button"
               title={section.label}
-              onClick={() => setActiveKey(section.key)}
+              onClick={() => {
+                setActiveKey(section.key)
+                if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
+              }}
               onMouseEnter={() => setActiveKey(section.key)}
               className={`group/rail relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 ${
                 isActive ? 'bg-brand text-white shadow-sm shadow-brand/40' : 'text-text hover:bg-surface hover:text-(--color-accent-teal-2) hover:-translate-y-0.5'

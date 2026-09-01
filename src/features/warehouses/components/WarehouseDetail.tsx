@@ -153,31 +153,28 @@ export function WarehouseDetail() {
                     real Warehouse tab these are silently dead JS calls. They
                     only work on the Stock Movements tab, which does load
                     that script, so these route there instead of replicating
-                    the real page's broken buttons. */}
-                <a
-                  href={`/product/stock/movement_list.php?id=${data.id}`}
-                  target="_blank"
-                  rel="noreferrer"
+                    the real page's broken buttons. Native Stock Movements
+                    page (real via movement_list_api.php, read-only — the
+                    correct/transfer/ZRA actions themselves are mutations and
+                    aren't wired here) — see stockMovements.queries.ts. */}
+                <Link
+                  to={`${ROUTES.stockMovements}?id=${data.id}`}
                   className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/5"
                 >
                   <ArrowLeftRight size={13} /> Transfer stock
-                </a>
-                <a
-                  href={`/product/stock/movement_list.php?id=${data.id}`}
-                  target="_blank"
-                  rel="noreferrer"
+                </Link>
+                <Link
+                  to={`${ROUTES.stockMovements}?id=${data.id}`}
                   className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/5"
                 >
                   <FilePenLine size={13} /> Correct stock
-                </a>
-                <a
-                  href={`/product/stock/movement_list.php?id=${data.id}`}
-                  target="_blank"
-                  rel="noreferrer"
+                </Link>
+                <Link
+                  to={`${ROUTES.stockMovements}?id=${data.id}`}
                   className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/5"
                 >
                   <UploadCloud size={13} /> Update to ZRA
-                </a>
+                </Link>
               </div>
             </div>
           </Card>

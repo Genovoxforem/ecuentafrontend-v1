@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // Real, working REST API found by watching societe/card.php?socid=X's own
 // network traffic while switching tabs — a full societe/api/{transactions,
@@ -150,6 +150,54 @@ export function useCustomerContacts(socid: string | undefined) {
     queryKey: ['customers', 'detail', socid, 'contacts'],
     queryFn: () => fetchJson<ContactsResponse>(`/societe/api/contacts.php?socid=${socid}`),
     enabled: !!socid,
+  })
+}
+
+export interface CreateContactInput {
+  lastname: string
+  firstname: string
+  email: string
+  phone: string
+  phone_mobile: string
+  poste: string
+}
+
+// Real via societe/api/contacts.php (POST, action=create) — same real
+// societe/api/* namespace as the GET above, confirmed by reading the PHP
+// source directly. Write actions go through sc_api_check_token(), which
+// validates against this session's own server-side CSRF token — there's no
+// dedicated token-issuing endpoint, so a fresh one is scraped off
+// societe/card.php's own hidden `token` field (same technique already used
+// for the real Warehouse edit form). Not live-tested against this
+// instance's database (mutation, requires per-instance approval).
+async function scrapeSocieteToken(socid: string): Promise<string> {
+  const res = await fetch(`/societe/card.php?socid=${socid}`, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const html = await res.text()
+  const match = html.match(/name="token"\s+value="([^"]+)"/)
+  if (!match) throw new Error('Could not find a CSRF token on the third party page.')
+  return match[1]
+}
+
+export function useCreateContact(socid: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateContactInput) => {
+      if (!socid) throw new Error('Missing third party id.')
+      const token = await scrapeSocieteToken(socid)
+      const res = await fetch(`/societe/api/contacts.php?socid=${socid}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...input, token }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string; id?: number }
+      if (!data.ok) throw new Error(data.error ?? 'Could not create the contact.')
+      return data.id
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'contacts'] })
+    },
   })
 }
 

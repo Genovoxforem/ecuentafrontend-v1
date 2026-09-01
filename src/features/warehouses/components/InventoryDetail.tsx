@@ -95,9 +95,9 @@ export function InventoryDetail() {
             label="Warehouse"
             value={
               data.warehouseId ? (
-                <a href={`/product/stock/card.php?id=${data.warehouseId}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                <Link to={ROUTES.warehouseDetail.replace(':id', String(data.warehouseId))} className="text-brand hover:underline">
                   {data.warehouseLabel}
-                </a>
+                </Link>
               ) : (
                 ''
               )

@@ -1,60 +1,31 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useZraUpdateImport, type AsycudaImportRow } from '../asycudaImport.queries'
+import { parseRowFields } from '../asycudaRowParser'
 import { useProductSearch } from '../../products/products.queries'
 import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
-// The legacy row HTML's per-row Split offcanvas (with all these values
-// embedded as plain text) is stripped server-side before it reaches us (see
-// api/_legacy_zra_proxy.php's legacy_strip_overlays — needed to keep ~2800
-// rows' payload sane), so this panel is rebuilt from the OTHER row fields
-// that do survive the proxy (declHtml/supplierHtml/itemHtml/invoiceHtml/
-// quantityHtml) — same real data, just parsed back out of its <br>-joined
-// HTML instead of duplicated markup. Exact line shapes come straight from
-// zra-import_ajax.php's $data[] build (declHtml's 4 lines, item's 3, etc.).
-function extractLines(html: string): string[] {
-  const withBreaks = html.replace(/<br\s*\/?>/gi, '\n')
-  const div = document.createElement('div')
-  div.innerHTML = withBreaks
-  return (div.textContent || '').split('\n').map((s) => s.trim()).filter(Boolean)
-}
-function afterColon(line: string | undefined): string {
-  if (!line) return 'N/A'
-  const idx = line.indexOf(':')
-  return (idx === -1 ? line : line.slice(idx + 1)).trim() || 'N/A'
-}
-function splitPipe(line: string | undefined): [string, string] {
-  const [a, b] = (line ?? '').split('|')
-  return [afterColon(a), afterColon(b)]
-}
-
+// Real field values, parsed from the same <br>-joined HTML the main list
+// row now renders natively — see asycudaRowParser.ts's own comment for
+// where that shape comes from (zra-import_ajax.php's $data[] build).
 function parseSplitDetails(row: AsycudaImportRow) {
-  const decl = extractLines(row.declHtml)
-  const supplier = extractLines(row.supplierHtml)
-  const item = extractLines(row.itemHtml)
-  const invoice = extractLines(row.invoiceHtml)
-  const quantity = extractLines(row.quantityHtml)
-  const [hsn, origin] = splitPipe(item[1])
-  const [totalWeight, netWeight] = splitPipe(item[2])
-  const [country, convRate] = splitPipe(invoice[1])
-  const [qtyUnit, pkgUnit] = splitPipe(quantity[1])
-
+  const f = parseRowFields(row)
   return {
-    declRef: afterColon(decl[0]),
-    declNo: afterColon(decl[1]),
-    taskCode: afterColon(decl[2]),
-    declDate: afterColon(decl[3]),
-    agent: afterColon(supplier[1]),
-    invoiceTotal: afterColon(invoice[0]),
-    country,
-    convRate,
-    itemName: item[0] ?? 'N/A',
-    hsn,
-    origin,
-    totalWeight,
-    netWeight,
-    qtyUnit,
-    pkgUnit,
+    declRef: f.declRef,
+    declNo: f.declNo,
+    taskCode: f.taskCode,
+    declDate: f.declDate,
+    agent: f.agentName,
+    invoiceTotal: f.price,
+    country: f.currency,
+    convRate: f.convRate,
+    itemName: f.itemName,
+    hsn: f.hsn,
+    origin: f.origin,
+    totalWeight: f.totalWeight,
+    netWeight: f.netWeight,
+    qtyUnit: f.qtyUnit,
+    pkgUnit: f.pkgUnit,
   }
 }
 

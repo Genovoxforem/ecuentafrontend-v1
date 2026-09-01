@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid } from 'lucide-react'
+import { EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
 import {
   House,
   Shield,
@@ -39,10 +40,12 @@ import { nav as usersNav } from '../../../features/users/users.nav'
 import { nav as payrollNav } from '../../../features/payroll/payroll.nav'
 import { nav as expensesNav } from '../../../features/expenses/expenses.nav'
 import { nav as specialExpensesNav } from '../../../features/expenses/specialExpenses.nav'
+import { nav as budgetNav } from '../../../features/budget/budget.nav'
 import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
 import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
 import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
 import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
+import { nav as membersNav } from '../../../features/members/members.nav'
 import { nav as settingsNav } from '../../../features/settings/settings.nav'
 import { nav as reportsNav } from '../../../features/reports/reports.nav'
 import type { NavItem, NavLeafItem, NavSection } from '../../../features/navTypes'
@@ -69,10 +72,12 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
   payrollNav,
   expensesNav,
   specialExpensesNav,
+  budgetNav,
   kitchenNav,
   fixedAssetNav,
   generalLedgerNav,
   ticketNav,
+  membersNav,
   settingsNav,
   reportsNav,
 ]
@@ -241,7 +246,13 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
           <div key={section.key}>
             <button
               type="button"
-              onClick={() => setOpenSection((cur) => (cur === section.key ? null : section.key))}
+              onClick={() => {
+                if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) {
+                  navigate(EMPTY_SECTION_HOME_PATH[section.key])
+                  return
+                }
+                setOpenSection((cur) => (cur === section.key ? null : section.key))
+              }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors ${
                 isOpen || isCurrent ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white'
               }`}

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Layers, ArrowLeftRight, ExternalLink, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Layers, ArrowLeftRight, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { resolveBackendAsset } from '../../../api/backends'
 import { useProductStocksByLotReport } from '../products.queries'
 import { LegacyLoadingCard, LegacyErrorCard, SaleStatusBadge } from './LegacyReportStates'
 import { ProductAvatar } from './ProductAvatar'
-import type { StockByLotRow } from '../productLegacyParsers'
+import { extractQueryParam, type StockByLotRow } from '../productLegacyParsers'
+import { ROUTES } from '../../../routes'
 
 const COLUMNS = ['Ref', 'Warehouse', 'Lot/Serial', 'Eat-by Date', 'Sell-by Date', 'Physical Stock', 'For Sale', 'For Purchase', '']
 
@@ -77,11 +78,10 @@ export function ProductStocksByLotPage() {
                         <span className="flex items-center gap-2">
                           <ProductAvatar bg={row.avatarBg} color={row.avatarColor} />
                           <span>
-                            {row.cardUrl ? (
-                              <a href={resolveBackendAsset(row.cardUrl)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-brand hover:underline font-medium">
+                            {extractQueryParam(row.cardUrl, 'id') ? (
+                              <Link to={ROUTES.productDetail.replace(':id', extractQueryParam(row.cardUrl, 'id')!)} className="text-brand hover:underline font-medium">
                                 {row.label}
-                                <ExternalLink size={10} className="text-text-faint" />
-                              </a>
+                              </Link>
                             ) : (
                               <span className="text-text! font-medium">{row.label}</span>
                             )}
@@ -101,10 +101,13 @@ export function ProductStocksByLotPage() {
                         <SaleStatusBadge value={row.forPurchase} />
                       </td>
                       <td className="px-3 py-2.5">
-                        {row.movementsUrl && (
-                          <a href={resolveBackendAsset(row.movementsUrl)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-brand hover:underline whitespace-nowrap">
+                        {extractQueryParam(row.movementsUrl, 'idproduct') && (
+                          <Link
+                            to={`${ROUTES.stockMovements}?idproduct=${extractQueryParam(row.movementsUrl, 'idproduct')}`}
+                            className="flex items-center gap-1 text-brand hover:underline whitespace-nowrap"
+                          >
                             <ArrowLeftRight size={12} /> Movements
-                          </a>
+                          </Link>
                         )}
                       </td>
                     </tr>

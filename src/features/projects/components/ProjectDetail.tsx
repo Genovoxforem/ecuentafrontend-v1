@@ -102,14 +102,6 @@ export function ProjectDetail() {
             <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
               <Trash2 size={14} /> Delete
             </button>
-            <a
-              href={`/projet/card.php?id=${project.id}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-            >
-              Open in legacy system <ExternalLink size={13} />
-            </a>
           </div>
         </div>
         <div className="border-t border-border">

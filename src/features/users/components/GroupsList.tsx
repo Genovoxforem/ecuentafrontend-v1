@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { UsersRound, Plus, Pencil, Copy, ExternalLink } from 'lucide-react'
+import { UsersRound, Plus, Pencil, Copy } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useUserGroupsList } from '../userGroupsAndTags.queries'
@@ -53,24 +53,20 @@ export function GroupsList() {
                 </div>
                 <p className="text-base font-semibold text-text!">{group.name}</p>
                 <div className="mt-auto flex items-center justify-between pt-2">
-                  <a
-                    href={`/user/group/card.php?id=${group.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Edit in legacy system — permissions editing isn't rebuilt here yet"
+                  <Link
+                    to={ROUTES.userGroupEdit.replace(':id', String(group.id))}
+                    title="Permissions editing has no real API — read-only preview matching the legacy layout"
                     className="flex items-center gap-1 text-sm text-brand hover:underline"
                   >
                     <Pencil size={12} /> Edit Role
-                  </a>
-                  <a
-                    href={`/user/group/card.php?action=create&copyfrompermissions=${group.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Duplicate role in legacy system"
+                  </Link>
+                  <Link
+                    to={ROUTES.userGroupEdit.replace(':id', String(group.id))}
+                    title="Duplicate role — no real API, same read-only preview"
                     className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text-muted"
                   >
                     <Copy size={14} />
-                  </a>
+                  </Link>
                 </div>
               </Card>
             ))
@@ -85,13 +81,6 @@ export function GroupsList() {
           </Card>
         </div>
       )}
-
-      <p className="flex items-center gap-1.5 text-xs text-text-faint">
-        <ExternalLink size={12} />
-        <a href="/user/group/list.php" target="_blank" rel="noreferrer" className="hover:underline">
-          Open the full group grid (with member counts) in the legacy system
-        </a>
-      </p>
     </div>
   )
 }

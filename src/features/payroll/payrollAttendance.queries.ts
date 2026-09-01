@@ -125,3 +125,42 @@ export function useMarkAttendance() {
     },
   })
 }
+
+// ── Mark Special/Holiday Shift Attendance (write) ────────────────────────
+// Real via payroll/shiftsmanual_ajax.php?saveAttendance=1 — the write side
+// behind both payroll/shiftsmanual_attendance.php?shift=manual (Special
+// Shift) and ?shift=holidayshift (Holiday Shift). Genuinely returns JSON
+// (confirmed by reading the handler directly), unlike that same page's own
+// read side (?enterAttendance=1), which renders an HTML fragment with no
+// JSON contract to scrape — so, same simplification as useMarkAttendance
+// above, this is a single-employee form rather than the real page's bulk
+// per-employee table. shiftId is fixed per page (3 = "Special Shift", 4 =
+// "Holiday shift" — the only two rows in llx_payroll_shifts with those
+// shift_type values on this deployment, confirmed by query, not guessed).
+export interface MarkManualShiftAttendanceInput {
+  shiftId: 3 | 4
+  employeeId: number
+  date: string // YYYY-MM-DD
+  present: boolean
+  clockIn?: string // HH:mm
+  clockOut?: string // HH:mm
+}
+export function useMarkManualShiftAttendance() {
+  return useMutation({
+    mutationFn: async (input: MarkManualShiftAttendanceInput) => {
+      const id = String(input.employeeId)
+      const body = new URLSearchParams()
+      body.set('empid[0]', id)
+      body.set('clockInEmp[0]', input.clockIn ?? '')
+      body.set('clockoutEmp[0]', input.clockOut ?? '')
+      body.set('shiftId', String(input.shiftId))
+      body.set('datee', input.date)
+      if (input.present) body.set(`Attendance[${id}]`, 'Present')
+      const res = await fetch('/payroll/shiftsmanual_ajax.php?saveAttendance=1', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: RawMarkAttendanceResponse = await res.json()
+      if (data.status !== 'success') throw new Error('Legacy backend rejected the request.')
+      return data
+    },
+  })
+}

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Tags, Search, ExternalLink } from 'lucide-react'
+import { Tags, Search, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { useUserTagsList } from '../userGroupsAndTags.queries'
 import { formatDate } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { DisabledFormModal } from '../../../shared/components/forms/DisabledFormModal'
 
 // Real via categories/tag-sidebarlist-ajax.php?type_id=7 (Categorie::
 // TYPE_USER — see userGroupsAndTags.queries.ts's header comment). The
@@ -17,6 +18,7 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/Le
 export function TagsList() {
   const { data: tags, isLoading, isError, error, refetch } = useUserTagsList()
   const [search, setSearch] = useState('')
+  const [showAddTag, setShowAddTag] = useState(false)
   const filtered = (tags ?? []).filter((t) => t.name.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
@@ -25,16 +27,25 @@ export function TagsList() {
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Tags size={20} className="text-brand" /> Users Tags/Categories
         </h2>
-        <a
-          href="/categories/card.php?action=create&type=7"
-          target="_blank"
-          rel="noreferrer"
-          title="Create in legacy system — no real create API exists for categories"
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-        >
-          <ExternalLink size={14} /> Add Tag (legacy)
-        </a>
+        <button type="button" onClick={() => setShowAddTag(true)} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          <Plus size={14} /> Add Tag
+        </button>
       </div>
+
+      {showAddTag && (
+        <DisabledFormModal
+          icon={Tags}
+          title="Add Tag"
+          sourcePath="categories/card.php?action=create&type=7"
+          fields={[
+            { label: 'Label', required: true },
+            { label: 'Color', type: 'text' },
+            { label: 'Parent Category', type: 'select' },
+            { label: 'Description', type: 'textarea' },
+          ]}
+          onClose={() => setShowAddTag(false)}
+        />
+      )}
 
       <Card>
         <div className="flex items-center gap-2 mb-4">

@@ -1,8 +1,10 @@
-import { SlidersHorizontal, ExternalLink } from 'lucide-react'
+import { SlidersHorizontal } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { resolveBackendAsset } from '../../../api/backends'
 import { useVariantAttributesReport } from '../products.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
+import { extractQueryParam } from '../productLegacyParsers'
+import { ROUTES } from '../../../routes'
 
 const COLUMNS = ['Ref', 'Label', '# of Different Values', '# of Linked Products']
 
@@ -44,11 +46,10 @@ export function VariantAttributesPage() {
                   rows.map((row) => (
                     <tr key={row.ref} className="border-b border-border hover:bg-surface-hover">
                       <td className="px-3 py-2.5">
-                        {row.url ? (
-                          <a href={resolveBackendAsset(row.url)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-brand hover:underline font-medium">
+                        {extractQueryParam(row.url, 'id') ? (
+                          <Link to={ROUTES.productVariantAttributeDetail.replace(':id', extractQueryParam(row.url, 'id')!)} className="text-brand hover:underline font-medium">
                             {row.ref}
-                            <ExternalLink size={10} className="text-text-faint" />
-                          </a>
+                          </Link>
                         ) : (
                           row.ref
                         )}
