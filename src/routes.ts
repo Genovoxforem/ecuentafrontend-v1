@@ -75,6 +75,7 @@ export const ROUTES = {
   productVariantAttributeDetail: '/products/variant-attributes/:id',
   kitchenBeverageOrders: '/kitchen-beverage-orders',
   kitchenCreateOrder: '/kitchen-create-order',
+  kitchenOrderManagement: '/kitchen-order-management',
   expensesOverview: '/expenses/overview',
   expensesList: '/expenses/list',
   expensesCreate: '/expenses/create',

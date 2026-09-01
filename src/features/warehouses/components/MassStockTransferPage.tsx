@@ -82,7 +82,7 @@ export function MassStockTransferPage() {
 
       <Card className="!p-0 !h-auto overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <TheadRow>
               <Th>Source Warehouse</Th>
               <Th>Target Warehouse</Th>

@@ -57,7 +57,7 @@ export function VendorProposalsAreaPage() {
           <SectionHeading icon={UserSquare2}>Latest 5 Modified Price Requests</SectionHeading>
         </div>
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <TheadRow>
               <Th>Ref</Th>
               <Th>Third-Party</Th>

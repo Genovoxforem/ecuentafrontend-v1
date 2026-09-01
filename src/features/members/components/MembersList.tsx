@@ -49,7 +49,7 @@ export function MembersList() {
 
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <TheadRow>
                   <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
                   <Th sortKey="firstname" sort={sort} onSort={toggleSort}>First Name</Th>

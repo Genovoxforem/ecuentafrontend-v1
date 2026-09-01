@@ -1,84 +1,55 @@
-import { useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, RotateCcw, RefreshCw, Cake, Umbrella } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useAuth } from '../../auth/AuthContext'
-import { useLogActivity, useRecentActivity, type ActivityEvent } from '../agenda.queries'
+import { AddEventModal } from './AddEventModal'
+import { useAgendaFilterOptions, useCalendarEvents, type CalendarEvent, type CalendarViewMode } from '../calendarApi.queries'
 
-// Category taxonomy mirrors the reference app's own Event Filters sidebar
-// (Leave/Invoices/Orders/Products/Contracts/Tickets/Thirdparty/Purchase/
-// Payroll/Expense/Direct Events/Personal/Birthdays) — "tasks" and "other"
-// are this app's own catch-all buckets on top of that (kitchen tickets,
-// quotations/user/group creation, etc.), appended rather than shoehorned
-// into a legacy category they don't really match. Several of these only
-// ever populate once a matching feature (e.g. invoices, tickets) actually
-// logs to them — same "real, sometimes empty" convention as the rest of
-// this local activity log.
-// `dot`/`border` are separate literal Tailwind classes (not derived from one
-// another via string replace) — Tailwind's JIT scanner only generates CSS
-// for class names it can find as literal text in source, so a runtime
-// `.replace('bg-', 'border-')` would silently produce an unstyled class.
-const CATEGORY_META: Record<string, { label: string; dot: string; border: string; defaultOn: boolean }> = {
-  leave: { label: 'Leave', dot: 'bg-sky-400', border: 'border-sky-400', defaultOn: false },
-  invoices: { label: 'Invoices', dot: 'bg-blue-500', border: 'border-blue-500', defaultOn: true },
-  orders: { label: 'Orders', dot: 'bg-emerald-500', border: 'border-emerald-500', defaultOn: true },
-  products: { label: 'Products', dot: 'bg-rose-500', border: 'border-rose-500', defaultOn: true },
-  contracts: { label: 'Contracts', dot: 'bg-violet-500', border: 'border-violet-500', defaultOn: true },
-  tickets: { label: 'Tickets', dot: 'bg-amber-500', border: 'border-amber-500', defaultOn: true },
-  thirdparty: { label: 'Thirdparty', dot: 'bg-cyan-500', border: 'border-cyan-500', defaultOn: true },
-  purchase: { label: 'Purchase', dot: 'bg-orange-500', border: 'border-orange-500', defaultOn: true },
-  payroll: { label: 'Payroll', dot: 'bg-lime-500', border: 'border-lime-500', defaultOn: true },
-  expense: { label: 'Expense', dot: 'bg-teal-500', border: 'border-teal-500', defaultOn: true },
-  direct: { label: 'Direct Events', dot: 'bg-slate-500', border: 'border-slate-500', defaultOn: true },
-  personal: { label: 'Personal', dot: 'bg-green-400', border: 'border-green-400', defaultOn: false },
-  birthdays: { label: 'Birthdays', dot: 'bg-pink-400', border: 'border-pink-400', defaultOn: false },
-  tasks: { label: 'Tasks', dot: 'bg-indigo-500', border: 'border-indigo-500', defaultOn: true },
-  other: { label: 'Other', dot: 'bg-neutral-400', border: 'border-neutral-400', defaultOn: true },
-}
-const CATEGORY_ORDER = Object.keys(CATEGORY_META)
-
-function dotFor(category: string) {
-  return CATEGORY_META[category]?.dot ?? 'bg-neutral-400'
-}
-function borderFor(category: string) {
-  return CATEGORY_META[category]?.border ?? 'border-neutral-400'
-}
-function labelFor(category: string) {
-  return CATEGORY_META[category]?.label ?? category
-}
+// Real "no owner restriction" sentinel this endpoint itself uses (see
+// calendar_api.php: only `filtert > 0` adds the assignment WHERE clause) —
+// not an app-invented value.
+const ALL_OWNERS = -1
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function startOfWeek(d: Date) {
   const day = (d.getDay() + 6) % 7
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day)
-  return start
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - day)
 }
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+function fmtTime(ms: number) {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 function toDateInputValue(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function EventChip({ ev }: { ev: ActivityEvent }) {
+function EventChip({ ev }: { ev: CalendarEvent }) {
   return (
-    <div className={`rounded-md border-l-2 ${borderFor(ev.category)} bg-surface px-1.5 py-1 text-[11px] leading-tight`}>
-      <p className="font-semibold text-text!">{fmtTime(ev.date)}</p>
-      <p className="text-text-muted line-clamp-2">{ev.label}</p>
-      <div className="flex items-center gap-1 mt-1">
-        <Avatar name={ev.authorName} size={16} className="text-[8px]" />
-      </div>
-    </div>
+    <a
+      href={ev.url}
+      target="_blank"
+      rel="noreferrer"
+      title={`${ev.typeLabel}${ev.location ? ' · ' + ev.location : ''}`}
+      style={{ borderColor: ev.typeColor }}
+      className="block rounded-md border-l-2 bg-surface px-1.5 py-1 text-[11px] leading-tight hover:bg-surface-hover"
+    >
+      <p className="font-semibold text-text!">
+        {ev.fullDayEvent ? 'All day' : fmtTime(ev.startMs)} · {ev.label}
+      </p>
+      {(ev.thirdpartyName || ev.userOwner) && <p className="text-text-muted line-clamp-1">{ev.thirdpartyName || ev.userOwner}</p>}
+    </a>
   )
 }
 
 function MiniCalendar({ month, onSelect }: { month: Date; onSelect: (d: Date) => void }) {
   const [cursor, setCursor] = useState(new Date(month.getFullYear(), month.getMonth(), 1))
+  useEffect(() => setCursor(new Date(month.getFullYear(), month.getMonth(), 1)), [month])
   const gridStart = startOfWeek(new Date(cursor.getFullYear(), cursor.getMonth(), 1))
   const days = Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
   const today = new Date()
@@ -121,106 +92,139 @@ function MiniCalendar({ month, onSelect }: { month: Date; onSelect: (d: Date) =>
   )
 }
 
-function NewEventModal({ onClose, defaultDate }: { onClose: () => void; defaultDate: Date }) {
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
-  const [title, setTitle] = useState('')
-  const [category, setCategory] = useState('direct')
-  const [date, setDate] = useState(toDateInputValue(defaultDate))
-  const [time, setTime] = useState('09:00')
-  const [error, setError] = useState('')
-
-  function handleCreate() {
-    if (!title.trim()) return setError('Title is required!')
-    const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: title.trim(), category, authorName, date: new Date(`${date}T${time}`).toISOString() })
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-surface border border-border rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-          <h3 className="text-base font-semibold text-text!">New Event</h3>
-          <button type="button" onClick={onClose} className="p-1 rounded-md text-text-muted hover:bg-surface-alt">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="p-4 space-y-3">
-          <div>
-            <label className="block text-sm mb-1 text-text-muted">Title*</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30" />
-          </div>
-          <div>
-            <label className="block text-sm mb-1 text-text-muted">Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
-              {['direct', 'personal', 'birthdays', 'leave'].map((c) => (
-                <option key={c} value={c}>
-                  {labelFor(c)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1 text-text-muted">Date</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm mb-1 text-text-muted">Time</label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none" />
-            </div>
-          </div>
-          {error && <p className="text-sm font-medium text-danger">{error}</p>}
-        </div>
-        <div className="px-5 py-3 border-t border-border flex justify-end">
-          <button type="button" onClick={handleCreate} className="px-4 py-2 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90">
-            Create event
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 type ViewMode = 'month' | 'week' | 'day' | 'list'
+const VIEW_TO_BACKEND_MODE: Record<ViewMode, CalendarViewMode> = { month: 'show_month', week: 'show_week', day: 'show_day', list: 'show_month' }
 
+// Real via comm/action/ajax/calendar_api.php — see calendarApi.queries.ts
+// for the full endpoint-by-endpoint evidence. Every filter below (Owner,
+// User Group, Status, Type) and every rendered event comes straight from
+// llx_actioncomm (plus real birthdays/holidays when those checks are on) —
+// there is no local/fake activity-log layer left in this page.
 export function AgendaOverview() {
-  const { data: events } = useRecentActivity({ category: 'all', limit: 500 })
-  const [view, setView] = useState<ViewMode>('month')
-  const [anchor, setAnchor] = useState(new Date())
-  const [viewAll, setViewAll] = useState(true)
-  const [activeCategories, setActiveCategories] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(CATEGORY_ORDER.map((c) => [c, CATEGORY_META[c].defaultOn])),
-  )
-  const [showNewEvent, setShowNewEvent] = useState(false)
+  const { user } = useAuth()
+  const { data: options } = useAgendaFilterOptions()
 
-  function toggleCategory(c: string) {
-    setActiveCategories((cur) => ({ ...cur, [c]: !cur[c] }))
+  // Seeds real filters from the sidebar's own pre-filtered links (My/All
+  // Incomplete/Terminated Events, New Event) — see users.nav.ts for why
+  // these query params exist: the real menu's leaf items have no dedicated
+  // pages of their own, they're just this same real Agenda view with a
+  // different starting filter, matching the real reference app's own
+  // "status=todo&filtert=-1" style list.php links.
+  const [searchParams] = useSearchParams()
+  const initialStatus = searchParams.get('status') === 'done' || searchParams.get('status') === 'todo' ? searchParams.get('status')! : ''
+  const initialView: ViewMode = searchParams.get('view') === 'list' ? 'list' : 'month'
+  const initialScope = searchParams.get('scope')
+
+  const [view, setView] = useState<ViewMode>(initialView)
+  const [anchor, setAnchor] = useState(new Date())
+  const [ownerId, setOwnerId] = useState<number | undefined>(initialScope === 'all' ? ALL_OWNERS : undefined)
+  const [usergroupId, setUsergroupId] = useState<number | undefined>(undefined)
+  const [status, setStatus] = useState(initialStatus)
+  const [activeTypes, setActiveTypes] = useState<Set<string> | null>(null)
+  const [projectId, setProjectId] = useState<number | undefined>(undefined)
+  const [socid, setSocid] = useState<number | undefined>(undefined)
+  const [categoryId, setCategoryId] = useState<number | undefined>(undefined)
+  const [resourceId, setResourceId] = useState<number | undefined>(undefined)
+  const [showBirthday, setShowBirthday] = useState(false)
+  const [checkHoliday, setCheckHoliday] = useState(false)
+  const [showNewEvent, setShowNewEvent] = useState(searchParams.get('new') === '1')
+
+  // Default owner to the current logged-in user once real users load —
+  // matches the real backend's own default (filtert = $user->id).
+  useEffect(() => {
+    if (ownerId === undefined && user?.id) setOwnerId(Number(user.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  // Re-apply the sidebar's own pre-filtered query params whenever they
+  // change. This route never unmounts between two "My/All Incomplete/
+  // Terminated Events" sidebar clicks (same /agenda path, only the query
+  // string differs), so without this the filters above — read only once,
+  // via useState's initializer — would silently stay frozen at whatever
+  // they were the first time this page mounted, making every subsequent
+  // click on one of those real sidebar links a no-op.
+  const searchParamsKey = searchParams.toString()
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    const nextStatus = searchParams.get('status') === 'done' || searchParams.get('status') === 'todo' ? searchParams.get('status')! : ''
+    setStatus(nextStatus)
+    setView(searchParams.get('view') === 'list' ? 'list' : 'month')
+    setOwnerId(searchParams.get('scope') === 'all' ? ALL_OWNERS : user?.id ? Number(user.id) : undefined)
+    if (searchParams.get('new') === '1') setShowNewEvent(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParamsKey])
+
+  // Default every real type to "on" once loaded, instead of guessing a
+  // fixed list — this instance's own c_actioncomm rows decide what exists.
+  useEffect(() => {
+    if (activeTypes === null && options?.types) setActiveTypes(new Set(options.types.map((t) => t.code)))
+  }, [options, activeTypes])
+
+  function resetFilters() {
+    setOwnerId(user?.id ? Number(user.id) : undefined)
+    setUsergroupId(undefined)
+    setStatus('')
+    setActiveTypes(options?.types ? new Set(options.types.map((t) => t.code)) : null)
+    setProjectId(undefined)
+    setSocid(undefined)
+    setCategoryId(undefined)
+    setResourceId(undefined)
+    setShowBirthday(false)
+    setCheckHoliday(false)
+    setAnchor(new Date())
+    setView('month')
   }
 
-  const visibleEvents = useMemo(
-    () => events.filter((ev) => viewAll || activeCategories[ev.category] || !(ev.category in CATEGORY_META)),
-    [events, viewAll, activeCategories],
-  )
+  const backendMode = VIEW_TO_BACKEND_MODE[view]
+  const actionCodes = activeTypes ? Array.from(activeTypes) : undefined
+  const { data: events, isFetching, refetch } = useCalendarEvents({
+    mode: backendMode,
+    year: anchor.getFullYear(),
+    month: anchor.getMonth() + 1,
+    day: anchor.getDate(),
+    ownerId,
+    usergroupId,
+    status: status || undefined,
+    actionCodes,
+    projectId,
+    socid,
+    categoryId,
+    resourceId,
+    showBirthday,
+    checkHoliday,
+  })
+  const visibleEvents = useMemo(() => events ?? [], [events])
 
-  const upcoming = useMemo(
-    () => [...visibleEvents].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 3),
-    [visibleEvents],
-  )
+  const upcoming = useMemo(() => {
+    const now = Date.now()
+    return [...visibleEvents].filter((e) => e.startMs >= now).sort((a, b) => a.startMs - b.startMs).slice(0, 5)
+  }, [visibleEvents])
+
+  function toggleType(code: string) {
+    setActiveTypes((cur) => {
+      const next = new Set(cur ?? [])
+      if (next.has(code)) next.delete(code)
+      else next.add(code)
+      return next
+    })
+  }
 
   function shift(delta: number) {
     const d = new Date(anchor)
-    if (view === 'month') d.setMonth(d.getMonth() + delta)
+    if (view === 'month' || view === 'list') d.setMonth(d.getMonth() + delta)
     else if (view === 'week') d.setDate(d.getDate() + delta * 7)
     else d.setDate(d.getDate() + delta)
     setAnchor(d)
   }
 
   const weekDays = useMemo(() => {
-    const start = startOfWeek(view === 'day' ? anchor : anchor)
+    const start = startOfWeek(anchor)
     return Array.from({ length: 7 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i))
-  }, [anchor, view])
+  }, [anchor])
 
   const monthGridDays = useMemo(() => {
     if (view !== 'month') return []
@@ -228,17 +232,44 @@ export function AgendaOverview() {
     return Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
   }, [anchor, view])
 
+  // Range-end shown in the filter panel is a real computed value (last day
+  // of the currently visible range for the active view), not an
+  // independently-queryable filter — the real backend derives its own date
+  // window purely from mode+year+month+day, with no separate end-date param
+  // to post.
+  const rangeEnd = useMemo(() => {
+    if (view === 'week') return new Date(weekDays[6])
+    if (view === 'day') return anchor
+    return new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
+  }, [view, anchor, weekDays])
+
   function eventsOn(d: Date) {
-    return visibleEvents.filter((ev) => sameDay(new Date(ev.date), d))
+    return visibleEvents.filter((ev) => sameDay(new Date(ev.startMs), d))
   }
 
-  const headerTitle = view === 'month' ? `${MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}` : anchor.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  // The real backend deliberately over-fetches a padded date range for
+  // month/week views (7 days before the 1st, 10 days after the 28th — see
+  // calendar_api.php's fetchActionEvents date filter), wider than the
+  // rendered grid itself. Counting the raw fetch total in the header badge
+  // would include events that never appear as a chip anywhere on screen, so
+  // this counts only events landing on a day the current view actually
+  // renders (list view has no grid, so it counts everything, matching its
+  // own table).
+  const countInView = useMemo(() => {
+    if (view === 'list') return visibleEvents.length
+    const days = view === 'month' ? monthGridDays : view === 'week' ? weekDays : [anchor]
+    const daySet = new Set(days.map((d) => d.toDateString()))
+    return visibleEvents.filter((ev) => daySet.has(new Date(ev.startMs).toDateString())).length
+  }, [view, visibleEvents, monthGridDays, weekDays, anchor])
+
+  const headerTitle = view === 'month' || view === 'list' ? `${MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}` : anchor.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <CalendarDays size={20} className="text-brand" /> Agenda <span className="text-text-faint font-normal text-base">{visibleEvents.length}</span>
+          <CalendarDays size={20} className="text-brand" /> Agenda{' '}
+          <span className="text-text-faint font-normal text-base">{isFetching ? '…' : countInView}</span>
         </h2>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-input-border overflow-hidden">
@@ -277,54 +308,190 @@ export function AgendaOverview() {
             onClick={() => setShowNewEvent(true)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover"
           >
-            <Plus size={16} /> New Event
+            <Plus size={16} /> Create Event
           </button>
 
           <MiniCalendar month={anchor} onSelect={(d) => { setAnchor(d); setView('day') }} />
 
           <Card className="!h-auto !p-3">
-            <h3 className="text-sm font-semibold text-text! mb-2">Event Filters</h3>
-            <div className="space-y-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-text!">Filters</h3>
+              <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+                <RotateCcw size={11} /> Reset
+              </button>
+            </div>
+            <div className="space-y-2.5">
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">View</span>
+                <select value={view === 'list' ? 'month' : view} onChange={(e) => setView(e.target.value as ViewMode)} className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
+                  <option value="month">Month</option>
+                  <option value="week">Week</option>
+                  <option value="day">Day</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Start date</span>
+                <input
+                  type="date"
+                  value={toDateInputValue(anchor)}
+                  onChange={(e) => e.target.value && setAnchor(new Date(e.target.value))}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">End date</span>
+                <input type="date" value={toDateInputValue(rangeEnd)} disabled className="w-full h-8 px-2 rounded-md border border-input-border bg-surface-alt text-text-faint text-sm outline-none cursor-not-allowed" />
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Owner</span>
+                <select
+                  value={ownerId ?? ''}
+                  onChange={(e) => setOwnerId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                >
+                  <option value={ALL_OWNERS}>All</option>
+                  {options?.users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">User group</span>
+                <select
+                  value={usergroupId ?? ''}
+                  onChange={(e) => setUsergroupId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                >
+                  <option value="">All</option>
+                  {options?.usergroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Status</span>
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
+                  {options?.statuses.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-1">Type</span>
+                <div className="space-y-1 max-h-40 overflow-y-auto soft-scrollbar">
+                  {options?.types.map((t) => (
+                    <label key={t.code} className="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
+                      <input type="checkbox" checked={activeTypes?.has(t.code) ?? true} onChange={() => toggleType(t.code)} />
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color || '#397db9' }} />
+                      {t.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Project</span>
+                <select
+                  value={projectId ?? ''}
+                  onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                >
+                  <option value="">All</option>
+                  {options?.projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Third-Party</span>
+                <select
+                  value={socid ?? ''}
+                  onChange={(e) => setSocid(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                >
+                  <option value="">All</option>
+                  {options?.thirdparties.map((tp) => (
+                    <option key={tp.id} value={tp.id}>
+                      {tp.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Tag/Category</span>
+                <select
+                  value={categoryId ?? ''}
+                  onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                >
+                  <option value="">All</option>
+                  {options?.categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Resource</span>
+                <select
+                  value={resourceId ?? ''}
+                  onChange={(e) => setResourceId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                >
+                  <option value="">All</option>
+                  {options?.resources.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowBirthday((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${showBirthday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
+                >
+                  <Cake size={12} /> Birthdays
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckHoliday((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${checkHoliday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
+                >
+                  <Umbrella size={12} /> Holidays
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => setViewAll((v) => !v)}
-                className="flex w-full items-center justify-between px-1.5 py-1.5 rounded-md hover:bg-surface-hover"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-input-border py-1.5 text-xs font-medium text-text-muted hover:bg-surface-hover disabled:opacity-50"
               >
-                <span className="flex items-center gap-2 text-sm text-text!">
-                  <span className="w-2.5 h-2.5 rounded-full bg-danger shrink-0" /> View All
-                </span>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${viewAll ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>{viewAll ? 'ON' : 'OFF'}</span>
+                <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} /> Refresh
               </button>
-              {CATEGORY_ORDER.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => toggleCategory(c)}
-                  className="flex w-full items-center justify-between px-1.5 py-1.5 rounded-md hover:bg-surface-hover"
-                >
-                  <span className="flex items-center gap-2 text-sm text-text-muted">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotFor(c)}`} /> {labelFor(c)}
-                  </span>
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${activeCategories[c] ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
-                    {activeCategories[c] ? 'ON' : 'OFF'}
-                  </span>
-                </button>
-              ))}
             </div>
-            <p className="text-xs text-brand mt-2 px-1.5">{visibleEvents.length} visible items</p>
           </Card>
 
           <Card className="!h-auto !p-3">
             <h3 className="text-sm font-semibold text-text! mb-2">Upcoming Events</h3>
             <span className="inline-block text-xs font-medium text-brand bg-brand/10 rounded-full px-2 py-0.5 mb-2">{upcoming.length} events</span>
             {upcoming.length === 0 ? (
-              <p className="text-xs text-text-faint italic">No events yet.</p>
+              <p className="text-xs text-text-faint italic">No upcoming events.</p>
             ) : (
               <div className="space-y-3">
                 {upcoming.map((ev) => (
                   <div key={ev.id} className="border-b border-border last:border-0 pb-2 last:pb-0">
                     <p className="text-sm font-semibold text-text!">{ev.label}</p>
-                    <p className="text-xs text-text-faint mt-0.5">{new Date(ev.date).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</p>
+                    <p className="text-xs text-text-faint mt-0.5">{new Date(ev.startMs).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</p>
                   </div>
                 ))}
               </div>
@@ -392,29 +559,41 @@ export function AgendaOverview() {
               {visibleEvents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-16 text-text-faint">
                   <CalendarDays size={32} />
-                  <p className="text-sm">No events yet — creating a quotation, contract, order, leave request, or invoice payment will show up here.</p>
+                  <p className="text-sm">No events yet — create one, or check a quotation, contract, order, or invoice for its own logged events.</p>
                 </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-10">
                     <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
                       <th className="font-medium px-4 py-2.5">Date</th>
-                      <th className="font-medium px-4 py-2.5">Category</th>
-                      <th className="font-medium px-4 py-2.5">Description</th>
-                      <th className="font-medium px-4 py-2.5">Author</th>
+                      <th className="font-medium px-4 py-2.5">Type</th>
+                      <th className="font-medium px-4 py-2.5">Label</th>
+                      <th className="font-medium px-4 py-2.5">Owner</th>
                     </tr>
                   </thead>
                   <tbody>
                     {visibleEvents.map((ev) => (
                       <tr key={ev.id} className="border-b border-border">
-                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">{new Date(ev.date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">{new Date(ev.startMs).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                         <td className="px-4 py-3">
                           <span className="inline-flex items-center gap-1.5 text-text-muted">
-                            <span className={`w-2 h-2 rounded-full ${dotFor(ev.category)}`} /> {labelFor(ev.category)}
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ev.typeColor }} /> {ev.typeLabel}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-text!">{ev.label}</td>
-                        <td className="px-4 py-3 text-text-muted">{ev.authorName}</td>
+                        <td className="px-4 py-3">
+                          <a href={ev.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                            {ev.label}
+                          </a>
+                        </td>
+                        <td className="px-4 py-3 text-text-muted">
+                          {ev.userOwner ? (
+                            <span className="flex items-center gap-1.5">
+                              <Avatar name={ev.userOwner} size={18} className="text-[9px]" /> {ev.userOwner}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -425,7 +604,7 @@ export function AgendaOverview() {
         </Card>
       </div>
 
-      {showNewEvent && <NewEventModal onClose={() => setShowNewEvent(false)} defaultDate={anchor} />}
+      {showNewEvent && <AddEventModal onClose={() => setShowNewEvent(false)} onCreated={() => setShowNewEvent(false)} />}
     </div>
   )
 }

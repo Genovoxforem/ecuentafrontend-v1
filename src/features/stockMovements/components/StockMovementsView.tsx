@@ -111,7 +111,7 @@ export function StockMovementsView({ warehouseId, productId }: { warehouseId?: n
 
           <Card className="!h-auto !p-0 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <TheadRow>
                   <Th sortKey="date" sort={sort} onSort={toggleSort}>Date</Th>
                   <Th sortKey="product" sort={sort} onSort={toggleSort}>Product</Th>

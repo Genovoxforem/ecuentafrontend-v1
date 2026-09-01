@@ -169,6 +169,7 @@ const MembersDashboardModule = lazy(() => import('./modules/members/MembersDashb
 const LotSerialDetailModule = lazy(() => import('./modules/products/LotSerialDetailModule').then((m) => ({ default: m.LotSerialDetailModule })))
 const VariantAttributeDetailModule = lazy(() => import('./modules/products/VariantAttributeDetailModule').then((m) => ({ default: m.VariantAttributeDetailModule })))
 const KitchenModule = lazy(() => import('./modules/kitchen/KitchenModule').then((m) => ({ default: m.KitchenModule })))
+const KitchenDashboardModule = lazy(() => import('./modules/kitchen/KitchenDashboardModule').then((m) => ({ default: m.KitchenDashboardModule })))
 const BeverageOrdersModule = lazy(() => import('./modules/kitchen/BeverageOrdersModule').then((m) => ({ default: m.BeverageOrdersModule })))
 const CreateOrderModule = lazy(() => import('./modules/kitchen/CreateOrderModule').then((m) => ({ default: m.CreateOrderModule })))
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
@@ -451,7 +452,8 @@ function App() {
                   <Route path={ROUTES.quotationConsumptionHistory} element={<RouteBoundary><ConsumptionHistoryModule /></RouteBoundary>} />
                   <Route path={ROUTES.productLotSerialDetail} element={<RouteBoundary><LotSerialDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.productVariantAttributeDetail} element={<RouteBoundary><VariantAttributeDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.kitchenDashboard} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
+                  <Route path={ROUTES.kitchenDashboard} element={<RouteBoundary><KitchenDashboardModule /></RouteBoundary>} />
+                  <Route path={ROUTES.kitchenOrderManagement} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
                   <Route path={ROUTES.kitchenBeverageOrders} element={<RouteBoundary><BeverageOrdersModule /></RouteBoundary>} />
                   <Route path={ROUTES.kitchenCreateOrder} element={<RouteBoundary><CreateOrderModule /></RouteBoundary>} />
                   <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />

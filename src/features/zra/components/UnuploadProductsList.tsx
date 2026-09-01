@@ -14,7 +14,8 @@ function ZraStatusCell({ message }: { message: string }) {
   const isError = /error|reject|fail/i.test(message)
   return (
     <span
-      className={`inline-block max-w-xs px-2 py-0.5 rounded text-xs font-medium whitespace-normal ${
+      title={message}
+      className={`block max-w-[240px] truncate px-2 py-0.5 rounded text-xs font-medium ${
         isError ? 'bg-danger-bg text-danger-fg' : 'bg-warning-bg text-warning-fg'
       }`}
     >

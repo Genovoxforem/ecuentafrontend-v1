@@ -12,7 +12,7 @@ export function CreditNoteOrderListPage() {
       </h2>
       <Card className="!p-0 overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <TheadRow>
               {COLUMNS.map((c) => (
                 <Th key={c}>{c}</Th>

@@ -73,7 +73,7 @@ export function ReceptionStatisticsPage() {
         </div>
 
         <table className="w-full text-sm mt-4">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <TheadRow>
               <Th className="!px-0">Year</Th>
               <Th className="!px-0" align="right">Number Of Receptions</Th>
