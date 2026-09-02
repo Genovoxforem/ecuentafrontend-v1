@@ -4,6 +4,7 @@ import { Box, Package, Wrench, Search, Plus, Filter } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { useAllProductsRich, type ProductRow, type ProductsSummary, type RichProductRow } from '../products.queries'
@@ -13,11 +14,26 @@ import { ProductFilterModal } from './ProductFilterModal'
 import { ProductDetailPanel } from './ProductDetailPanel'
 import { DEFAULT_PRODUCT_FILTERS, activeFilterCount, matchesProductFilters, type ProductFilters } from '../productFilters'
 
+type SortKey = 'product' | 'category' | 'vatCode' | 'priceExcl' | 'priceIncl' | 'stock' | 'classification' | 'zraStatus' | 'lotStatus' | 'country' | 'created'
+
 // Extra columns beyond the base /api/products/ fields mirror the legacy
 // "All Products" report (product/allproducts.php) — see useAllProductsRich.
 // Best-effort enrichment: falls back to "—" per row when that fetch hasn't
 // resolved yet or a ref isn't found in it, rather than blocking the table.
-const COLUMNS = ['Product', 'Category', 'VAT Code', 'Price (Excl. Tax)', 'Price (Incl. Tax)', 'Stock', 'Classification', 'ZRA Status', 'Lot Status', 'Country', 'Created']
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Product', key: 'product' },
+  { label: 'Category', key: 'category' },
+  { label: 'VAT Code', key: 'vatCode' },
+  { label: 'Price (Excl. Tax)', key: 'priceExcl' },
+  { label: 'Price (Incl. Tax)', key: 'priceIncl' },
+  { label: 'Stock', key: 'stock' },
+  { label: 'Classification', key: 'classification' },
+  { label: 'ZRA Status', key: 'zraStatus' },
+  { label: 'Lot Status', key: 'lotStatus' },
+  { label: 'Country', key: 'country' },
+  { label: 'Created', key: 'created' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(product: ProductRow, query: string) {
@@ -67,7 +83,38 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
       ),
     [summary.products, search, filters, richByRef, categoryLabelById],
   )
-  const pageProducts = filteredProducts.slice((page - 1) * perPage, page * perPage)
+
+  const sortValue = useMemo(() => {
+    return (p: ProductRow, key: SortKey): string | number => {
+      const rich = richByRef.get(p.ref)
+      switch (key) {
+        case 'product':
+          return p.label
+        case 'category':
+          return rich?.category ?? ''
+        case 'vatCode':
+          return rich?.vatCode ?? ''
+        case 'priceExcl':
+          return p.priceExclTax
+        case 'priceIncl':
+          return p.priceInclTax
+        case 'stock':
+          return rich?.stockPhysical ?? p.stock
+        case 'classification':
+          return rich?.classification ?? ''
+        case 'zraStatus':
+          return rich?.zraStatus ?? ''
+        case 'lotStatus':
+          return rich?.lotStatus ?? ''
+        case 'country':
+          return rich?.country ?? ''
+        case 'created':
+          return rich?.createdDate ?? ''
+      }
+    }
+  }, [richByRef])
+  const { sorted: sortedProducts, sort, toggleSort } = useSortableRows<ProductRow, SortKey>(filteredProducts, sortValue)
+  const pageProducts = sortedProducts.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -85,7 +132,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   }
 
   function getExportData() {
-    const rows = filteredProducts.map((p) => {
+    const rows = sortedProducts.map((p) => {
       const rich = richByRef.get(p.ref)
       return [
         `${p.label} (Ref: ${p.ref})`,
@@ -101,7 +148,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
         rich?.createdDate ?? '',
       ]
     })
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -179,24 +226,24 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <TheadRow>
                   {COLUMNS.map((col) => (
-                    <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                      {col}
-                    </th>
+                    <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                      {col.label}
+                    </Th>
                   ))}
-                </tr>
+                </TheadRow>
               </thead>
               <tbody>
                 {summary.products.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                       No Data Available In Table
                     </td>
                   </tr>
                 ) : filteredProducts.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                       No products match "{search}".
                     </td>
                   </tr>

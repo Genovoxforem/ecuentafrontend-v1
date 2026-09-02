@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PackageCheck } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useCustomersSummary } from '../../customers/customers.queries'
 import { useUsersSummary } from '../../users/users.queries'
@@ -72,11 +73,11 @@ export function ReceptionStatisticsPage() {
         </div>
 
         <table className="w-full text-sm mt-4">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium py-2">Year</th>
-              <th className="font-medium py-2 text-right">Number Of Receptions</th>
-            </tr>
+          <thead className="sticky top-0 z-10">
+            <TheadRow>
+              <Th className="!px-0">Year</Th>
+              <Th className="!px-0" align="right">Number Of Receptions</Th>
+            </TheadRow>
           </thead>
           <tbody>
             <tr>

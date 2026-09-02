@@ -4,11 +4,52 @@ import { CalendarDays, CalendarCheck2, CalendarX2, Plus, Search, Users } from 'l
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatDate } from '../../../utils/format'
 import { useLeaveSummary, type LeaveRequest } from '../leave.queries'
 
-const COLUMNS = ['Ref', 'Employee', 'Validator', 'Type', 'Duration', 'Start Date', 'End Date', 'Create Date', 'Update Date', 'Status']
+type SortKey = 'ref' | 'employee' | 'validator' | 'type' | 'duration' | 'start' | 'end' | 'created' | 'updated' | 'status'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Ref', key: 'ref' },
+  { label: 'Employee', key: 'employee' },
+  { label: 'Validator', key: 'validator' },
+  { label: 'Type', key: 'type' },
+  { label: 'Duration', key: 'duration' },
+  { label: 'Start Date', key: 'start' },
+  { label: 'End Date', key: 'end' },
+  { label: 'Create Date', key: 'created' },
+  { label: 'Update Date', key: 'updated' },
+  { label: 'Status', key: 'status' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function sortValue(r: LeaveRequest, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return r.ref
+    case 'employee':
+      return r.employeeName
+    case 'validator':
+      return r.validatorName
+    case 'type':
+      return r.typeLabel
+    case 'duration':
+      return r.days
+    case 'start':
+      return r.startDate ? new Date(r.startDate).getTime() : 0
+    case 'end':
+      return r.endDate ? new Date(r.endDate).getTime() : 0
+    case 'created':
+      return r.createDate ? new Date(r.createDate).getTime() : 0
+    case 'updated':
+      return r.updateDate ? new Date(r.updateDate).getTime() : 0
+    case 'status':
+      return r.status
+  }
+}
 
 function StatTile({ label, value, caption, icon: Icon, color }: { label: string; value: number; caption: string; icon: typeof Users; color: IconColor }) {
   return (
@@ -49,22 +90,60 @@ export function LeaveList() {
   const [from, setFrom] = useState(`${new Date().getFullYear()}-01-01`)
   const [to, setTo] = useState(`${new Date().getFullYear()}-12-31`)
 
-  const filtered = useMemo(() => {
+  const filteredRows = useMemo(() => {
     return summary.requests.filter((r) => matchesSearch(r, search) && r.startDate >= from && r.startDate <= to)
   }, [summary.requests, search, from, to])
-  const pageRows = filtered.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<LeaveRequest, SortKey>(filteredRows, sortValue)
+  const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePerPageChange(value: number) {
+    setPerPage(value)
+    setPage(1)
+  }
+
+  function handleFromChange(value: string) {
+    setFrom(value)
+    setPage(1)
+  }
+
+  function handleToChange(value: string) {
+    setTo(value)
+    setPage(1)
+  }
+
+  function getExportData() {
+    const rows = sortedRows.map((r) => [
+      r.ref,
+      r.employeeName,
+      r.validatorName,
+      r.typeLabel,
+      `${r.days} day(s)`,
+      formatDate(r.startDate),
+      formatDate(r.endDate),
+      formatDate(r.createDate),
+      formatDate(r.updateDate),
+      r.status,
+    ])
+    return { headers: COLUMN_LABELS, rows }
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // -m-6 + flex-1 flex-col: same pattern as ServicesList.tsx / ThirdPartyList.tsx.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <CalendarDays size={20} className="text-brand" /> Holiday Management
         </h2>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-lg border border-input-border bg-input-bg px-2 py-1.5 text-xs text-text-muted">
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="bg-transparent outline-none" />
+            <input type="date" value={from} onChange={(e) => handleFromChange(e.target.value)} className="bg-transparent outline-none" />
             <span>–</span>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="bg-transparent outline-none" />
+            <input type="date" value={to} onChange={(e) => handleToChange(e.target.value)} className="bg-transparent outline-none" />
           </div>
           <Link to={ROUTES.leaveRequest} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New Leave Request
@@ -72,76 +151,86 @@ export function LeaveList() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <StatTile label="Employees" value={summary.employeesWithRecords} caption="With leave records" icon={Users} color="blue" />
-        <StatTile label="Leave Records" value={summary.totalRequests} caption="Total requests" icon={CalendarDays} color="cyan" />
-        <StatTile label="This Month" value={summary.thisMonth} caption="Leave requests" icon={CalendarDays} color="violet" />
-        <StatTile label="Approved" value={summary.approved} caption="Approved leave" icon={CalendarCheck2} color="green" />
-        <StatTile label="Cancelled" value={summary.cancelled} caption="Cancelled/Refused" icon={CalendarX2} color="rose" />
-      </div>
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <StatTile label="Employees" value={summary.employeesWithRecords} caption="With leave records" icon={Users} color="blue" />
+          <StatTile label="Leave Records" value={summary.totalRequests} caption="Total requests" icon={CalendarDays} color="cyan" />
+          <StatTile label="This Month" value={summary.thisMonth} caption="Leave requests" icon={CalendarDays} color="violet" />
+          <StatTile label="Approved" value={summary.approved} caption="Approved leave" icon={CalendarCheck2} color="green" />
+          <StatTile label="Cancelled" value={summary.cancelled} caption="Cancelled/Refused" icon={CalendarX2} color="rose" />
+        </div>
 
-      <Card className="!p-0 overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-          <select value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1) }} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <div className="relative w-56">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              placeholder="Search"
-              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
-            />
+        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+            <select
+              value={perPage}
+              onChange={(e) => handlePerPageChange(Number(e.target.value))}
+              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <div className="relative w-56">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search"
+                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
+              />
+            </div>
+            <TableExportButtons title="Holiday Management" getExportData={getExportData} />
           </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
-                    No Data Available In Table
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.ref} className="border-b border-border hover:bg-surface-hover/60">
-                    <td className="px-4 py-3 text-brand">{r.ref}</td>
-                    <td className="px-4 py-3 text-text!">{r.employeeName}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.validatorName}</td>
-                    <td className="px-4 py-3 text-text-muted">{r.typeLabel}</td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.days} day(s)</td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.startDate)}</td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.endDate)}</td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.createDate)}</td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.updateDate)}</td>
-                    <td className="px-4 py-3">{statusBadge(r.status)}</td>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <TheadRow>
+                  {COLUMNS.map((col) => (
+                    <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                      {col.label}
+                    </Th>
+                  ))}
+                </TheadRow>
+              </thead>
+              <tbody>
+                {summary.requests.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                      No Data Available In Table
+                    </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <p className="px-4 py-2 text-xs text-text-faint border-t border-border">
-          Showing {filtered.length === 0 ? 0 : (page - 1) * perPage + 1} to {Math.min(page * perPage, filtered.length)} of {filtered.length} entries
-        </p>
-      </Card>
-      <ListPagination page={page} perPage={perPage} total={filtered.length} onPageChange={setPage} />
+                ) : pageRows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                      No leave requests match your search or filter.
+                    </td>
+                  </tr>
+                ) : (
+                  pageRows.map((r) => (
+                    <tr key={r.ref} className="border-b border-border hover:bg-surface-hover/60">
+                      <td className="px-4 py-3 text-brand">{r.ref}</td>
+                      <td className="px-4 py-3 text-text!">{r.employeeName}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.validatorName}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.typeLabel}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.days} day(s)</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.startDate)}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.endDate)}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.createDate)}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.updateDate)}</td>
+                      <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+      <ListPagination page={page} perPage={perPage} total={filteredRows.length} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }

@@ -5,16 +5,60 @@ import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { useMarkInvoicePaid, useRecordInvoicePayment, type InvoiceRow, type InvoicesSummary } from '../invoices.queries'
 
-const COLUMNS = ['Ref', 'Invoice No', 'Invoice Date', 'Third-Party', 'City', 'Payment Type', 'Amount (Incl. Tax)', 'Author', 'Status', 'Zra Status', 'Actions']
+type SortKey = 'ref' | 'invoiceNo' | 'invoiceDate' | 'thirdParty' | 'city' | 'paymentType' | 'amountInclTax' | 'author' | 'status' | 'zraStatus'
+
+// "Actions" (Mark Paid / Pay…) has no underlying sortable field — its header
+// is intentionally left out of COLUMNS/SortKey and rendered as a plain,
+// non-clickable <Th> instead (see thead below), matching every other
+// icon/action-only column across the app.
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Ref', key: 'ref' },
+  { label: 'Invoice No', key: 'invoiceNo' },
+  { label: 'Invoice Date', key: 'invoiceDate' },
+  { label: 'Third-Party', key: 'thirdParty' },
+  { label: 'City', key: 'city' },
+  { label: 'Payment Type', key: 'paymentType' },
+  { label: 'Amount (Incl. Tax)', key: 'amountInclTax' },
+  { label: 'Author', key: 'author' },
+  { label: 'Status', key: 'status' },
+  { label: 'Zra Status', key: 'zraStatus' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(row: InvoiceRow, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
   return [row.ref, row.invoiceNo, row.thirdParty, row.city, row.paymentType, row.author, row.status, row.zraStatus].some((field) => field.toLowerCase().includes(q))
+}
+
+function sortValue(row: InvoiceRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return row.ref
+    case 'invoiceNo':
+      return row.invoiceNo
+    case 'invoiceDate':
+      return row.invoiceDate
+    case 'thirdParty':
+      return row.thirdParty
+    case 'city':
+      return row.city
+    case 'paymentType':
+      return row.paymentType
+    case 'amountInclTax':
+      return row.amountInclTax
+    case 'author':
+      return row.author
+    case 'status':
+      return row.status
+    case 'zraStatus':
+      return row.zraStatus
+  }
 }
 
 function RecordPaymentForm({ row, onClose }: { row: InvoiceRow; onClose: () => void }) {
@@ -109,7 +153,8 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   const [search, setSearch] = useState('')
 
   const filteredRows = useMemo(() => summary.rows.filter((r) => matchesSearch(r, search)), [summary.rows, search])
-  const pageRows = filteredRows.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<InvoiceRow, SortKey>(filteredRows, sortValue)
+  const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -122,8 +167,8 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   }
 
   function getExportData() {
-    const headers = COLUMNS.slice(0, -1)
-    const rows = filteredRows.map((r) => [
+    const headers = COLUMN_LABELS
+    const rows = sortedRows.map((r) => [
       r.ref,
       r.invoiceNo,
       r.invoiceDate,
@@ -232,24 +277,26 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <TheadRow>
                   {COLUMNS.map((col) => (
-                    <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                      {col}
-                    </th>
+                    <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                      {col.label}
+                    </Th>
                   ))}
-                </tr>
+                  {/* Actions column has no underlying sortable data — plain, non-clickable header. */}
+                  <Th>Actions</Th>
+                </TheadRow>
               </thead>
               <tbody>
                 {summary.rows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
                       No Data Available In Table
                     </td>
                   </tr>
                 ) : filteredRows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
                       No invoices match "{search}".
                     </td>
                   </tr>

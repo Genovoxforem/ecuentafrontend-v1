@@ -52,7 +52,7 @@ import {
 import JsBarcode from 'jsbarcode'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
-import { resolveBackendAsset, BACKEND_URLS, getActiveBackend } from '../../../api/backends'
+import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
 import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
@@ -1209,32 +1209,32 @@ function StockTab({ id }: { id: string | undefined }) {
               <span className="inline-flex items-center gap-1.5">
                 <span className="font-semibold text-text!">{formatNumber(data.physicalStock)}</span>
                 {data.physicalBelowLimit && <AlertTriangle size={14} className="text-warning" />}
-                {/* Stock At Date / Virtual At Date / Full List are their own
-                    real legacy reports (product/stock/stockatdate.php,
-                    movement_list.php) with no native page here — linking out
-                    to the real backend rather than a partial native rebuild
-                    of a secondary drill-down view. */}
-                <a href={`${BACKEND_URLS[getActiveBackend()]}/product/stock/stockatdate.php?productid=${id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-brand hover:underline">
+                {/* Stock At Date / Virtual At Date are their own real
+                    legacy reports (product/stock/stockatdate.php) with no
+                    JSON API — native inert replica page, see
+                    StockAtDateReplica.tsx. Full List is real, native via
+                    movement_list_api.php — see stockMovements.queries.ts. */}
+                <Link to={`${ROUTES.productStockAtDate}?productid=${id}`} className="text-xs text-brand hover:underline">
                   Stock At Date
-                </a>
+                </Link>
               </span>
             </FieldRow>
             <FieldRow label="Virtual Stock">
               <span className="inline-flex items-center gap-1.5">
                 <span className="font-semibold text-text!">{formatNumber(data.virtualStock)}</span>
                 {data.virtualBelowLimit && <AlertTriangle size={14} className="text-warning" />}
-                <a href={`${BACKEND_URLS[getActiveBackend()]}/product/stock/stockatdate.php?mode=future&productid=${id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-brand hover:underline">
+                <Link to={`${ROUTES.productStockAtDate}?mode=future&productid=${id}`} className="text-xs text-brand hover:underline">
                   Virtual At Date
-                </a>
+                </Link>
               </span>
             </FieldRow>
             {data.lastMovement && (
               <FieldRow label="Last Movement">
                 <span className="inline-flex items-center gap-1.5">
                   {data.lastMovement}
-                  <a href={`${BACKEND_URLS[getActiveBackend()]}/product/stock/movement_list.php?idproduct=${id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-brand hover:underline">
+                  <Link to={`${ROUTES.stockMovements}?idproduct=${id}`} className="text-xs text-brand hover:underline">
                     Full List
-                  </a>
+                  </Link>
                 </span>
               </FieldRow>
             )}

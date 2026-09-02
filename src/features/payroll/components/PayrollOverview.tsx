@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Camera, TrendingUp, User, CalendarCheck, Clock, FileText, CalendarX, Users2, Building2, Plus, X, Check, XCircle } from 'lucide-react'
 import { Card, ActionGroupCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { useCreateLeaveRequest, useSetLeaveRequestStatus, type PayrollSummary } from '../payroll.queries'
+import { ROUTES } from '../../../routes'
 
 const ICON_COLORS = {
   teal: 'text-teal-500',
@@ -262,15 +263,15 @@ export function PayrollOverview({ summary }: { summary: PayrollSummary }) {
           title="Payroll Management"
           columns={2}
           actions={[
-            { icon: CalendarCheck, label: 'Attendance' },
-            { icon: Users2, label: 'Advance Salary' },
-            { icon: FileText, label: 'Loan' },
-            { icon: Clock, label: 'Shifts' },
-            { icon: FileText, label: 'Salary Template' },
-            { icon: FileText, label: 'Hourly Template' },
-            { icon: FileText, label: 'Manage Salary' },
-            { icon: FileText, label: 'Salary List' },
-            { icon: FileText, label: 'Make Payment' },
+            { icon: CalendarCheck, label: 'Attendance', path: ROUTES.payrollMarkAttendance },
+            { icon: Users2, label: 'Advance Salary', path: ROUTES.payrollAdvanceSalary },
+            { icon: FileText, label: 'Loan', path: ROUTES.payrollEmployeeLoan },
+            { icon: Clock, label: 'Shifts', path: ROUTES.payrollAssignShifts },
+            { icon: FileText, label: 'Salary Template', path: ROUTES.payrollSalaryTemplate },
+            { icon: FileText, label: 'Hourly Template', path: ROUTES.payrollHourlyTemplate },
+            { icon: FileText, label: 'Manage Salary', path: ROUTES.payrollManageSalary },
+            { icon: FileText, label: 'Salary List', path: ROUTES.payrollManageSalaryList },
+            { icon: FileText, label: 'Make Payment', path: ROUTES.payrollGenerateMakePayment },
           ]}
         />
         <ActionGroupCard
@@ -278,10 +279,10 @@ export function PayrollOverview({ summary }: { summary: PayrollSummary }) {
           title="Employee Management"
           columns={2}
           actions={[
-            { icon: CalendarX, label: 'New Leave Request' },
-            { icon: FileText, label: 'All Leave Requests' },
-            { icon: FileText, label: 'View Payslip' },
-            { icon: FileText, label: 'YTD Payslip' },
+            { icon: CalendarX, label: 'New Leave Request', path: ROUTES.payrollLeaveRequest },
+            { icon: FileText, label: 'All Leave Requests', path: ROUTES.payrollAllLeaveRequest },
+            { icon: FileText, label: 'View Payslip', path: ROUTES.payrollGeneratePayslip },
+            { icon: FileText, label: 'YTD Payslip', path: ROUTES.payrollYtdPayslip },
           ]}
         />
         <ActionGroupCard
@@ -289,14 +290,14 @@ export function PayrollOverview({ summary }: { summary: PayrollSummary }) {
           title="Core HR"
           columns={2}
           actions={[
-            { icon: Users2, label: 'Employee Award' },
-            { icon: Users2, label: 'Transfers' },
-            { icon: Users2, label: 'Resignation' },
-            { icon: Users2, label: 'Travel' },
-            { icon: Users2, label: 'Complaints' },
-            { icon: Users2, label: 'Warnings' },
-            { icon: Users2, label: 'Terminations' },
-            { icon: FileText, label: 'Holiday Calendar' },
+            { icon: Users2, label: 'Employee Award', path: ROUTES.payrollEmployeeAward },
+            { icon: Users2, label: 'Transfers', path: ROUTES.payrollEmployeeTransfers },
+            { icon: Users2, label: 'Resignation', path: ROUTES.payrollEmployeeResignation },
+            { icon: Users2, label: 'Travel', path: ROUTES.payrollEmployeeTravel },
+            { icon: Users2, label: 'Complaints', path: ROUTES.payrollEmployeeComplaints },
+            { icon: Users2, label: 'Warnings', path: ROUTES.payrollEmployeeWarnings },
+            { icon: Users2, label: 'Terminations', path: ROUTES.payrollEmployeeTerminations },
+            { icon: FileText, label: 'Holiday Calendar', path: ROUTES.payrollCalendarHolidays },
           ]}
         />
       </div>

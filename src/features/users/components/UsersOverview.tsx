@@ -6,10 +6,50 @@ import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/da
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Avatar } from '../../../shared/components/Avatar'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import type { UserRow, UsersSummary } from '../users.queries'
 
-const COLUMNS = ['Login', 'Name', 'Employee', 'Phone', 'Email', 'Gender', 'Designation', 'Last Login', 'Status', 'Type']
+type SortKey = 'login' | 'name' | 'employee' | 'phone' | 'email' | 'gender' | 'designation' | 'lastLogin' | 'status' | 'type'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Login', key: 'login' },
+  { label: 'Name', key: 'name' },
+  { label: 'Employee', key: 'employee' },
+  { label: 'Phone', key: 'phone' },
+  { label: 'Email', key: 'email' },
+  { label: 'Gender', key: 'gender' },
+  { label: 'Designation', key: 'designation' },
+  { label: 'Last Login', key: 'lastLogin' },
+  { label: 'Status', key: 'status' },
+  { label: 'Type', key: 'type' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function sortValue(u: UserRow, key: SortKey): string | number {
+  switch (key) {
+    case 'login':
+      return u.login
+    case 'name':
+      return u.name
+    case 'employee':
+      return u.employee ? 1 : 0
+    case 'phone':
+      return u.phone
+    case 'email':
+      return u.email
+    case 'gender':
+      return u.gender
+    case 'designation':
+      return u.designation
+    case 'lastLogin':
+      return u.lastLogin
+    case 'status':
+      return u.status
+    case 'type':
+      return u.isSuperAdmin ? 2 : u.isAdmin ? 1 : 0
+  }
+}
 
 type FilterValue = 'All' | 'Enabled' | 'Disabled' | 'Admins' | 'SuperAdmins'
 const FILTER_OPTIONS: { value: FilterValue; label: string }[] = [
@@ -91,7 +131,8 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
     () => summary.users.filter((u) => matchesSearch(u, search) && matchesFilter(u, filterValue)),
     [summary.users, search, filterValue],
   )
-  const pageUsers = filteredUsers.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedUsers, sort, toggleSort } = useSortableRows<UserRow, SortKey>(filteredUsers, sortValue)
+  const pageUsers = sortedUsers.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -108,7 +149,7 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
   }, [filterValue])
 
   function getExportData() {
-    const rows = filteredUsers.map((u) => [
+    const rows = sortedUsers.map((u) => [
       u.login,
       u.name,
       u.employee ? 'Yes' : 'No',
@@ -120,7 +161,7 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
       u.status,
       u.isSuperAdmin ? 'Super Admin' : u.isAdmin ? 'Admin' : 'Standard',
     ])
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -201,24 +242,24 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                <TheadRow>
                   {COLUMNS.map((col) => (
-                    <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                      {col}
-                    </th>
+                    <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                      {col.label}
+                    </Th>
                   ))}
-                </tr>
+                </TheadRow>
               </thead>
               <tbody>
                 {summary.users.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                       No users found.
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                       {search ? `No users match "${search}".` : 'No users match the selected filters.'}
                     </td>
                   </tr>

@@ -1,8 +1,10 @@
-import { Hash, ExternalLink } from 'lucide-react'
+import { Hash } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { resolveBackendAsset } from '../../../api/backends'
 import { useLotSerialsReport } from '../products.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
+import { extractQueryParam } from '../productLegacyParsers'
+import { ROUTES } from '../../../routes'
 
 const COLUMNS = ['Lot/Serial', 'Product', 'Sell-by Date', 'Eat-by Date', 'Creation Date']
 
@@ -44,20 +46,19 @@ export function LotsSerialsPage() {
                   rows.map((row, i) => (
                     <tr key={`${row.lotSerial}-${row.productRef}-${i}`} className="border-b border-border hover:bg-surface-hover">
                       <td className="px-3 py-2.5">
-                        {row.lotSerialUrl ? (
-                          <a href={resolveBackendAsset(row.lotSerialUrl)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-brand hover:underline font-medium">
+                        {extractQueryParam(row.lotSerialUrl, 'id') ? (
+                          <Link to={ROUTES.productLotSerialDetail.replace(':id', extractQueryParam(row.lotSerialUrl, 'id')!)} className="text-brand hover:underline font-medium">
                             {row.lotSerial}
-                            <ExternalLink size={10} className="text-text-faint" />
-                          </a>
+                          </Link>
                         ) : (
                           row.lotSerial
                         )}
                       </td>
                       <td className="px-3 py-2.5">
-                        {row.productUrl ? (
-                          <a href={resolveBackendAsset(row.productUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                        {extractQueryParam(row.productUrl, 'id') ? (
+                          <Link to={ROUTES.productDetail.replace(':id', extractQueryParam(row.productUrl, 'id')!)} className="text-brand hover:underline">
                             {row.productLabel}
-                          </a>
+                          </Link>
                         ) : (
                           <span className="text-text!">{row.productLabel}</span>
                         )}

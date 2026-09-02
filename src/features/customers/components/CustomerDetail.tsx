@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { AddContactModal } from './AddContactModal'
 import {
   ChevronLeft,
   X,
@@ -912,21 +913,22 @@ function ActivitiesTab({ socid }: { socid: string | undefined }) {
 
 function ContactsTab({ socid }: { socid: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useCustomerContacts(socid)
+  const [showAddContact, setShowAddContact] = useState(false)
   if (isLoading) return <LegacyLoadingCard label="Loading contacts…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load contacts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   return (
     <Card className="!h-auto !p-0 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <TabTitle>Contacts</TabTitle>
-        <a
-          href={`/societe/contact.php?socid=${socid}&action=create`}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={() => setShowAddContact(true)}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
         >
           <Plus size={14} /> Add contact
-        </a>
+        </button>
       </div>
+      {showAddContact && socid && <AddContactModal socid={socid} onClose={() => setShowAddContact(false)} />}
       <div className="p-4">
         {data.rows.length === 0 ? (
           <p className="text-sm text-text-faint italic py-6 text-center">No contacts yet.</p>

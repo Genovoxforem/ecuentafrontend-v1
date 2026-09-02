@@ -1,5 +1,5 @@
-import { ExternalLink, ListTree } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ListTree } from 'lucide-react'
+import { DisabledFormPage } from '../../../shared/components/forms/DisabledFormPage'
 
 // accountancy/bookkeeping/listbysubaccount.php — confirmed real (llx_
 // accounting_bookkeeping data grouped by subledger/third-party account) but
@@ -8,27 +8,21 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 // subledger_account filter keys in its internal query-builder, but no
 // request parameter anywhere in that file actually populates them — so
 // there is no reachable way to drive a real subledger-grouped view through
-// it today, despite the underlying capability existing in the code.
+// it today, despite the underlying capability existing in the code. Fields
+// below match the real report's own filter and column set.
 export function SubledgerReport() {
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ListTree size={20} className="text-brand" /> Subledger
-      </h2>
-      <Card className="!h-auto space-y-2">
-        <p className="text-sm text-text-muted">
-          Real report: <code className="font-mono text-xs">accountancy/bookkeeping/listbysubaccount.php</code> — transactions grouped by subledger/third-party account. No JSON API exists for
-          it, and the one real JSON endpoint this module does have (which now powers Ledger Dashboard) has no reachable parameter for subledger grouping despite supporting it internally.
-        </p>
-        <a
-          href="/accountancy/bookkeeping/listbysubaccount.php"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-brand hover:underline"
-        >
-          <ExternalLink size={13} /> Open in the legacy system
-        </a>
-      </Card>
-    </div>
+    <DisabledFormPage
+      icon={ListTree}
+      title="Subledger"
+      sourcePath="accountancy/bookkeeping/listbysubaccount.php"
+      sections={[
+        { fields: [{ label: 'Subledger Account', type: 'select', required: true }, { label: 'Date Export', type: 'date' }] },
+        {
+          heading: 'Movements',
+          fields: [{ label: 'Journal Code' }, { label: 'Document Date' }, { label: 'Label' }, { label: 'Debit' }, { label: 'Credit' }],
+        },
+      ]}
+    />
   )
 }

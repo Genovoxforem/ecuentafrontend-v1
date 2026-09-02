@@ -69,11 +69,19 @@ export function buildNavSections(menu: AppMenuResponse, existingSections: NavSec
     const internalKey = MAINMENU_TO_INTERNAL_KEY[tm.key] ?? tm.key
     const existing = existingByKey.get(internalKey)
     const tree = menu.sections[tm.key] ?? []
+    // Some real top-level icons (Members, Reports) have a genuinely empty
+    // backend menu tree — confirmed via both llx_menu and the modules' own
+    // PHP descriptors, not a module we simply haven't built pages for. No
+    // fallback to the local *.nav.ts list here: this stays strictly driven
+    // by the live backend response, even though every item in those files
+    // is a real, already-verified page — the sidebar should reflect what
+    // this instance's actual menu contains, not a hand-assembled list.
+    const items = tree.map((node) => mapNode(internalKey, node, pathIndex))
     return {
       key: internalKey,
       label: existing?.label ?? tm.title,
       icon: existing?.icon ?? fallbackIcon,
-      items: tree.map((node) => mapNode(internalKey, node, pathIndex)),
+      items,
     }
   })
 }

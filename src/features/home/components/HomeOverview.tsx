@@ -26,7 +26,7 @@ import {
   Cell,
   ResponsiveContainer,
   ComposedChart,
-  Bar,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -39,6 +39,7 @@ import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { WorldMapDecoration } from './WorldMapDecoration'
+import { RadialGauge } from './RadialGauge'
 import type { DashboardSummary } from '../home.queries'
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -180,13 +181,12 @@ export function HomeOverview({ username, summary }: { username: string; summary:
 
   const { today, zra, banks, salesBreakdown, purchaseBreakdown, monthly, months, period, legacyCounts, recentSales, salesByCurrency } = summary
 
-  const todayStats = [
-    { label: "Today's Invoices", value: String(today.invoices_count) },
-    { label: "Today's sales Amount", value: fmtMoney(today.sales_amount) },
-    { label: "Today's Refund", value: fmtMoney(today.refund_amount) },
-    { label: "Today's Purchase", value: String(today.purchases_count) },
-    { label: "Today's Purchase Amount", value: fmtMoney(today.purchases_amount) },
-  ]
+  // Real derived share, not an invented number: how today's activity splits
+  // between sales and purchases. Falls back to an even split when there's
+  // no activity yet, so the rings don't render a stray full/empty arc.
+  const todayTotal = today.invoices_count + today.purchases_count
+  const salesSharePct = todayTotal > 0 ? (today.invoices_count / todayTotal) * 100 : 50
+  const purchaseSharePct = todayTotal > 0 ? (today.purchases_count / todayTotal) * 100 : 50
 
   const zraStats = [
     { label: 'ZRA Signed Invoices', stat: zra.signedInvoices, fmt: fmtCount },
@@ -220,6 +220,7 @@ export function HomeOverview({ username, summary }: { username: string; summary:
   const yearCustomers = Math.max(...analyticsData.map((m) => m.customers), 0)
 
   const currencyMax = Math.max(...salesByCurrency.map((row) => Number(row.total)), 0)
+  const bankBalanceMax = Math.max(...banks.map((b) => Math.abs(Number(b.balance))), 0)
 
   return (
     <div className="space-y-3">
@@ -234,20 +235,30 @@ export function HomeOverview({ username, summary }: { username: string; summary:
               </h2>
               <p className="text-text-muted text-sm mt-1">Here&apos;s what&apos;s happening with your store today</p>
             </div>
-            <div className="grid grid-cols-2 @sm:grid-cols-3 @lg:grid-cols-5 gap-3 mt-4">
-              {todayStats.map((s) => {
-                const [first, ...rest] = s.label.split(' ')
-                return (
-                  <div key={s.label} className="min-w-0 h-[7.5rem] rounded-lg bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/10 px-3.5 py-3 flex flex-col justify-between">
-                    <p className="text-text-muted text-xs @sm:text-[13px] @lg:text-sm leading-tight font-medium">
-                      <span className="block">{first}</span>
-                      <span className="block">{rest.join(' ')}</span>
-                    </p>
-                    <p className="text-sm @sm:text-base font-bold text-hero-heading truncate">{s.value}</p>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {(
+                [
+                  ['Sales Today', today.invoices_count, today.sales_amount, salesSharePct, 'var(--color-chart-1)'],
+                  ['Purchase Today', today.purchases_count, today.purchases_amount, purchaseSharePct, 'var(--color-chart-2)'],
+                ] as const
+              ).map(([label, count, amount, pct, color]) => (
+                <div
+                  key={label}
+                  className="min-w-0 rounded-lg bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/10 px-3 py-3 flex items-center gap-3"
+                >
+                  <RadialGauge percent={pct} size={64} strokeWidth={6} color={color}>
+                    <span className="text-base font-bold text-hero-heading leading-none">{count}</span>
+                  </RadialGauge>
+                  <div className="min-w-0">
+                    <p className="text-text-muted text-xs @sm:text-[13px] leading-tight font-medium">{label}</p>
+                    <p className="text-sm @sm:text-base font-bold text-hero-heading truncate">{fmtMoney(amount)}</p>
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
+            <p className="mt-3 text-xs text-text-muted">
+              Today&apos;s Refund <span className="font-semibold text-hero-heading">{fmtMoney(today.refund_amount)}</span>
+            </p>
           </div>
         </div>
 
@@ -269,26 +280,26 @@ export function HomeOverview({ username, summary }: { username: string; summary:
 
         <Card className="xl:col-span-3">
           <h3 className="font-semibold mb-2 text-text!">Bank Details</h3>
-          <div className="h-37 overflow-y-auto soft-scrollbar pr-2">
+          <div className="h-37 overflow-y-auto soft-scrollbar pr-2 space-y-2">
             {banks.length === 0 && <p className="text-xs text-text-faint">No bank accounts yet.</p>}
             {banks.map((b) => {
               const balance = Number(b.balance)
               const up = balance >= 0
               const Icon = up ? TrendingUp : TrendingDown
+              const pct = bankBalanceMax > 0 ? (Math.abs(balance) / bankBalanceMax) * 100 : 0
               return (
-                <div key={b.id}>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="flex items-center gap-2 text-text!">
-                      <Landmark size={14} className="text-text-faint" />
+                <div key={b.id} className="flex items-center gap-3">
+                  <RadialGauge percent={pct} size={38} strokeWidth={4} color={up ? 'var(--color-success)' : 'var(--color-danger)'}>
+                    <Landmark size={13} className="text-text-faint" />
+                  </RadialGauge>
+                  <div className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-1 text-sm text-text! truncate">
                       {b.label}
+                      <span className={`inline-flex items-center gap-0.5 text-xs shrink-0 ${up ? 'text-success' : 'text-danger'}`}>
+                        <Icon size={12} />
+                      </span>
                     </span>
-                    <span className={`inline-flex items-center gap-0.5 text-xs ${up ? 'text-success' : 'text-danger'}`}>
-                      <Icon size={12} />
-                    </span>
-                  </div>
-                  <p className="text-xs text-text-faint mb-1">{fmtMoney(balance)}</p>
-                  <div className="h-1.5 bg-surface-hover rounded-full overflow-hidden">
-                    <div className={`h-full w-3/5 ${up ? 'bg-success' : 'bg-danger'}`} />
+                    <p className="text-xs text-text-faint truncate">{fmtMoney(balance)}</p>
                   </div>
                 </div>
               )
@@ -397,6 +408,12 @@ export function HomeOverview({ username, summary }: { username: string; summary:
 
           <ResponsiveContainer width="100%" height={210}>
             <ComposedChart data={analyticsData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="incomeWave" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="none" stroke="var(--color-border)" vertical={false} />
               <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} />
               <YAxis
@@ -433,9 +450,27 @@ export function HomeOverview({ username, summary }: { username: string; summary:
                 formatter={(value, name) => (name === 'Income' ? fmtMoney(Number(value)) : Number(value))}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
-              <Bar yAxisId="income" dataKey="income" name="Income" fill="var(--color-chart-1)" radius={[3, 3, 0, 0]} barSize={14} />
-              <Bar yAxisId="counts" dataKey="sales" name="Sales" fill="var(--color-chart-2)" radius={[3, 3, 0, 0]} barSize={14} />
-              <Line yAxisId="counts" type="monotone" dataKey="customers" name="Customers" stroke="var(--color-chart-4)" strokeWidth={2} dot={false} />
+              <Area
+                yAxisId="income"
+                type="monotone"
+                dataKey="income"
+                name="Income"
+                stroke="var(--color-chart-1)"
+                strokeWidth={2.5}
+                fill="url(#incomeWave)"
+                isAnimationActive={false}
+              />
+              <Line yAxisId="counts" type="monotone" dataKey="sales" name="Sales" stroke="var(--color-chart-2)" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="customers"
+                name="Customers"
+                stroke="var(--color-chart-4)"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </Card>
@@ -510,23 +545,16 @@ export function HomeOverview({ username, summary }: { username: string; summary:
           <div className="-mx-4 -mt-1 mb-1 overflow-hidden rounded-t-xl bg-[linear-gradient(180deg,var(--color-surface-hover)_0%,transparent_100%)] px-4 pt-2 pb-1">
             <WorldMapDecoration />
           </div>
-          <div className="space-y-4 mt-4 flex-1 flex flex-col justify-center">
+          <div className="mt-4 flex-1 flex flex-wrap items-center justify-center gap-5">
             {salesByCurrency.length === 0 && <p className="text-xs text-text-faint">No sales yet.</p>}
-            {salesByCurrency.map((row) => {
-              const rawPct = currencyMax > 0 ? (Number(row.total) / currencyMax) * 100 : 0
-              const widthPct = rawPct > 0 ? Math.max(rawPct, 2) : 0
+            {salesByCurrency.map((row, i) => {
+              const pct = currencyMax > 0 ? Math.max((Number(row.total) / currencyMax) * 100, 4) : 0
               return (
-                <div key={row.currency}>
-                  <div className="flex items-center justify-between text-sm mb-1.5">
-                    <span className="text-text! font-semibold tracking-wide">{row.currency}</span>
-                    <span className="text-xs text-text-faint tabular-nums">{fmtNumber(row.total)}</span>
-                  </div>
-                  <div className="h-2.5 bg-surface-hover rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-brand)_0%,var(--color-brand-hover)_100%)] transition-[width] duration-500"
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  </div>
+                <div key={row.currency} className="flex flex-col items-center gap-1.5">
+                  <RadialGauge percent={pct} size={i === 0 ? 92 : 64} strokeWidth={i === 0 ? 8 : 6} color={DONUT_COLORS[i % DONUT_COLORS.length]}>
+                    <span className={`font-bold text-text! leading-none ${i === 0 ? 'text-base' : 'text-sm'}`}>{row.currency}</span>
+                  </RadialGauge>
+                  <span className="text-xs text-text-faint tabular-nums">{fmtNumber(row.total)}</span>
                 </div>
               )
             })}

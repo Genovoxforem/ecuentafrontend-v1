@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AddEventModal } from '../../agenda/components/AddEventModal'
+import { SendQuotationEmailModal } from './SendQuotationEmailModal'
 import {
   FileBadge,
   X,
@@ -20,7 +22,6 @@ import {
   FileSignature,
   ReceiptText,
   FileCheck2,
-  ExternalLink,
   Link2,
   Upload,
   Eye,
@@ -119,6 +120,7 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
   const clone = useCloneQuotation()
   const del = useDeleteQuotation()
   const { data } = useQuotationCard(id)
+  const [showSendEmail, setShowSendEmail] = useState(false)
   const actions = data?.actions
   if (!actions) return null
 
@@ -138,30 +140,31 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         </button>
       )}
       {actions.canSendMail && (
-        <a href={`/comm/propal/card.php?id=${id}&action=presend&mode=init`} target="_blank" rel="noreferrer" className={btnCls}>
-          <Mail size={14} /> Send Email <ExternalLink size={11} />
-        </a>
+        <button type="button" onClick={() => setShowSendEmail(true)} className={btnCls}>
+          <Mail size={14} /> Send Email
+        </button>
       )}
+      {showSendEmail && <SendQuotationEmailModal id={id} quotationRef={data?.ref ?? id} onClose={() => setShowSendEmail(false)} />}
       {actions.canCloseAsAcceptedRefused && <CloseAsForm id={id} />}
       {actions.canCreateOrder && (
-        <a href={`/commande/card.php?action=create&origin=propal&originid=${id}&socid=${socid ?? ''}`} target="_blank" rel="noreferrer" className={btnCls}>
-          <ShoppingCart size={14} /> Create Order <ExternalLink size={11} />
-        </a>
+        <Link to={ROUTES.orderCreate} className={btnCls}>
+          <ShoppingCart size={14} /> Create Order
+        </Link>
       )}
       {actions.canCreateIntervention && (
-        <a href={`/fichinter/card.php?action=create&origin=propal&originid=${id}&socid=${socid ?? ''}`} target="_blank" rel="noreferrer" className={btnCls}>
-          <Wrench size={14} /> Create Intervention <ExternalLink size={11} />
-        </a>
+        <Link to={ROUTES.quotationCreateIntervention.replace(':id', id)} className={btnCls}>
+          <Wrench size={14} /> Create Intervention
+        </Link>
       )}
       {actions.canCreateContract && (
-        <a href={`/contrat/card.php?action=create&origin=propal&originid=${id}&socid=${socid ?? ''}`} target="_blank" rel="noreferrer" className={btnCls}>
-          <FileSignature size={14} /> Create Contract <ExternalLink size={11} />
-        </a>
+        <Link to={ROUTES.quotationCreateContract.replace(':id', id)} className={btnCls}>
+          <FileSignature size={14} /> Create Contract
+        </Link>
       )}
       {actions.canCreateInvoice && (
-        <a href={`/compta/facture/card.php?action=create&origin=propal&originid=${id}&socid=${socid ?? ''}`} target="_blank" rel="noreferrer" className={btnCls}>
-          <ReceiptText size={14} /> Create Invoice Or Credit Note <ExternalLink size={11} />
-        </a>
+        <Link to={ROUTES.quotationCreateInvoice.replace(':id', id)} className={btnCls}>
+          <ReceiptText size={14} /> Create Invoice Or Credit Note
+        </Link>
       )}
       {actions.canClassifyBilled && (
         <button type="button" disabled={classifyBilled.isPending} onClick={() => classifyBilled.mutate({ id, socid })} className={btnCls}>
@@ -845,14 +848,9 @@ function ConsumptionsTab({ id }: { id: string }) {
     <Card className="!h-auto shrink-0">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-text!">Consumptions</h3>
-        <a
-          href={`/custom/consumption/card.php?id=${id}&type=propal`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-        >
-          View full history <ExternalLink size={12} />
-        </a>
+        <Link to={ROUTES.quotationConsumptionHistory.replace(':id', id)} className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
+          View full history
+        </Link>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
         <div>
@@ -917,8 +915,9 @@ function ConsumptionsTab({ id }: { id: string }) {
   )
 }
 
-function AgendaTab({ id }: { id: string }) {
-  const { data, isLoading, isError } = useQuotationAgenda(id)
+function AgendaTab({ id, socid }: { id: string; socid?: number }) {
+  const { data, isLoading, isError, refetch } = useQuotationAgenda(id)
+  const [showAddEvent, setShowAddEvent] = useState(false)
   if (isLoading) return <p className="p-4 text-sm text-text-muted">Loading events…</p>
   if (isError || !data) return <p className="p-4 text-sm text-danger">Could not load events.</p>
 
@@ -940,15 +939,22 @@ function AgendaTab({ id }: { id: string }) {
       <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-text!">Events on proposal</h3>
-          <a
-            href={`/comm/action/card.php?action=create&origin=propal&originid=${id}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-          >
-            <CalendarPlus size={14} /> Create Event <ExternalLink size={11} />
-          </a>
+          <button type="button" onClick={() => setShowAddEvent(true)} className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
+            <CalendarPlus size={14} /> Create Event
+          </button>
         </div>
+        {showAddEvent && (
+          <AddEventModal
+            elementtype="propal"
+            fkElement={Number(id)}
+            socid={socid}
+            onClose={() => setShowAddEvent(false)}
+            onCreated={() => {
+              setShowAddEvent(false)
+              refetch()
+            }}
+          />
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -1166,7 +1172,7 @@ export function QuotationDetail() {
       {tab === 'consumptions' && <ConsumptionsTab id={id!} />}
       {tab === 'notes' && <NotesTab id={id!} />}
       {tab === 'files' && <DocumentsTab id={id!} />}
-      {tab === 'agenda' && <AgendaTab id={id!} />}
+      {tab === 'agenda' && <AgendaTab id={id!} socid={data.socid ?? undefined} />}
     </div>
   )
 }

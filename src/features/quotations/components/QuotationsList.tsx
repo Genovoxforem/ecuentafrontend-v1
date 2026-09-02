@@ -5,11 +5,28 @@ import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import type { QuotationRow, QuotationsSummary } from '../quotations.queries'
 
-const COLUMNS = ['Ref', 'Ref. Customer', 'Project Ref', 'Third-Party', 'City', 'Zip Code', 'Date', 'End Date', 'Amount (Excl. Tax)', 'Author', 'Sales Representatives Of Third Party', 'Status']
+type SortKey = 'ref' | 'refCustomer' | 'projectRef' | 'thirdParty' | 'city' | 'zipCode' | 'date' | 'endDate' | 'amountExclTax' | 'author' | 'salesRep' | 'status'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Ref', key: 'ref' },
+  { label: 'Ref. Customer', key: 'refCustomer' },
+  { label: 'Project Ref', key: 'projectRef' },
+  { label: 'Third-Party', key: 'thirdParty' },
+  { label: 'City', key: 'city' },
+  { label: 'Zip Code', key: 'zipCode' },
+  { label: 'Date', key: 'date' },
+  { label: 'End Date', key: 'endDate' },
+  { label: 'Amount (Excl. Tax)', key: 'amountExclTax' },
+  { label: 'Author', key: 'author' },
+  { label: 'Sales Representatives Of Third Party', key: 'salesRep' },
+  { label: 'Status', key: 'status' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(quotation: QuotationRow, query: string) {
@@ -18,13 +35,43 @@ function matchesSearch(quotation: QuotationRow, query: string) {
   return [quotation.ref, quotation.refCustomer, quotation.thirdParty, quotation.city].some((field) => field.toLowerCase().includes(q))
 }
 
+function sortValue(row: QuotationRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return row.ref
+    case 'refCustomer':
+      return row.refCustomer
+    case 'projectRef':
+      return row.projectRef
+    case 'thirdParty':
+      return row.thirdParty
+    case 'city':
+      return row.city
+    case 'zipCode':
+      return row.zipCode
+    case 'date':
+      return row.date
+    case 'endDate':
+      return row.endDate
+    case 'amountExclTax':
+      return row.amountExclTax
+    case 'author':
+      return row.author
+    case 'salesRep':
+      return row.salesRep
+    case 'status':
+      return row.status
+  }
+}
+
 export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
 
   const filteredQuotations = useMemo(() => summary.quotations.filter((q) => matchesSearch(q, search)), [summary.quotations, search])
-  const pageQuotations = filteredQuotations.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedQuotations, sort, toggleSort } = useSortableRows<QuotationRow, SortKey>(filteredQuotations, sortValue)
+  const pageQuotations = sortedQuotations.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -37,7 +84,7 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   }
 
   function getExportData() {
-    const rows = filteredQuotations.map((q) => [
+    const rows = sortedQuotations.map((q) => [
       q.ref,
       q.refCustomer,
       q.projectRef,
@@ -51,7 +98,7 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
       q.salesRep,
       q.status,
     ])
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -134,24 +181,24 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <TheadRow>
                 {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
+                  <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                    {col.label}
+                  </Th>
                 ))}
-              </tr>
+              </TheadRow>
             </thead>
             <tbody>
               {summary.quotations.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No Data Available In Table
                   </td>
                 </tr>
               ) : filteredQuotations.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No quotations match "{search}".
                   </td>
                 </tr>

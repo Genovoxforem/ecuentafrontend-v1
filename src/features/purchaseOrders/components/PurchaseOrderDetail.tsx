@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AddEventModal } from '../../agenda/components/AddEventModal'
+import { SendPurchaseOrderEmailModal } from './SendPurchaseOrderEmailModal'
 import {
   FileSignature,
   X,
@@ -77,6 +79,7 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
   const del = useDeletePurchaseOrder()
   const { data } = usePurchaseOrderCard(id)
   const actions = data?.actions
+  const [showSendEmail, setShowSendEmail] = useState(false)
 
   if (!actions) return null
 
@@ -86,19 +89,20 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {actions.canSendMail && (
-        <a href={`/fourn/commande/card.php?id=${id}&action=presend&mode=init`} target="_blank" rel="noreferrer" className={btnCls}>
-          <Mail size={14} /> Send Email <ExternalLink size={11} />
-        </a>
+        <button type="button" onClick={() => setShowSendEmail(true)} className={btnCls}>
+          <Mail size={14} /> Send Email
+        </button>
       )}
+      {showSendEmail && <SendPurchaseOrderEmailModal id={id} orderRef={data?.ref ?? id} onClose={() => setShowSendEmail(false)} />}
       {actions.canReopen && (
         <button type="button" disabled={reopen.isPending} onClick={() => reopen.mutate(id)} className={btnCls}>
           {reopen.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <RotateCcw size={14} />} Re-Open
         </button>
       )}
       {actions.canCreateReception && (
-        <a href={`/fourn/commande/dispatch.php?id=${id}`} target="_blank" rel="noreferrer" className={btnCls}>
-          <PackageCheck size={14} /> Create Reception <ExternalLink size={11} />
-        </a>
+        <Link to={ROUTES.purchaseOrderCreateReception.replace(':id', id)} className={btnCls}>
+          <PackageCheck size={14} /> Create Reception
+        </Link>
       )}
       {actions.canClassifyReception && (
         <button type="button" disabled={classifyReception.isPending} onClick={() => classifyReception.mutate(id)} className={btnCls}>
@@ -106,9 +110,9 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         </button>
       )}
       {actions.canCreateBill && (
-        <a href={`/fourn/facture/card.php?action=create&origin=order_supplier&originid=${id}&socid=${socid ?? ''}`} target="_blank" rel="noreferrer" className={btnCls}>
-          <ReceiptText size={14} /> Create Invoice <ExternalLink size={11} />
-        </a>
+        <Link to={ROUTES.vendorInvoiceCreate} className={btnCls}>
+          <ReceiptText size={14} /> Create Invoice
+        </Link>
       )}
       {actions.canClassifyBilled && (
         <button type="button" disabled={classifyBilled.isPending} onClick={() => classifyBilled.mutate(id)} className={btnCls}>
@@ -419,9 +423,9 @@ function ReceiptsTab({ id }: { id: string }) {
       <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-text!">Receipts for this order</h3>
-          <a href={`/fourn/commande/dispatch.php?id=${id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
-            <PackageCheck size={14} /> Create reception <ExternalLink size={11} />
-          </a>
+          <Link to={ROUTES.purchaseOrderCreateReception.replace(':id', id)} className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
+            <PackageCheck size={14} /> Create reception
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -645,8 +649,9 @@ function DocumentsTab({ id }: { id: string }) {
   )
 }
 
-function AgendaTab({ id }: { id: string }) {
-  const { data, isLoading, isError } = usePurchaseOrderInfo(id)
+function AgendaTab({ id, socid }: { id: string; socid?: number }) {
+  const { data, isLoading, isError, refetch } = usePurchaseOrderInfo(id)
+  const [showAddEvent, setShowAddEvent] = useState(false)
   if (isLoading) return <p className="p-4 text-sm text-text-muted">Loading events…</p>
   if (isError || !data) return <p className="p-4 text-sm text-danger">Could not load events.</p>
 
@@ -669,15 +674,22 @@ function AgendaTab({ id }: { id: string }) {
       <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-text!">Events on order</h3>
-          <a
-            href={`/comm/action/card.php?action=create&originid=${id}&origin=order_supplier`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-          >
-            <CalendarPlus size={14} /> Create Event <ExternalLink size={11} />
-          </a>
+          <button type="button" onClick={() => setShowAddEvent(true)} className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
+            <CalendarPlus size={14} /> Create Event
+          </button>
         </div>
+        {showAddEvent && (
+          <AddEventModal
+            elementtype="order_supplier"
+            fkElement={Number(id)}
+            socid={socid}
+            onClose={() => setShowAddEvent(false)}
+            onCreated={() => {
+              setShowAddEvent(false)
+              refetch()
+            }}
+          />
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -882,7 +894,7 @@ export function PurchaseOrderDetail() {
       {tab === 'contacts' && <ContactsTab id={id!} />}
       {tab === 'receipts' && <ReceiptsTab id={id!} />}
       {tab === 'files' && <DocumentsTab id={id!} />}
-      {tab === 'agenda' && <AgendaTab id={id!} />}
+      {tab === 'agenda' && <AgendaTab id={id!} socid={data.socid ?? undefined} />}
 
       {tab === 'notes' && <StubTab id={id!} label="Notes" page={STUB_PAGES.notes} />}
     </div>

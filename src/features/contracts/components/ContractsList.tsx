@@ -5,9 +5,25 @@ import { ROUTES } from '../../../routes'
 import { Card, TwoValueStatCard } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import type { ContractRow, ContractsSummary } from '../contracts.queries'
 
-const COLUMNS = ['Ref.', 'Ref. Customer', 'Ref. Vendor', 'Third-Party', 'Sales Representatives Of Third Party', 'Contract Date', 'End Date Of Active Services', 'Not Running', 'In Progress', 'Expired', 'Closed']
+type SortKey = 'ref' | 'refCustomer' | 'refVendor' | 'thirdParty' | 'salesRep' | 'contractDate' | 'endDate' | 'notRunning' | 'inProgress' | 'expired' | 'closed'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Ref.', key: 'ref' },
+  { label: 'Ref. Customer', key: 'refCustomer' },
+  { label: 'Ref. Vendor', key: 'refVendor' },
+  { label: 'Third-Party', key: 'thirdParty' },
+  { label: 'Sales Representatives Of Third Party', key: 'salesRep' },
+  { label: 'Contract Date', key: 'contractDate' },
+  { label: 'End Date Of Active Services', key: 'endDate' },
+  { label: 'Not Running', key: 'notRunning' },
+  { label: 'In Progress', key: 'inProgress' },
+  { label: 'Expired', key: 'expired' },
+  { label: 'Closed', key: 'closed' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 const dash = (n: number) => (n === 0 ? '-' : String(n))
@@ -18,13 +34,41 @@ function matchesSearch(contract: ContractRow, query: string) {
   return [contract.ref, contract.refCustomer, contract.refVendor, contract.thirdParty].some((field) => field.toLowerCase().includes(q))
 }
 
+function sortValue(row: ContractRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return row.ref
+    case 'refCustomer':
+      return row.refCustomer
+    case 'refVendor':
+      return row.refVendor
+    case 'thirdParty':
+      return row.thirdParty
+    case 'salesRep':
+      return row.salesRep
+    case 'contractDate':
+      return row.contractDate
+    case 'endDate':
+      return row.endDateOfServices
+    case 'notRunning':
+      return row.notRunning
+    case 'inProgress':
+      return row.inProgress
+    case 'expired':
+      return row.expired
+    case 'closed':
+      return row.closed
+  }
+}
+
 export function ContractsList({ summary }: { summary: ContractsSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
 
   const filteredContracts = useMemo(() => summary.contracts.filter((c) => matchesSearch(c, search)), [summary.contracts, search])
-  const pageContracts = filteredContracts.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedContracts, sort, toggleSort } = useSortableRows<ContractRow, SortKey>(filteredContracts, sortValue)
+  const pageContracts = sortedContracts.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -37,7 +81,7 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
   }
 
   function getExportData() {
-    const rows = filteredContracts.map((c) => [
+    const rows = sortedContracts.map((c) => [
       c.ref,
       c.refCustomer,
       c.refVendor,
@@ -50,7 +94,7 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
       dash(c.expired),
       dash(c.closed),
     ])
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -104,24 +148,24 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <TheadRow>
                 {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
+                  <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                    {col.label}
+                  </Th>
                 ))}
-              </tr>
+              </TheadRow>
             </thead>
             <tbody>
               {summary.contracts.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No Data Available In Table
                   </td>
                 </tr>
               ) : filteredContracts.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No contracts match "{search}".
                   </td>
                 </tr>

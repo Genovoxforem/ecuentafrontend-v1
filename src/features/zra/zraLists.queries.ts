@@ -75,7 +75,10 @@ export function usePendingPurchasesList(params: ListParams) {
         'columns[0][data]': 'ref',
       })
       if (params.search) body.set('search[value]', params.search)
-      const { data } = await axios.post<{ iTotalRecords: number; aaData: RawVendorInvoiceListRow[] }>('/fourn/facture/facture_ajax_list.php', body)
+      const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords: number; aaData: RawVendorInvoiceListRow[] }>(
+        '/fourn/facture/facture_ajax_list.php',
+        body,
+      )
       const items: PendingPurchaseInvoiceRow[] = (data.aaData ?? []).map(parseVendorInvoiceListRow).map((r) => ({
         id: r.id,
         ref: r.ref,
@@ -92,7 +95,11 @@ export function usePendingPurchasesList(params: ListParams) {
         zraSucceeded: /success/i.test(r.zraStatus ?? ''),
         zraStatusMessage: r.zraStatus ?? '',
       }))
-      return { items, total: Number(data.iTotalRecords) || 0 }
+      // This endpoint's own iTotalRecords is just the count of rows in this
+      // page's aaData (confirmed live: always equals the requested `length`,
+      // e.g. 25 when 77 real pending rows exist across 4 pages) — the real
+      // filtered total pagination must be built from is iTotalDisplayRecords.
+      return { items, total: Number(data.iTotalDisplayRecords) || 0 }
     },
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,

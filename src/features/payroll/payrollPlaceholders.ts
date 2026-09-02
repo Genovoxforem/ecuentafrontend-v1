@@ -1,24 +1,6 @@
 import type { ComponentType } from 'react'
 import {
   CalendarClock,
-  CalendarDays,
-  Award,
-  ArrowRightLeft,
-  LogOut,
-  Plane,
-  MessageSquareWarning,
-  AlertTriangle,
-  UserX,
-  Gauge,
-  Star,
-  Clock,
-  Banknote,
-  HandCoins,
-  CalendarRange,
-  FileSpreadsheet,
-  Clock3,
-  Wallet,
-  List,
   CreditCard,
   Gift,
   FileText,
@@ -47,29 +29,27 @@ export const PAYROLL_PLACEHOLDERS: PayrollPlaceholder[] = [
   // Human Resource
   { path: ROUTES.payrollLeaveRequest, icon: CalendarClock, title: 'Leave Request', description: 'Real page: holiday/card.php (Dolibarr core Leave/CP module, reused) — classic form-POST, no JSON API.' },
   { path: ROUTES.payrollAllLeaveRequest, icon: CalendarClock, title: 'All Leave Request', description: 'Real page: holiday/list.php — classic list page, no JSON API.' },
-  { path: ROUTES.payrollCalendarHolidays, icon: CalendarDays, title: 'Calendar Holidays', description: 'Real page: payroll/holiday.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeAward, icon: Award, title: 'Employee Award', description: 'Real page: payroll/award.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeTransfers, icon: ArrowRightLeft, title: 'Employee Transfers', description: 'Real page: payroll/transfers.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeResignation, icon: LogOut, title: 'Employee Resignation', description: 'Real page: payroll/resignations.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeTravel, icon: Plane, title: 'Employee Travel', description: 'Real page: payroll/travel.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeComplaints, icon: MessageSquareWarning, title: 'Employee Complaints', description: 'Real page: payroll/complaints.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeWarnings, icon: AlertTriangle, title: 'Employee Warnings', description: 'Real page: payroll/warnings.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeTerminations, icon: UserX, title: 'Employee Terminations', description: 'Real page: payroll/terminations.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeIndicator, icon: Gauge, title: 'Employee Indicator', description: 'Real page: payroll/indicator.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeAppraisal, icon: Star, title: 'Employee Appraisal', description: 'Real page: payroll/appraisal.php — classic form-POST, no JSON API.' },
-  // Attendance (remaining 2 — Mark/Date-Wise are the module's only real APIs)
-  { path: ROUTES.payrollMarkSpecialShiftAttendance, icon: Clock, title: 'Mark Special Shift Attendance', description: 'Real page: payroll/shiftsmanual_attendance.php?shift=manual — its ajax helper returns raw HTML fragments, not JSON.' },
-  { path: ROUTES.payrollMarkHolidayAttendance, icon: Clock, title: 'Mark Holiday Attendance', description: 'Real page: payroll/shiftsmanual_attendance.php?shift=holidayshift — same non-JSON ajax helper.' },
-  // Shift & Salary
-  { path: ROUTES.payrollAdvanceSalary, icon: Banknote, title: 'Employee Advance Salary', description: 'Real page: payroll/advance.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollEmployeeLoan, icon: HandCoins, title: 'Employee Loan', description: 'Real page: payroll/loan.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollAssignShifts, icon: CalendarRange, title: 'Assign Shifts', description: 'Real page: payroll/shifts.php — uses ajax_search.php, which returns HTML fragments, not JSON.' },
-  { path: ROUTES.payrollSalaryTemplate, icon: FileSpreadsheet, title: 'Salary Template', description: 'Real page: payroll/salary_temp.php (the largest file in the module) — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollHourlyTemplate, icon: Clock3, title: 'Hourly Template', description: 'Real page: payroll/hour_temp.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollManageSalary, icon: Wallet, title: 'Manage Salary', description: 'Real page: payroll/manage_salary.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollManageSalaryList, icon: List, title: 'Manage Salary List', description: 'Real page: payroll/manage_salary_list.php — classic list page, no JSON API.' },
-  { path: ROUTES.payrollManageHolidaySalary, icon: Wallet, title: 'Manage Holiday Salary', description: 'Real page: payroll/shiftsmanual_amount.php?shift=holidayshift — no JSON API.' },
-  { path: ROUTES.payrollManageSpecialShiftSalary, icon: Wallet, title: 'Manage Special Shift Salary', description: 'Real page: payroll/shiftsmanual_amount.php?shift=manual — no JSON API.' },
+  // Calendar Holidays, Employee Award/Transfers/Resignation/Travel/
+  // Complaints/Warnings/Terminations now have real wired forms — see
+  // payrollActions.queries.ts (payroll/ajax.php is a real write endpoint
+  // for all 8, confirmed by reading it directly). Employee Indicator and
+  // Employee Appraisal got their own inert DisabledFormPage-style
+  // components instead — their dynamic reveal depends on
+  // payroll/ajax_search.php, which returns HTML fragments, not JSON.
+  // Attendance: Mark/Date-Wise Attendance are real JSON APIs; Mark Special
+  // Shift/Holiday Attendance now have real wired forms too (see
+  // useMarkManualShiftAttendance in payrollAttendance.queries.ts —
+  // payroll/shiftsmanual_ajax.php's saveAttendance action is genuinely
+  // JSON, even though that same page's own read side isn't).
+  // Shift & Salary: Advance Salary, Loan, Assign Shifts, and Hourly
+  // Template now have real wired forms — see payrollActions.queries.ts
+  // (payroll/ajax.php is a real write endpoint for all 4, confirmed by
+  // reading it directly). Salary Template, Manage Salary, Manage Salary
+  // List, and Manage Holiday/Special Shift Salary got their own inert
+  // components instead — each depends on an HTML-fragment-only endpoint
+  // (payroll/loadcalculation.php, payroll/ajax_search.php, or a plain
+  // server-rendered report with no API at all) — see each component's own
+  // comment for specifics.
   // Salary Payments
   { path: ROUTES.payrollGenerateMakePayment, icon: CreditCard, title: 'Generate And Make Payment', description: 'Real page: payroll/payment.php — classic form-POST, no JSON API.' },
   { path: ROUTES.payrollGratuityPayment, icon: Gift, title: 'Gratuity Payment', description: 'Real page: payroll/gratuity_payment.php — classic form-POST, no JSON API.' },

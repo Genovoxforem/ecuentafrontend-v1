@@ -5,10 +5,23 @@ import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import type { SupplierProposalRow, SupplierProposalsSummary } from '../supplierProposals.queries'
 
-const COLUMNS = ['Ref.', 'Third-Party', 'Validation Date', 'Planned Date Of Delivery', 'Amount (Excl. Tax)', 'Amount (Inc. Tax)', 'Author', 'Status']
+type SortKey = 'ref' | 'thirdParty' | 'validationDate' | 'plannedDelivery' | 'amountExcl' | 'amountIncl' | 'author' | 'status'
+
+const COLUMNS: { label: string; key: SortKey }[] = [
+  { label: 'Ref.', key: 'ref' },
+  { label: 'Third-Party', key: 'thirdParty' },
+  { label: 'Validation Date', key: 'validationDate' },
+  { label: 'Planned Date Of Delivery', key: 'plannedDelivery' },
+  { label: 'Amount (Excl. Tax)', key: 'amountExcl' },
+  { label: 'Amount (Inc. Tax)', key: 'amountIncl' },
+  { label: 'Author', key: 'author' },
+  { label: 'Status', key: 'status' },
+]
+const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(proposal: SupplierProposalRow, query: string) {
@@ -17,13 +30,35 @@ function matchesSearch(proposal: SupplierProposalRow, query: string) {
   return [proposal.ref, proposal.thirdParty, proposal.author, proposal.status].some((field) => field.toLowerCase().includes(q))
 }
 
+function sortValue(p: SupplierProposalRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return p.ref
+    case 'thirdParty':
+      return p.thirdParty
+    case 'validationDate':
+      return p.validationDate
+    case 'plannedDelivery':
+      return p.plannedDelivery
+    case 'amountExcl':
+      return p.amountExclTax
+    case 'amountIncl':
+      return p.amountInclTax
+    case 'author':
+      return p.author
+    case 'status':
+      return p.status
+  }
+}
+
 export function SupplierProposalsList({ summary }: { summary: SupplierProposalsSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
 
   const filteredProposals = useMemo(() => summary.proposals.filter((p) => matchesSearch(p, search)), [summary.proposals, search])
-  const pageProposals = filteredProposals.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedProposals, sort, toggleSort } = useSortableRows<SupplierProposalRow, SortKey>(filteredProposals, sortValue)
+  const pageProposals = sortedProposals.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -36,7 +71,7 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
   }
 
   function getExportData() {
-    const rows = filteredProposals.map((p) => [
+    const rows = sortedProposals.map((p) => [
       p.ref,
       p.thirdParty,
       p.validationDate,
@@ -46,7 +81,7 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
       p.author,
       p.status,
     ])
-    return { headers: COLUMNS, rows }
+    return { headers: COLUMN_LABELS, rows }
   }
 
   return (
@@ -127,24 +162,24 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <TheadRow>
                 {COLUMNS.map((col) => (
-                  <th key={col} className="font-medium px-4 py-2.5 whitespace-nowrap">
-                    {col}
-                  </th>
+                  <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                    {col.label}
+                  </Th>
                 ))}
-              </tr>
+              </TheadRow>
             </thead>
             <tbody>
               {summary.proposals.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No Data Available In Table
                   </td>
                 </tr>
               ) : filteredProposals.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMNS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                     No supplier proposals match "{search}".
                   </td>
                 </tr>

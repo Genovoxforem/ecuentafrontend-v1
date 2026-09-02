@@ -16,6 +16,9 @@ import { ROUTES } from './routes'
 import { PAYROLL_PLACEHOLDERS } from './features/payroll/payrollPlaceholders'
 import { BANKING_PLACEHOLDERS } from './features/banking/bankingPlaceholders'
 import { EXPENSE_PLACEHOLDERS } from './features/expenses/expensesPlaceholders'
+import { TICKET_PLACEHOLDERS } from './features/tickets/ticketsPlaceholders'
+import { MEMBER_PLACEHOLDERS } from './features/members/membersPlaceholders'
+import { FIXED_ASSET_PLACEHOLDERS } from './features/fixedAsset/fixedAssetPlaceholders'
 
 // Everything below is route-level code-splitting: each of these ~45 modules
 // used to be imported eagerly, so visiting /login shipped the entire app
@@ -104,12 +107,42 @@ const ProductRackAssignModule = lazy(() => import('./modules/warehouses/RackModu
 const PayrollModule = lazy(() => import('./modules/payroll/PayrollModule').then((m) => ({ default: m.PayrollModule })))
 const DateWiseAttendanceModule = lazy(() => import('./modules/payroll/DateWiseAttendanceModule').then((m) => ({ default: m.DateWiseAttendanceModule })))
 const MarkAttendanceModule = lazy(() => import('./modules/payroll/MarkAttendanceModule').then((m) => ({ default: m.MarkAttendanceModule })))
+const HolidayModule = lazy(() => import('./modules/payroll/HolidayModule').then((m) => ({ default: m.HolidayModule })))
+const AwardModule = lazy(() => import('./modules/payroll/AwardModule').then((m) => ({ default: m.AwardModule })))
+const TransferModule = lazy(() => import('./modules/payroll/TransferModule').then((m) => ({ default: m.TransferModule })))
+const ResignationModule = lazy(() => import('./modules/payroll/ResignationModule').then((m) => ({ default: m.ResignationModule })))
+const TravelModule = lazy(() => import('./modules/payroll/TravelModule').then((m) => ({ default: m.TravelModule })))
+const ComplaintModule = lazy(() => import('./modules/payroll/ComplaintModule').then((m) => ({ default: m.ComplaintModule })))
+const WarningModule = lazy(() => import('./modules/payroll/WarningModule').then((m) => ({ default: m.WarningModule })))
+const TerminationModule = lazy(() => import('./modules/payroll/TerminationModule').then((m) => ({ default: m.TerminationModule })))
+const IndicatorModule = lazy(() => import('./modules/payroll/IndicatorModule').then((m) => ({ default: m.IndicatorModule })))
+const AppraisalModule = lazy(() => import('./modules/payroll/AppraisalModule').then((m) => ({ default: m.AppraisalModule })))
+const MarkSpecialShiftAttendanceModule = lazy(() => import('./modules/payroll/MarkSpecialShiftAttendanceModule').then((m) => ({ default: m.MarkSpecialShiftAttendanceModule })))
+const MarkHolidayAttendanceModule = lazy(() => import('./modules/payroll/MarkHolidayAttendanceModule').then((m) => ({ default: m.MarkHolidayAttendanceModule })))
+const AdvanceSalaryModule = lazy(() => import('./modules/payroll/AdvanceSalaryModule').then((m) => ({ default: m.AdvanceSalaryModule })))
+const LoanModule = lazy(() => import('./modules/payroll/LoanModule').then((m) => ({ default: m.LoanModule })))
+const ShiftModule = lazy(() => import('./modules/payroll/ShiftModule').then((m) => ({ default: m.ShiftModule })))
+const SalaryTemplateModule = lazy(() => import('./modules/payroll/SalaryTemplateModule').then((m) => ({ default: m.SalaryTemplateModule })))
+const HourlyTemplateModule = lazy(() => import('./modules/payroll/HourlyTemplateModule').then((m) => ({ default: m.HourlyTemplateModule })))
+const ManageSalaryModule = lazy(() => import('./modules/payroll/ManageSalaryModule').then((m) => ({ default: m.ManageSalaryModule })))
+const ManageSalaryListModule = lazy(() => import('./modules/payroll/ManageSalaryListModule').then((m) => ({ default: m.ManageSalaryListModule })))
+const ManageHolidaySalaryModule = lazy(() => import('./modules/payroll/ManageHolidaySalaryModule').then((m) => ({ default: m.ManageHolidaySalaryModule })))
+const ManageSpecialShiftSalaryModule = lazy(() => import('./modules/payroll/ManageSpecialShiftSalaryModule').then((m) => ({ default: m.ManageSpecialShiftSalaryModule })))
 const PayrollPlaceholderModule = lazy(() => import('./modules/payroll/PayrollPlaceholderModule').then((m) => ({ default: m.PayrollPlaceholderModule })))
 const BankAccountsListModule = lazy(() => import('./modules/banking/BankAccountsListModule').then((m) => ({ default: m.BankAccountsListModule })))
 const BankEntriesListModule = lazy(() => import('./modules/banking/BankEntriesListModule').then((m) => ({ default: m.BankEntriesListModule })))
 const BankAccountCategoriesListModule = lazy(() => import('./modules/banking/BankAccountCategoriesListModule').then((m) => ({ default: m.BankAccountCategoriesListModule })))
 const LoanListModule = lazy(() => import('./modules/banking/LoanListModule').then((m) => ({ default: m.LoanListModule })))
+const BankAccountCreateModule = lazy(() => import('./modules/banking/BankAccountCreateModule').then((m) => ({ default: m.BankAccountCreateModule })))
+const LoanCreateModule = lazy(() => import('./modules/banking/LoanCreateModule').then((m) => ({ default: m.LoanCreateModule })))
+const CheckDepositCreateModule = lazy(() => import('./modules/banking/CheckDepositCreateModule').then((m) => ({ default: m.CheckDepositCreateModule })))
+const CheckDepositListModule = lazy(() => import('./modules/banking/CheckDepositListModule').then((m) => ({ default: m.CheckDepositListModule })))
 const BankingPlaceholderModule = lazy(() => import('./modules/banking/BankingPlaceholderModule').then((m) => ({ default: m.BankingPlaceholderModule })))
+const BudgetModule = lazy(() => import('./modules/budget/BudgetModule').then((m) => ({ default: m.BudgetModule })))
+const TicketsListModule = lazy(() => import('./modules/tickets/TicketsListModule').then((m) => ({ default: m.TicketsListModule })))
+const MyAssignedTicketsModule = lazy(() => import('./modules/tickets/MyAssignedTicketsModule').then((m) => ({ default: m.MyAssignedTicketsModule })))
+const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatisticsModule').then((m) => ({ default: m.TicketStatisticsModule })))
+const TicketPlaceholderModule = lazy(() => import('./modules/tickets/TicketPlaceholderModule').then((m) => ({ default: m.TicketPlaceholderModule })))
 const ExpenseReportsListModule = lazy(() => import('./modules/expenses/ExpenseReportsListModule').then((m) => ({ default: m.ExpenseReportsListModule })))
 const ExpensePlaceholderModule = lazy(() => import('./modules/expenses/ExpensePlaceholderModule').then((m) => ({ default: m.ExpensePlaceholderModule })))
 const SpecialExpensesModule = lazy(() => import('./modules/expenses/SpecialExpensesModule').then((m) => ({ default: m.SpecialExpensesModule })))
@@ -117,7 +150,28 @@ const LedgerModule = lazy(() => import('./modules/ledger/LedgerModule').then((m)
 const JournalsModule = lazy(() => import('./modules/ledger/JournalsModule').then((m) => ({ default: m.JournalsModule })))
 const SubledgerModule = lazy(() => import('./modules/ledger/SubledgerModule').then((m) => ({ default: m.SubledgerModule })))
 const NewTransactionModule = lazy(() => import('./modules/ledger/NewTransactionModule').then((m) => ({ default: m.NewTransactionModule })))
+const MembersListModule = lazy(() => import('./modules/members/MembersListModule').then((m) => ({ default: m.MembersListModule })))
+const MemberPlaceholderModule = lazy(() => import('./modules/members/MemberPlaceholderModule').then((m) => ({ default: m.MemberPlaceholderModule })))
+const AssetsListModule = lazy(() => import('./modules/fixedAsset/AssetsListModule').then((m) => ({ default: m.AssetsListModule })))
+const FixedAssetPlaceholderModule = lazy(() => import('./modules/fixedAsset/FixedAssetPlaceholderModule').then((m) => ({ default: m.FixedAssetPlaceholderModule })))
+const ReportDetailModule = lazy(() => import('./modules/reports/ReportDetailModule').then((m) => ({ default: m.ReportDetailModule })))
+const StockMovementsModule = lazy(() => import('./modules/stockMovements/StockMovementsModule').then((m) => ({ default: m.StockMovementsModule })))
+const GroupEditModule = lazy(() => import('./modules/usersDashboard/GroupEditModule').then((m) => ({ default: m.GroupEditModule })))
+const QuotationCreateInterventionModule = lazy(() => import('./modules/quotations/QuotationCreateInterventionModule').then((m) => ({ default: m.QuotationCreateInterventionModule })))
+const QuotationCreateContractModule = lazy(() => import('./modules/quotations/QuotationCreateContractModule').then((m) => ({ default: m.QuotationCreateContractModule })))
+const QuotationCreateInvoiceModule = lazy(() => import('./modules/quotations/QuotationCreateInvoiceModule').then((m) => ({ default: m.QuotationCreateInvoiceModule })))
+const CreateReceptionModule = lazy(() => import('./modules/purchaseOrders/CreateReceptionModule').then((m) => ({ default: m.CreateReceptionModule })))
+const TicketDetailModule = lazy(() => import('./modules/tickets/TicketDetailModule').then((m) => ({ default: m.TicketDetailModule })))
+const StockAtDateModule = lazy(() => import('./modules/products/StockAtDateModule').then((m) => ({ default: m.StockAtDateModule })))
+const ExpenseReportDetailModule = lazy(() => import('./modules/expenses/ExpenseReportDetailModule').then((m) => ({ default: m.ExpenseReportDetailModule })))
+const ConsumptionHistoryModule = lazy(() => import('./modules/quotations/ConsumptionHistoryModule').then((m) => ({ default: m.ConsumptionHistoryModule })))
+const MembersDashboardModule = lazy(() => import('./modules/members/MembersDashboardModule').then((m) => ({ default: m.MembersDashboardModule })))
+const LotSerialDetailModule = lazy(() => import('./modules/products/LotSerialDetailModule').then((m) => ({ default: m.LotSerialDetailModule })))
+const VariantAttributeDetailModule = lazy(() => import('./modules/products/VariantAttributeDetailModule').then((m) => ({ default: m.VariantAttributeDetailModule })))
 const KitchenModule = lazy(() => import('./modules/kitchen/KitchenModule').then((m) => ({ default: m.KitchenModule })))
+const KitchenDashboardModule = lazy(() => import('./modules/kitchen/KitchenDashboardModule').then((m) => ({ default: m.KitchenDashboardModule })))
+const BeverageOrdersModule = lazy(() => import('./modules/kitchen/BeverageOrdersModule').then((m) => ({ default: m.BeverageOrdersModule })))
+const CreateOrderModule = lazy(() => import('./modules/kitchen/CreateOrderModule').then((m) => ({ default: m.CreateOrderModule })))
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
 const UsersDashboardModule = lazy(() => import('./modules/usersDashboard/UsersDashboardModule').then((m) => ({ default: m.UsersDashboardModule })))
 const UserCreateModule = lazy(() => import('./modules/usersDashboard/UserCreateModule').then((m) => ({ default: m.UserCreateModule })))
@@ -324,6 +378,27 @@ function App() {
                   <Route path={ROUTES.payrollDashboard} element={<RouteBoundary><PayrollModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollDateWiseAttendance} element={<RouteBoundary><DateWiseAttendanceModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollMarkAttendance} element={<RouteBoundary><MarkAttendanceModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollCalendarHolidays} element={<RouteBoundary><HolidayModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeAward} element={<RouteBoundary><AwardModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeTransfers} element={<RouteBoundary><TransferModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeResignation} element={<RouteBoundary><ResignationModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeTravel} element={<RouteBoundary><TravelModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeComplaints} element={<RouteBoundary><ComplaintModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeWarnings} element={<RouteBoundary><WarningModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeTerminations} element={<RouteBoundary><TerminationModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeIndicator} element={<RouteBoundary><IndicatorModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeAppraisal} element={<RouteBoundary><AppraisalModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollMarkSpecialShiftAttendance} element={<RouteBoundary><MarkSpecialShiftAttendanceModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollMarkHolidayAttendance} element={<RouteBoundary><MarkHolidayAttendanceModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollAdvanceSalary} element={<RouteBoundary><AdvanceSalaryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollEmployeeLoan} element={<RouteBoundary><LoanModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollAssignShifts} element={<RouteBoundary><ShiftModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollSalaryTemplate} element={<RouteBoundary><SalaryTemplateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollHourlyTemplate} element={<RouteBoundary><HourlyTemplateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollManageSalary} element={<RouteBoundary><ManageSalaryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollManageSalaryList} element={<RouteBoundary><ManageSalaryListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollManageHolidaySalary} element={<RouteBoundary><ManageHolidaySalaryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollManageSpecialShiftSalary} element={<RouteBoundary><ManageSpecialShiftSalaryModule /></RouteBoundary>} />
                   {PAYROLL_PLACEHOLDERS.map((p) => (
                     <Route key={p.path} path={p.path} element={<RouteBoundary><PayrollPlaceholderModule /></RouteBoundary>} />
                   ))}
@@ -332,8 +407,19 @@ function App() {
                   <Route path={ROUTES.bankingEntries} element={<RouteBoundary><BankEntriesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingCategories} element={<RouteBoundary><BankAccountCategoriesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingLoanList} element={<RouteBoundary><LoanListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingNewAccount} element={<RouteBoundary><BankAccountCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingNewLoan} element={<RouteBoundary><LoanCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingNewDeposit} element={<RouteBoundary><CheckDepositCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingDepositList} element={<RouteBoundary><CheckDepositListModule /></RouteBoundary>} />
                   {BANKING_PLACEHOLDERS.map((p) => (
                     <Route key={p.path} path={p.path} element={<RouteBoundary><BankingPlaceholderModule /></RouteBoundary>} />
+                  ))}
+                  <Route path={ROUTES.budget} element={<RouteBoundary><BudgetModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ticketList} element={<RouteBoundary><TicketsListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ticketMyAssigned} element={<RouteBoundary><MyAssignedTicketsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ticketStatistics} element={<RouteBoundary><TicketStatisticsModule /></RouteBoundary>} />
+                  {TICKET_PLACEHOLDERS.map((p) => (
+                    <Route key={p.path} path={p.path} element={<RouteBoundary><TicketPlaceholderModule /></RouteBoundary>} />
                   ))}
                   <Route path={ROUTES.expensesList} element={<RouteBoundary><ExpenseReportsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.specialExpenses} element={<RouteBoundary><SpecialExpensesModule /></RouteBoundary>} />
@@ -344,7 +430,32 @@ function App() {
                   <Route path={ROUTES.ledgerList} element={<RouteBoundary><JournalsModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerSubledger} element={<RouteBoundary><SubledgerModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerCreate} element={<RouteBoundary><NewTransactionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.kitchenDashboard} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
+                  <Route path={ROUTES.memberDashboard} element={<RouteBoundary><MembersDashboardModule /></RouteBoundary>} />
+                  <Route path={ROUTES.memberList} element={<RouteBoundary><MembersListModule /></RouteBoundary>} />
+                  {MEMBER_PLACEHOLDERS.map((p) => (
+                    <Route key={p.path} path={p.path} element={<RouteBoundary><MemberPlaceholderModule /></RouteBoundary>} />
+                  ))}
+                  <Route path={ROUTES.fixedAssetList} element={<RouteBoundary><AssetsListModule /></RouteBoundary>} />
+                  {FIXED_ASSET_PLACEHOLDERS.map((p) => (
+                    <Route key={p.path} path={p.path} element={<RouteBoundary><FixedAssetPlaceholderModule /></RouteBoundary>} />
+                  ))}
+                  <Route path={ROUTES.reportDetail} element={<RouteBoundary><ReportDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.stockMovements} element={<RouteBoundary><StockMovementsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.userGroupEdit} element={<RouteBoundary><GroupEditModule /></RouteBoundary>} />
+                  <Route path={ROUTES.quotationCreateIntervention} element={<RouteBoundary><QuotationCreateInterventionModule /></RouteBoundary>} />
+                  <Route path={ROUTES.quotationCreateContract} element={<RouteBoundary><QuotationCreateContractModule /></RouteBoundary>} />
+                  <Route path={ROUTES.quotationCreateInvoice} element={<RouteBoundary><QuotationCreateInvoiceModule /></RouteBoundary>} />
+                  <Route path={ROUTES.purchaseOrderCreateReception} element={<RouteBoundary><CreateReceptionModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ticketDetail} element={<RouteBoundary><TicketDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productStockAtDate} element={<RouteBoundary><StockAtDateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expenseReportDetail} element={<RouteBoundary><ExpenseReportDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.quotationConsumptionHistory} element={<RouteBoundary><ConsumptionHistoryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productLotSerialDetail} element={<RouteBoundary><LotSerialDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.productVariantAttributeDetail} element={<RouteBoundary><VariantAttributeDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.kitchenDashboard} element={<RouteBoundary><KitchenDashboardModule /></RouteBoundary>} />
+                  <Route path={ROUTES.kitchenOrderManagement} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
+                  <Route path={ROUTES.kitchenBeverageOrders} element={<RouteBoundary><BeverageOrdersModule /></RouteBoundary>} />
+                  <Route path={ROUTES.kitchenCreateOrder} element={<RouteBoundary><CreateOrderModule /></RouteBoundary>} />
                   <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
                   <Route path={ROUTES.usersDashboard} element={<RouteBoundary><UsersDashboardModule /></RouteBoundary>} />
                   <Route path={ROUTES.userCreate} element={<RouteBoundary><UserCreateModule /></RouteBoundary>} />
@@ -451,7 +562,7 @@ function App() {
                   <Route path={ROUTES.productImport} element={<RouteBoundary><ProductImportModule /></RouteBoundary>} />
                   <Route path={ROUTES.productVatUpdate} element={<RouteBoundary><ProductVatUpdateModule /></RouteBoundary>} />
                   <Route path={ROUTES.agenda} element={<RouteBoundary><AgendaModule /></RouteBoundary>} />
-                  <Route path="/reports" element={<RouteBoundary><ReportsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.reports} element={<RouteBoundary><ReportsModule /></RouteBoundary>} />
                   <Route path="/settings" element={<RouteBoundary><SettingsModule /></RouteBoundary>} />
                   <Route path={ROUTES.setupLanding} element={<RouteBoundary><SetupLandingModule /></RouteBoundary>} />
                   <Route path={ROUTES.companyOrganization} element={<RouteBoundary><CompanyOrganizationModule /></RouteBoundary>} />

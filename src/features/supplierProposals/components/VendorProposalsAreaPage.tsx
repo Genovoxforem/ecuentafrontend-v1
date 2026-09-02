@@ -1,5 +1,6 @@
 import { UserSquare2 } from 'lucide-react'
 import { Card, InvoiceStatusChart, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
+import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { formatDateTimeAmPm } from '../../../utils/format'
 import { useSupplierProposalAreaSummary } from '../supplierProposalArea.queries'
 
@@ -56,12 +57,12 @@ export function VendorProposalsAreaPage() {
           <SectionHeading icon={UserSquare2}>Latest 5 Modified Price Requests</SectionHeading>
         </div>
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-4 py-2.5">Ref</th>
-              <th className="font-medium px-4 py-2.5">Third-Party</th>
-              <th className="font-medium px-4 py-2.5">Last Modified</th>
-            </tr>
+          <thead className="sticky top-0 z-10">
+            <TheadRow>
+              <Th>Ref</Th>
+              <Th>Third-Party</Th>
+              <Th>Last Modified</Th>
+            </TheadRow>
           </thead>
           <tbody>
             {isLoading ? (

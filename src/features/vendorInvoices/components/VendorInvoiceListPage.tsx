@@ -4,9 +4,10 @@ import { Lock, Truck, FileText, Bot, HandCoins, Search } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { ROUTES } from '../../../routes'
 import { formatMoney, formatDate } from '../../../utils/format'
-import { useVendorInvoices, vendorInvoiceStatusLabel, type VendorInvoiceStatus } from '../vendorInvoices.queries'
+import { useVendorInvoices, vendorInvoiceStatusLabel, type VendorInvoiceStatus, type VendorInvoiceRow } from '../vendorInvoices.queries'
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
@@ -15,6 +16,33 @@ const TABS: { status: VendorInvoiceStatus; label: string; path: string }[] = [
   { status: 'manual', label: 'Manual Purchases', path: ROUTES.vendorInvoiceManual },
   { status: 'automatic', label: 'Automatic Purchases', path: ROUTES.vendorInvoiceAutomatic },
 ]
+
+type SortKey = 'ref' | 'refVendor' | 'invoiceDate' | 'thirdParty' | 'paymentType' | 'amount' | 'saleTypeCode' | 'registrationTypeCode' | 'status' | 'zraStatus'
+
+function sortValue(r: VendorInvoiceRow, key: SortKey): string | number {
+  switch (key) {
+    case 'ref':
+      return r.ref
+    case 'refVendor':
+      return r.refSupplier ?? ''
+    case 'invoiceDate':
+      return r.invoiceDate ? new Date(r.invoiceDate).getTime() : 0
+    case 'thirdParty':
+      return r.thirdPartyName ?? ''
+    case 'paymentType':
+      return r.paymentTypeLabel ?? ''
+    case 'amount':
+      return r.amountTtc
+    case 'saleTypeCode':
+      return r.saleTypeCode ?? ''
+    case 'registrationTypeCode':
+      return r.registrationTypeCode ?? ''
+    case 'status':
+      return vendorInvoiceStatusLabel(r)
+    case 'zraStatus':
+      return r.zraStatus ?? ''
+  }
+}
 
 function statusBadgeClasses(row: { statusCode: number; paye: boolean }) {
   if (row.statusCode === 2 || row.paye) return 'bg-success-bg text-success-fg'
@@ -39,13 +67,14 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
 
   const allRows = data?.items ?? []
   const total = allRows.length
-  const rows = allRows.slice((page - 1) * perPage, page * perPage)
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<VendorInvoiceRow, SortKey>(allRows, sortValue)
+  const rows = sortedRows.slice((page - 1) * perPage, page * perPage)
   const summary = data?.summary
 
   function getExportData() {
     return {
       headers: ['Ref', 'Ref Vendor', 'Invoice Date', 'Third-Party', 'Payment Type', 'Amount (Incl. Tax)', 'Sale Type Code', 'Registration Type Code', 'Status'],
-      rows: allRows.map((r) => [
+      rows: sortedRows.map((r) => [
         r.ref,
         r.refSupplier ?? '',
         formatDate(r.invoiceDate),
@@ -60,8 +89,9 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Lock size={20} className="text-brand" /> Purchase Invoices
         </h2>
@@ -87,6 +117,7 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
         </div>
       </div>
 
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="!p-3 !flex-row items-center justify-between gap-3 !h-auto">
           <div className="min-w-0">
@@ -130,7 +161,7 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
         </Card>
       </div>
 
-      <Card className="!p-0 overflow-hidden">
+      <Card className="!p-0 overflow-hidden flex-1 min-h-0">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
           <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
             {PAGE_SIZE_OPTIONS.map((n) => (
@@ -152,21 +183,21 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
           <TableExportButtons title="Purchase Invoices" getExportData={getExportData} />
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                <th className="font-medium px-4 py-2.5">Ref</th>
-                <th className="font-medium px-4 py-2.5">Ref Vendor</th>
-                <th className="font-medium px-4 py-2.5">Invoice Date</th>
-                <th className="font-medium px-4 py-2.5">Third-Party</th>
-                <th className="font-medium px-4 py-2.5">Payment Type</th>
-                <th className="font-medium px-4 py-2.5">Amount (Incl. Tax)</th>
-                <th className="font-medium px-4 py-2.5">Sale Type Code</th>
-                <th className="font-medium px-4 py-2.5">Registration Type Code</th>
-                <th className="font-medium px-4 py-2.5">Status</th>
-                <th className="font-medium px-4 py-2.5">Zra Status</th>
-              </tr>
+            <thead className="sticky top-0 z-10">
+              <TheadRow>
+                <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                <Th sortKey="refVendor" sort={sort} onSort={toggleSort}>Ref Vendor</Th>
+                <Th sortKey="invoiceDate" sort={sort} onSort={toggleSort}>Invoice Date</Th>
+                <Th sortKey="thirdParty" sort={sort} onSort={toggleSort}>Third-Party</Th>
+                <Th sortKey="paymentType" sort={sort} onSort={toggleSort}>Payment Type</Th>
+                <Th sortKey="amount" sort={sort} onSort={toggleSort}>Amount (Incl. Tax)</Th>
+                <Th sortKey="saleTypeCode" sort={sort} onSort={toggleSort}>Sale Type Code</Th>
+                <Th sortKey="registrationTypeCode" sort={sort} onSort={toggleSort}>Registration Type Code</Th>
+                <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
+                <Th sortKey="zraStatus" sort={sort} onSort={toggleSort}>Zra Status</Th>
+              </TheadRow>
             </thead>
             <tbody>
               {isLoading ? (
@@ -214,8 +245,9 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
           </table>
         </div>
       </Card>
+      </div>
 
-      <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+      <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }
