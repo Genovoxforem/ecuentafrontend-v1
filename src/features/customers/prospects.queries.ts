@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { api } from '../../api/axios'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
-import { parseSocieteListRow, type RawSocieteListRow } from './societeListParser'
-import { toThirdPartyRow } from './customers.queries'
+import { toThirdPartyRow, type ApiCustomerRow } from './customers.queries'
 
 export interface ProspectsSummary {
   totalCustomers: number
@@ -13,55 +12,48 @@ export interface ProspectsSummary {
   customers: ThirdPartyRow[]
 }
 
-interface SocieteListResponse {
-  ok: boolean
-  iTotalRecords: number
-  data: RawSocieteListRow[]
+interface CustomersListResponse {
+  success: boolean
+  customers: ApiCustomerRow[]
+  total_count: number
 }
 
-// Same deployment-wide assumption as customers.queries.ts (no API exposes a
-// configured "default country" to compare against).
-const DEFAULT_COUNTRY = 'Zambia'
+interface ThirdPartySummaryResponse {
+  success: boolean
+  type: string
+  total: number
+  created_this_month: number
+  outstanding_balance: number
+  default_country_parties: number
+  other_country_parties: number
+}
 
-// societe/api/list.php with type=p — the exact same real, working endpoint
-// customers.queries.ts already uses for type=c, confirmed live to return
-// prospect rows too (recordsTotal: 9 on this backend, each row's cust_type
-// HTML carrying a title="Prospect" badge). This used to call
-// /api/customers/{summary,list}/?type=p, both permanent 404s on the
-// currently-active backend — see customers.queries.ts's own header comment
-// for the full BOM/parsing details this mirrors.
+// /api/customers/index.php?action=list&type=prospect — same bearer-token-
+// authenticated endpoint as customers.queries.ts, filtered to prospects
+// (client=2). Summary stats come from action=summary&type=prospect, computed
+// server-side to match /societe/list.php's KPI block. Replaces the old
+// /societe/api/list.php call which required the DOLSESSID session cookie.
 export function useProspectsSummary() {
   return useQuery({
     queryKey: ['customers', 'summary', 'prospects'],
     queryFn: async (): Promise<ProspectsSummary> => {
-      const res = await axios.post<string>(
-        '/societe/api/list.php',
-        new URLSearchParams({ draw: '1', start: '0', length: '-1', type: 'p', contextpage: 'prospectlist' }),
-        { transformResponse: (data) => data },
-      )
-      const body: SocieteListResponse = JSON.parse(res.data.trim())
-
-      const parsed = body.data.map(parseSocieteListRow)
-      const now = new Date()
-
+      const [listRes, summaryRes] = await Promise.all([
+        api.get<CustomersListResponse>('/customers/index.php', {
+          params: { action: 'list', type: 'prospect', limit: 1000 },
+        }),
+        api.get<ThirdPartySummaryResponse>('/customers/index.php', {
+          params: { action: 'summary', type: 'prospect' },
+        }),
+      ])
+      const parsed = listRes.data.customers ?? []
       const rows: ThirdPartyRow[] = parsed.map(toThirdPartyRow)
 
-      const createdThisMonth = parsed.filter((item) => {
-        if (!item.creationDateIso) return false
-        const d = new Date(item.creationDateIso)
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      }).length
-
-      const outstandingBalance = parsed.reduce((sum, item) => sum + item.outstandingBalance, 0)
-      const defaultCountryCustomers = parsed.filter((item) => item.country === DEFAULT_COUNTRY).length
-      const otherCountryCustomers = parsed.length - defaultCountryCustomers
-
       return {
-        totalCustomers: body.iTotalRecords ?? parsed.length,
-        createdThisMonth,
-        outstandingBalance,
-        defaultCountryCustomers,
-        otherCountryCustomers,
+        totalCustomers: summaryRes.data.total ?? parsed.length,
+        createdThisMonth: summaryRes.data.created_this_month ?? 0,
+        outstandingBalance: summaryRes.data.outstanding_balance ?? 0,
+        defaultCountryCustomers: summaryRes.data.default_country_parties ?? 0,
+        otherCountryCustomers: summaryRes.data.other_country_parties ?? 0,
         customers: rows,
       }
     },

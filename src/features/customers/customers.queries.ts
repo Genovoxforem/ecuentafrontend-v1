@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { api } from '../../api/axios'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
-import { LEGACY_SESSION_EXPIRED_PREFIX } from '../../shared/components/BackendUnavailable'
-import { parseSocieteListRow, type RawSocieteListRow, type SocieteListRow } from './societeListParser'
 
 export interface CustomersSummary {
   totalCustomers: number
@@ -13,96 +11,110 @@ export interface CustomersSummary {
   customers: ThirdPartyRow[]
 }
 
-interface SocieteListResponse {
-  ok: boolean
-  iTotalRecords: number
-  data: RawSocieteListRow[]
+// Raw row from /api/customers/index.php?action=list — mirrors the fields
+// /societe/list.php + /societe/api/list.php compute server-side (country,
+// sales rep, creation date, creator, status, outstanding balance, tracking),
+// but delivered as clean JSON via the bearer-token-authenticated `api` axios
+// instance. The old version called /societe/api/list.php directly, which
+// requires the DOLSESSID session cookie (only set at login time, missing on
+// any resumed session) and returns server-built HTML cells needing
+// societeListParser.ts to parse — this endpoint replaces both.
+export interface ApiCustomerRow {
+  id: number
+  name: string
+  name_alias: string | null
+  code_client: string | null
+  code_fournisseur: string | null
+  email: string
+  phone: string
+  address: string
+  zip: string
+  town: string
+  tpin: string | null
+  tracking: string | null
+  currency: string | null
+  client: number
+  type: string
+  is_supplier: number
+  status: number
+  country: string
+  country_code: string
+  date_creation: string | null
+  creator_name: string
+  sales_rep: string
+  outstanding_balance: number
 }
 
-// This deployment is Zambia-specific throughout (ZRA integration, TPIN/NRC
-// fields, ZMW currency) — there is no API exposing a configured "default
-// country" to compare against, so this is a hardcoded stand-in for the
-// entity's own country on the Default/Other Country stat split.
-const DEFAULT_COUNTRY = 'Zambia'
+interface CustomersListResponse {
+  success: boolean
+  customers: ApiCustomerRow[]
+  total_count: number
+}
 
-export function toThirdPartyRow(item: SocieteListRow): ThirdPartyRow {
+// Summary response from /api/customers/index.php?action=summary — the KPI
+// block from /societe/list.php (total, created this month, outstanding
+// balance, default/other country split), computed server-side so the
+// numbers always match what the list rows sum to.
+interface ThirdPartySummaryResponse {
+  success: boolean
+  type: string
+  total: number
+  created_this_month: number
+  outstanding_balance: number
+  default_country_parties: number
+  other_country_parties: number
+}
+
+export function toThirdPartyRow(item: ApiCustomerRow): ThirdPartyRow {
+  const nature =
+    item.type === 'customer_prospect' ? 'Customer, Prospect' :
+    item.type === 'prospect' ? 'Prospect' :
+    item.is_supplier ? 'Customer, Vendor' : 'Customer'
   return {
-    id: item.socid,
-    name: item.name,
-    country: item.country,
-    outstandingBalance: item.outstandingBalance,
-    tpin: item.tpin,
-    salesRep: item.salesRep,
-    email: item.email,
-    phone: item.phone,
-    nature: item.isCustomer && item.isProspect ? 'Customer, Prospect' : item.isProspect ? 'Prospect' : 'Customer',
-    trackingId: item.trackingId,
-    creationDate: item.creationDateIso,
-    creatorName: item.creatorName,
-    status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
+    id: item.id,
+    name: item.name || '(unnamed)',
+    country: item.country || '',
+    outstandingBalance: item.outstanding_balance ?? 0,
+    tpin: item.tpin ?? '',
+    salesRep: item.sales_rep || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    nature,
+    trackingId: item.tracking ?? item.code_client ?? '',
+    creationDate: item.date_creation ?? '',
+    creatorName: item.creator_name || '',
+    status: item.status === 1 ? 'Active' : 'Inactive',
   }
 }
 
-// societe/api/list.php (DataTables-style POST, see societeListParser.ts) —
-// a real, session-cookie-authenticated endpoint, unrelated to the old
-// /api/customers/{summary,list}/ routes this used to call (both permanent
-// 404s on the currently-active backend). `length: -1` returns every
-// matching row in one response (no server-side pagination), which both
-// supplies ThirdPartyList's full row set (it paginates client-side, same
-// pattern as every other list page in this app) and lets the summary stats
-// below be computed client-side from that same row list, since no endpoint
-// provides createdThisMonth/balance-sum/country-split directly.
+// /api/customers/index.php?action=list&type=customer — bearer-token-auth'd
+// JSON endpoint (via the `api` axios instance which sends X-API-Key).
+// Replaces the old /societe/api/list.php call which required the DOLSESSID
+// session cookie (only established at login time, missing on any resumed
+// session). Summary stats come from the separate action=summary endpoint
+// (server-side KPI computation matching /societe/list.php), so the numbers
+// match what the list rows sum to rather than being approximated client-side.
 export function useCustomersSummary() {
   return useQuery({
     queryKey: ['customers', 'summary'],
     queryFn: async (): Promise<CustomersSummary> => {
-      // societe/api/list.php's real response body (confirmed live) is
-      // prefixed with a UTF-8 BOM and a couple of blank lines before the
-      // opening "{", even though it sends Content-Type: application/json —
-      // axios's automatic JSON transform runs plain JSON.parse() on that,
-      // which throws on the leading BOM. Disabling the transform and
-      // parsing manually after a trim() (which strips BOM/whitespace alike)
-      // sidesteps that rather than depending on a backend fix.
-      const res = await axios.post<string>(
-        '/societe/api/list.php',
-        new URLSearchParams({ draw: '1', start: '0', length: '-1', type: 'c', contextpage: 'customerlist' }),
-        { transformResponse: (data) => data },
-      )
-      const trimmed = res.data.trim()
-      // This endpoint is authenticated via the separate Dolibarr session
-      // cookie legacySession.ts establishes at login (see that file's own
-      // comment) — when it's stale or was never established (a reloaded
-      // tab, a long-lived session), the request doesn't error, it silently
-      // 200s with Dolibarr's own login page HTML instead of JSON (confirmed
-      // live by calling this same endpoint with no session cookie). Check
-      // for that up front rather than letting JSON.parse throw an opaque
-      // SyntaxError CustomersListModule couldn't tell apart from a real bug.
-      if (trimmed.startsWith('<')) {
-        throw new Error(`${LEGACY_SESSION_EXPIRED_PREFIX}societe/api/list.php returned a login page instead of JSON.`)
-      }
-      const body: SocieteListResponse = JSON.parse(trimmed)
-
-      const parsed = body.data.map(parseSocieteListRow)
-      const now = new Date()
-
+      const [listRes, summaryRes] = await Promise.all([
+        api.get<CustomersListResponse>('/customers/index.php', {
+          params: { action: 'list', type: 'customer', limit: 1000 },
+        }),
+        api.get<ThirdPartySummaryResponse>('/customers/index.php', {
+          params: { action: 'summary', type: 'customer' },
+        }),
+      ])
+      const parsed = listRes.data.customers ?? []
       const rows: ThirdPartyRow[] = parsed.map(toThirdPartyRow)
 
-      const createdThisMonth = parsed.filter((item) => {
-        if (!item.creationDateIso) return false
-        const d = new Date(item.creationDateIso)
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      }).length
-
-      const outstandingBalance = parsed.reduce((sum, item) => sum + item.outstandingBalance, 0)
-      const defaultCountryCustomers = parsed.filter((item) => item.country === DEFAULT_COUNTRY).length
-      const otherCountryCustomers = parsed.length - defaultCountryCustomers
-
       return {
-        totalCustomers: body.iTotalRecords ?? parsed.length,
-        createdThisMonth,
-        outstandingBalance,
-        defaultCountryCustomers,
-        otherCountryCustomers,
+        totalCustomers: summaryRes.data.total ?? parsed.length,
+        createdThisMonth: summaryRes.data.created_this_month ?? 0,
+        outstandingBalance: summaryRes.data.outstanding_balance ?? 0,
+        defaultCountryCustomers: summaryRes.data.default_country_parties ?? 0,
+        otherCountryCustomers: summaryRes.data.other_country_parties ?? 0,
         customers: rows,
       }
     },

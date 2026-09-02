@@ -28,16 +28,14 @@ export interface AppMenuResponse {
   sections: Record<string, BackendMenuNode[]>
 }
 
-// One row of GET /menu/?action=getMenuData's real response (ecuenta9) —
-// confirmed live against an authenticated session. Two things this proved
-// that the PHP source alone didn't make obvious: (1) the mainmenu/leftmenu
-// GET params are read but never actually applied as a filter — every call
-// returns the same complete ~583-row list for the user regardless of what's
-// passed; (2) its own server-side tree-building collapses every row to
-// level 0 with no children — whatever real parent/child nesting exists in
-// llx_menu doesn't survive this endpoint, AND most rows' own `mainmenu`
-// field is empty (only set on some ancestor further up the real `fk_menu`
-// chain, not on every row) — see buildAppMenuFromRows()'s resolveSectionKey.
+// The backend's GET /menu/?action=getMenuData returns a NESTED tree (built
+// by api/menu/index.php's buildMenuTree() using a level-stack), where each
+// node has a `children` array. The frontend's buildAppMenuFromRows() below
+// expects a FLAT row list and reconstructs the tree itself using fk_menu
+// parent references. flattenTree() bridges that gap — it walks the backend's
+// tree depth-first and collects every node into a flat array, preserving
+// each node's rowid/fk_menu/mainmenu/type fields so buildAppMenuFromRows()
+// can do its own section-resolution and tree reconstruction as before.
 interface RawMenuRow {
   rowid: string | number
   fk_menu: string | number
@@ -47,6 +45,30 @@ interface RawMenuRow {
   mainmenu: string
   leftmenu?: string
   type: string
+}
+
+// Backend tree node — same fields as RawMenuRow plus a `children` array.
+interface BackendMenuTreeNode extends RawMenuRow {
+  children: BackendMenuTreeNode[]
+}
+
+function flattenTree(nodes: BackendMenuTreeNode[]): RawMenuRow[] {
+  const out: RawMenuRow[] = []
+  function walk(n: BackendMenuTreeNode) {
+    out.push({
+      rowid: n.rowid,
+      fk_menu: n.fk_menu,
+      url: n.url,
+      titre: n.titre,
+      target: n.target,
+      mainmenu: n.mainmenu,
+      leftmenu: n.leftmenu,
+      type: n.type,
+    })
+    if (n.children) n.children.forEach(walk)
+  }
+  nodes.forEach(walk)
+  return out
 }
 
 // The Home/Dashboard tab's own submenu was NEVER database-driven in the
@@ -102,10 +124,17 @@ const MODULE_DASHBOARDS: { url: string; title: string }[] = [
 function buildAppMenuFromRows(rows: RawMenuRow[]): AppMenuResponse {
   const byId = new Map(rows.map((r) => [String(r.rowid), r]))
   const topMenus: BackendTopMenu[] = rows.filter((r) => r.type === 'top').map((r) => ({ key: r.mainmenu, title: r.titre, url: r.url }))
-  const topKeys = new Set(topMenus.map((t) => t.key))
+  // Case-insensitive top-key set — the backend's llx_menu.mainmenu field
+  // can have mixed case (e.g. 'Ap', 'Kitchen') while child rows may use
+  // different casing, so a case-sensitive match would miss them.
+  const topKeysLower = new Set(topMenus.map((t) => t.key.toLowerCase()))
 
   function resolveSectionKey(row: RawMenuRow, seen: Set<string>): string {
-    if (row.mainmenu && topKeys.has(row.mainmenu)) return row.mainmenu
+    if (row.mainmenu && topKeysLower.has(row.mainmenu.toLowerCase())) {
+      // Return the original-cased key from topMenus so sections match
+      const top = topMenus.find((t) => t.key.toLowerCase() === row.mainmenu.toLowerCase())
+      return top?.key ?? row.mainmenu
+    }
     const parentId = String(row.fk_menu)
     if (!parentId || parentId === '0' || parentId === 'NULL' || seen.has(parentId)) return ''
     seen.add(parentId)
@@ -208,9 +237,9 @@ export function useAppMenu() {
         leftmenu: '',
       })
       const res = await fetch(`/api/menu/?${params.toString()}`, { credentials: 'same-origin' })
-      const body: { success: boolean; data?: RawMenuRow[] } = await res.json()
+      const body: { success: boolean; data?: BackendMenuTreeNode[] } = await res.json()
       if (!body.success || !body.data) throw new Error('Menu response did not include data')
-      return buildAppMenuFromRows(body.data)
+      return buildAppMenuFromRows(flattenTree(body.data))
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,

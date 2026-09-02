@@ -11,7 +11,6 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { ErrorBoundary } from './shared/components/ErrorBoundary'
 import { RouteFallback } from './shared/components/RouteFallback'
 import { LoginModule } from './modules/auth/LoginModule'
-import { DashboardModule } from './modules/dashboard/DashboardModule'
 import { ROUTES } from './routes'
 import { PAYROLL_PLACEHOLDERS } from './features/payroll/payrollPlaceholders'
 import { BANKING_PLACEHOLDERS } from './features/banking/bankingPlaceholders'
@@ -24,14 +23,14 @@ import { FIXED_ASSET_PLACEHOLDERS } from './features/fixedAsset/fixedAssetPlaceh
 // used to be imported eagerly, so visiting /login shipped the entire app
 // (ZRA, invoices, POS, reports, every dashboard...) in one ~2.4MB bundle
 // before the sign-in form could even paint. lazy() gives each route its own
-// chunk, fetched only when that route is actually visited. LoginModule and
-// DashboardModule stay eager — they're what nearly every session needs
-// first (sign-in, then the landing dashboard), so splitting them out would
-// just add a loading flash to the one screen that can least afford it.
+// chunk, fetched only when that route is actually visited. LoginModule stays
+// eager so the sign-in form can paint immediately; the dashboard is split so
+// anonymous visits do not download dashboard charts and UI.
 //
 // Named exports need the `.then(m => ({ default: m.X }))` wrapper because
 // lazy() requires a default export from the dynamic import promise; POS's
 // components already have default exports, so they don't.
+const DashboardModule = lazy(() => import('./modules/dashboard/DashboardModule').then((m) => ({ default: m.DashboardModule })))
 const ReportsModule = lazy(() => import('./modules/reports/ReportsModule').then((m) => ({ default: m.ReportsModule })))
 const SettingsModule = lazy(() => import('./modules/settings/SettingsModule').then((m) => ({ default: m.SettingsModule })))
 const CompanyOrganizationModule = lazy(() => import('./modules/settings/CompanyOrganizationModule').then((m) => ({ default: m.CompanyOrganizationModule })))
@@ -291,7 +290,7 @@ function AppLayout() {
 }
 
 // Wraps every route's element: Suspense covers the lazy-chunk download (a
-// no-op for the two eager routes below), ErrorBoundary means a crash in one
+// no-op for the eager login route below), ErrorBoundary means a crash in one
 // module blanks only that route's content, not the sidebar/navbar chrome
 // around it or the rest of the app.
 function RouteBoundary({ children }: { children: ReactNode }) {

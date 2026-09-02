@@ -3,17 +3,10 @@ import path from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { BACKEND_URLS, resolveActiveBackend } from './src/api/backends.ts'
-
-// Node-side env resolution for the dev proxy target below — import.meta.env
-// isn't populated while Vite is loading this config file (that injection
-// only applies to code Vite bundles for the browser), so this uses Vite's
-// own loadEnv() instead of backends.ts's getActiveBackend(). The mode value
-// only affects which .env.[mode] file also gets read; .env.local (what this
-// project actually uses to switch backends) is mode-agnostic and always
-// loaded regardless.
+import { visualizer } from 'rollup-plugin-visualizer'
 const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), 'VITE_')
-const ACTIVE_BACKEND = resolveActiveBackend(env.VITE_ACTIVE_BACKEND)
+const BACKEND_URL = env.VITE_BACKEND_URL?.replace(/\/$/, '') || (process.env.NODE_ENV === 'test' ? 'http://localhost' : '')
+if (!BACKEND_URL) throw new Error('VITE_BACKEND_URL is not configured')
 
 // Paths the existing PHP/Dolibarr backend owns on its own origin — kept as
 // one list so the dev proxy below and the generated production .htaccess
@@ -103,18 +96,81 @@ function htaccessPlugin(): Plugin {
   }
 }
 
+// Dolibarr's main.inc.php CSRF check compares the request's Referer/Origin
+// against the server's own URL — the Vite dev proxy (changeOrigin: true)
+// rewrites the Host header to match the backend, but leaves Referer/Origin
+// pointing at localhost:5173, so POSTs to session-cookie-authenticated
+// endpoints (societe/api/list.php, etc.) get rejected with "Access refused
+// by CSRF protection". This spreads a configure() hook across every proxy
+// entry that overwrites those two headers with the backend's own origin.
+function proxyConfig(target: string) {
+  return {
+    target,
+    changeOrigin: true,
+    // Dolibarr's CSRF check compares Referer/Origin against the server's own
+    // URL. changeOrigin only rewrites Host — Referer/Origin still point at
+    // localhost:5173, so POSTs get rejected. headers adds them to every
+    // proxied request, overriding whatever the browser sent.
+    headers: {
+      Referer: `${target}/`,
+      Origin: target,
+    },
+    configure(proxy: { on: (event: string, handler: (...args: unknown[]) => void) => void }) {
+      proxy.on('proxyReq', (proxyReq: { setHeader: (name: string, value: string) => void }, req: { headers: Record<string, string> }) => {
+        // Belt-and-suspenders: headers above should already cover this, but
+        // some http-proxy versions only apply `headers` to the initial
+        // request, not upgraded/websocket ones. This ensures every request
+        // gets the correct Referer/Origin.
+        proxyReq.setHeader('Referer', `${target}/`)
+        proxyReq.setHeader('Origin', target)
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), htaccessPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    htaccessPlugin(),
+    // Generates dist/stats.html on every build — open it in a browser to
+    // see a treemap of every chunk and its modules. Only runs in build
+    // mode (dev server ignores it).
+    visualizer({
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+      template: 'treemap',
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Splits heavy vendor libraries into their own chunks so they're
+        // loaded once and cached across route navigations, instead of being
+        // bundled into whichever route chunk first imports them. recharts
+        // (~57 KB) is only needed on dashboard/statistics pages, exceljs
+        // (~250 KB) only on export pages, qrcode+jsbarcode only on
+        // product/barcode pages. Without this, a user visiting /customers
+        // could download exceljs bundled into a shared chunk they never use.
+        manualChunks: {
+          'vendor-charts': ['recharts'],
+          'vendor-excel': ['exceljs'],
+          'vendor-barcode': ['jsbarcode', 'qrcode'],
+        },
+      },
+    },
+  },
   server: {
     // Local dev only: forwards the app's relative "/api" and "/custom/*"
-    // calls to whichever backend is selected via VITE_ACTIVE_BACKEND in
-    // .env.local (see .env.example) — that's the one place to change to
+    // calls to the backend configured via VITE_BACKEND_URL in .env.local
+    // (see .env.example) — that's the one place to change to
     // switch backends now. Requests stay same-origin from the browser's
     // point of view (it only ever talks to this dev server), so this is
     // also what avoids CORS.
@@ -124,7 +180,7 @@ export default defineConfig({
     // they need the same same-origin treatment as /api, or the DOLSESSID
     // cookie Dolibarr sets on them never gets sent back.
     proxy: {
-      '/api': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '/api': proxyConfig(BACKEND_URL),
       // Regex, not a plain string: Vite/http-proxy-middleware matches plain
       // string keys by simple prefix, so a bare '/custom' also swallowed the
       // app's own /customers, /customers/create, /customers/:id,
@@ -132,40 +188,40 @@ export default defineConfig({
       // hard refresh (never on in-app SPA clicks, since React Router
       // intercepts those before any request — that's why this went
       // unnoticed). Anchored to match only /custom or /custom/... .
-      '^/custom(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '/takeposnew': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '/takepos': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/custom(/|$)': proxyConfig(BACKEND_URL),
+      '/takeposnew': proxyConfig(BACKEND_URL),
+      '/takepos': proxyConfig(BACKEND_URL),
       // Dolibarr's own classic login controller — see legacySession.ts. This
       // app has no route of its own at this path, so carving it out here is
       // safe the same way '/custom' and '/takeposnew' already are.
-      '^/index\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/index\\.php$': proxyConfig(BACKEND_URL),
       // Real AJAX handler behind the legacy "New Warehouse" quick-create
       // form (POST type=savewarehouse, INSERT INTO llx_entrepot — confirmed
       // by reading quicklinks_ajax.php directly) — a root-level PHP file
       // this app has no route of its own at, same as index.php above.
-      '^/quicklinks_ajax\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/quicklinks_ajax\\.php$': proxyConfig(BACKEND_URL),
       // Real generated-document download links (FormFile::getDocumentsLink()'s
       // own href target, e.g. the Quotations list's per-row PDF download
       // icon) — a root-level PHP file this app has no route of its own at,
       // same as index.php above.
-      '^/document\\.php$': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/document\\.php$': proxyConfig(BACKEND_URL),
       // Legacy accounting/bookkeeping reports (Ledger, Journals) have no
       // REST API — generalLedger.queries.ts fetches these PHP-rendered pages
       // directly (same-origin, DOLSESSID-cookie-authenticated via
       // legacySession.ts) and parses the HTML client-side. See
       // ledgerHtmlParser.ts.
-      '/accountancy': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '/accountancy': proxyConfig(BACKEND_URL),
       // Warehouse stats (Shipments/Receptions/Inventories/Reservations
       // counts) have no REST API either — same client-side scrape pattern,
       // see warehouseHtmlParser.ts. Regex-anchored for the same reason as
       // '/custom' above: a bare '/product' string also prefix-matched this
       // app's own /products/*, /products (productArea), etc. routes.
-      '^/product(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/product(/|$)': proxyConfig(BACKEND_URL),
       // Variant attributes list (variants/list.php) — same no-REST-API
       // scrape pattern, lives outside /product so it needs its own rule.
       // No React route starts with /variants, so a plain prefix is safe,
       // but anchored anyway to match the rest of this list.
-      '^/variants(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/variants(/|$)': proxyConfig(BACKEND_URL),
       // Generic import wizard (Sales > Settings > Import Customers/Vendors)
       // — imports/import.php's Step 1 dataset list is scraped for its real
       // datatoimport codes (see importsHtmlParser.ts), and Step 2's
@@ -173,35 +229,35 @@ export default defineConfig({
       // imports/emptyexample.php file-generator endpoint, same as the
       // legacy page itself does. No REST API exists for either. No React
       // route starts with /imports, so a plain prefix is safe.
-      '^/imports(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/imports(/|$)': proxyConfig(BACKEND_URL),
       // Projects/Leads module (projet/*.php) and its tag/category creation
       // (categories/card.php?type=6) and vendor-proposal statistics
       // (comm/propal/stats/*) — same no-REST-API scrape pattern, see
       // projects.queries.ts, tasks.queries.ts, and friends. No React route
       // starts with /projet, /categories, or /comm, so a plain prefix is
       // safe, but anchored anyway to match the rest of this list.
-      '^/projet(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '^/categories(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '^/comm(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/projet(/|$)': proxyConfig(BACKEND_URL),
+      '^/categories(/|$)': proxyConfig(BACKEND_URL),
+      '^/comm(/|$)': proxyConfig(BACKEND_URL),
       // UOM Settings tab (core/ajax/uom_manage.php) — a real, already-JSON
       // Dolibarr AJAX endpoint (list/create/update/delete conversions), no
       // scraping needed, just same-origin session-cookie auth like the rest
       // of this list. No React route starts with /core, so a plain prefix
       // is safe, but anchored anyway to match the rest of this list.
-      '^/core(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/core(/|$)': proxyConfig(BACKEND_URL),
       // Third-party (Customer/Prospect/Supplier) list — societe/api/list.php
       // is a real, working, session-cookie-authenticated JSON endpoint (a
       // separate namespace from /api/*, unaffected by that namespace's gaps
       // on this backend) — see societeListParser.ts. No React route starts
       // with /societe, so a plain prefix is safe, but anchored anyway to
       // match the rest of this list.
-      '^/societe(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/societe(/|$)': proxyConfig(BACKEND_URL),
       // Product hero-header actions (Delete/Duplicate) — productinfo/api/
       // product_api.php, a real JSON CRUD API in the same vein as
       // societe/api/*, unrelated to the old /api/products/ namespace. No
       // React route starts with /productinfo, so a plain prefix is safe,
       // but anchored anyway to match the rest of this list.
-      '^/productinfo(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/productinfo(/|$)': proxyConfig(BACKEND_URL),
       // Legacy dictionary pages (admin/dict.php?id=N) — no REST endpoint
       // exists for these on this backend (/customers/lookups/ 404s), but
       // the real PHP admin pages themselves are live and session-cookie
@@ -209,33 +265,33 @@ export default defineConfig({
       // see legacyDictionaryParser.ts. No React route starts with /admin,
       // so a plain prefix is safe, but anchored anyway to match the rest
       // of this list.
-      '^/admin(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/admin(/|$)': proxyConfig(BACKEND_URL),
       // Contract-Follow / Customer tab action buttons (societe/api/
       // contracts.php + customer.php) return real legacy URLs for creating
       // contracts/orders/invoices/job cards — contrat, commande, compta, and
       // fichinter aren't otherwise proxied yet, so linking to any of those
       // 404'd in dev until now (production doesn't need this, see the
       // comment above BACKEND_OWNED_PATHS — same origin there already).
-      '^/contrat(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/contrat(/|$)': proxyConfig(BACKEND_URL),
       // Standalone Contacts/Addresses module (contact/contacts-addresses-
       // list-ajax.php) — distinct from /contrat (Contracts) above and
       // unrelated to the frontend's own /contacts React route (singular vs
       // plural, and anchored with (/|$) so the two never collide).
-      '^/contact(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '^/commande(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '^/compta(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
-      '^/fichinter(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/contact(/|$)': proxyConfig(BACKEND_URL),
+      '^/commande(/|$)': proxyConfig(BACKEND_URL),
+      '^/compta(/|$)': proxyConfig(BACKEND_URL),
+      '^/fichinter(/|$)': proxyConfig(BACKEND_URL),
       // Real per-user Permissions/User-info API (userprofile/api/*), found
       // by watching userprofile/index.php?id=X's own network traffic — see
       // userPermissions.queries.ts.
-      '^/userprofile(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/userprofile(/|$)': proxyConfig(BACKEND_URL),
       // User Groups (list + real create) — user/group/user-groups-sidebarlist-
       // ajax.php (real DataTables JSON, id/name/date_creation) and
       // user/group/ajax_group.php (real create_group action, no CSRF token
       // check server-side) — see userGroupsAndTags.queries.ts. No React
       // route starts with bare /user (this app's own routes use
       // /users-dashboard), so a plain prefix is safe, but anchored anyway.
-      '^/user(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/user(/|$)': proxyConfig(BACKEND_URL),
       // Payroll — attendance_rip_ajax.php (real JSON read, Date Wise
       // Attendance) and saveAttendance.php (real JSON write, Mark
       // Attendance — its own hasRight() check is commented out server-side,
@@ -243,61 +299,61 @@ export default defineConfig({
       // payrollAttendance.queries.ts. No React route starts with bare
       // /payroll (this app's own route is /payroll-dashboard), so a plain
       // prefix is safe, but anchored anyway.
-      '^/payroll(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/payroll(/|$)': proxyConfig(BACKEND_URL),
       // Banking — loan/loan-sidebar-list-ajax.php (real JSON, Loan List) —
       // see banking.queries.ts. No React route starts with /loan, so a
       // plain prefix is safe, but anchored anyway.
-      '^/loan(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/loan(/|$)': proxyConfig(BACKEND_URL),
       // Expenses — expense/ajax/expense_list.php (real JSON, Expense
       // Reports list) and expense/api/expense_types.php (real JSON dropdown
       // feed) — see expenses.queries.ts. This app's own routes all use
       // /expenses (plural), so a plain /expense (singular) prefix is safe,
       // but anchored anyway.
-      '^/expense(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/expense(/|$)': proxyConfig(BACKEND_URL),
       // Tickets — ticket/ticket_list_ajax.php and ticket/ticket_stats_ajax.php
       // (real JSON, permission-checked) — see tickets.queries.ts. This
       // app's own routes all use /tickets (plural), so a plain /ticket
       // (singular) prefix is safe, but anchored anyway.
-      '^/ticket(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/ticket(/|$)': proxyConfig(BACKEND_URL),
       // Kitchen — kitchen/order_ajax_list.php (real JSON, Kitchen/Beverage
       // Orders) — see kitchen.queries.ts. This app's own Kitchen routes are
       // all hyphenated (/kitchen-dashboard, /kitchen-beverage-orders,
       // /kitchen-create-order), never /kitchen/..., so a plain prefix here
       // is safe, but anchored anyway.
-      '^/kitchen(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/kitchen(/|$)': proxyConfig(BACKEND_URL),
       // Members — adherents/ajax/ajax_adherents_list.php (real JSON,
       // restrictedArea()-checked) — see members.queries.ts. This app's own
       // Members routes all use /members (not /adherents), so a plain
       // prefix here is safe, but anchored anyway.
-      '^/adherents(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/adherents(/|$)': proxyConfig(BACKEND_URL),
       // Fixed Assets — asset/assets-sidebar-list-ajax.php (real JSON, but
       // no permission check and thin — only 4 columns) — see
       // fixedAssets.queries.ts. This app's own Fixed Assets routes all use
       // /fixed-assets, so a plain /asset (singular) prefix is safe, but
       // anchored anyway.
-      '^/asset(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/asset(/|$)': proxyConfig(BACKEND_URL),
       // Real Purchase Invoice / Landed Cost Invoice / User dropdown options
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.
-      '^/expensereport(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/expensereport(/|$)': proxyConfig(BACKEND_URL),
       // Sales Order Detail's "Shipments - Delivery Receipts" tab
       // (expedition/shipment.php?id=X) — same no-REST-API scrape pattern as
       // the rest of orderCardParser.ts. No React route starts with
       // /expedition, so a plain prefix is safe, but anchored anyway to
       // match the rest of this list.
-      '^/expedition(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/expedition(/|$)': proxyConfig(BACKEND_URL),
       // Third-Party Detail's native "Vendor" tab (societe/api/supplier.php)
       // links out to the real fourn/commande and fourn/purchase create
       // pages for its "Create Order"/"Create Invoice Or Credit Note"
       // buttons — see CustomerDetail.tsx's VendorTab.
-      '^/fourn(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/fourn(/|$)': proxyConfig(BACKEND_URL),
       // Same tab's "Create A Price Request" button.
-      '^/supplier_proposal(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/supplier_proposal(/|$)': proxyConfig(BACKEND_URL),
       // Purchase Order Detail's "Item Receipts" tab links to each real
       // reception record (reception/card.php?id=X, Reception::getNomUrl())
       // — no React route starts with /reception, so a plain prefix is
       // safe, but anchored anyway to match the rest of this list.
-      '^/reception(/|$)': { target: BACKEND_URLS[ACTIVE_BACKEND], changeOrigin: true },
+      '^/reception(/|$)': proxyConfig(BACKEND_URL),
     },
   },
 })

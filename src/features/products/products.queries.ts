@@ -158,7 +158,7 @@ export function useProductRows() {
     queryKey: ['products', 'all'],
     queryFn: async () => {
       const { data } = await api.get<ProductsResponse>('/products/', { params: { limit: 250 } })
-      return { rows: (data.products ?? []).map(toRow), currency: data.currency ?? 'ZMW' }
+      return { rows: (data.products ?? []).map(toRow), currency: data.currency ?? '' }
     },
     staleTime: 1000 * 60,
   })
@@ -430,7 +430,7 @@ export function useProductDetail(id: string | undefined) {
         categories: p.categories ?? [],
         notePublic: p.note_public ?? '',
         notePrivate: p.note_private ?? '',
-        currency: p.currency ?? 'ZMW',
+        currency: p.currency ?? '',
         zraId: p.zraid ?? '',
         zraStatus: p.zrastatus ?? '',
         useLotSerial: (p.tobatch ?? 0) !== 0,

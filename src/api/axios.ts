@@ -18,7 +18,7 @@ export function setStoredToken(token: string | null) {
 //
 // Dev: Vite's dev-server proxy (vite.config.ts, driven by the same
 // backends.ts this would otherwise duplicate) forwards "/api/*" same-origin
-// to whichever backend VITE_ACTIVE_BACKEND selects.
+// to the backend selected by VITE_BACKEND_URL.
 //
 // Prod: this build is deployed onto the backend's own origin (e.g. the
 // dist/ output served from https://demo1.ecuenta.online alongside its
@@ -86,7 +86,7 @@ api.interceptors.response.use(
       // exists purely so that shows up as a clear message instead of a
       // bare, unexplained "Network Error".
       error.message =
-        'Unable to reach the server — this may be a network issue, or a request went directly to a remote backend instead of through the app\'s same-origin proxy (check VITE_ACTIVE_BACKEND and that requests use relative /api paths).'
+        'Unable to reach the server — this may be a network issue, or a request went directly to a remote backend instead of through the app\'s same-origin proxy (check VITE_BACKEND_URL and that requests use relative /api paths).'
     }
     return Promise.reject(error)
   },

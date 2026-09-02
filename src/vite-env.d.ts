@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_ACTIVE_BACKEND?: string
+  readonly VITE_BACKEND_URL: string
 }

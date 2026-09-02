@@ -69,7 +69,7 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
   const tpin = settings?.tpin || '-'
   const branchCode = settings?.branch_code || '-'
   const country = parseCountryLabel(settings?.country)
-  const currencyCode = settings?.currency || 'ZMW'
+  const currencyCode = settings?.currency ?? ''
   const currencyLabel = `${CURRENCY_NAMES[currencyCode] ?? currencyCode} (${currencyCode})`
   const timeZoneLabel = settings?.timezone || 'UTC'
   // Explicit timeZone here, not just the 'en-ZM' locale — locale only

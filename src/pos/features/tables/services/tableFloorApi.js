@@ -1,39 +1,17 @@
-
 import { TABLE_STATUS } from "../statusMeta";
 
-const STATUS_CYCLE = [
-    TABLE_STATUS.AVAILABLE,
-    TABLE_STATUS.OCCUPIED,
-    TABLE_STATUS.RESERVED,
-    TABLE_STATUS.BILLING,
-    TABLE_STATUS.DISABLED,
-    TABLE_STATUS.MAINTENANCE,
-    TABLE_STATUS.AVAILABLE,
-];
+// No backend endpoint exists for table floors (only tables.php exists in
+// takeposnew/api/). Previously this returned hardcoded mock data — now it
+// throws so the UI can show an honest "not available" state instead of
+// fake tables. If a real endpoint is added later, wire it in here.
 
-const makeTables = (prefix, count) =>
-    Array.from({ length: count }, (_, i) => ({
-        id: `${prefix}${i + 1}`,
-        label: `Table ${i + 1}`,
-        status: STATUS_CYCLE[i % STATUS_CYCLE.length],
-    }));
-
-const MOCK_TABLES_BY_FLOOR = {
-    1: makeTables("ft1-", 14),
-    2: makeTables("ft2-", 7),
-    3: makeTables("ft3-", 7),
-};
-
-export const FLOOR_COUNT = 3;
+export const FLOOR_COUNT = 0;
 export const TABLES_PER_ROW = 7;
 
-export const fetchFloorTables = async (floor) => MOCK_TABLES_BY_FLOOR[floor] || [];
+export const fetchFloorTables = async () => {
+    throw new Error("No backend endpoint exists for table floors");
+};
 
-
-export const saveTableStatuses = async (floor, statusByTableId) => {
-    const tables = MOCK_TABLES_BY_FLOOR[floor];
-    if (!tables) return;
-    MOCK_TABLES_BY_FLOOR[floor] = tables.map((table) =>
-        table.id in statusByTableId ? { ...table, status: statusByTableId[table.id] } : table
-    );
+export const saveTableStatuses = async () => {
+    throw new Error("No backend endpoint exists for saving table statuses");
 };

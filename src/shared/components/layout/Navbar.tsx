@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, Search, Sun, Moon, BarChart3, CreditCard, ChefHat, Settings, Bell, CalendarDays, LogIn, LogOut, ChevronDown, PanelLeft, LayoutList } from 'lucide-react'
+import { Search, Sun, Moon, BarChart3, CreditCard, ChefHat, Settings, Bell, CalendarDays, LogIn, LogOut, ChevronDown, PanelLeft, LayoutList } from 'lucide-react'
 import { useTheme } from '../../../context/ThemeContext'
 import { useSidebarStyle } from '../../../context/SidebarStyleContext'
 import { useAuth, type AuthUser } from '../../../features/auth/AuthContext'
@@ -13,8 +13,8 @@ import { ClockInPanel } from './navbar/ClockInPanel'
 import { AllAppsDrawer } from './navbar/AllAppsDrawer'
 import { useAttendanceStatus } from '../../../features/attendance/attendance.queries'
 import { Avatar } from '../Avatar'
-import logoIcon from '../../../assets/log3.png'
 import logoFull from '../../../assets/Ecuenta_logo.png'
+import { getBackendUrl } from '../../../api/backends'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | 'apps' | null
 
@@ -79,6 +79,59 @@ function displayName(user: AuthUser | null) {
   return full || user?.login || 'User'
 }
 
+function useEntityLogo(entity: string | undefined) {
+  const storageKey = entity ? `ecuenta:entity-logo:${entity}` : ''
+  const [src, setSrc] = useState(() => (storageKey ? localStorage.getItem(storageKey) : null) || logoFull)
+
+  useEffect(() => {
+    if (!storageKey) return
+    const cached = localStorage.getItem(storageKey)
+    if (cached) {
+      setSrc(cached)
+      return
+    }
+
+    setSrc(logoFull)
+    const controller = new AbortController()
+    let logoUrl: string
+    try {
+      logoUrl = `${new URL(getBackendUrl()).origin}/viewimage.php?cache=1&modulepart=mycompany&file=logos%2FEcuenta_logo_png.png&entity=${encodeURIComponent(entity!)}`
+    } catch {
+      return
+    }
+    fetch(logoUrl, { credentials: 'include', signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('Company logo unavailable')
+        return response.blob()
+      })
+      .then((blob) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (typeof reader.result !== 'string') return
+          try {
+            localStorage.setItem(storageKey, reader.result)
+          } catch {}
+          setSrc(reader.result)
+        }
+        reader.readAsDataURL(blob)
+      })
+      .catch(() => setSrc(logoFull))
+
+    return () => controller.abort()
+  }, [entity, storageKey])
+
+  return src
+}
+
+function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`}>
+      <path d="M7.66699 12.6668L3.66699 8.00016L7.66699 3.3335" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path opacity="0.5" d="M12.667 12.6668L8.66699 8.00016L12.667 3.3335" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 // Icon row ported from the legacy htdocs/main.inc.php navbar, left to
 // right: Daily Summary, POS, Kitchen, Settings, Notifications, Events
 // (agenda), Clock In/Out. POS used to be a separate standalone app
@@ -115,13 +168,19 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
   }
 
   const isModern = sidebarStyle === 'modern'
+  const entityLogo = useEntityLogo(user?.entity)
 
   return (
     <nav
-      className={`relative h-14 px-4 ${isModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg border-b border-black/10 dark:border-white/10'}`}
+      className={`relative h-14 pr-4 ${isModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg'}`}
     >
       {isModern && (
         <>
+          {/* Solid dark base — same reason as ModernSidebar: the glass tint at
+              0.22 alpha is see-through, so without this the navbar washes out
+              to near-white over a light-mode page. Keeps the navbar and sidebar
+              visually continuous at their shared edge. */}
+          <div className="absolute inset-0 bg-gray-900" />
           {/* Flat translucent tint, no blur — plain glass, matching ModernSidebar. Kept on its own childless layer,
               separate from the content below, so the content's drop-shadow never touches this tint. Flat color
               (not a gradient) lines up seamlessly with the sidebar's identical tint at their shared edge. */}
@@ -133,29 +192,19 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         className="relative z-10 flex items-center justify-between gap-4 h-full w-full"
         style={isModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
       >
-      <div className="relative z-10 flex items-center gap-3 shrink-0">
-        {sidebarOpen ? (
-          <span className="flex h-8 items-center rounded-md dark:bg-white/90 dark:px-2 dark:py-1">
-            <img src={logoFull} alt="ECUENTA" className="h-full w-auto object-contain" />
-          </span>
-        ) : (
-          <span className="flex h-8 w-8 items-center justify-center rounded-md dark:bg-white/90 dark:p-1">
-            <img src={logoIcon} alt="ECUENTA" className="h-full w-full object-contain" />
-          </span>
-        )}
-        <IconButton
+      <div className={`relative z-10 flex h-full shrink-0 items-center transition-[width] duration-300 ${sidebarOpen ? (isModern ? 'w-64' : 'w-80') : 'w-16'}`}>
+        <a href="/dashboard" className="flex min-w-0 flex-1 items-center justify-center px-2" aria-label="ECUENTA dashboard">
+          <img src={entityLogo} onError={(event) => { event.currentTarget.src = logoFull }} alt="ECUENTA" className={`w-auto object-contain transition-all duration-300 ${sidebarOpen ? 'h-9 max-w-44' : 'h-8 max-w-11'}`} />
+        </a>
+        <button
+          type="button"
           onClick={onToggleSidebar}
-          active={sidebarOpen}
+          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          tooltipAlign="start"
-          className="text-text"
+          className="absolute right-0 flex h-8 w-8 translate-x-1/2 items-center justify-center rounded-lg border border-border bg-surface text-text-muted shadow-sm transition-colors hover:bg-surface-alt hover:text-brand"
         >
-          <Menu
-            size={24}
-            strokeWidth={2.25}
-            className="transition-[filter] duration-200 group-hover/tip:[filter:drop-shadow(0_0_5px_var(--color-accent-teal-2))_drop-shadow(0_0_9px_var(--color-accent-cyan-2))]"
-          />
-        </IconButton>
+          <SidebarToggleIcon expanded={sidebarOpen} />
+        </button>
       </div>
 
       <div className="relative z-10 flex-1 flex items-center gap-3 max-w-xl min-w-0">

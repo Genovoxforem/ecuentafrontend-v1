@@ -1,16 +1,10 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { AddEventModal } from '../../agenda/components/AddEventModal'
 import { SendQuotationEmailModal } from './SendQuotationEmailModal'
 import {
   FileBadge,
   X,
   LoaderCircle,
-  Users,
-  Boxes,
-  StickyNote,
-  Paperclip,
-  CalendarClock,
   Mail,
   RotateCcw,
   Copy,
@@ -23,19 +17,12 @@ import {
   ReceiptText,
   FileCheck2,
   Link2,
-  Upload,
-  Eye,
-  Save,
-  CalendarPlus,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
-import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
-import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
-import { useProductOptions } from '../../products/products.queries'
 import {
   useQuotationCard,
   useValidateQuotation,
@@ -45,37 +32,10 @@ import {
   useCloneQuotation,
   useDeleteQuotation,
   useGenerateQuotationDoc,
-  useQuotationContacts,
-  useAddQuotationContact,
-  useQuotationNotes,
-  useSetQuotationNote,
-  useQuotationDocuments,
-  useUploadQuotationDocument,
-  useLinkQuotationDocument,
-  useDeclareConsumption,
-  useQuotationAgenda,
 } from '../quotationDetail.queries'
+import { TABS, type TabKey, InfoRow } from './QuotationDetailShared'
 
-const selectCls = 'text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 w-full'
-
-const TABS = [
-  { key: 'quotation', label: 'Quotation', icon: FileBadge },
-  { key: 'contacts', label: 'Contacts/Addresses', icon: Users },
-  { key: 'consumptions', label: 'Stock Consumptions', icon: Boxes },
-  { key: 'notes', label: 'Notes', icon: StickyNote },
-  { key: 'files', label: 'Linked Files', icon: Paperclip },
-  { key: 'agenda', label: 'Events/Agenda', icon: CalendarClock },
-] as const
-type TabKey = (typeof TABS)[number]['key']
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <tr className="border-b border-border last:border-0">
-      <td className="py-2 pr-4 text-sm text-text-muted whitespace-nowrap align-top">{label}</td>
-      <td className="py-2 text-sm text-text! align-top">{value || '—'}</td>
-    </tr>
-  )
-}
+const LazyTabRenderer = lazy(() => import('./QuotationDetailTabs').then(m => ({ default: m.LazyTabRenderer })))
 
 function CloseAsForm({ id }: { id: string }) {
   const closeAs = useCloseAsQuotation()

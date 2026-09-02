@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, CalendarRange } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../dashboard/DashboardKit'
@@ -233,6 +233,12 @@ export function ThirdPartyList({
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  // Defers the search filter's effect on the list render — typing stays
+  // responsive even with thousands of rows because the expensive filter
+  // + sort + re-render only runs after the input settles, not on every
+  // keystroke. The input itself updates immediately (controlled by `search`
+  // state above), only the derived `filteredRows` computation is deferred.
+  const deferredSearch = useDeferredValue(search)
 
   const [dateMenuOpen, setDateMenuOpen] = useState(false)
   const [dateRangeKey, setDateRangeKey] = useState<RangeKey | null>(null)
@@ -244,17 +250,17 @@ export function ThirdPartyList({
   const filteredRows = useMemo(() => {
     const range = dateRangeKey ? computeRange(dateRangeKey, customFrom, customTo) : null
     return rows.filter((r) => {
-      if (!matchesSearch(r, search)) return false
+      if (!matchesSearch(r, deferredSearch)) return false
       if (!range) return true
       if (!r.creationDate) return false
       const d = new Date(r.creationDate)
       return !Number.isNaN(d.getTime()) && d >= range.from && d <= range.to
     })
-  }, [rows, dateRangeKey, customFrom, customTo, search])
+  }, [rows, dateRangeKey, customFrom, customTo, deferredSearch])
 
   useEffect(() => {
     setPage(1)
-  }, [dateRangeKey, customFrom, customTo, search, perPage])
+  }, [dateRangeKey, customFrom, customTo, deferredSearch, perPage])
 
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<ThirdPartyRow, SortKey>(filteredRows, sortValue)
   const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)

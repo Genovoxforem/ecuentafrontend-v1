@@ -9,6 +9,7 @@ function RoomsModal({ open, onClose }) {
     const [floor, setFloor] = useState(1);
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [editMode, setEditMode] = useState(false);
     const [pendingChanges, setPendingChanges] = useState({});
@@ -19,10 +20,17 @@ function RoomsModal({ open, onClose }) {
     useEffect(() => {
         if (!open) return;
         setLoading(true);
-        fetchRooms(floor).then((data) => {
-            setRooms(data);
-            setLoading(false);
-        });
+        setError("");
+        fetchRooms(floor)
+            .then((data) => {
+                setRooms(data);
+                setLoading(false);
+            })
+            .catch((err) => {
+                setError(err.message || "Failed to load rooms");
+                setRooms([]);
+                setLoading(false);
+            });
     }, [open, floor]);
 
     useEffect(() => {
@@ -157,6 +165,10 @@ function RoomsModal({ open, onClose }) {
                             {Array.from({ length: 4 }).map((_, i) => (
                                 <div key={i} className="h-28 rounded-2xl bg-gray-100 dark:bg-slate-800 animate-pulse" />
                             ))}
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{error}</p>
                         </div>
                     ) : selectedRoom ? (
                         <>

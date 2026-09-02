@@ -1,11 +1,8 @@
-import { BACKEND_URLS, getActiveBackend } from "../../api/backends";
+import { getBackendUrl } from "../../api/backends";
 
-// Backend selection is now a single source of truth: the main app's
-// .env.local (VITE_ACTIVE_BACKEND, read via src/api/backends.ts) — change
-// it there, restart the dev server, and every request (POS's included)
-// follows. No more runtime override, login-screen backend field, or
-// per-tab ?backend= handoff.
-export const getApiBaseUrl = () => BACKEND_URLS[getActiveBackend()];
+// Backend selection is now a single source of truth: VITE_BACKEND_URL in
+// the active .env file. Restart the dev server after changing it.
+export const getApiBaseUrl = () => getBackendUrl();
 
 // Every POS request is a same-origin relative path now — Vite's dev proxy
 // (vite.config.ts) forwards /api, /custom, /takeposnew and /takepos to

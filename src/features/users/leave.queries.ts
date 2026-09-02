@@ -1,30 +1,38 @@
+import { useQuery } from '@tanstack/react-query'
 import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
+import { api } from '../../api/axios'
 import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
 import { formatDate } from '../../utils/format'
 
-// No backend endpoint exists for holiday/leave (llx_holiday) on this app's
-// server — same gap as agenda/activity (see agenda.queries.ts). This mirrors
-// that file's pattern exactly: a local, session-only collection that starts
-// empty (matching the real reference app's own empty demo state) and grows
-// as real leave requests get created in this browser session.
 export interface LeaveType {
   code: string
   label: string
   balanceDays: number
 }
 
-// Dolibarr's stock "Congés payés"/"RTT"/etc dictionary (llx_c_holiday_types)
-// varies per install, so these are the common defaults most installs ship
-// with rather than a fetched list — no options endpoint exists for this on
-// the backend, so they're hardcoded same as WEIGHT_UNITS etc. elsewhere.
-export const LEAVE_TYPES: LeaveType[] = [
-  { code: 'CP', label: 'Paid Leave', balanceDays: 21 },
-  { code: 'RTT', label: 'RTT', balanceDays: 6 },
-  { code: 'SICK', label: 'Sick Leave', balanceDays: 10 },
-  { code: 'UNPAID', label: 'Unpaid Leave', balanceDays: 0 },
-  { code: 'OTHER', label: 'Other', balanceDays: 0 },
-]
+interface LeaveTypesResponse {
+  success: boolean
+  types: { id: number; code: string; label: string; newByMonth: number }[]
+}
+
+// Fetches leave/holiday types from /api/user/leave-types.php (llx_c_holiday_types).
+// Replaces the hardcoded LEAVE_TYPES array — the dictionary varies per install,
+// so it must come from the backend.
+export function useLeaveTypes() {
+  return useQuery({
+    queryKey: ['users', 'leave-types'],
+    queryFn: async (): Promise<LeaveType[]> => {
+      const { data } = await api.get<LeaveTypesResponse>('/user/leave-types.php')
+      return (data.types ?? []).map((t) => ({
+        code: t.code,
+        label: t.label,
+        balanceDays: Math.round(t.newByMonth * 12),
+      }))
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
 
 export type LeaveStatus = 'Draft' | 'Validated' | 'Approved' | 'Cancelled'
 
@@ -98,8 +106,9 @@ export function useCreateLeaveRequest() {
   const [, update] = useLocalCollection(KEY, SEED)
   const logActivity = useLogActivity()
   const { user } = useAuth()
+  const { data: leaveTypes } = useLeaveTypes()
   return (input: NewLeaveRequestInput) => {
-    const type = LEAVE_TYPES.find((t) => t.code === input.typeCode)
+    const type = leaveTypes?.find((t) => t.code === input.typeCode)
     const today = todayIso()
     const row: LeaveRequest = {
       ref: nextLocalRef('LEAVE'),

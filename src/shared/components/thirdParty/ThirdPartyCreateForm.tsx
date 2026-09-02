@@ -86,13 +86,12 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
   const isVendor = variant === 'vendor'
   const prospectCustomerDefault = isVendor ? 'Not prospect, Not customer' : variant === 'prospect' ? 'Prospect' : 'Customer'
   
-  // Safe defaults if formOptions is null or properties are missing
-  const countryOptions = formOptions?.countries?.map(c => c.label) ?? ['Zambia']
-  const currencyOptions = formOptions?.currencies?.map(c => c.label) ?? ['Zambian Kwacha (ZMW)']
-  // Real dictionary data is alphabetical (Afghanistan Afghani first) — for
-  // this Zambia-focused deployment, default to the real Zambian Kwacha
-  // entry when present instead of whatever's alphabetically first.
-  const defaultCurrencyLabel = currencyOptions.find((label) => /zambia/i.test(label)) ?? currencyOptions[0] ?? 'Zambian Kwacha (ZMW)'
+  // Options come entirely from the backend's form-options endpoint — no
+  // static fallbacks. If the backend hasn't loaded yet, the selects will be
+  // empty, which is the honest state rather than showing fake data.
+  const countryOptions = formOptions?.countries?.map(c => c.label) ?? []
+  const currencyOptions = formOptions?.currencies?.map(c => c.label) ?? []
+  const defaultCurrencyLabel = currencyOptions.find((label) => /zambia/i.test(label)) ?? currencyOptions[0] ?? ''
   const customerGroupOptions = formOptions?.customerGroups?.map(g => g.label) ?? []
   const thirdPartyTypeOptions = formOptions?.thirdPartyTypes?.map(t => t.label) ?? []
   
@@ -151,7 +150,7 @@ function buildStep1(variant: Variant, formOptions: ReturnType<typeof useThirdPar
     })
   }
   fields.push(
-    { key: 'country', label: 'Country', type: 'select', options: countryOptions, defaultValue: countryOptions[0] ?? 'Zambia', icon: Globe, section: 'Location & Currency' },
+    { key: 'country', label: 'Country', type: 'select', options: countryOptions, defaultValue: countryOptions[0] ?? '', icon: Globe, section: 'Location & Currency' },
     { key: 'address', label: 'Address', type: 'text', icon: MapPin, section: 'Location & Currency' },
     { key: 'currency', label: 'Currency', type: 'select', options: currencyOptions, defaultValue: defaultCurrencyLabel, icon: Coins, section: 'Location & Currency' },
     { key: 'thirdPartyType', label: 'Third-party type', type: 'select', options: thirdPartyTypeOptions, icon: Layers, section: 'Location & Currency' },

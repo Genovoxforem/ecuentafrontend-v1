@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
-import { LayoutGrid } from 'lucide-react'
+import { LayoutGrid, Loader2 } from 'lucide-react'
 import { EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
 import {
   House,
@@ -51,7 +51,10 @@ import { nav as reportsNav } from '../../../features/reports/reports.nav'
 import type { NavItem, NavLeafItem, NavSection } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
+import { prefetchRoute } from '../../../app/routePrefetch'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
+import logoFull from '../../../assets/Ecuenta_logo.png'
+import logoIcon from '../../../assets/log3.png'
 
 // Used only as a label->path lookup by buildNavSections now (see there) —
 // the actual section list, order, and item hierarchy come from GET
@@ -131,17 +134,28 @@ function itemContainsCurrent(item: NavItem, pathname: string): boolean {
 function NavLeaf({ item, depth = 0, navigate, location }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location }) {
   const isLink = Boolean(item.path)
   const isCurrent = isLink && location.pathname === item.path
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (loading && location.pathname === item.path) setLoading(false)
+  }, [location.pathname, loading, item.path])
+
   return (
     <button
       type="button"
-      disabled={!isLink}
-      onClick={isLink ? () => navigate(item.path!) : undefined}
+      disabled={!isLink || loading}
+      onClick={isLink ? () => { setLoading(true); navigate(item.path!) } : undefined}
+      onMouseEnter={isLink ? () => prefetchRoute(item.path!) : undefined}
       style={{ paddingLeft: `${1.5 + depth * 0.5}rem` }}
       className={`w-full flex items-center gap-2 text-left pr-2.5 py-1.5 rounded-lg text-sm transition-colors ${
         isCurrent ? 'bg-white/15 text-white font-semibold' : isLink ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-white/30 cursor-default'
       }`}
     >
-      <span className={`w-1 h-1 rounded-full shrink-0 ${isCurrent ? 'bg-(--color-accent-cyan-2)' : 'bg-transparent'}`} />
+      {loading ? (
+        <Loader2 size={10} className="shrink-0 animate-spin text-(--color-accent-cyan-2)" />
+      ) : (
+        <span className={`w-1 h-1 rounded-full shrink-0 ${isCurrent ? 'bg-(--color-accent-cyan-2)' : 'bg-transparent'}`} />
+      )}
       <span className="truncate">{item.label}</span>
     </button>
   )
@@ -287,7 +301,7 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
 // logout action underneath are identical to the legacy sidebar, only the
 // visual shell and interaction model differ. No account/profile row here —
 // that's still reachable from the Navbar's own avatar menu.
-export function ModernSidebar({ open = true, onLogout }: { open?: boolean; onLogout: () => void }) {
+export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolean; onLogout: () => void; onOpen?: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: menu } = useAppMenu()
@@ -295,7 +309,10 @@ export function ModernSidebar({ open = true, onLogout }: { open?: boolean; onLog
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
   // React path (see buildNavSections) and covers the one frame before the
   // request resolves.
-  const SECTIONS = useMemo(() => (menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : PATH_SOURCE_SECTIONS), [menu])
+  const SECTIONS = useMemo(() => {
+    const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
+    return sections.length > 0 ? sections : PATH_SOURCE_SECTIONS
+  }, [menu])
   const [hovering, setHovering] = useState(false)
   const expanded = open || hovering
 
@@ -310,6 +327,13 @@ export function ModernSidebar({ open = true, onLogout }: { open?: boolean; onLog
           open ? 'relative w-64' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-64' : 'w-16'}`
         }`}
       >
+        {/* Solid dark base — the glass tint (MODERN_GLASS_BG at 0.22 alpha) is
+            genuinely see-through, so without a solid base behind it the sidebar
+            renders as a near-white wash over a light-mode page background instead
+            of the "always dark" panel the design calls for. This base layer makes
+            the sidebar actually dark regardless of theme, while the glass tint and
+            sheen layered on top still give the glossy-glass reading. */}
+        <div className="absolute inset-0 bg-gray-900" />
         {/* Flat translucent tint, no blur — plain glass rather than frosted glass. Kept on its own childless layer,
             separate from the content below, purely so the drop-shadow on the content layer never touches this tint. */}
         <div className="absolute inset-0" style={{ backgroundColor: MODERN_GLASS_BG, backgroundImage: MODERN_GLASS_SHEEN }} />
@@ -319,7 +343,17 @@ export function ModernSidebar({ open = true, onLogout }: { open?: boolean; onLog
         {/* Content sits on its own layer with a drop-shadow (covers icons too, unlike text-shadow) so it stays
             legible against a genuinely transparent glass panel regardless of what's behind it. */}
         <div className="relative z-10 flex flex-col h-full" style={{ filter: MODERN_CONTENT_SHADOW }}>
-          {expanded && <p className="px-4 pt-5 pb-2 text-[11px] font-bold tracking-widest text-white/35">MENU</p>}
+          {expanded && (
+            <div className="flex items-center justify-center h-12 mx-2.5 mt-4 mb-2 rounded-lg bg-white/90 px-2 shrink-0">
+              <img src={logoFull} alt="ECUENTA" className="h-full w-auto object-contain" />
+            </div>
+          )}
+          {!expanded && (
+            <div className="flex items-center justify-center w-10 h-10 mx-auto mt-4 mb-2 rounded-lg bg-white/90 p-1 shrink-0">
+              <img src={logoIcon} alt="ECUENTA" className="h-full w-full object-contain" />
+            </div>
+          )}
+          {expanded && <p className="px-4 pb-2 text-[11px] font-bold tracking-widest text-white/35">MENU</p>}
 
           <div className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-2.5 pb-2 ${expanded ? '' : 'pt-5'}`}>
             {expanded ? (
@@ -334,6 +368,10 @@ export function ModernSidebar({ open = true, onLogout }: { open?: boolean; onLog
                       <button
                         type="button"
                         title={section.label}
+                        onClick={() => {
+                          if (!open && onOpen) onOpen()
+                          if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
+                        }}
                         className={`w-full flex items-center justify-center h-10 rounded-xl transition-colors ${
                           isCurrent ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'
                         }`}

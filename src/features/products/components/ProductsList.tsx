@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Box, Package, Wrench, Search, Plus, Filter } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
@@ -58,6 +58,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
   const [filters, setFilters] = useState<ProductFilters>(DEFAULT_PRODUCT_FILTERS)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -79,9 +80,9 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   const filteredProducts = useMemo(
     () =>
       summary.products.filter(
-        (p) => matchesSearch(p, search) && matchesProductFilters(p, richByRef.get(p.ref), filters, categoryLabelById),
+        (p) => matchesSearch(p, deferredSearch) && matchesProductFilters(p, richByRef.get(p.ref), filters, categoryLabelById),
       ),
-    [summary.products, search, filters, richByRef, categoryLabelById],
+    [summary.products, deferredSearch, filters, richByRef, categoryLabelById],
   )
 
   const sortValue = useMemo(() => {

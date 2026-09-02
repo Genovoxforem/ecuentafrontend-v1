@@ -10,6 +10,7 @@ function TablesModal({ open, onClose }) {
     const [floor, setFloor] = useState(1);
     const [tables, setTables] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
     const [editMode, setEditMode] = useState(false);
     const [pendingChanges, setPendingChanges] = useState({});
     const [savedToast, setSavedToast] = useState(false);
@@ -21,10 +22,17 @@ function TablesModal({ open, onClose }) {
     useEffect(() => {
         if (!open) return;
         setLoading(true);
-        fetchFloorTables(floor).then((data) => {
-            setTables(data);
-            setLoading(false);
-        });
+        setError("");
+        fetchFloorTables(floor)
+            .then((data) => {
+                setTables(data);
+                setLoading(false);
+            })
+            .catch((err) => {
+                setError(err.message || "Failed to load tables");
+                setTables([]);
+                setLoading(false);
+            });
     }, [open, floor]);
 
     useEffect(() => {
@@ -143,6 +151,10 @@ function TablesModal({ open, onClose }) {
                             {Array.from({ length: 7 }).map((_, i) => (
                                 <div key={i} className="aspect-square rounded-2xl bg-gray-100 dark:bg-slate-800 animate-pulse" />
                             ))}
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{error}</p>
                         </div>
                     ) : (
                         <>

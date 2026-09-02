@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type SubmitEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { isAxiosError } from 'axios'
+import { ArrowRight, BarChart3, Boxes, CircleDollarSign, ShieldCheck, ShoppingCart } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useEntities } from '../../features/settings/settings.queries'
 import logo from '../../assets/Ecuenta_logo.png'
@@ -57,10 +58,10 @@ type AuthTone = 'cream' | 'plain' | 'brand'
 
 function toneClasses(tone: AuthTone) {
   return tone === 'cream'
-    ? 'border-amber-300 bg-amber-50 focus:border-amber-500 focus:ring-amber-200'
+    ? 'border-amber-200 bg-amber-50/70 focus:border-amber-500 focus:ring-amber-100'
     : tone === 'brand'
-      ? 'border-blue-300 bg-gradient-to-r from-sky-50 to-blue-100 focus:border-blue-500 focus:ring-blue-200'
-      : 'border-blue-100 bg-blue-50 focus:border-blue-400 focus:ring-blue-200'
+      ? 'border-slate-200 bg-white focus:border-cyan-500 focus:ring-cyan-100'
+      : 'border-slate-200 bg-white focus:border-cyan-500 focus:ring-cyan-100'
 }
 
 interface AuthInputProps {
@@ -115,7 +116,7 @@ function AuthDropdown({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center justify-between rounded-full border px-5 py-3 text-sm font-medium outline-none transition focus:ring-4 ${toneClasses(tone)} ${value ? 'text-slate-800' : 'text-slate-500'}`}
+        className={`flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:ring-4 ${toneClasses(tone)} ${value ? 'text-slate-800' : 'text-slate-400'}`}
       >
         <span className="truncate">{selectedLabel || placeholder}</span>
         <span className="ml-2 flex shrink-0 items-center text-slate-900">{icon}</span>
@@ -160,7 +161,7 @@ function AuthInput({ placeholder, type = 'text', icon, tone = 'plain', value, on
         value={value}
         onChange={(event) => onChange(event.target.value)}
         autoComplete="off"
-        className={`w-full rounded-full border px-5 py-3 pr-11 text-sm font-medium text-slate-800 placeholder:text-slate-500 outline-none transition focus:ring-4 ${toneClass}`}
+        className={`w-full rounded-xl border px-4 py-3.5 pr-11 text-sm font-medium text-slate-800 shadow-sm placeholder:text-slate-400 outline-none transition focus:ring-4 ${toneClass}`}
       />
       <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-900">{icon}</span>
     </div>
@@ -178,6 +179,16 @@ export function LoginModule() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Default-select the master entity (id=1, Dolibarr's standard master
+  // entity) once the entities list loads, so the user doesn't have to
+  // manually pick one before submitting — the vast majority of logins go
+  // to the master entity on a single-entity install like this one.
+  useEffect(() => {
+    if (masterEntity || !entities?.length) return
+    const master = entities.find((e) => e.id === 1) ?? entities[0]
+    setMasterEntity(String(master.id))
+  }, [entities, masterEntity])
 
   const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -207,34 +218,89 @@ export function LoginModule() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-violet-100 via-indigo-50 to-violet-200">
-      <CircuitPattern className="absolute -left-6 -top-6 h-48 w-48 text-slate-400/30" />
-      <CircuitPattern className="absolute -right-6 -top-6 h-48 w-48 -scale-x-100 text-slate-400/30" />
-      <CircuitPattern className="absolute -left-6 -bottom-6 h-48 w-48 -scale-y-100 text-slate-400/30" />
-      <CircuitPattern className="absolute -right-6 -bottom-6 h-48 w-48 -scale-x-100 -scale-y-100 text-slate-400/30" />
+    <div className="relative min-h-screen overflow-hidden bg-[#07162d]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(6,182,212,0.2),transparent_32%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.18),transparent_35%)]" />
+      <CircuitPattern className="absolute -left-6 -top-6 h-56 w-56 text-cyan-300/10" />
+      <CircuitPattern className="absolute -bottom-8 -right-8 h-64 w-64 -scale-x-100 -scale-y-100 text-blue-300/10" />
 
-      <div className="relative flex min-h-screen items-center justify-center px-4 py-10">
-        <div className="relative w-full max-w-md">
-          <div className="flex w-full flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-            {/* form panel */}
-            <div className="flex flex-col justify-center px-8 py-8 sm:px-10 lg:py-10">
-              <div className="mb-2 flex -translate-y-[20%] justify-center">
-                <img src={logo} alt="ECUENTA - Financial Accounting CRM" className="h-10 w-auto sm:h-12 lg:h-14" />
+      <main className="relative flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-[0_30px_100px_rgba(0,0,0,0.45)] lg:grid-cols-[1.08fr_0.92fr]">
+          <section className="relative hidden min-h-[680px] overflow-hidden bg-gradient-to-br from-[#0b2347] via-[#0b3561] to-[#087f8c] p-12 text-white lg:flex lg:flex-col">
+            <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border-[55px] border-white/5" />
+            <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-cyan-300/10 blur-3xl" />
+
+            <div className="relative flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20">
+                <BarChart3 className="h-6 w-6 text-cyan-300" />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-wide">ECUENTA ERP</p>
+                <p className="text-xs text-cyan-100/60">Business, beautifully connected</p>
+              </div>
+            </div>
+
+            <div className="relative my-auto max-w-lg py-12">
+              <span className="mb-5 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                One platform. Total control.
+              </span>
+              <h1 className="text-4xl font-bold leading-[1.12] tracking-tight xl:text-5xl">
+                Run every part of your business with confidence.
+              </h1>
+              <p className="mt-5 max-w-md text-base leading-7 text-blue-100/70">
+                Turn daily operations into clear decisions with sales, purchasing, inventory and accounting working together in real time.
+              </p>
+
+              <div className="mt-10 grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Sales', detail: 'Sell smarter', icon: ShoppingCart },
+                  { label: 'Purchasing', detail: 'Source efficiently', icon: CircleDollarSign },
+                  { label: 'Inventory', detail: 'Stay in control', icon: Boxes },
+                  { label: 'Accounts', detail: 'Know your numbers', icon: BarChart3 },
+                ].map(({ label, detail, icon: Icon }) => (
+                  <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-sm">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-300/10 text-cyan-300">
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{label}</p>
+                      <p className="text-xs text-blue-100/50">{detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative flex items-center gap-2 text-xs text-blue-100/50">
+              <ShieldCheck size={15} className="text-cyan-300" />
+              Secure access to your business workspace
+            </div>
+          </section>
+
+          {/* form panel */}
+          <section className="flex min-h-[620px] flex-col justify-center bg-slate-50 px-6 py-10 sm:px-12 lg:min-h-[680px] lg:px-14">
+            <div className="mx-auto w-full max-w-md">
+              <div className="mb-9 flex items-center justify-between">
+                <img src={logo} alt="ECUENTA - Financial Accounting CRM" className="h-11 w-auto" />
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">ERP Cloud</span>
               </div>
 
-              <h1 className="mb-6 text-center text-xl font-semibold text-slate-800">Sign In to your Account</h1>
+              <div className="mb-7">
+                <p className="mb-2 text-sm font-semibold text-cyan-700">Welcome back</p>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Sign in to your workspace</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">Enter your credentials to continue managing your business.</p>
+              </div>
 
               {sessionExpiredMessage && (
-                <p className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-center text-sm font-medium text-amber-800">
+                <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
                   {sessionExpiredMessage}
                 </p>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-3">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <AuthInput
                   name="username"
-                  placeholder="username"
-                  icon={<IconUser className="h-7 w-7" />}
+                  placeholder="Username"
+                  icon={<IconUser className="h-5 w-5" />}
                   value={username}
                   onChange={(value) => {
                     setUsername(value)
@@ -245,44 +311,49 @@ export function LoginModule() {
                   name="password"
                   type="password"
                   placeholder="Password"
-                  icon={<IconKey className="h-7 w-7" />}
+                  icon={<IconKey className="h-5 w-5" />}
                   value={password}
                   onChange={setPassword}
                 />
                 <AuthDropdown
                   name="masterEntity"
-                  placeholder="Master entity"
-                  icon={<UserTypeIcon className="h-7 w-7" />}
+                  placeholder="Select business entity"
+                  icon={<UserTypeIcon className="h-5 w-5" />}
                   tone="brand"
                   value={masterEntity}
                   onChange={setMasterEntity}
                   options={entityOptions}
                 />
 
-                {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+                {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</p>}
 
-                <label className="flex items-center gap-2 text-sm text-slate-500">
+                <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-600">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(event) => setRememberMe(event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+                    className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
                   />
-                  Remember me
+                  Keep me signed in
                 </label>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full rounded-full bg-gradient-to-r from-sky-400 via-sky-600 to-blue-900 py-3 text-sm font-bold tracking-wide text-white shadow-lg shadow-blue-900/30 transition hover:from-sky-300 hover:via-sky-500 hover:to-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-700 py-3.5 text-sm font-bold tracking-wide text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-900/25 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
-                  {submitting ? 'SIGNING IN…' : 'SIGN IN'}
+                  {submitting ? 'Signing in…' : 'Access your workspace'}
+                  {!submitting && <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />}
                 </button>
               </form>
+
+              <div className="mt-8 border-t border-slate-200 pt-5 text-center text-xs text-slate-400">
+                Protected enterprise access · ECUENTA ERP
+              </div>
             </div>
-          </div>
+          </section>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

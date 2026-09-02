@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, CalendarDays, CreditCard, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -151,8 +151,9 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
 
-  const filteredRows = useMemo(() => summary.rows.filter((r) => matchesSearch(r, search)), [summary.rows, search])
+  const filteredRows = useMemo(() => summary.rows.filter((r) => matchesSearch(r, deferredSearch)), [summary.rows, deferredSearch])
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<InvoiceRow, SortKey>(filteredRows, sortValue)
   const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
 

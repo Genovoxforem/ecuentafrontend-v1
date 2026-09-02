@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
     Home,
     Moon,
@@ -18,15 +18,24 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../context/ThemeContext";
 import useAuthStore from "../stores/authStore";
-import CashDeskModal from "../features/cash/Components/CashDeskModal";
-import ReportsModal from "../features/reports/Components/ReportsModal";
-import RoomsModal from "../features/tables/Components/RoomsModal";
-import TablesModal from "../features/tables/Components/TablesModal";
 import { getActiveSession } from "../features/cash/services/cashApi";
 import { fetchCurrentTerminalConfig } from "../services/terminalConfig";
 import usePosStore from "../features/pos/stores/posStore";
 import { initCache, refreshCache } from "../services/posCache";
 import { getApiBaseUrl } from "../services/apiConfig";
+
+// Lazy-loaded modals — each is a heavy component (CashDeskModal pulls in
+// cash-session forms, ReportsModal pulls in chart libs, RoomsModal/
+// TablesModal pull in table/room layouts). Eagerly importing all four
+// bundled them into the POS DashboardLayout chunk (~992 KB). They only
+// open on click, so deferring their import to first-open cuts the initial
+// POS load to ~400 KB. The Suspense fallback is null because the modals
+// render in a portal — a brief delay before the overlay appears is
+// imperceptible compared to the modal's own open animation.
+const CashDeskModal = lazy(() => import("../features/cash/Components/CashDeskModal"));
+const ReportsModal = lazy(() => import("../features/reports/Components/ReportsModal"));
+const RoomsModal = lazy(() => import("../features/tables/Components/RoomsModal"));
+const TablesModal = lazy(() => import("../features/tables/Components/TablesModal"));
 
 
 function NavIcon({ icon: Icon, badge, onClick, title, className = "", iconClassName = "", disabled = false }) {
@@ -213,10 +222,12 @@ function PosSidebar({ onLogout }) {
                 <NavIcon icon={Power} title="Logout" onClick={onLogout} />
             </div>
 
-            <CashDeskModal open={cashDeskOpen} onClose={() => setCashDeskOpen(false)} onLogout={onLogout} />
-            <ReportsModal open={reportsOpen} onClose={() => setReportsOpen(false)} />
-            <RoomsModal open={roomsOpen} onClose={() => setRoomsOpen(false)} />
-            <TablesModal open={tablesOpen} onClose={() => setTablesOpen(false)} />
+            <Suspense fallback={null}>
+                <CashDeskModal open={cashDeskOpen} onClose={() => setCashDeskOpen(false)} onLogout={onLogout} />
+                <ReportsModal open={reportsOpen} onClose={() => setReportsOpen(false)} />
+                <RoomsModal open={roomsOpen} onClose={() => setRoomsOpen(false)} />
+                <TablesModal open={tablesOpen} onClose={() => setTablesOpen(false)} />
+            </Suspense>
         </aside>
     );
 }

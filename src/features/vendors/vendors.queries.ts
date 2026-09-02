@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { api } from '../../api/axios'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
-import { LEGACY_SESSION_EXPIRED_PREFIX } from '../../shared/components/BackendUnavailable'
-import { parseSocieteListRow, type RawSocieteListRow, type SocieteListRow } from '../customers/societeListParser'
+import type { ApiCustomerRow } from '../customers/customers.queries'
 
 export interface VendorsSummary {
   totalVendors: number
@@ -13,83 +12,74 @@ export interface VendorsSummary {
   vendors: ThirdPartyRow[]
 }
 
-interface SocieteListResponse {
-  ok: boolean
-  iTotalRecords: number
-  data: RawSocieteListRow[]
+interface CustomersListResponse {
+  success: boolean
+  customers: ApiCustomerRow[]
+  total_count: number
 }
 
-// Same Zambia-specific stand-in as customers.queries.ts's DEFAULT_COUNTRY —
-// no endpoint exposes a configured "default country" to compare against.
-const DEFAULT_COUNTRY = 'Zambia'
+interface ThirdPartySummaryResponse {
+  success: boolean
+  type: string
+  total: number
+  created_this_month: number
+  outstanding_balance: number
+  default_country_parties: number
+  other_country_parties: number
+}
 
-export function toThirdPartyRow(item: SocieteListRow): ThirdPartyRow {
+// Vendor-specific nature label — a vendor that's also flagged as a customer
+// (client IN 1,3) shows "Vendor, Customer", otherwise just "Vendor". The
+// backend's `type` field is derived from `client` only (prospect/customer/
+// customer_prospect), so for vendors we check `client` directly to detect
+// the customer flag.
+export function toThirdPartyRow(item: ApiCustomerRow): ThirdPartyRow {
+  const isAlsoCustomer = item.client === 1 || item.client === 3
   return {
-    id: item.socid,
-    name: item.name,
-    country: item.country,
-    outstandingBalance: item.outstandingBalance,
-    tpin: item.tpin,
-    salesRep: item.salesRep,
-    email: item.email,
-    phone: item.phone,
-    nature: item.isCustomer ? 'Vendor, Customer' : 'Vendor',
-    trackingId: item.trackingId,
-    creationDate: item.creationDateIso,
-    creatorName: item.creatorName,
-    status: item.statusLabel === 'Open' ? 'Active' : 'Inactive',
+    id: item.id,
+    name: item.name || '(unnamed)',
+    country: item.country || '',
+    outstandingBalance: item.outstanding_balance ?? 0,
+    tpin: item.tpin ?? '',
+    salesRep: item.sales_rep || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    nature: isAlsoCustomer ? 'Vendor, Customer' : 'Vendor',
+    trackingId: item.tracking ?? item.code_client ?? '',
+    creationDate: item.date_creation ?? '',
+    creatorName: item.creator_name || '',
+    status: item.status === 1 ? 'Active' : 'Inactive',
   }
 }
 
-// societe/api/list.php?type=f — the exact same real, session-cookie-
-// authenticated DataTables endpoint customers.queries.ts's
-// useCustomersSummary() uses for type=c, confirmed live to also serve
-// vendors under type=f (31 real rows, e.g. "Abinav Traders", "Vendor2").
-// The previous version of this file called /vendors/summary/ and
-// /vendors/list/ — real-looking but permanently-404 endpoints on this
-// backend (same dead-API-namespace class documented in
-// BackendUnavailable.tsx) — which is why usePurchasesSummary() (the only
-// other consumer of this hook) got stuck on an infinite "Loading…": its
-// own `!vendors` check treats "the query permanently errored" the same as
-// "still loading" (see that file's fix). Client-side stat computation
-// mirrors useCustomersSummary() exactly, for the same reason: no endpoint
-// provides createdThisMonth/balance-sum/country-split directly.
+// /api/customers/index.php?action=list&type=vendor — same bearer-token-
+// authenticated endpoint as customers.queries.ts, filtered to vendors
+// (fournisseur=1). Summary stats come from action=summary&type=vendor,
+// computed server-side to match /societe/list.php's KPI block (including
+// the vendor-specific outstanding balance from facture_fourn, not facture).
+// Replaces the old /societe/api/list.php?type=f call which required the
+// DOLSESSID session cookie.
 export function useVendorsSummary() {
   return useQuery({
     queryKey: ['vendors', 'summary'],
     queryFn: async (): Promise<VendorsSummary> => {
-      const res = await axios.post<string>(
-        '/societe/api/list.php',
-        new URLSearchParams({ draw: '1', start: '0', length: '-1', type: 'f', contextpage: 'vendorlist' }),
-        { transformResponse: (data) => data },
-      )
-      const trimmed = res.data.trim()
-      if (trimmed.startsWith('<')) {
-        throw new Error(`${LEGACY_SESSION_EXPIRED_PREFIX}societe/api/list.php returned a login page instead of JSON.`)
-      }
-      const body: SocieteListResponse = JSON.parse(trimmed)
-
-      const parsed = body.data.map(parseSocieteListRow)
-      const now = new Date()
-
+      const [listRes, summaryRes] = await Promise.all([
+        api.get<CustomersListResponse>('/customers/index.php', {
+          params: { action: 'list', type: 'vendor', limit: 1000 },
+        }),
+        api.get<ThirdPartySummaryResponse>('/customers/index.php', {
+          params: { action: 'summary', type: 'vendor' },
+        }),
+      ])
+      const parsed = listRes.data.customers ?? []
       const vendors: ThirdPartyRow[] = parsed.map(toThirdPartyRow)
 
-      const createdThisMonth = parsed.filter((item) => {
-        if (!item.creationDateIso) return false
-        const d = new Date(item.creationDateIso)
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      }).length
-
-      const outstandingBalance = parsed.reduce((sum, item) => sum + item.outstandingBalance, 0)
-      const defaultCountryVendors = parsed.filter((item) => item.country === DEFAULT_COUNTRY).length
-      const otherCountryVendors = parsed.length - defaultCountryVendors
-
       return {
-        totalVendors: body.iTotalRecords ?? parsed.length,
-        createdThisMonth,
-        outstandingBalance,
-        defaultCountryVendors,
-        otherCountryVendors,
+        totalVendors: summaryRes.data.total ?? parsed.length,
+        createdThisMonth: summaryRes.data.created_this_month ?? 0,
+        outstandingBalance: summaryRes.data.outstanding_balance ?? 0,
+        defaultCountryVendors: summaryRes.data.default_country_parties ?? 0,
+        otherCountryVendors: summaryRes.data.other_country_parties ?? 0,
         vendors,
       }
     },

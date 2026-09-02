@@ -5,7 +5,7 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useUsersSummary } from '../users.queries'
-import { LEAVE_TYPES, useCreateLeaveRequest } from '../leave.queries'
+import { useLeaveTypes, useCreateLeaveRequest } from '../leave.queries'
 import { todayIso } from '../../../shared/localCollection'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -25,6 +25,7 @@ const inputCls = 'w-full h-10 px-3 rounded-lg border border-input-border bg-inpu
 export function LeaveRequestForm() {
   const navigate = useNavigate()
   const { data: usersSummary, isLoading } = useUsersSummary()
+  const { data: leaveTypes } = useLeaveTypes()
   const createLeaveRequest = useCreateLeaveRequest()
 
   const userOptions = useMemo(() => (usersSummary?.users ?? []).map((u) => ({ value: String(u.id), label: `${u.name} (${u.login})` })), [usersSummary])
@@ -77,7 +78,7 @@ export function LeaveRequestForm() {
           <Field label="Type" required>
             <select value={typeCode} onChange={(e) => setTypeCode(e.target.value)} className={inputCls}>
               <option value="">Select…</option>
-              {LEAVE_TYPES.map((t) => (
+              {(leaveTypes ?? []).map((t) => (
                 <option key={t.code} value={t.code}>
                   {t.label}
                 </option>
@@ -142,7 +143,7 @@ export function LeaveRequestForm() {
             </tr>
           </thead>
           <tbody>
-            {LEAVE_TYPES.map((t, i) => (
+            {(leaveTypes ?? []).map((t, i) => (
               <tr key={t.code} className="border-b border-border last:border-0">
                 <td className="px-4 py-2.5 text-text-muted">{i + 1}</td>
                 <td className="px-4 py-2.5 text-text!">{t.label}</td>

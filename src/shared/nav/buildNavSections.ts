@@ -11,23 +11,48 @@ import type { AppMenuResponse, BackendMenuNode } from './appMenu.queries'
 // files. Any real top-level menu key with no entry here (e.g. a module we
 // haven't built any pages for yet, like Budget or Members) still renders,
 // just with an unmapped icon and every leaf unlinked.
+//
+// Keys are lowercased before lookup (see MAINMENU_TO_INTERNAL_KEY_LOWER
+// below) so that case variations in the backend's llx_menu.mainmenu field
+// (e.g. 'Ap' vs 'ap', 'Kitchen' vs 'kitchen') don't cause a miss.
 const MAINMENU_TO_INTERNAL_KEY: Record<string, string> = {
   dashboard: 'home',
+  home: 'home',
   zra: 'zra',
   accountsreceivable: 'sales',
-  Ap: 'purchases',
+  ap: 'purchases',
   productinformation: 'products',
   inventwarehouse: 'warehouses',
   projectmanagement: 'projects',
+  projects: 'projects',
   cashmanagement: 'banking',
+  bank: 'banking',
   employee: 'users',
+  users: 'users',
   payroll: 'payroll',
-  Kitchen: 'kitchen',
+  kitchen: 'kitchen',
   asset: 'fixed-asset',
+  fixedasset: 'fixed-asset',
   generalledger: 'general-ledger',
   ticket: 'ticket',
   administartor: 'administrator',
+  administrator: 'administrator',
+  admin: 'administrator',
   reports: 'reports',
+  expences: 'expenses',
+  expenses: 'expenses',
+  commercial: 'sales',
+  companies: 'sales',
+  hotel: 'kitchen',
+  booking: 'kitchen',
+  budget: 'budget',
+  members: 'members',
+}
+
+// Pre-lowercased version for case-insensitive lookup.
+const MAINMENU_TO_INTERNAL_KEY_LOWER: Record<string, string> = {}
+for (const [k, v] of Object.entries(MAINMENU_TO_INTERNAL_KEY)) {
+  MAINMENU_TO_INTERNAL_KEY_LOWER[k.toLowerCase()] = v
 }
 
 function normalizeLabel(label: string): string {
@@ -66,7 +91,7 @@ export function buildNavSections(menu: AppMenuResponse, existingSections: NavSec
   const existingByKey = new Map(existingSections.map((s) => [s.key, s]))
 
   return menu.topMenus.map((tm) => {
-    const internalKey = MAINMENU_TO_INTERNAL_KEY[tm.key] ?? tm.key
+    const internalKey = MAINMENU_TO_INTERNAL_KEY_LOWER[tm.key.toLowerCase()] ?? tm.key
     const existing = existingByKey.get(internalKey)
     const tree = menu.sections[tm.key] ?? []
     // Some real top-level icons (Members, Reports) have a genuinely empty
