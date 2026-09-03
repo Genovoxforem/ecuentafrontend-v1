@@ -18,6 +18,7 @@ import {
   XCircle,
   Globe,
   Receipt,
+  CalendarDays,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -48,6 +49,7 @@ import type { DashboardSummary } from '../home.queries'
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DONUT_COLORS = ['var(--color-chart-1)', 'var(--color-chart-2)', 'var(--color-chart-8)']
+const VISIBLE_COUNTRIES = 6
 const STATUS_STYLES: Record<number, { label: string; cls: string; icon: LucideIcon }> = {
   0: { label: 'Draft', cls: 'bg-neutral-bg text-neutral-fg', icon: FileEdit },
   1: { label: 'Validated', cls: 'bg-warning-bg text-warning-fg', icon: CheckCircle2 },
@@ -88,6 +90,21 @@ const TONE_CLS: Record<StatTone, string> = {
   danger: 'bg-danger-bg text-danger-fg',
 }
 
+const TONE_COLOR: Record<StatTone, string> = {
+  brand: 'var(--color-brand)',
+  success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
+  info: 'var(--color-info)',
+  danger: 'var(--color-danger)',
+}
+
+// Real day-over-day change — null (never a fabricated 0%/∞%) when there's
+// no real amount to compare against for yesterday.
+function pctChange(curr: number, prev: number): { percent: number; up: boolean } | null {
+  if (!prev) return null
+  return { percent: ((curr - prev) / Math.abs(prev)) * 100, up: curr >= prev }
+}
+
 function IconStat({
   icon: Icon,
   value,
@@ -119,6 +136,56 @@ function ChangeBadge({ percent, up }: { percent: number; up: boolean }) {
       <Icon size={10} />
       {Math.abs(percent).toFixed(1)}%
     </span>
+  )
+}
+
+// One of the hero's 3 "Today" tiles — icon + amount + a real share-of-today
+// gauge, with a real vs-Yesterday badge when there's a real yesterday
+// figure to compare against (`trend` is null otherwise, e.g. Purchases has
+// no backing endpoint at all — see home.queries.ts). `invertSentiment` flips
+// the badge's up/down coloring for metrics where "more" is bad news (a
+// bigger refund total isn't a good trend, even though the number went up).
+function TodayTile({
+  icon: Icon,
+  label,
+  value,
+  gaugePct,
+  tone,
+  trend,
+  invertSentiment = false,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  gaugePct: number
+  tone: StatTone
+  trend: { percent: number; up: boolean } | null
+  invertSentiment?: boolean
+}) {
+  const badgeUp = trend ? (invertSentiment ? !trend.up : trend.up) : true
+  return (
+    <div className="min-w-0 rounded-xl bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10 px-4 py-3.5 backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
+          <Icon size={17} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-text-muted text-xs font-medium leading-tight">{label}</p>
+          <p className="text-lg font-bold text-hero-heading truncate leading-tight mt-0.5">{value}</p>
+        </div>
+        <RadialGauge percent={gaugePct} size={40} strokeWidth={4} color={TONE_COLOR[tone]} />
+      </div>
+      <div className="mt-2.5 pt-2 border-t border-black/5 dark:border-white/10 text-xs flex items-center gap-1.5">
+        {trend ? (
+          <>
+            <ChangeBadge percent={trend.percent} up={badgeUp} />
+            <span className="text-text-faint">vs Yesterday</span>
+          </>
+        ) : (
+          <span className="text-text-faint">No data for yesterday</span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -159,12 +226,23 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
 
 export function HomeOverview({ username, summary }: { username: string; summary: DashboardSummary }) {
   const [tab, setTab] = useState<'Sales' | 'Purchase'>('Sales')
+  const [showAllCountries, setShowAllCountries] = useState(false)
 
-  const { today, zra, banks, salesBreakdown, purchaseBreakdown, monthly, months, period, legacyCounts, recentSales, salesByCurrency } = summary
+  const { today, zra, banks, customers, customersByCountry, salesBreakdown, purchaseBreakdown, monthly, months, period, legacyCounts, recentSales } = summary
 
   const todayTotal = today.invoices_count + today.purchases_count
   const salesSharePct = todayTotal > 0 ? (today.invoices_count / todayTotal) * 100 : 50
   const purchaseSharePct = todayTotal > 0 ? (today.purchases_count / todayTotal) * 100 : 50
+  // Real ratio (refund vs. today's own sales) — not a fabricated decorative
+  // number, same convention as every other RadialGauge on this page.
+  const refundSharePct = today.sales_amount > 0 ? Math.min((today.refund_amount / today.sales_amount) * 100, 100) : 0
+  const salesTrend = pctChange(today.sales_amount, today.sales_amount_yesterday)
+  const refundTrend = pctChange(today.refund_amount, today.refund_amount_yesterday)
+  // Purchases has no real "yesterday" figure at all (no purchase-invoice
+  // endpoint — purchases_amount is always 0), so its tile is left with no
+  // trend rather than comparing 0 to 0.
+  const purchaseTrend = null
+  const todayLabel = fmtDate(new Date().toISOString().slice(0, 10))
 
   const breakdown = tab === 'Sales' ? salesBreakdown : purchaseBreakdown
   const donutData = [
@@ -188,16 +266,17 @@ export function HomeOverview({ username, summary }: { username: string; summary:
   const yearSales = analyticsData.reduce((sum, m) => sum + m.sales, 0)
   const yearCustomers = Math.max(...analyticsData.map((m) => m.customers), 0)
 
-  const currencyMax = Math.max(...salesByCurrency.map((row) => Number(row.total)), 0)
   const bankBalanceMax = Math.max(...banks.map((b) => Math.abs(Number(b.balance))), 0)
+  const topCountry = customersByCountry[0] ?? null
+  const countryMax = topCountry?.count ?? 0
+  const visibleCountries = showAllCountries ? customersByCountry : customersByCountry.slice(0, VISIBLE_COUNTRIES)
 
   return (
     <div className="space-y-4">
-      {/* ── Row 1: Hero banner + top stat cards ─────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-        {/* Hero banner */}
-        <div className="xl:col-span-5 relative overflow-hidden rounded-2xl p-5 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)] border border-border shadow-sm">
-          <div className="relative z-10">
+      {/* ── Row 1: Hero — today's snapshot, full width ───────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl p-5 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)] border border-border shadow-sm">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xl">{getGreetingEmoji()}</span>
               <h2 className="text-xl font-bold text-hero-heading">
@@ -205,70 +284,76 @@ export function HomeOverview({ username, summary }: { username: string; summary:
               </h2>
             </div>
             <p className="text-text-muted text-sm">Here&apos;s what&apos;s happening with your store today</p>
-
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              {(
-                [
-                  ['Sales Today', today.invoices_count, today.sales_amount, salesSharePct, 'var(--color-chart-1)'],
-                  ['Purchase Today', today.purchases_count, today.purchases_amount, purchaseSharePct, 'var(--color-chart-2)'],
-                ] as const
-              ).map(([label, count, amount, pct, color]) => (
-                <div
-                  key={label}
-                  className="min-w-0 rounded-xl bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10 px-3 py-3 flex items-center gap-3 backdrop-blur-sm"
-                >
-                  <RadialGauge percent={pct} size={64} strokeWidth={6} color={color}>
-                    <AnimatedCounter value={count} className="text-base font-bold text-hero-heading leading-none" />
-                  </RadialGauge>
-                  <div className="min-w-0">
-                    <p className="text-text-muted text-xs @sm:text-[13px] leading-tight font-medium">{label}</p>
-                    <p className="text-sm @sm:text-base font-bold text-hero-heading truncate">{fmtMoney(amount)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-text-muted">
-              Today&apos;s Refund <span className="font-semibold text-hero-heading">{fmtMoney(today.refund_amount)}</span>
-            </p>
           </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-hero-heading backdrop-blur-sm">
+            <CalendarDays size={13} />
+            {todayLabel}
+          </span>
         </div>
 
-        {/* Top stat cards row */}
-        <div className="xl:col-span-7 grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            icon={Receipt}
-            label="Total Invoices"
-            value={salesBreakdown.draft_count + salesBreakdown.validated_count}
-            format={fmtCount}
-            sublabel={`${salesBreakdown.validated_count} validated`}
-            tone="brand"
-          />
-          <StatCard
-            icon={Wallet}
-            label="Total Revenue"
-            value={Number(salesBreakdown.total_amount)}
-            format={(n) => fmtMoney(n)}
-            sublabel={`${fmtMoney(salesBreakdown.paid_amount)} paid`}
-            tone="success"
-          />
-          <StatCard
-            icon={Users}
-            label="Customers"
-            value={legacyCounts.salesOrders.value}
-            format={fmtCount}
-            sublabel={`${legacyCounts.shipments.value} shipments`}
-            tone="info"
-          />
-          <StatCard
-            icon={BadgeCheck}
-            label="ZRA Signed"
-            value={zra.signedInvoices.value}
-            format={fmtCount}
-            sublabel={zra.totalSale.value > 0 ? fmtMoney(zra.totalSale.value) : 'No data'}
-            tone="warning"
-          />
+        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <TodayTile icon={ShoppingCart} label="Sales Today" value={fmtMoney(today.sales_amount)} gaugePct={salesSharePct} tone="brand" trend={salesTrend} />
+          <TodayTile icon={Package} label="Purchase Today" value={fmtMoney(today.purchases_amount)} gaugePct={purchaseSharePct} tone="info" trend={purchaseTrend} />
+          <TodayTile icon={RotateCcw} label="Today's Refund" value={fmtMoney(today.refund_amount)} gaugePct={refundSharePct} tone="warning" trend={refundTrend} invertSentiment />
         </div>
       </div>
+
+      {/* ── Row 1.5: Headline KPIs — most important first (Revenue leads,
+          matching a Power BI executive summary). Each metric appears here
+          ONCE; the snapshot strip and breakdown card below cover different,
+          non-overlapping metrics. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          icon={Wallet}
+          label="Total Revenue"
+          value={Number(salesBreakdown.total_amount)}
+          format={(n) => fmtMoney(n)}
+          sublabel={`${fmtMoney(salesBreakdown.paid_amount)} paid`}
+          tone="success"
+        />
+        <StatCard
+          icon={Receipt}
+          label="Total Invoices"
+          value={salesBreakdown.draft_count + salesBreakdown.validated_count}
+          format={fmtCount}
+          sublabel={`${salesBreakdown.validated_count} validated`}
+          tone="brand"
+        />
+        <StatCard
+          icon={Users}
+          label="Customers"
+          value={customers.total}
+          format={fmtCount}
+          sublabel={`${customers.prospects} prospects`}
+          tone="info"
+        />
+        <StatCard
+          icon={BadgeCheck}
+          label="ZRA Signed"
+          value={zra.signedInvoices.value}
+          format={fmtCount}
+          sublabel={zra.totalSale.value > 0 ? fmtMoney(zra.totalSale.value) : 'No data'}
+          tone="warning"
+        />
+      </div>
+
+      {/* ── Row 1.75: ZRA & Orders snapshot ──────────────────────────────
+          Secondary KPIs not already covered by the headline row above (ZRA
+          Signed lives there) — each metric still appears exactly once on
+          the page. Trend/"Last Year" fields exist on these stats
+          (StatWithTrend) but are always 0 — no year-over-year comparison
+          endpoint on this backend — so only the real current value is
+          shown per stat, honestly, rather than a fabricated Last Year/%
+          badge. */}
+      <GlassCard header={<CardHeader icon={BadgeCheck} title="ZRA & Orders Snapshot" tone="success" />}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <IconStat icon={Wallet} value={fmtMoney(zra.totalSale.value)} label="ZRA Total Sale" tone="brand" />
+          <IconStat icon={Receipt} value={fmtMoney(zra.totalTax.value)} label="ZRA Sale Tax" tone="warning" />
+          <IconStat icon={ClipboardList} value={fmtCount(legacyCounts.salesOrders.value)} label="Sales Orders" tone="info" />
+          <IconStat icon={FileSignature} value={fmtCount(legacyCounts.contracts.value)} label="Contract" tone="brand" />
+          <IconStat icon={Package} value={fmtCount(legacyCounts.shipments.value)} label="Shipment" tone="success" />
+        </div>
+      </GlassCard>
 
       {/* ── Row 2: Donut breakdown + Sales Analytics chart ──────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
@@ -319,11 +404,12 @@ export function HomeOverview({ username, summary }: { username: string; summary:
               </div>
             </div>
 
+            {/* Sales Orders / Contracts already appear once in the ZRA &
+                Orders Snapshot strip above — only Quotations is unique to
+                this card, so it's the only one repeated here. */}
             {tab === 'Sales' && (
-              <div className="grid grid-cols-1 @xs:grid-cols-3 gap-3 pt-4 border-t border-border">
-                <IconStat icon={ClipboardList} value={legacyCounts.salesOrders.value} label="Sales Orders" tone="brand" />
+              <div className="pt-4 border-t border-border">
                 <IconStat icon={FileText} value={legacyCounts.quotationsCount} label="Quotations" tone="info" />
-                <IconStat icon={FileSignature} value={legacyCounts.contracts.value} label="Contracts" tone="brand" />
               </div>
             )}
 
@@ -350,7 +436,7 @@ export function HomeOverview({ username, summary }: { username: string; summary:
 
         {/* Sales Analytics composed chart */}
         <GlassCard
-          className="xl:col-span-6"
+          className="xl:col-span-9"
           header={
             <CardHeader
               icon={BarChart3}
@@ -433,50 +519,98 @@ export function HomeOverview({ username, summary }: { username: string; summary:
           </ResponsiveContainer>
         </GlassCard>
 
-        {/* Sales by Country / Currency */}
-        <GlassCard
-          className="xl:col-span-3 flex flex-col h-full"
-          header={<CardHeader icon={Globe} title="Sales by Country" tone="info" />}
-        >
-          <div className="-mx-5 -mt-1 mb-1 overflow-hidden rounded-t-xl bg-[linear-gradient(180deg,var(--color-surface-hover)_0%,transparent_100%)] px-5 pt-2 pb-1">
+      </div>
+
+      {/* ── Row 2.5: Customers by Country — real per-country counts, from
+          each customer's own `country` field (see home.queries.ts). Not
+          sales-by-country: no invoice on this backend carries a country or
+          a customer id to join against, so a real revenue-per-country
+          figure isn't derivable — this shows where the customer base
+          itself is located instead. */}
+      <GlassCard
+        header={<CardHeader icon={Globe} title="Customers by Country" subtitle="Where your customer base is located" tone="info" />}
+        action={
+          <Link to={ROUTES.customerList} className="text-sm text-brand hover:underline font-medium">
+            View all customers
+          </Link>
+        }
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-3 flex lg:flex-col gap-3">
+            <div className="flex-1 rounded-xl border border-border bg-surface-alt/50 p-3.5">
+              <p className="text-xs font-medium text-text-muted">Total Customers</p>
+              <p className="text-2xl font-bold text-text! mt-1">{fmtCount(customers.total)}</p>
+            </div>
+            {topCountry && (
+              <div className="flex-1 rounded-xl border border-border bg-surface-alt/50 p-3.5">
+                <p className="text-xs font-medium text-text-muted mb-1.5">Top Country</p>
+                <IconStat icon={Globe} value={fmtCount(topCountry.count)} label={topCountry.country} tone="brand" />
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-9 -my-1 overflow-hidden rounded-xl bg-[linear-gradient(180deg,var(--color-surface-hover)_0%,transparent_100%)] px-2 py-1">
             <WorldMapDecoration />
           </div>
-          <div className="mt-4 flex-1 flex flex-wrap items-center justify-center gap-5">
-            {salesByCurrency.length === 0 && <p className="text-xs text-text-faint">No sales yet.</p>}
-            {salesByCurrency.map((row, i) => {
-              const pct = currencyMax > 0 ? Math.max((Number(row.total) / currencyMax) * 100, 4) : 0
-              return (
-                <div key={row.currency} className="flex flex-col items-center gap-1.5">
-                  <RadialGauge percent={pct} size={i === 0 ? 92 : 64} strokeWidth={i === 0 ? 8 : 6} color={DONUT_COLORS[i % DONUT_COLORS.length]}>
-                    <span className={`font-bold text-text leading-none ${i === 0 ? 'text-base' : 'text-sm'}`}>{row.currency}</span>
-                  </RadialGauge>
-                  <span className="text-xs text-text-faint tabular-nums">{fmtNumber(row.total)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </GlassCard>
-      </div>
+        </div>
+
+        {customersByCountry.length === 0 ? (
+          <p className="text-xs text-text-faint text-center py-6">No country data yet.</p>
+        ) : (
+          <>
+            <div className="mt-4 space-y-2.5">
+              {visibleCountries.map((row) => {
+                const pct = countryMax > 0 ? (row.count / countryMax) * 100 : 0
+                const share = customers.total > 0 ? (row.count / customers.total) * 100 : 0
+                return (
+                  <div key={row.country} className="flex items-center gap-3 text-sm">
+                    <span className="w-32 shrink-0 text-text truncate">{row.country}</span>
+                    <span className="w-8 shrink-0 text-text-muted tabular-nums text-right">{row.count}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(pct, 4)}%` }} />
+                    </div>
+                    <span className="w-12 shrink-0 text-text-faint text-xs text-right tabular-nums">{share.toFixed(1)}%</span>
+                  </div>
+                )
+              })}
+            </div>
+            {customersByCountry.length > VISIBLE_COUNTRIES && (
+              <button type="button" onClick={() => setShowAllCountries((v) => !v)} className="mt-3 text-xs text-brand hover:underline font-medium">
+                {showAllCountries ? 'Show less' : `Show ${customersByCountry.length - VISIBLE_COUNTRIES} more countries`}
+              </button>
+            )}
+          </>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-border grid grid-cols-3 gap-3">
+          <IconStat icon={Globe} value={fmtCount(customersByCountry.length)} label="Countries" tone="info" />
+          <IconStat icon={Users} value={fmtCount(customers.local)} label="Local Customers" tone="success" />
+          <IconStat icon={Users} value={fmtCount(customers.abroad)} label="International" tone="brand" />
+        </div>
+      </GlassCard>
 
       {/* ── Row 3: Recent sales table + Bank details ────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        {/* Recent sales table */}
+        {/* Recent sales table — fixed height + internal scroll, matching
+            Bank Details alongside it, so this row's height never depends
+            on either card's row/account count (a wide table still scrolls
+            horizontally inside the same box). */}
         <GlassCard
-          className="xl:col-span-8 flex flex-col h-full"
+          className="xl:col-span-8 flex flex-col h-[360px]"
           header={<CardHeader icon={Receipt} title="Last 7 Sales" tone="brand" />}
           action={<Link to={ROUTES.reports} className="text-sm text-brand hover:underline font-medium">View All</Link>}
         >
           {recentSales.length === 0 ? (
-            <div className="flex-1 min-h-40 flex flex-col items-center justify-center gap-2 text-center">
+            <div className="h-full min-h-40 flex flex-col items-center justify-center gap-2 text-center">
               <span className="w-12 h-12 rounded-full grid place-items-center bg-surface-alt text-text-faint">
                 <Receipt size={20} />
               </span>
               <p className="text-xs text-text-faint">No sales yet.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto flex-1 -mx-2">
+            <div className="max-h-[270px] overflow-auto -mx-2">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-surface">
                   <tr className="text-left text-[11px] text-text-faint uppercase tracking-wide border-b border-border">
                     <th className="font-medium pb-2 px-2">Ref.</th>
                     <th className="font-medium pb-2 px-2">Invoice Date</th>
@@ -514,12 +648,17 @@ export function HomeOverview({ username, summary }: { username: string; summary:
           )}
         </GlassCard>
 
-        {/* Bank details */}
+        {/* Bank details — capped height + internal scroll: `overflow-y-auto`
+            alone did nothing here before (GlassCard's own content wrapper
+            isn't a flex container, so `flex-1` on this div never actually
+            bounded its height — it just grew with the account list). A
+            real max-height makes accounts beyond it scroll instead of
+            pushing the whole row taller. */}
         <GlassCard
-          className="xl:col-span-4 flex flex-col h-full"
+          className="xl:col-span-4 flex flex-col h-[360px]"
           header={<CardHeader icon={Landmark} title="Bank Details" tone="success" />}
         >
-          <div className="flex-1 overflow-y-auto soft-scrollbar pr-1 space-y-2.5">
+          <div className="max-h-[270px] overflow-y-auto soft-scrollbar pr-1 space-y-2.5">
             {banks.length === 0 && (
               <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
                 <span className="w-10 h-10 rounded-full grid place-items-center bg-surface-alt text-text-faint">

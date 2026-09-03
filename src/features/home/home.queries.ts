@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { useDashboardStatistics } from './dashboardStats'
 import { useZraSummary } from '../zra/zra.queries'
+import { useBankAccountsList } from '../banking/banking.queries'
+import { useContractsSummary } from '../contracts/contracts.queries'
+import { useCustomersSummary } from '../customers/customers.queries'
 
 export interface StatWithTrend {
   value: number
@@ -24,6 +27,12 @@ export interface DashboardSummary {
     refund_amount: number
     purchases_count: number
     purchases_amount: number
+    // Real, computed from the same invoice rows filtered to yesterday's
+    // date — used for "vs Yesterday" trend badges. No purchase-invoice
+    // endpoint on this backend, so there's no yesterday figure for
+    // purchases either (purchases_amount is always 0 above).
+    sales_amount_yesterday: number
+    refund_amount_yesterday: number
   }
   zra: {
     signedInvoices: StatWithTrend
@@ -31,6 +40,13 @@ export interface DashboardSummary {
     totalTax: StatWithTrend
   }
   banks: Array<{ id: string | number; label: string; balance: number }>
+  customers: { total: number; prospects: number; local: number; abroad: number }
+  // Real per-country customer counts (grouped from each customer's own
+  // `country` field), sorted descending — not sales-by-country: no invoice
+  // on this backend carries a country or a customer id to join against, so
+  // a real revenue-per-country figure isn't derivable (see
+  // useDashboardSummary's header comment).
+  customersByCountry: Array<{ country: string; count: number }>
   salesBreakdown: BreakdownStat
   purchaseBreakdown: BreakdownStat
   // Real sum of credit-note invoices (type=2), shown negative — see
@@ -54,7 +70,6 @@ export interface DashboardSummary {
     total_ttc: number
     fk_statut: 0 | 1 | 2 | 3
   }>
-  salesByCurrency: Array<{ currency: string; total: number }>
 }
 
 const zeroStat = (value = 0): StatWithTrend => ({ value, lastYear: 0, percent: 0, up: true })
@@ -91,14 +106,24 @@ function pad2(n: number) {
 // GET /api/dashboard/ + /api/invoices/ + /api/zra/summary/ — all confirmed
 // live (the ZRA one is the same endpoint zra.queries.ts's ZRA Dashboard
 // already uses — reused here rather than re-fetched, react-query dedupes
-// by its query key). There's no banking, contracts, or purchase invoice
-// endpoint on this backend, so those sections stay honestly zero/empty
-// rather than inventing numbers.
+// by its query key). Bank balances reuse the same real
+// bank-sidebar-list-ajax.php endpoint the Banking module's account list is
+// built on (see banking.queries.ts's useBankAccountsList), and the contract
+// count reuses the real contrat/list_ajax.php endpoint the Contracts
+// module's own summary is built on (see contracts.queries.ts's
+// useContractsSummary), and customersByCountry is grouped from the same
+// real per-customer `country` field the Customers module's own list/detail
+// pages use (see customers.queries.ts's useCustomersSummary) — there's no
+// separate quotations or purchase invoice endpoint on this backend though,
+// so those sections stay honestly zero/empty rather than inventing numbers.
 export function useDashboardSummary() {
   const { data: stats } = useDashboardStatistics()
   const { data: zraSummary } = useZraSummary()
+  const { data: bankAccounts } = useBankAccountsList()
+  const { data: contractsSummary } = useContractsSummary()
+  const { data: customersSummary } = useCustomersSummary()
   return useQuery({
-    queryKey: ['home', 'dashboard', !!stats, !!zraSummary],
+    queryKey: ['home', 'dashboard', !!stats, !!zraSummary, !!bankAccounts, !!contractsSummary, !!customersSummary],
     enabled: !!stats,
     queryFn: async (): Promise<DashboardSummary> => {
       if (!stats) throw new Error('unreachable')
@@ -133,8 +158,19 @@ export function useDashboardSummary() {
       // the confusing "-0.00" instead of "0.00".
       const totalRefund = 0 - creditNotes.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0)
       const todayIso = new Date().toISOString().slice(0, 10)
+      const yesterdayIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       const todayRows = standardInvoices.filter((r) => r.date.slice(0, 10) === todayIso)
       const todayRefundRows = creditNotes.filter((r) => r.date.slice(0, 10) === todayIso)
+      const yesterdayRows = standardInvoices.filter((r) => r.date.slice(0, 10) === yesterdayIso)
+      const yesterdayRefundRows = creditNotes.filter((r) => r.date.slice(0, 10) === yesterdayIso)
+      const countryCounts = new Map<string, number>()
+      for (const c of customersSummary?.customers ?? []) {
+        const country = c.country?.trim()
+        if (!country) continue
+        countryCounts.set(country, (countryCounts.get(country) ?? 0) + 1)
+      }
+      const customersByCountry = [...countryCounts.entries()].map(([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count)
+
       const recentSales = [...invoiceRows]
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 7)
@@ -155,6 +191,8 @@ export function useDashboardSummary() {
           // No purchase-invoice endpoint on this backend.
           purchases_count: 0,
           purchases_amount: 0,
+          sales_amount_yesterday: yesterdayRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
+          refund_amount_yesterday: 0 - yesterdayRefundRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
         },
         // Real ZRA e-invoicing gateway stats (see zra.queries.ts's
         // useZraSummary) — "signed" here means successfully synced to ZRA,
@@ -168,8 +206,19 @@ export function useDashboardSummary() {
               totalTax: zeroStat(zraSummary.vatAmount.succeededAmount),
             }
           : { signedInvoices: zeroStat(), totalSale: zeroStat(), totalTax: zeroStat() },
-        // No banking endpoint on this backend.
-        banks: [],
+        banks: (bankAccounts ?? []).map((b) => ({ id: b.id, label: b.label, balance: b.balance })),
+        // Real live counts from /api/dashboard/'s own customers block — was
+        // previously left unused while the "Customers" stat card showed
+        // legacyCounts.salesOrders.value instead (a mislabeling bug).
+        // local/abroad come from the Customers module's own real summary
+        // split (default vs. other country parties).
+        customers: {
+          total: stats.customers?.total ?? 0,
+          prospects: stats.customers?.prospects ?? 0,
+          local: customersSummary?.defaultCountryCustomers ?? 0,
+          abroad: customersSummary?.otherCountryCustomers ?? 0,
+        },
+        customersByCountry,
         salesBreakdown,
         totalRefund,
         // No purchase-invoice endpoint on this backend.
@@ -179,13 +228,11 @@ export function useDashboardSummary() {
         period: { dateStart },
         legacyCounts: {
           salesOrders: zeroStat(stats.salesOrders?.total ?? 0),
-          // No contract/proposal endpoint on this backend.
-          contracts: zeroStat(),
+          contracts: zeroStat(contractsSummary?.totalContracts ?? 0),
           shipments: zeroStat(stats.salesOrders?.shipped ?? 0),
           quotationsCount: 0,
         },
         recentSales,
-        salesByCurrency: stats.total_revenue > 0 ? [{ currency: stats.currency, total: stats.total_revenue }] : [],
       }
     },
     staleTime: 1000 * 60,

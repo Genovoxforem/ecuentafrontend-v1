@@ -14,7 +14,6 @@ import { LoginModule } from './modules/auth/LoginModule'
 import { ROUTES } from './routes'
 import { PAYROLL_PLACEHOLDERS } from './features/payroll/payrollPlaceholders'
 import { BANKING_PLACEHOLDERS } from './features/banking/bankingPlaceholders'
-import { EXPENSE_PLACEHOLDERS } from './features/expenses/expensesPlaceholders'
 import { TICKET_PLACEHOLDERS } from './features/tickets/ticketsPlaceholders'
 import { MEMBER_PLACEHOLDERS } from './features/members/membersPlaceholders'
 import { FIXED_ASSET_PLACEHOLDERS } from './features/fixedAsset/fixedAssetPlaceholders'
@@ -137,14 +136,31 @@ const LoanCreateModule = lazy(() => import('./modules/banking/LoanCreateModule')
 const CheckDepositCreateModule = lazy(() => import('./modules/banking/CheckDepositCreateModule').then((m) => ({ default: m.CheckDepositCreateModule })))
 const CheckDepositListModule = lazy(() => import('./modules/banking/CheckDepositListModule').then((m) => ({ default: m.CheckDepositListModule })))
 const BankingPlaceholderModule = lazy(() => import('./modules/banking/BankingPlaceholderModule').then((m) => ({ default: m.BankingPlaceholderModule })))
+const AllLoansListModule = lazy(() => import('./modules/loans/AllLoansListModule').then((m) => ({ default: m.AllLoansListModule })))
+const LoanCalculatorModule = lazy(() => import('./modules/loans/LoanCalculatorModule').then((m) => ({ default: m.LoanCalculatorModule })))
+const LoanProductsModule = lazy(() => import('./modules/loans/LoanProductsModule').then((m) => ({ default: m.LoanProductsModule })))
+const LoanRepaymentModule = lazy(() => import('./modules/loans/LoanRepaymentModule').then((m) => ({ default: m.LoanRepaymentModule })))
+const LoanTypeListModule = lazy(() => import('./modules/loans/LoanTypeListModule').then((m) => ({ default: m.LoanTypeListModule })))
+const LoanCustomerListModule = lazy(() => import('./modules/loans/LoanCustomerListModule').then((m) => ({ default: m.LoanCustomerListModule })))
+const LoanCustomerCreateModule = lazy(() => import('./modules/loans/LoanCustomerCreateModule').then((m) => ({ default: m.LoanCustomerCreateModule })))
 const BudgetModule = lazy(() => import('./modules/budget/BudgetModule').then((m) => ({ default: m.BudgetModule })))
 const TicketsListModule = lazy(() => import('./modules/tickets/TicketsListModule').then((m) => ({ default: m.TicketsListModule })))
 const MyAssignedTicketsModule = lazy(() => import('./modules/tickets/MyAssignedTicketsModule').then((m) => ({ default: m.MyAssignedTicketsModule })))
 const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatisticsModule').then((m) => ({ default: m.TicketStatisticsModule })))
 const TicketPlaceholderModule = lazy(() => import('./modules/tickets/TicketPlaceholderModule').then((m) => ({ default: m.TicketPlaceholderModule })))
 const ExpenseReportsListModule = lazy(() => import('./modules/expenses/ExpenseReportsListModule').then((m) => ({ default: m.ExpenseReportsListModule })))
-const ExpensePlaceholderModule = lazy(() => import('./modules/expenses/ExpensePlaceholderModule').then((m) => ({ default: m.ExpensePlaceholderModule })))
 const SpecialExpensesModule = lazy(() => import('./modules/expenses/SpecialExpensesModule').then((m) => ({ default: m.SpecialExpensesModule })))
+const ExpenseDashboardModule = lazy(() => import('./modules/expenses/ExpenseDashboardModule').then((m) => ({ default: m.ExpenseDashboardModule })))
+const ExpenseCreateModule = lazy(() => import('./modules/expenses/ExpenseCreateModule').then((m) => ({ default: m.ExpenseCreateModule })))
+const ExpenseApprovalsModule = lazy(() => import('./modules/expenses/ExpenseApprovalsModule').then((m) => ({ default: m.ExpenseApprovalsModule })))
+const ExpensePaymentsModule = lazy(() => import('./modules/expenses/ExpensePaymentsModule').then((m) => ({ default: m.ExpensePaymentsModule })))
+const ExpenseAdvancesModule = lazy(() => import('./modules/expenses/ExpenseAdvancesModule').then((m) => ({ default: m.ExpenseAdvancesModule })))
+const ExpenseReimbursementsModule = lazy(() => import('./modules/expenses/ExpenseReimbursementsModule').then((m) => ({ default: m.ExpenseReimbursementsModule })))
+const ExpenseRepaymentsModule = lazy(() => import('./modules/expenses/ExpenseRepaymentsModule').then((m) => ({ default: m.ExpenseRepaymentsModule })))
+const ExpenseRecurringModule = lazy(() => import('./modules/expenses/ExpenseRecurringModule').then((m) => ({ default: m.ExpenseRecurringModule })))
+const ExpenseReportsModule = lazy(() => import('./modules/expenses/ExpenseReportsModule').then((m) => ({ default: m.ExpenseReportsModule })))
+const ExpenseAnalyticsModule = lazy(() => import('./modules/expenses/ExpenseAnalyticsModule').then((m) => ({ default: m.ExpenseAnalyticsModule })))
+const ExpenseBudgetsModule = lazy(() => import('./modules/expenses/ExpenseBudgetsModule').then((m) => ({ default: m.ExpenseBudgetsModule })))
 const LedgerModule = lazy(() => import('./modules/ledger/LedgerModule').then((m) => ({ default: m.LedgerModule })))
 const JournalsModule = lazy(() => import('./modules/ledger/JournalsModule').then((m) => ({ default: m.JournalsModule })))
 const SubledgerModule = lazy(() => import('./modules/ledger/SubledgerModule').then((m) => ({ default: m.SubledgerModule })))
@@ -413,6 +429,13 @@ function App() {
                   {BANKING_PLACEHOLDERS.map((p) => (
                     <Route key={p.path} path={p.path} element={<RouteBoundary><BankingPlaceholderModule /></RouteBoundary>} />
                   ))}
+                  <Route path={ROUTES.loanManagementList} element={<RouteBoundary><AllLoansListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.loanCalculator} element={<RouteBoundary><LoanCalculatorModule /></RouteBoundary>} />
+                  <Route path={ROUTES.loanProducts} element={<RouteBoundary><LoanProductsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.loanRepayment} element={<RouteBoundary><LoanRepaymentModule /></RouteBoundary>} />
+                  <Route path={ROUTES.loanType} element={<RouteBoundary><LoanTypeListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.loanCustomerList} element={<RouteBoundary><LoanCustomerListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.loanCustomerCreate} element={<RouteBoundary><LoanCustomerCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.budget} element={<RouteBoundary><BudgetModule /></RouteBoundary>} />
                   <Route path={ROUTES.ticketList} element={<RouteBoundary><TicketsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.ticketMyAssigned} element={<RouteBoundary><MyAssignedTicketsModule /></RouteBoundary>} />
@@ -422,9 +445,17 @@ function App() {
                   ))}
                   <Route path={ROUTES.expensesList} element={<RouteBoundary><ExpenseReportsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.specialExpenses} element={<RouteBoundary><SpecialExpensesModule /></RouteBoundary>} />
-                  {EXPENSE_PLACEHOLDERS.map((p) => (
-                    <Route key={p.path} path={p.path} element={<RouteBoundary><ExpensePlaceholderModule /></RouteBoundary>} />
-                  ))}
+                  <Route path={ROUTES.expensesOverview} element={<RouteBoundary><ExpenseDashboardModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesCreate} element={<RouteBoundary><ExpenseCreateModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesApprovals} element={<RouteBoundary><ExpenseApprovalsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesPayments} element={<RouteBoundary><ExpensePaymentsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesAdvances} element={<RouteBoundary><ExpenseAdvancesModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesReimbursements} element={<RouteBoundary><ExpenseReimbursementsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesRepayments} element={<RouteBoundary><ExpenseRepaymentsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesRecurring} element={<RouteBoundary><ExpenseRecurringModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesReports} element={<RouteBoundary><ExpenseReportsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesAnalytics} element={<RouteBoundary><ExpenseAnalyticsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.expensesBudgets} element={<RouteBoundary><ExpenseBudgetsModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerDashboard} element={<RouteBoundary><LedgerModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerList} element={<RouteBoundary><JournalsModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerSubledger} element={<RouteBoundary><SubledgerModule /></RouteBoundary>} />

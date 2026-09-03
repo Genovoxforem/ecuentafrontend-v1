@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AddContactModal } from './AddContactModal'
+import { ActivityFormModal } from './ActivityFormModal'
+import { ActivityDetailModal } from './ActivityDetailModal'
+import { ScheduleActivityModal } from './ScheduleActivityModal'
 import {
   ChevronLeft,
   X,
@@ -35,6 +38,10 @@ import {
   Truck,
   Search,
   Upload,
+  Eye,
+  ListChecks,
+  History,
+  LoaderCircle,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -55,6 +62,7 @@ import {
 import {
   useCustomerLedger,
   useCustomerActivities,
+  useActivityDetail,
   useCustomerContacts,
   useCustomerContracts,
   useCustomerTab,
@@ -820,7 +828,47 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
 }
 
-function ActivityTable({ items, emptyLabel }: { items: ActivityItem[]; emptyLabel: string }) {
+type ActivityPanel = 'view' | 'edit' | 'schedule'
+
+// Loads the full ActivityDetail record on demand (the list rows are a
+// leaner subset — see ActivityItem vs ActivityDetail in
+// customerDetailTabs.queries.ts) and hands it to the right modal for
+// whichever Actions-column icon was clicked. Matches the real page's own
+// activities.php?action=detail round-trip on every icon click (see
+// activities.js's openActivity), rather than assuming the list row already
+// has enough data.
+function ActivityActionModal({ socid, activityId, panel, onClose }: { socid: string; activityId: number; panel: ActivityPanel; onClose: () => void }) {
+  const { data, isLoading, isError, error, refetch } = useActivityDetail(socid, activityId)
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="rounded-lg bg-surface border border-border p-6 shadow-xl flex items-center gap-2 text-sm text-text-muted" onClick={(e) => e.stopPropagation()}>
+          <LoaderCircle size={16} className="animate-spin" /> Loading…
+        </div>
+      </div>
+    )
+  }
+  if (isError || !data) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <LegacyErrorCard title="Couldn't load activity" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+        </div>
+      </div>
+    )
+  }
+  if (panel === 'schedule') return <ScheduleActivityModal socid={socid} item={data} onClose={onClose} />
+  if (panel === 'edit') {
+    const type: ActivityType = data.processtype === 'meeting' ? 'meetings' : data.processtype === 'calls' ? 'calls' : 'tasks'
+    return <ActivityFormModal socid={socid} type={type} mode="edit" initial={data} onClose={onClose} />
+  }
+  return <ActivityDetailModal socid={socid} item={data} onClose={onClose} />
+}
+
+// Actions column matches the real page's own 3 icons exactly (View always;
+// Edit/Schedule only on open items — see
+// activities.js's actionButtons()/isOpen check).
+function ActivityTable({ items, emptyLabel, onAction }: { items: ActivityItem[]; emptyLabel: string; onAction: (id: number, panel: ActivityPanel) => void }) {
   if (items.length === 0) return <p className="text-sm text-text-faint italic py-4 text-center">{emptyLabel}</p>
   return (
     <table className="w-full text-sm">
@@ -830,44 +878,95 @@ function ActivityTable({ items, emptyLabel }: { items: ActivityItem[]; emptyLabe
           <th className="font-medium py-2 pr-3">Date</th>
           <th className="font-medium py-2 pr-3">Priority</th>
           <th className="font-medium py-2 pr-3">Accounting Needs</th>
-          <th className="font-medium py-2">Status</th>
+          <th className="font-medium py-2 pr-3">Status</th>
+          <th className="font-medium py-2 text-right">Actions</th>
         </tr>
       </thead>
       <tbody>
-        {items.map((item) => (
-          <tr key={item.id} className="border-b border-border last:border-0">
-            <td className="py-2 pr-3">
-              <p className="font-medium text-text!">{item.subject}</p>
-              {item.description && <p className="text-xs text-text-faint">{item.description}</p>}
-            </td>
-            <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{item.duedate || item.createddate}</td>
-            <td className="py-2 pr-3 text-text-muted capitalize">{item.priority}</td>
-            <td className="py-2 pr-3 text-text-muted capitalize">{item.relatedto}</td>
-            <td className="py-2">
-              <StatusBadge status={item.status} />
-            </td>
-          </tr>
-        ))}
+        {items.map((item) => {
+          const isOpen = item.status === 'open'
+          return (
+            <tr key={item.id} className="border-b border-border last:border-0">
+              <td className="py-2 pr-3">
+                <p className="font-medium text-text!">{item.subject}</p>
+                {item.description && <p className="text-xs text-text-faint">{item.description}</p>}
+              </td>
+              <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{item.duedate || item.createddate}</td>
+              <td className="py-2 pr-3 text-text-muted capitalize">{item.priority}</td>
+              <td className="py-2 pr-3 text-text-muted capitalize">{item.relatedto}</td>
+              <td className="py-2 pr-3">
+                <StatusBadge status={item.status} />
+              </td>
+              <td className="py-2 text-right">
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onAction(item.id, 'view')}
+                    title="View"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand"
+                  >
+                    <Eye size={14} />
+                  </button>
+                  {isOpen && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onAction(item.id, 'edit')}
+                        title="Edit"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onAction(item.id, 'schedule')}
+                        title="Schedule"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-info hover:bg-info-bg"
+                      >
+                        <CalendarClock size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
 }
 
+const ACTIVITY_TYPE_LABEL: Record<ActivityType, string> = { tasks: 'Task', meetings: 'Meeting', calls: 'Call' }
+
 function ActivitySubtab({ socid, type }: { socid: string | undefined; type: ActivityType }) {
   const { data, isLoading, isError, error, refetch } = useCustomerActivities(socid, type)
+  const [action, setAction] = useState<{ id: number; panel: ActivityPanel } | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
   if (isLoading) return <LegacyLoadingCard label={`Loading ${type}…`} />
   if (isError || !data) {
     return <LegacyErrorCard title={`Couldn't load ${type}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   }
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        >
+          <Plus size={14} /> Add
+        </button>
+      </div>
+      {showAdd && socid && <ActivityFormModal socid={socid} type={type} mode="create" onClose={() => setShowAdd(false)} />}
+      {action && socid && <ActivityActionModal socid={socid} activityId={action.id} panel={action.panel} onClose={() => setAction(null)} />}
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-text!">Open Activity</h3>
           <span className="text-xs text-text-faint">{data.open.length}</span>
         </div>
         <div className="px-4 py-2 overflow-x-auto">
-          <ActivityTable items={data.open} emptyLabel="No open items." />
+          <ActivityTable items={data.open} emptyLabel={`No open ${ACTIVITY_TYPE_LABEL[type].toLowerCase()}s.`} onAction={(id, panel) => setAction({ id, panel })} />
         </div>
       </Card>
       <Card className="!h-auto !p-0 overflow-hidden">
@@ -876,33 +975,35 @@ function ActivitySubtab({ socid, type }: { socid: string | undefined; type: Acti
           <span className="text-xs text-text-faint">{data.closed.length}</span>
         </div>
         <div className="px-4 py-2 overflow-x-auto">
-          <ActivityTable items={data.closed} emptyLabel="No closed items." />
+          <ActivityTable items={data.closed} emptyLabel={`No closed ${ACTIVITY_TYPE_LABEL[type].toLowerCase()}s.`} onAction={(id, panel) => setAction({ id, panel })} />
         </div>
       </Card>
     </div>
   )
 }
 
-const ACTIVITY_SUBTABS: Array<{ key: ActivityType | 'timeline'; label: string }> = [
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'meetings', label: 'Meetings' },
-  { key: 'calls', label: 'Calls' },
-  { key: 'timeline', label: 'Timeline' },
+const ACTIVITY_SUBTABS: Array<{ key: ActivityType | 'timeline'; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
+  { key: 'tasks', label: 'Tasks', icon: ListChecks },
+  { key: 'meetings', label: 'Meetings', icon: Users2 },
+  { key: 'calls', label: 'Calls', icon: Phone },
+  { key: 'timeline', label: 'Timeline', icon: History },
 ]
 
 function ActivitiesTab({ socid }: { socid: string | undefined }) {
   const [subtab, setSubtab] = useState<ActivityType | 'timeline'>('tasks')
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-1 border-b border-border">
+      <div className="flex items-center gap-1.5">
         {ACTIVITY_SUBTABS.map((s) => (
           <button
             key={s.key}
             type="button"
             onClick={() => setSubtab(s.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${subtab === s.key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'}`}
+            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              subtab === s.key ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:bg-surface-hover'
+            }`}
           >
-            {s.label}
+            <s.icon size={14} /> {s.label}
           </button>
         ))}
       </div>

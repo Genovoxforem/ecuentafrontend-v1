@@ -17,7 +17,7 @@
     "@tanstack/react-query-devtools": "^5.101.4",
     "@tanstack/react-virtual": "^3.14.10",
     "axios": "^1.19.0",
-    "exceljs": "^4.4.0",
+    "exceljs": "^3.4.0",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.28.0",
     "qrcode": "^1.5.4",
