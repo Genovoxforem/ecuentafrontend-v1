@@ -3,13 +3,18 @@ import { Plane } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useUsersSummary } from '../../users/users.queries'
+import { useAuth } from '../../auth/AuthContext'
+import { ROUTES } from '../../../routes'
 import { useCreateTravel } from '../payrollActions.queries'
+import { useRecordTravel } from '../payrollLists.queries'
 
 // Real via payroll/ajax.php?savetravel=1... (payroll/travel.php's
 // "Add Travel" panel).
 export function TravelForm() {
   const { data: users } = useUsersSummary()
+  const { user } = useAuth()
   const createTravel = useCreateTravel()
+  const recordTravel = useRecordTravel()
 
   const [employeeId, setEmployeeId] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -37,9 +42,15 @@ export function TravelForm() {
     if (!endDate) return setError('Select an end date.')
     if (!purpose.trim()) return setError('Enter the purpose of trip.')
     if (!country.trim()) return setError('Enter a country.')
+    const employee = users?.users.find((u) => String(u.id) === employeeId)
+    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
     createTravel.mutate(
       { employeeId: Number(employeeId), startDate, endDate, purpose, country, description },
-      { onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.') },
+      {
+        onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
+        onSuccess: () =>
+          recordTravel.add({ employeeName: employee?.name || employee?.login || 'Unknown', startDate, endDate, purpose, country, description, createdBy }),
+      },
     )
   }
 
@@ -54,6 +65,7 @@ export function TravelForm() {
       successMessage="Travel saved."
       errorMessage={error}
       onAddAnother={reset}
+      backTo={ROUTES.payrollEmployeeTravel}
     >
       <Field label="Employee" required>
         <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={inputClasses}>

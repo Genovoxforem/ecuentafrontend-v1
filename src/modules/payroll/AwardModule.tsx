@@ -1,5 +1,5 @@
-import { AwardForm } from '../../features/payroll/components/AwardForm'
+import { AwardList } from '../../features/payroll/components/AwardList'
 
 export function AwardModule() {
-  return <AwardForm />
+  return <AwardList />
 }

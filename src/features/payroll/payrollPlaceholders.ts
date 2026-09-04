@@ -1,12 +1,7 @@
 import type { ComponentType } from 'react'
 import {
-  CalendarClock,
-  CreditCard,
-  Gift,
-  FileText,
   BarChart,
   Plus,
-  Settings2,
   BookUser,
   Briefcase,
 } from 'lucide-react'
@@ -26,9 +21,9 @@ export interface PayrollPlaceholder {
 }
 
 export const PAYROLL_PLACEHOLDERS: PayrollPlaceholder[] = [
-  // Human Resource
-  { path: ROUTES.payrollLeaveRequest, icon: CalendarClock, title: 'Leave Request', description: 'Real page: holiday/card.php (Dolibarr core Leave/CP module, reused) — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollAllLeaveRequest, icon: CalendarClock, title: 'All Leave Request', description: 'Real page: holiday/list.php — classic list page, no JSON API.' },
+  // Human Resource: Leave Request / All Leave Request now reuse the real
+  // users/leave.queries.ts + LeaveList/LeaveRequestForm implementation (see
+  // modules/payroll/PayrollLeaveListModule.tsx / PayrollLeaveRequestModule.tsx).
   // Calendar Holidays, Employee Award/Transfers/Resignation/Travel/
   // Complaints/Warnings/Terminations now have real wired forms — see
   // payrollActions.queries.ts (payroll/ajax.php is a real write endpoint
@@ -50,17 +45,18 @@ export const PAYROLL_PLACEHOLDERS: PayrollPlaceholder[] = [
   // (payroll/loadcalculation.php, payroll/ajax_search.php, or a plain
   // server-rendered report with no API at all) — see each component's own
   // comment for specifics.
-  // Salary Payments
-  { path: ROUTES.payrollGenerateMakePayment, icon: CreditCard, title: 'Generate And Make Payment', description: 'Real page: payroll/payment.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollGratuityPayment, icon: Gift, title: 'Gratuity Payment', description: 'Real page: payroll/gratuity_payment.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollGeneratePayslip, icon: FileText, title: 'Generate Payslip', description: 'Real page: payroll/payslip.php + payslip_pdf.php — classic form-POST, no JSON API.' },
-  { path: ROUTES.payrollYtdPayslip, icon: FileText, title: 'YTD Payslip', description: 'Real page: payroll/ytd_payslip.php — classic report page, no JSON API.' },
+  // Salary Payments: Generate And Make Payment, Gratuity Payment, Generate
+  // Payslip, and YTD Payslip now have their own layout-matched components
+  // (MakePaymentForm.tsx, GratuityPaymentForm.tsx, GeneratePayslipForm.tsx,
+  // YtdPayslipForm.tsx) instead of this generic placeholder — see each
+  // one's own comment for why their write/detail actions stay disabled.
   { path: ROUTES.payrollYtdSummary, icon: BarChart, title: 'YTD Payroll Summary', description: 'Real page: payroll/ytd_summary.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollYtdEarningsDeductions, icon: BarChart, title: 'YTD Earnings & Deductions', description: 'Real page: payroll/earn_dedu.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollSummary, icon: BarChart, title: 'Payroll Summary', description: 'Real page: payroll/payroll_summary.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollMonthlyAllowanceDeduction, icon: Plus, title: 'Create Monthly Allowance/Deduction', description: 'Real page: payroll/pay_deduction.php — classic form-POST, no JSON API.' },
-  // Reports
-  { path: ROUTES.payrollReportMonthlyOverallAttendance, icon: BarChart, title: 'Monthly Over All Attendance Report', description: 'Real page: payroll/atten_overall_rip.php — classic report page, no JSON API.' },
+  // Reports: Monthly Over All Attendance Report now has its own inert,
+  // layout-matched component (OverallAttendanceReportForm.tsx) instead of
+  // this generic placeholder.
   { path: ROUTES.payrollReportEmployeeWiseMonthlyAttendance, icon: BarChart, title: 'Employee Wise Monthly Attendance Report', description: 'Real page: payroll/atten_emp_rip.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollReportAttendancePeriodWise, icon: BarChart, title: 'Attendance Period Wise Date Report', description: 'Real page: payroll/atten_period_rip.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollReportEmployeeAbsenties, icon: BarChart, title: 'Employee Date Wise Absenties Report', description: 'Real page: payroll/absent_list.php — classic report page, no JSON API.' },
@@ -76,8 +72,9 @@ export const PAYROLL_PLACEHOLDERS: PayrollPlaceholder[] = [
   { path: ROUTES.payrollReportNhima, icon: BarChart, title: 'NHIMA Report', description: 'Real page: payroll/nhima_report.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollReportContribution, icon: BarChart, title: 'Contribution Report', description: 'Real page: payroll/employer_contribution.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollReportShiftTimeline, icon: BarChart, title: 'Shift Timeline Report', description: 'Real page: payroll/shift_timeline.php — classic report page, no JSON API.' },
-  // Settings
-  { path: ROUTES.payrollSetup, icon: Settings2, title: 'Payroll Setup', description: 'Real page: custom/payroll/admin/setup.php — classic form-POST, no JSON API.' },
+  // Settings: Payroll Setup now has its own inert, layout-matched component
+  // (PayrollSetupForm.tsx, Settings tab only) instead of this generic
+  // placeholder.
   { path: ROUTES.payrollTypesOfLeave, icon: BookUser, title: 'Types Of Leave', description: 'Real page: admin/dict.php?id=28 (Dolibarr generic dictionary editor) — classic form-POST, no JSON API.' },
   { path: ROUTES.payrollHrmDepartmentList, icon: Briefcase, title: 'HRM Department List', description: 'Real page: admin/dict.php?id=33 — classic form-POST, no JSON API.' },
   { path: ROUTES.payrollHrmJobPositions, icon: Briefcase, title: 'HRM Job Positions', description: 'Real page: admin/dict.php?id=34 — classic form-POST, no JSON API.' },

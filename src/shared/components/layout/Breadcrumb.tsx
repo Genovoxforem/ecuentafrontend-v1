@@ -1,20 +1,18 @@
 import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Home } from 'lucide-react'
-import type { NavItem, NavLeafItem, NavSection } from '../../../features/navTypes'
-
-function isLeaf(item: NavItem): item is NavLeafItem {
-  return !('items' in item) || !item.items
-}
+import type { NavItem, NavSection } from '../../../features/navTypes'
 
 // Walks a section's item tree depth-first and returns the chain of labels
-// from the section root down to the leaf whose path matches `pathname`.
+// from the section root down to whichever item's own path matches
+// `pathname` — checked before descending, since a real node (e.g. Agenda's
+// "Events") can be both a link and a group; matching it stops the chain
+// right there instead of also requiring one of its children to match.
 // Returns null if no item in this section matches.
 function findBreadcrumbChain(items: NavItem[], pathname: string): string[] | null {
   for (const item of items) {
-    if (isLeaf(item)) {
-      if (item.path === pathname) return [item.label]
-    } else {
+    if (item.path === pathname) return [item.label]
+    if ('items' in item && item.items) {
       const nested = findBreadcrumbChain(item.items, pathname)
       if (nested) return [item.label, ...nested]
     }
@@ -23,8 +21,8 @@ function findBreadcrumbChain(items: NavItem[], pathname: string): string[] | nul
 }
 
 function itemMatchesPath(item: NavItem, pathname: string): boolean {
-  if (isLeaf(item)) return item.path === pathname
-  return item.items.some((sub) => itemMatchesPath(sub, pathname))
+  if (item.path === pathname) return true
+  return 'items' in item && !!item.items && item.items.some((sub) => itemMatchesPath(sub, pathname))
 }
 
 function sectionContainsPath(section: NavSection, pathname: string): boolean {

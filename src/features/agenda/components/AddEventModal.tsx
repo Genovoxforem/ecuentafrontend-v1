@@ -199,8 +199,13 @@ export function AddEventModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-xl bg-surface border border-border shadow-xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+      {/* flex-col + a lone overflow-y-auto middle section (not overflow on
+          this whole wrapper) keeps the title and the Save/Cancel footer
+          on-screen while only the form fields scroll — on a short viewport
+          the old single-scroll-container version scrolled the header and
+          the footer's Save button away together with the fields. */}
+      <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl bg-surface border border-border shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border shrink-0">
           <div className="flex items-start gap-3">
             <span className="shrink-0 w-10 h-10 rounded-lg grid place-items-center bg-brand text-white">
               <CalendarPlus size={18} />
@@ -215,7 +220,7 @@ export function AddEventModal({
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-5 overflow-y-auto flex-1 min-h-0">
           {isLoading ? (
             <LegacyLoadingCard label="Loading event options…" />
           ) : isError || !options ? (
@@ -262,15 +267,15 @@ export function AddEventModal({
               <div />
 
               <Field label="Start date" required>
-                <div className="flex gap-1.5">
+                <div className="flex flex-col sm:flex-row gap-1.5">
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
-                  {!fullday && <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={`${inputCls} w-28 shrink-0`} />}
+                  {!fullday && <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={`${inputCls} sm:w-28 sm:shrink-0`} />}
                 </div>
               </Field>
               <Field label="End date" required>
-                <div className="flex gap-1.5">
+                <div className="flex flex-col sm:flex-row gap-1.5">
                   <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
-                  {!fullday && <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={`${inputCls} w-28 shrink-0`} />}
+                  {!fullday && <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={`${inputCls} sm:w-28 sm:shrink-0`} />}
                 </div>
               </Field>
 
@@ -339,7 +344,7 @@ export function AddEventModal({
         </div>
 
         {!isLoading && !isError && options && !createEvent.isSuccess && (
-          <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+          <div className="flex justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
             <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-md text-sm font-medium border border-border text-text-muted hover:bg-surface-hover">
               Cancel
             </button>

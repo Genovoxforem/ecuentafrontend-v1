@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, RotateCcw, RefreshCw, Cake, Umbrella } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Check, Plus, RotateCcw, RefreshCw, Cake, Umbrella, Search, Clock } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
+import { formatDateTimeAmPm } from '../../../utils/format'
 import { useAuth } from '../../auth/AuthContext'
 import { AddEventModal } from './AddEventModal'
-import { useAgendaFilterOptions, useCalendarEvents, type CalendarEvent, type CalendarViewMode } from '../calendarApi.queries'
+import { EventDetailModal } from './EventDetailModal'
+import { useAgendaFilterOptions, useCalendarEvents, type ActionType, type CalendarEvent, type CalendarViewMode } from '../calendarApi.queries'
 
 // Real "no owner restriction" sentinel this endpoint itself uses (see
 // calendar_api.php: only `filtert > 0` adds the assignment WHERE clause) —
@@ -29,21 +31,23 @@ function toDateInputValue(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function EventChip({ ev }: { ev: CalendarEvent }) {
+// Dot + title/time pill, matching the reference design's calendar-cell
+// event style (a colored dot keyed to the real type color, not the old
+// left-border-bar treatment).
+function EventChip({ ev, onOpen }: { ev: CalendarEvent; onOpen: (id: number) => void }) {
   return (
-    <a
-      href={ev.url}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={() => onOpen(ev.id)}
       title={`${ev.typeLabel}${ev.location ? ' · ' + ev.location : ''}`}
-      style={{ borderColor: ev.typeColor }}
-      className="block rounded-md border-l-2 bg-surface px-1.5 py-1 text-[11px] leading-tight hover:bg-surface-hover"
+      className="flex w-full items-start gap-1.5 rounded-md bg-surface px-1.5 py-1 text-left text-[11px] leading-tight hover:bg-surface-hover"
     >
-      <p className="font-semibold text-text!">
-        {ev.fullDayEvent ? 'All day' : fmtTime(ev.startMs)} · {ev.label}
-      </p>
-      {(ev.thirdpartyName || ev.userOwner) && <p className="text-text-muted line-clamp-1">{ev.thirdpartyName || ev.userOwner}</p>}
-    </a>
+      <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ev.typeColor }} />
+      <span className="min-w-0">
+        <span className="block truncate font-semibold text-text!">{ev.label}</span>
+        <span className="block text-text-faint">{ev.fullDayEvent ? 'All day' : fmtTime(ev.startMs)}</span>
+      </span>
+    </button>
   )
 }
 
@@ -92,6 +96,81 @@ function MiniCalendar({ month, onSelect }: { month: Date; onSelect: (d: Date) =>
   )
 }
 
+// Checkbox dropdown for Type — same click-outside pattern as Navbar.tsx's
+// panels (ref + mousedown listener) — replaces the old inline chip list so
+// picking among a potentially long, real c_actioncomm type list doesn't
+// take over the whole filter row.
+function TypeFilterDropdown({
+  types,
+  activeTypes,
+  onToggle,
+  onSelectAll,
+  onDeselectAll,
+}: {
+  types: ActionType[]
+  activeTypes: Set<string> | null
+  onToggle: (code: string) => void
+  onSelectAll: () => void
+  onDeselectAll: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  const selectedCount = activeTypes?.size ?? 0
+  const label = selectedCount === 0 ? 'No types' : selectedCount === types.length ? 'All Types' : `${selectedCount} Type${selectedCount === 1 ? '' : 's'}`
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none hover:bg-surface-hover"
+      >
+        {label}
+        <ChevronDown size={14} className={`text-text-faint transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-64 max-h-80 overflow-y-auto rounded-md border border-border bg-surface shadow-lg z-20 py-1">
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border">
+            <button type="button" onClick={onSelectAll} className="text-xs font-medium text-brand hover:underline">
+              Select all
+            </button>
+            <button type="button" onClick={onDeselectAll} className="text-xs font-medium text-brand hover:underline">
+              Deselect all
+            </button>
+          </div>
+          {types.map((t) => {
+            const checked = activeTypes?.has(t.code) ?? false
+            return (
+              <button
+                key={t.code}
+                type="button"
+                onClick={() => onToggle(t.code)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-surface-hover"
+              >
+                <span className={`flex items-center justify-center w-4 h-4 rounded border shrink-0 ${checked ? 'bg-brand border-brand' : 'border-input-border'}`}>
+                  {checked && <Check size={11} className="text-white" />}
+                </span>
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color || '#397db9' }} />
+                <span className="truncate text-text!">{t.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 type ViewMode = 'month' | 'week' | 'day' | 'list'
 const VIEW_TO_BACKEND_MODE: Record<ViewMode, CalendarViewMode> = { month: 'show_month', week: 'show_week', day: 'show_day', list: 'show_month' }
 
@@ -100,6 +179,16 @@ const VIEW_TO_BACKEND_MODE: Record<ViewMode, CalendarViewMode> = { month: 'show_
 // User Group, Status, Type) and every rendered event comes straight from
 // llx_actioncomm (plus real birthdays/holidays when those checks are on) —
 // there is no local/fake activity-log layer left in this page.
+//
+// Layout follows the reference design (quick filter bar + calendar/list
+// card + legend + a full-width Upcoming Events section), with the mini
+// calendar as the only sidebar item. Both filter bars — the quick one
+// (Search/Status/Owner/Project/Date range/Clear) and the secondary one
+// (User Group, Type, Third-Party, Tag/Category, Resource, Birthdays/
+// Holidays) — live together in the sticky header, right next to each
+// other, instead of the second one sitting apart down by the calendar.
+// Owner/Status/Project/Date range live in exactly one place (the top
+// quick filter bar) instead of being wired to two controls sharing state.
 export function AgendaOverview() {
   const { user } = useAuth()
   const { data: options } = useAgendaFilterOptions()
@@ -128,6 +217,8 @@ export function AgendaOverview() {
   const [showBirthday, setShowBirthday] = useState(false)
   const [checkHoliday, setCheckHoliday] = useState(false)
   const [showNewEvent, setShowNewEvent] = useState(searchParams.get('new') === '1')
+  const [viewEventId, setViewEventId] = useState<number | null>(null)
+  const [searchText, setSearchText] = useState('')
 
   // Default owner to the current logged-in user once real users load —
   // matches the real backend's own default (filtert = $user->id).
@@ -175,6 +266,7 @@ export function AgendaOverview() {
     setResourceId(undefined)
     setShowBirthday(false)
     setCheckHoliday(false)
+    setSearchText('')
     setAnchor(new Date())
     setView('month')
   }
@@ -197,11 +289,22 @@ export function AgendaOverview() {
     showBirthday,
     checkHoliday,
   })
-  const visibleEvents = useMemo(() => events ?? [], [events])
+  const fetchedEvents = useMemo(() => events ?? [], [events])
+
+  // Client-side text filter over the already-fetched real events — the
+  // reference design's search box has no dedicated backend param
+  // (calendar_api.php's own getEvents takes no search string), so this
+  // narrows real data already on hand rather than adding a guessed filter
+  // param the endpoint would just ignore.
+  const visibleEvents = useMemo(() => {
+    const q = searchText.trim().toLowerCase()
+    if (!q) return fetchedEvents
+    return fetchedEvents.filter((ev) => ev.label.toLowerCase().includes(q) || ev.description.toLowerCase().includes(q))
+  }, [fetchedEvents, searchText])
 
   const upcoming = useMemo(() => {
     const now = Date.now()
-    return [...visibleEvents].filter((e) => e.startMs >= now).sort((a, b) => a.startMs - b.startMs).slice(0, 5)
+    return [...visibleEvents].filter((e) => e.startMs >= now).sort((a, b) => a.startMs - b.startMs).slice(0, 6)
   }, [visibleEvents])
 
   function toggleType(code: string) {
@@ -211,6 +314,14 @@ export function AgendaOverview() {
       else next.add(code)
       return next
     })
+  }
+
+  function selectAllTypes() {
+    setActiveTypes(new Set(options?.types.map((t) => t.code)))
+  }
+
+  function deselectAllTypes() {
+    setActiveTypes(new Set())
   }
 
   function shift(delta: number) {
@@ -229,14 +340,13 @@ export function AgendaOverview() {
   const monthGridDays = useMemo(() => {
     if (view !== 'month') return []
     const gridStart = startOfWeek(new Date(anchor.getFullYear(), anchor.getMonth(), 1))
-    return Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
+    return Array.from({ length: 35 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
   }, [anchor, view])
 
-  // Range-end shown in the filter panel is a real computed value (last day
-  // of the currently visible range for the active view), not an
-  // independently-queryable filter — the real backend derives its own date
-  // window purely from mode+year+month+day, with no separate end-date param
-  // to post.
+  // Range-end shown in the filter bar is a real computed value (last day of
+  // the currently visible range for the active view), not an independently
+  // queryable filter — the real backend derives its own date window purely
+  // from mode+year+month+day, with no separate end-date param to post.
   const rangeEnd = useMemo(() => {
     if (view === 'week') return new Date(weekDays[6])
     if (view === 'day') return anchor
@@ -265,346 +375,401 @@ export function AgendaOverview() {
   const headerTitle = view === 'month' || view === 'list' ? `${MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}` : anchor.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <CalendarDays size={20} className="text-brand" /> Agenda{' '}
-          <span className="text-text-faint font-normal text-base">{isFetching ? '…' : countInView}</span>
-        </h2>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-input-border overflow-hidden">
-            {(['month', 'week', 'day', 'list'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-sm font-medium capitalize ${view === v ? 'bg-brand text-white' : 'bg-input-bg text-text-muted hover:bg-surface-hover'}`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-          {view !== 'list' && (
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => shift(-1)} className="p-1.5 rounded-md border border-input-border text-text-muted hover:bg-surface-hover">
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-sm font-medium text-text! px-1 min-w-28 text-center">{headerTitle}</span>
-              <button type="button" onClick={() => shift(1)} className="p-1.5 rounded-md border border-input-border text-text-muted hover:bg-surface-hover">
-                <ChevronRight size={14} />
-              </button>
+    // -m-6 + flex-1 flex-col min-h-0: same pattern as ThirdPartyList.tsx — lets the
+    // calendar Card stretch to fill leftover height so it scrolls internally instead
+    // of growing the whole page.
+    // sticky -top-6: negates the scroll container's own p-6 so this bar can stick
+    // flush to the real top edge, then re-adds px-6/pt-6 itself to keep the same
+    // visual padding.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 space-y-4 border-b border-border bg-white px-6 pt-6 pb-4 dark:bg-gray-950">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-brand/10 text-brand shrink-0">
+              <CalendarDays size={20} />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-text!">Agenda</h2>
+              <p className="text-sm text-text-faint">Plan, manage and track your events and activities.</p>
             </div>
-          )}
-          <button type="button" onClick={() => setAnchor(new Date())} className="rounded-md border border-input-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Today
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-4 items-start">
-        <div className="space-y-4">
+          </div>
           <button
             type="button"
             onClick={() => setShowNewEvent(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover"
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover shrink-0"
           >
             <Plus size={16} /> Create Event
           </button>
+        </div>
 
+        <Card className="!h-auto !p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-56">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faint" />
+              <input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search events…"
+                className="w-full h-9 pl-8 pr-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              />
+            </div>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
+              <option value="">All Status</option>
+              {options?.statuses.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={ownerId ?? ''}
+              onChange={(e) => setOwnerId(e.target.value ? Number(e.target.value) : undefined)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value={ALL_OWNERS}>All Owners</option>
+              {options?.users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={projectId ?? ''}
+              onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value="">All Projects</option>
+              {options?.projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={toDateInputValue(anchor)}
+                onChange={(e) => e.target.value && setAnchor(new Date(e.target.value))}
+                className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              />
+              <span className="text-text-faint text-sm">–</span>
+              <input type="date" value={toDateInputValue(rangeEnd)} disabled className="h-9 px-2 rounded-md border border-input-border bg-surface-alt text-text-faint text-sm outline-none cursor-not-allowed" />
+            </div>
+            <button type="button" onClick={resetFilters} className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-input-border text-text-muted text-sm font-medium hover:bg-surface-hover">
+              <RotateCcw size={13} /> Clear
+            </button>
+          </div>
+        </Card>
+
+        <Card className="!h-auto !p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-text!">Filters</h3>
+            <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+              <RotateCcw size={11} /> Reset All
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={view === 'list' ? 'month' : view}
+              onChange={(e) => setView(e.target.value as ViewMode)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value="month">Month view</option>
+              <option value="week">Week view</option>
+              <option value="day">Day view</option>
+            </select>
+            <select
+              value={usergroupId ?? ''}
+              onChange={(e) => setUsergroupId(e.target.value ? Number(e.target.value) : undefined)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value="">All User Groups</option>
+              {options?.usergroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={socid ?? ''}
+              onChange={(e) => setSocid(e.target.value ? Number(e.target.value) : undefined)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value="">All Third-Parties</option>
+              {options?.thirdparties.map((tp) => (
+                <option key={tp.id} value={tp.id}>
+                  {tp.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={categoryId ?? ''}
+              onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value="">All Tags/Categories</option>
+              {options?.categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={resourceId ?? ''}
+              onChange={(e) => setResourceId(e.target.value ? Number(e.target.value) : undefined)}
+              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+            >
+              <option value="">All Resources</option>
+              {options?.resources.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowBirthday((v) => !v)}
+              className={`flex items-center gap-1.5 h-9 rounded-full px-3 text-xs font-medium border ${showBirthday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
+            >
+              <Cake size={13} /> Birthdays
+            </button>
+            <button
+              type="button"
+              onClick={() => setCheckHoliday((v) => !v)}
+              className={`flex items-center gap-1.5 h-9 rounded-full px-3 text-xs font-medium border ${checkHoliday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
+            >
+              <Umbrella size={13} /> Holidays
+            </button>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-input-border text-text-muted text-sm font-medium hover:bg-surface-hover disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh
+            </button>
+            <span className="h-6 w-px bg-border shrink-0" />
+            {options?.types && (
+              <TypeFilterDropdown
+                types={options.types}
+                activeTypes={activeTypes}
+                onToggle={toggleType}
+                onSelectAll={selectAllTypes}
+                onDeselectAll={deselectAllTypes}
+              />
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-4 items-start px-6 py-4 flex-1 min-h-0">
+        <div className="space-y-4">
           <MiniCalendar month={anchor} onSelect={(d) => { setAnchor(d); setView('day') }} />
 
-          <Card className="!h-auto !p-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-text!">Filters</h3>
-              <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-                <RotateCcw size={11} /> Reset
+          <Card className="!h-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
+                <Clock size={14} className="text-text-faint" /> Upcoming Events
+              </h3>
+              <button type="button" onClick={() => setView('list')} className="flex items-center gap-0.5 text-xs font-medium text-brand hover:underline">
+                View all <ChevronRight size={13} />
               </button>
             </div>
-            <div className="space-y-2.5">
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">View</span>
-                <select value={view === 'list' ? 'month' : view} onChange={(e) => setView(e.target.value as ViewMode)} className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
-                  <option value="month">Month</option>
-                  <option value="week">Week</option>
-                  <option value="day">Day</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Start date</span>
-                <input
-                  type="date"
-                  value={toDateInputValue(anchor)}
-                  onChange={(e) => e.target.value && setAnchor(new Date(e.target.value))}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">End date</span>
-                <input type="date" value={toDateInputValue(rangeEnd)} disabled className="w-full h-8 px-2 rounded-md border border-input-border bg-surface-alt text-text-faint text-sm outline-none cursor-not-allowed" />
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Owner</span>
-                <select
-                  value={ownerId ?? ''}
-                  onChange={(e) => setOwnerId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                >
-                  <option value={ALL_OWNERS}>All</option>
-                  {options?.users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">User group</span>
-                <select
-                  value={usergroupId ?? ''}
-                  onChange={(e) => setUsergroupId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                >
-                  <option value="">All</option>
-                  {options?.usergroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Status</span>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
-                  {options?.statuses.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div>
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-1">Type</span>
-                <div className="space-y-1 max-h-40 overflow-y-auto soft-scrollbar">
-                  {options?.types.map((t) => (
-                    <label key={t.code} className="flex items-center gap-2 text-sm text-text-muted cursor-pointer">
-                      <input type="checkbox" checked={activeTypes?.has(t.code) ?? true} onChange={() => toggleType(t.code)} />
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color || '#397db9' }} />
-                      {t.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Project</span>
-                <select
-                  value={projectId ?? ''}
-                  onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                >
-                  <option value="">All</option>
-                  {options?.projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Third-Party</span>
-                <select
-                  value={socid ?? ''}
-                  onChange={(e) => setSocid(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                >
-                  <option value="">All</option>
-                  {options?.thirdparties.map((tp) => (
-                    <option key={tp.id} value={tp.id}>
-                      {tp.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Tag/Category</span>
-                <select
-                  value={categoryId ?? ''}
-                  onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                >
-                  <option value="">All</option>
-                  {options?.categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Resource</span>
-                <select
-                  value={resourceId ?? ''}
-                  onChange={(e) => setResourceId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
-                >
-                  <option value="">All</option>
-                  {options?.resources.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowBirthday((v) => !v)}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${showBirthday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
-                >
-                  <Cake size={12} /> Birthdays
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCheckHoliday((v) => !v)}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${checkHoliday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
-                >
-                  <Umbrella size={12} /> Holidays
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-input-border py-1.5 text-xs font-medium text-text-muted hover:bg-surface-hover disabled:opacity-50"
-              >
-                <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} /> Refresh
-              </button>
-            </div>
-          </Card>
-
-          <Card className="!h-auto !p-3">
-            <h3 className="text-sm font-semibold text-text! mb-2">Upcoming Events</h3>
-            <span className="inline-block text-xs font-medium text-brand bg-brand/10 rounded-full px-2 py-0.5 mb-2">{upcoming.length} events</span>
             {upcoming.length === 0 ? (
-              <p className="text-xs text-text-faint italic">No upcoming events.</p>
+              <p className="text-sm text-text-faint italic py-2">No upcoming events.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3">
                 {upcoming.map((ev) => (
-                  <div key={ev.id} className="border-b border-border last:border-0 pb-2 last:pb-0">
-                    <p className="text-sm font-semibold text-text!">{ev.label}</p>
-                    <p className="text-xs text-text-faint mt-0.5">{new Date(ev.startMs).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</p>
-                  </div>
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => setViewEventId(ev.id)}
+                    className="flex items-start gap-2 rounded-lg border border-border p-3 text-left hover:bg-surface-hover"
+                  >
+                    <span className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.typeColor }} />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-text! truncate">{ev.label}</span>
+                      <span className="block text-xs text-text-faint mt-0.5">{new Date(ev.startMs).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
           </Card>
         </div>
 
-        <Card className="!p-0 overflow-hidden">
-          {view === 'month' && (
-            <div>
-              <div className="grid grid-cols-7 border-b border-border bg-surface">
-                {DAY_NAMES.map((d) => (
-                  <div key={d} className="px-3 py-2.5 text-xs font-semibold text-text-faint uppercase tracking-wide">
-                    {d}
-                  </div>
+        <div className="flex flex-col min-h-0 self-stretch">
+          <Card className="!p-0 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                {view !== 'list' && (
+                  <>
+                    <button type="button" onClick={() => shift(-1)} className="p-1.5 rounded-md border border-input-border text-text-muted hover:bg-surface-hover">
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button type="button" onClick={() => setAnchor(new Date())} className="rounded-md border border-input-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-hover">
+                      Today
+                    </button>
+                    <button type="button" onClick={() => shift(1)} className="p-1.5 rounded-md border border-input-border text-text-muted hover:bg-surface-hover">
+                      <ChevronRight size={14} />
+                    </button>
+                  </>
+                )}
+                <span className="text-sm font-semibold text-text! px-1">{headerTitle}</span>
+                <span className="text-xs text-text-faint">Showing {isFetching ? '…' : countInView} events</span>
+              </div>
+              <div className="flex rounded-lg border border-input-border overflow-hidden">
+                {(['month', 'week', 'day', 'list'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    className={`px-3 py-1.5 text-sm font-medium capitalize ${view === v ? 'bg-brand text-white' : 'bg-input-bg text-text-muted hover:bg-surface-hover'}`}
+                  >
+                    {v}
+                  </button>
                 ))}
               </div>
-              <div className="grid grid-cols-7">
-                {monthGridDays.map((d) => {
-                  const inMonth = d.getMonth() === anchor.getMonth()
-                  const dayEvents = eventsOn(d)
-                  return (
-                    <div key={d.toISOString()} className={`min-h-28 border-b border-r border-border p-1.5 space-y-1 ${inMonth ? '' : 'bg-surface/50'}`}>
-                      <span className={`text-xs ${inMonth ? 'text-text!' : 'text-text-faint'}`}>{d.getDate()}</span>
-                      {dayEvents.slice(0, 3).map((ev) => (
-                        <EventChip key={ev.id} ev={ev} />
-                      ))}
-                      {dayEvents.length > 3 && <p className="text-[10px] text-text-faint px-1">+{dayEvents.length - 3} more</p>}
+            </div>
+
+            {view === 'month' && (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <div className="grid grid-cols-7 border-b border-border bg-surface sticky top-0 z-10">
+                  {DAY_NAMES.map((d) => (
+                    <div key={d} className="px-3 py-2.5 text-xs font-semibold text-text-faint uppercase tracking-wide">
+                      {d}
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {view === 'week' && (
-            <div className="grid grid-cols-7">
-              {weekDays.map((d) => {
-                const dayEvents = eventsOn(d)
-                return (
-                  <div key={d.toISOString()} className="min-h-64 border-b border-r border-border p-2 space-y-1.5">
-                    <p className="text-xs font-semibold text-text! mb-1">
-                      {DAY_NAMES[(d.getDay() + 6) % 7].slice(0, 3)} {d.getDate()}
-                    </p>
-                    {dayEvents.length === 0 ? <p className="text-[11px] text-text-faint italic">—</p> : dayEvents.map((ev) => <EventChip key={ev.id} ev={ev} />)}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {view === 'day' && (
-            <div className="p-4 space-y-2 max-w-md">
-              <p className="text-sm font-semibold text-text!">{anchor.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-              {eventsOn(anchor).length === 0 ? (
-                <p className="text-sm text-text-faint italic py-6 text-center">No events on this day.</p>
-              ) : (
-                eventsOn(anchor).map((ev) => <EventChip key={ev.id} ev={ev} />)
-              )}
-            </div>
-          )}
-
-          {view === 'list' && (
-            <div className="overflow-auto max-h-[70vh]">
-              {visibleEvents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-16 text-text-faint">
-                  <CalendarDays size={32} />
-                  <p className="text-sm">No events yet — create one, or check a quotation, contract, order, or invoice for its own logged events.</p>
+                  ))}
                 </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                      <th className="font-medium px-4 py-2.5">Date</th>
-                      <th className="font-medium px-4 py-2.5">Type</th>
-                      <th className="font-medium px-4 py-2.5">Label</th>
-                      <th className="font-medium px-4 py-2.5">Owner</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleEvents.map((ev) => (
-                      <tr key={ev.id} className="border-b border-border">
-                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">{new Date(ev.startMs).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1.5 text-text-muted">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ev.typeColor }} /> {ev.typeLabel}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <a href={ev.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                            {ev.label}
-                          </a>
-                        </td>
-                        <td className="px-4 py-3 text-text-muted">
-                          {ev.userOwner ? (
-                            <span className="flex items-center gap-1.5">
-                              <Avatar name={ev.userOwner} size={18} className="text-[9px]" /> {ev.userOwner}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                      </tr>
+                <div className="grid grid-cols-7">
+                  {monthGridDays.map((d) => {
+                    const inMonth = d.getMonth() === anchor.getMonth()
+                    const dayEvents = eventsOn(d)
+                    return (
+                      <div key={d.toISOString()} className={`h-28 flex flex-col border-b border-r border-border p-1.5 ${inMonth ? '' : 'bg-surface/50'}`}>
+                        <span className={`text-xs shrink-0 ${inMonth ? 'text-text!' : 'text-text-faint'}`}>{d.getDate()}</span>
+                        <div className="flex-1 min-h-0 overflow-y-auto space-y-1 mt-1">
+                          {dayEvents.map((ev) => (
+                            <EventChip key={ev.id} ev={ev} onOpen={setViewEventId} />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {view === 'week' && (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <div className="grid grid-cols-7">
+                  {weekDays.map((d) => {
+                    const dayEvents = eventsOn(d)
+                    return (
+                      <div key={d.toISOString()} className="min-h-32 border-b border-r border-border p-2 space-y-1.5">
+                        <p className="text-xs font-semibold text-text! mb-1">
+                          {DAY_NAMES[(d.getDay() + 6) % 7].slice(0, 3)} {d.getDate()}
+                        </p>
+                        {dayEvents.length === 0 ? <p className="text-[11px] text-text-faint italic">—</p> : dayEvents.map((ev) => <EventChip key={ev.id} ev={ev} onOpen={setViewEventId} />)}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {view === 'day' && (
+              <div className="flex-1 min-h-0 overflow-auto p-4">
+                <p className="text-sm font-semibold text-text! mb-3">{anchor.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                {eventsOn(anchor).length === 0 ? (
+                  <p className="text-sm text-text-faint italic py-6 text-center">No events on this day.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {eventsOn(anchor).map((ev) => (
+                      <EventChip key={ev.id} ev={ev} onOpen={setViewEventId} />
                     ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </Card>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {view === 'list' && (
+              <div className="flex-1 min-h-0 overflow-auto">
+                {visibleEvents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-16 text-text-faint">
+                    <CalendarDays size={32} />
+                    <p className="text-sm">No events yet — create one, or check a quotation, contract, order, or invoice for its own logged events.</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                        <th className="font-medium px-4 py-2.5">Ref.</th>
+                        <th className="font-medium px-4 py-2.5">Owner</th>
+                        <th className="font-medium px-4 py-2.5">Type</th>
+                        <th className="font-medium px-4 py-2.5">Title</th>
+                        <th className="font-medium px-4 py-2.5">Start Date</th>
+                        <th className="font-medium px-4 py-2.5">End Date</th>
+                        <th className="font-medium px-4 py-2.5">Third-Party</th>
+                        <th className="font-medium px-4 py-2.5">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleEvents.map((ev) => (
+                        <tr key={ev.id} className="border-b border-border">
+                          <td className="px-4 py-3 max-w-[260px]">
+                            <button type="button" onClick={() => setViewEventId(ev.id)} className="flex w-full items-center gap-1.5 text-left text-brand hover:underline">
+                              <CalendarDays size={14} className="shrink-0" />
+                              <span className="truncate">{ev.label}</span>
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                            {ev.userOwner ? (
+                              <span className="flex items-center gap-1.5">
+                                <Avatar name={ev.userOwner} size={18} className="text-[9px]" /> {ev.userOwner}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center gap-1.5 text-text-muted whitespace-nowrap">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev.typeColor }} /> {ev.typeLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-text! max-w-[260px]">
+                            <span className="truncate block">{ev.label}</span>
+                          </td>
+                          <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDateTimeAmPm(ev.startMs)}</td>
+                          <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDateTimeAmPm(ev.endMs)}</td>
+                          <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                            {ev.thirdpartyName ? (
+                              <span className="flex items-center gap-1.5">
+                                <Avatar name={ev.thirdpartyName} size={18} className="text-[9px]" color="bg-teal-500" /> {ev.thirdpartyName}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[11px] font-semibold bg-neutral-bg text-neutral-fg whitespace-nowrap">
+                              {ev.statusLabel || 'NA'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+          </Card>
+        </div>
       </div>
 
       {showNewEvent && <AddEventModal onClose={() => setShowNewEvent(false)} onCreated={() => setShowNewEvent(false)} />}
+      {viewEventId !== null && <EventDetailModal eventId={viewEventId} onClose={() => setViewEventId(null)} />}
     </div>
   )
 }

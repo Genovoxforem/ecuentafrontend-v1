@@ -5,6 +5,7 @@ import { useZraSummary } from '../zra/zra.queries'
 import { useBankAccountsList } from '../banking/banking.queries'
 import { useContractsSummary } from '../contracts/contracts.queries'
 import { useCustomersSummary } from '../customers/customers.queries'
+import { useVendorInvoices } from '../vendorInvoices/vendorInvoices.queries'
 
 export interface StatWithTrend {
   value: number
@@ -27,12 +28,11 @@ export interface DashboardSummary {
     refund_amount: number
     purchases_count: number
     purchases_amount: number
-    // Real, computed from the same invoice rows filtered to yesterday's
-    // date — used for "vs Yesterday" trend badges. No purchase-invoice
-    // endpoint on this backend, so there's no yesterday figure for
-    // purchases either (purchases_amount is always 0 above).
+    // Real, computed from the same invoice/vendor-invoice rows filtered to
+    // yesterday's date — used for "vs Yesterday" trend badges.
     sales_amount_yesterday: number
     refund_amount_yesterday: number
+    purchases_amount_yesterday: number
   }
   zra: {
     signedInvoices: StatWithTrend
@@ -46,7 +46,7 @@ export interface DashboardSummary {
   // on this backend carries a country or a customer id to join against, so
   // a real revenue-per-country figure isn't derivable (see
   // useDashboardSummary's header comment).
-  customersByCountry: Array<{ country: string; count: number }>
+  customersByCountry: Array<{ country: string; code: string; count: number }>
   salesBreakdown: BreakdownStat
   purchaseBreakdown: BreakdownStat
   // Real sum of credit-note invoices (type=2), shown negative — see
@@ -108,22 +108,26 @@ function pad2(n: number) {
 // already uses — reused here rather than re-fetched, react-query dedupes
 // by its query key). Bank balances reuse the same real
 // bank-sidebar-list-ajax.php endpoint the Banking module's account list is
-// built on (see banking.queries.ts's useBankAccountsList), and the contract
+// built on (see banking.queries.ts's useBankAccountsList), the contract
 // count reuses the real contrat/list_ajax.php endpoint the Contracts
 // module's own summary is built on (see contracts.queries.ts's
-// useContractsSummary), and customersByCountry is grouped from the same
-// real per-customer `country` field the Customers module's own list/detail
-// pages use (see customers.queries.ts's useCustomersSummary) — there's no
-// separate quotations or purchase invoice endpoint on this backend though,
-// so those sections stay honestly zero/empty rather than inventing numbers.
+// useContractsSummary), customersByCountry is grouped from the same real
+// per-customer `country` field the Customers module's own list/detail pages
+// use (see customers.queries.ts's useCustomersSummary), and purchaseBreakdown
+// reuses the same real fourn/facture/facture_ajax_list.php endpoint the
+// Vendor Invoices module's own list is built on (see
+// vendorInvoices.queries.ts's useVendorInvoices) — there's no separate
+// quotations endpoint on this backend though, so that one stays honestly
+// zero rather than inventing a number.
 export function useDashboardSummary() {
   const { data: stats } = useDashboardStatistics()
   const { data: zraSummary } = useZraSummary()
   const { data: bankAccounts } = useBankAccountsList()
   const { data: contractsSummary } = useContractsSummary()
   const { data: customersSummary } = useCustomersSummary()
+  const { data: vendorInvoicesData } = useVendorInvoices('all')
   return useQuery({
-    queryKey: ['home', 'dashboard', !!stats, !!zraSummary, !!bankAccounts, !!contractsSummary, !!customersSummary],
+    queryKey: ['home', 'dashboard', !!stats, !!zraSummary, !!bankAccounts, !!contractsSummary, !!customersSummary, !!vendorInvoicesData],
     enabled: !!stats,
     queryFn: async (): Promise<DashboardSummary> => {
       if (!stats) throw new Error('unreachable')
@@ -163,13 +167,34 @@ export function useDashboardSummary() {
       const todayRefundRows = creditNotes.filter((r) => r.date.slice(0, 10) === todayIso)
       const yesterdayRows = standardInvoices.filter((r) => r.date.slice(0, 10) === yesterdayIso)
       const yesterdayRefundRows = creditNotes.filter((r) => r.date.slice(0, 10) === yesterdayIso)
-      const countryCounts = new Map<string, number>()
+      // Real, same statusCode convention useVendorInvoices already computes
+      // (0=Draft, 1=Not Paid, 2=Paid, 3=Abandoned) — mirrors the sales
+      // draft/validated/paid split above exactly.
+      const purchaseRows = vendorInvoicesData?.items ?? []
+      const purchaseDraftRows = purchaseRows.filter((r) => r.statusCode === 0)
+      const purchaseValidatedRows = purchaseRows.filter((r) => r.statusCode !== 0)
+      const purchasePaidRows = purchaseRows.filter((r) => r.statusCode === 2)
+      const purchaseBreakdown: BreakdownStat = {
+        draft_count: purchaseDraftRows.length,
+        validated_count: purchaseValidatedRows.length,
+        total_amount: purchaseRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
+        paid_amount: purchasePaidRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
+      }
+      const todayPurchaseRows = purchaseRows.filter((r) => r.invoiceDate?.slice(0, 10) === todayIso)
+      const yesterdayPurchaseRows = purchaseRows.filter((r) => r.invoiceDate?.slice(0, 10) === yesterdayIso)
+
+      const countryCounts = new Map<string, { code: string; count: number }>()
       for (const c of customersSummary?.customers ?? []) {
         const country = c.country?.trim()
         if (!country) continue
-        countryCounts.set(country, (countryCounts.get(country) ?? 0) + 1)
+        const existing = countryCounts.get(country)
+        // First real countryCode seen for this name wins — a single
+        // Dolibarr install's own country list maps one name to one code.
+        countryCounts.set(country, { code: existing?.code || c.countryCode || '', count: (existing?.count ?? 0) + 1 })
       }
-      const customersByCountry = [...countryCounts.entries()].map(([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count)
+      const customersByCountry = [...countryCounts.entries()]
+        .map(([country, { code, count }]) => ({ country, code, count }))
+        .sort((a, b) => b.count - a.count)
 
       const recentSales = [...invoiceRows]
         .sort((a, b) => b.date.localeCompare(a.date))
@@ -188,11 +213,11 @@ export function useDashboardSummary() {
           invoices_count: todayRows.length,
           sales_amount: todayRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
           refund_amount: 0 - todayRefundRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-          // No purchase-invoice endpoint on this backend.
-          purchases_count: 0,
-          purchases_amount: 0,
+          purchases_count: todayPurchaseRows.length,
+          purchases_amount: todayPurchaseRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
           sales_amount_yesterday: yesterdayRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
           refund_amount_yesterday: 0 - yesterdayRefundRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
+          purchases_amount_yesterday: yesterdayPurchaseRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
         },
         // Real ZRA e-invoicing gateway stats (see zra.queries.ts's
         // useZraSummary) — "signed" here means successfully synced to ZRA,
@@ -221,8 +246,7 @@ export function useDashboardSummary() {
         customersByCountry,
         salesBreakdown,
         totalRefund,
-        // No purchase-invoice endpoint on this backend.
-        purchaseBreakdown: { draft_count: 0, validated_count: 0, total_amount: 0, paid_amount: 0 },
+        purchaseBreakdown,
         monthly,
         months,
         period: { dateStart },

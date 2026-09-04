@@ -3,7 +3,9 @@ import { CalendarDays } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useAuth } from '../../auth/AuthContext'
+import { ROUTES } from '../../../routes'
 import { useCreateHoliday } from '../payrollActions.queries'
+import { useRecordHoliday } from '../payrollLists.queries'
 
 // Real via payroll/ajax.php?saveholiday=... (payroll/holiday.php's own
 // "Add Holiday" panel) — one row per calendar day in the Start/End range,
@@ -13,6 +15,7 @@ import { useCreateHoliday } from '../payrollActions.queries'
 export function HolidayForm() {
   const { user } = useAuth()
   const createHoliday = useCreateHoliday()
+  const recordHoliday = useRecordHoliday()
 
   const [leaveName, setLeaveName] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -33,9 +36,13 @@ export function HolidayForm() {
     setError('')
     if (!leaveName.trim()) return setError('Enter a leave name.')
     if (!startDate) return setError('Select a start date.')
+    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
     createHoliday.mutate(
       { leaveName, startDate, endDate, note, createdByUserId: Number(user?.id) || 0 },
-      { onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.') },
+      {
+        onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
+        onSuccess: () => recordHoliday.add({ leaveName, startDate, endDate: endDate || startDate, entity: 'Master entity', note, createdBy }),
+      },
     )
   }
 
@@ -50,6 +57,7 @@ export function HolidayForm() {
       successMessage="Holiday saved."
       errorMessage={error}
       onAddAnother={reset}
+      backTo={ROUTES.payrollCalendarHolidays}
     >
       <Field label="Leave Name" required>
         <input value={leaveName} onChange={(e) => setLeaveName(e.target.value)} placeholder="Enter Leave Name" className={inputClasses} />

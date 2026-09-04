@@ -1,5 +1,5 @@
-import { SalaryTemplateForm } from '../../features/payroll/components/SalaryTemplateForm'
+import { SalaryTemplateList } from '../../features/payroll/components/SalaryTemplateList'
 
 export function SalaryTemplateModule() {
-  return <SalaryTemplateForm />
+  return <SalaryTemplateList />
 }

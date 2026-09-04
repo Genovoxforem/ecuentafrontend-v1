@@ -5,6 +5,16 @@ import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
 import { formatDate } from '../../utils/format'
 
+// Reused by the Payroll module (see modules/payroll/PayrollLeaveListModule.tsx
+// / PayrollLeaveRequestModule.tsx) rather than duplicated — this same data
+// backs both `/users-dashboard/hrm/leave/*` and `/payroll/leave-request` +
+// `/payroll/all-leave-request`. Confirmed real backend pages for the payroll
+// entry point: holiday/card.php (leftmenu=leave_rqst_obj, "New leave
+// request") and holiday/list.php (leftmenu=corehr_object, "Holiday
+// Management"). Leave *types* are real (below); leave *requests* stay
+// local-only like the rest of this module's session-tracked lists — see
+// useCreateLeaveRequest.
+
 export interface LeaveType {
   code: string
   label: string

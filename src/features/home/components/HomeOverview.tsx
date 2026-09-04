@@ -41,7 +41,6 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
-import { WorldMapDecoration } from './WorldMapDecoration'
 import { RadialGauge } from './RadialGauge'
 import { AnimatedCounter } from './AnimatedCounter'
 import { StatCard, GlassCard, CardHeader, type StatTone } from './DashboardCards'
@@ -49,7 +48,6 @@ import type { DashboardSummary } from '../home.queries'
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DONUT_COLORS = ['var(--color-chart-1)', 'var(--color-chart-2)', 'var(--color-chart-8)']
-const VISIBLE_COUNTRIES = 6
 const STATUS_STYLES: Record<number, { label: string; cls: string; icon: LucideIcon }> = {
   0: { label: 'Draft', cls: 'bg-neutral-bg text-neutral-fg', icon: FileEdit },
   1: { label: 'Validated', cls: 'bg-warning-bg text-warning-fg', icon: CheckCircle2 },
@@ -60,6 +58,18 @@ const STATUS_STYLES: Record<number, { label: string; cls: string; icon: LucideIc
 const fmtMoney = (n: number | string) => `${formatMoney(n)} ZMW`
 const fmtNumber = formatMoney
 const fmtCount = (n: number) => String(n)
+
+// ISO 3166-1 alpha-2 -> flag emoji via Unicode Regional Indicator Symbols
+// (a deterministic conversion, not a lookup table — works for any real
+// code the backend returns). Real customer records carry a real
+// country_code (see toThirdPartyRow in customers.queries.ts); returns ''
+// when a country has none on file so the row just skips the flag rather
+// than showing a broken/placeholder glyph.
+function flagEmoji(code: string): string {
+  if (!/^[A-Za-z]{2}$/.test(code)) return ''
+  const base = 0x1f1e6
+  return String.fromCodePoint(...[...code.toUpperCase()].map((c) => base + c.charCodeAt(0) - 65))
+}
 
 function fmtAxisMoney(n: number) {
   const abs = Math.abs(n)
@@ -226,7 +236,6 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
 
 export function HomeOverview({ username, summary }: { username: string; summary: DashboardSummary }) {
   const [tab, setTab] = useState<'Sales' | 'Purchase'>('Sales')
-  const [showAllCountries, setShowAllCountries] = useState(false)
 
   const { today, zra, banks, customers, customersByCountry, salesBreakdown, purchaseBreakdown, monthly, months, period, legacyCounts, recentSales } = summary
 
@@ -238,10 +247,7 @@ export function HomeOverview({ username, summary }: { username: string; summary:
   const refundSharePct = today.sales_amount > 0 ? Math.min((today.refund_amount / today.sales_amount) * 100, 100) : 0
   const salesTrend = pctChange(today.sales_amount, today.sales_amount_yesterday)
   const refundTrend = pctChange(today.refund_amount, today.refund_amount_yesterday)
-  // Purchases has no real "yesterday" figure at all (no purchase-invoice
-  // endpoint — purchases_amount is always 0), so its tile is left with no
-  // trend rather than comparing 0 to 0.
-  const purchaseTrend = null
+  const purchaseTrend = pctChange(today.purchases_amount, today.purchases_amount_yesterday)
   const todayLabel = fmtDate(new Date().toISOString().slice(0, 10))
 
   const breakdown = tab === 'Sales' ? salesBreakdown : purchaseBreakdown
@@ -269,7 +275,6 @@ export function HomeOverview({ username, summary }: { username: string; summary:
   const bankBalanceMax = Math.max(...banks.map((b) => Math.abs(Number(b.balance))), 0)
   const topCountry = customersByCountry[0] ?? null
   const countryMax = topCountry?.count ?? 0
-  const visibleCountries = showAllCountries ? customersByCountry : customersByCountry.slice(0, VISIBLE_COUNTRIES)
 
   return (
     <div className="space-y-4">
@@ -521,82 +526,19 @@ export function HomeOverview({ username, summary }: { username: string; summary:
 
       </div>
 
-      {/* ── Row 2.5: Customers by Country — real per-country counts, from
-          each customer's own `country` field (see home.queries.ts). Not
-          sales-by-country: no invoice on this backend carries a country or
-          a customer id to join against, so a real revenue-per-country
-          figure isn't derivable — this shows where the customer base
-          itself is located instead. */}
-      <GlassCard
-        header={<CardHeader icon={Globe} title="Customers by Country" subtitle="Where your customer base is located" tone="info" />}
-        action={
-          <Link to={ROUTES.customerList} className="text-sm text-brand hover:underline font-medium">
-            View all customers
-          </Link>
-        }
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-3 flex lg:flex-col gap-3">
-            <div className="flex-1 rounded-xl border border-border bg-surface-alt/50 p-3.5">
-              <p className="text-xs font-medium text-text-muted">Total Customers</p>
-              <p className="text-2xl font-bold text-text! mt-1">{fmtCount(customers.total)}</p>
-            </div>
-            {topCountry && (
-              <div className="flex-1 rounded-xl border border-border bg-surface-alt/50 p-3.5">
-                <p className="text-xs font-medium text-text-muted mb-1.5">Top Country</p>
-                <IconStat icon={Globe} value={fmtCount(topCountry.count)} label={topCountry.country} tone="brand" />
-              </div>
-            )}
-          </div>
-
-          <div className="lg:col-span-9 -my-1 overflow-hidden rounded-xl bg-[linear-gradient(180deg,var(--color-surface-hover)_0%,transparent_100%)] px-2 py-1">
-            <WorldMapDecoration />
-          </div>
-        </div>
-
-        {customersByCountry.length === 0 ? (
-          <p className="text-xs text-text-faint text-center py-6">No country data yet.</p>
-        ) : (
-          <>
-            <div className="mt-4 space-y-2.5">
-              {visibleCountries.map((row) => {
-                const pct = countryMax > 0 ? (row.count / countryMax) * 100 : 0
-                const share = customers.total > 0 ? (row.count / customers.total) * 100 : 0
-                return (
-                  <div key={row.country} className="flex items-center gap-3 text-sm">
-                    <span className="w-32 shrink-0 text-text truncate">{row.country}</span>
-                    <span className="w-8 shrink-0 text-text-muted tabular-nums text-right">{row.count}</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-surface-alt overflow-hidden">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(pct, 4)}%` }} />
-                    </div>
-                    <span className="w-12 shrink-0 text-text-faint text-xs text-right tabular-nums">{share.toFixed(1)}%</span>
-                  </div>
-                )
-              })}
-            </div>
-            {customersByCountry.length > VISIBLE_COUNTRIES && (
-              <button type="button" onClick={() => setShowAllCountries((v) => !v)} className="mt-3 text-xs text-brand hover:underline font-medium">
-                {showAllCountries ? 'Show less' : `Show ${customersByCountry.length - VISIBLE_COUNTRIES} more countries`}
-              </button>
-            )}
-          </>
-        )}
-
-        <div className="mt-4 pt-4 border-t border-border grid grid-cols-3 gap-3">
-          <IconStat icon={Globe} value={fmtCount(customersByCountry.length)} label="Countries" tone="info" />
-          <IconStat icon={Users} value={fmtCount(customers.local)} label="Local Customers" tone="success" />
-          <IconStat icon={Users} value={fmtCount(customers.abroad)} label="International" tone="brand" />
-        </div>
-      </GlassCard>
-
-      {/* ── Row 3: Recent sales table + Bank details ────────────────────── */}
+      {/* ── Row 3: Recent sales table + Bank details + Customers by Country ─
+          Three cards, one row — Customers by Country moved in here (from
+          its own former full-width row) and dropped its decorative map,
+          since a ~4/12 column has no good room for one; the real data
+          (stats + ranked list) fits the same compact pattern Bank Details
+          already uses. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Recent sales table — fixed height + internal scroll, matching
-            Bank Details alongside it, so this row's height never depends
-            on either card's row/account count (a wide table still scrolls
-            horizontally inside the same box). */}
+            the other two cards alongside it, so this row's height never
+            depends on any one card's row/account/country count (a wide
+            table still scrolls horizontally inside the same box). */}
         <GlassCard
-          className="xl:col-span-8 flex flex-col h-[360px]"
+          className="xl:col-span-5 flex flex-col h-[360px]"
           header={<CardHeader icon={Receipt} title="Last 7 Sales" tone="brand" />}
           action={<Link to={ROUTES.reports} className="text-sm text-brand hover:underline font-medium">View All</Link>}
         >
@@ -655,7 +597,7 @@ export function HomeOverview({ username, summary }: { username: string; summary:
             real max-height makes accounts beyond it scroll instead of
             pushing the whole row taller. */}
         <GlassCard
-          className="xl:col-span-4 flex flex-col h-[360px]"
+          className="xl:col-span-3 flex flex-col h-[360px]"
           header={<CardHeader icon={Landmark} title="Bank Details" tone="success" />}
         >
           <div className="max-h-[270px] overflow-y-auto soft-scrollbar pr-1 space-y-2.5">
@@ -689,6 +631,60 @@ export function HomeOverview({ username, summary }: { username: string; summary:
                 </div>
               )
             })}
+          </div>
+        </GlassCard>
+
+        {/* Customers by Country — real per-country counts, from each
+            customer's own `country` field (see home.queries.ts). Not
+            sales-by-country: no invoice on this backend carries a country
+            or a customer id to join against, so a real revenue-per-country
+            figure isn't derivable — Total Sales/Purchases below are real
+            business-wide totals (same source as the KPI row up top), not a
+            per-country split. */}
+        <GlassCard className="xl:col-span-4 flex flex-col h-[360px]" header={<CardHeader icon={Globe} title="Customers by Country" tone="info" />}>
+          <div className="grid grid-cols-2 gap-2.5 pb-3 border-b border-border">
+            <IconStat icon={Users} value={fmtCount(customers.total)} label="Customers" tone="brand" />
+            <IconStat icon={Wallet} value={fmtMoney(salesBreakdown.total_amount)} label="Total Sales" tone="success" />
+            <IconStat icon={ShoppingCart} value={fmtMoney(purchaseBreakdown.total_amount)} label="Total Purchases" tone="warning" />
+            {topCountry && (
+              <IconStat
+                icon={Globe}
+                value={fmtCount(topCountry.count)}
+                label={topCountry.code ? `${flagEmoji(topCountry.code)} ${topCountry.country}` : topCountry.country}
+                tone="info"
+              />
+            )}
+          </div>
+
+          {customersByCountry.length === 0 ? (
+            <p className="flex-1 flex items-center justify-center text-xs text-text-faint text-center">No country data yet.</p>
+          ) : (
+            <div className="max-h-[130px] overflow-y-auto soft-scrollbar pr-1 mt-3 space-y-2">
+              {customersByCountry.map((row) => {
+                const pct = countryMax > 0 ? (row.count / countryMax) * 100 : 0
+                return (
+                  <div key={row.country} className="flex items-center gap-2 text-xs">
+                    <span className="w-24 shrink-0 flex items-center gap-1 text-text">
+                      {row.code && (
+                        <span className="leading-none" aria-hidden="true">
+                          {flagEmoji(row.code)}
+                        </span>
+                      )}
+                      <span className="truncate">{row.country}</span>
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(pct, 4)}%` }} />
+                    </div>
+                    <span className="w-5 shrink-0 text-text-muted tabular-nums text-right">{row.count}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="mt-3 pt-3 border-t border-border grid grid-cols-2 gap-2.5">
+            <IconStat icon={Globe} value={fmtCount(customersByCountry.length)} label="Countries" tone="info" />
+            <IconStat icon={Users} value={`${fmtCount(customers.local)} / ${fmtCount(customers.abroad)}`} label="Local / Abroad" tone="success" />
           </div>
         </GlassCard>
       </div>
