@@ -1,5 +1,5 @@
-import { HourlyTemplateForm } from '../../features/payroll/components/HourlyTemplateForm'
+import { HourlyTemplateList } from '../../features/payroll/components/HourlyTemplateList'
 
 export function HourlyTemplateModule() {
-  return <HourlyTemplateForm />
+  return <HourlyTemplateList />
 }

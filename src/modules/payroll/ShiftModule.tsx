@@ -1,5 +1,5 @@
-import { ShiftForm } from '../../features/payroll/components/ShiftForm'
+import { ShiftList } from '../../features/payroll/components/ShiftList'
 
 export function ShiftModule() {
-  return <ShiftForm />
+  return <ShiftList />
 }

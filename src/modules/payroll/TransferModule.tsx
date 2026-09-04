@@ -1,5 +1,5 @@
-import { TransferForm } from '../../features/payroll/components/TransferForm'
+import { TransferList } from '../../features/payroll/components/TransferList'
 
 export function TransferModule() {
-  return <TransferForm />
+  return <TransferList />
 }

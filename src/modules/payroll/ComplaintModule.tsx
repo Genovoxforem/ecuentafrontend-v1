@@ -1,5 +1,5 @@
-import { ComplaintForm } from '../../features/payroll/components/ComplaintForm'
+import { ComplaintList } from '../../features/payroll/components/ComplaintList'
 
 export function ComplaintModule() {
-  return <ComplaintForm />
+  return <ComplaintList />
 }

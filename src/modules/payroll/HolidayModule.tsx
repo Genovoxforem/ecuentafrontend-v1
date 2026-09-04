@@ -1,5 +1,5 @@
-import { HolidayForm } from '../../features/payroll/components/HolidayForm'
+import { HolidayList } from '../../features/payroll/components/HolidayList'
 
 export function HolidayModule() {
-  return <HolidayForm />
+  return <HolidayList />
 }

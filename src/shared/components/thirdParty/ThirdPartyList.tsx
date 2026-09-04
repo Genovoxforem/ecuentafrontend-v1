@@ -66,6 +66,11 @@ export interface ThirdPartyRow {
   id: number | null
   name: string
   country: string
+  // ISO 3166-1 alpha-2 (e.g. "ZM"), when the source row has one — only the
+  // real /api/customers/index.php rows do (see toThirdPartyRow); optional
+  // because the legacy-scraped societeListParser.ts producer of this same
+  // row type never had a code to give, only the display name.
+  countryCode?: string
   outstandingBalance: number
   tpin: string
   salesRep: string

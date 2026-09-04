@@ -27,12 +27,20 @@ function SidebarLeaf({
   location: Location
 }) {
   const isLink = Boolean(item.path)
-  const isCurrent = isLink && location.pathname === item.path
+  // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
+  // "Calendar" links — see users.nav.ts) carry a query string as part of
+  // their own `path`, all pointing at the same route. Comparing against
+  // `location.pathname` alone can never match those — it never includes
+  // the search string — which left every one of them permanently "loading"
+  // (the reset effect's condition never became true) and never highlighted
+  // as current even while actually on that exact filtered page.
+  const currentUrl = location.pathname + location.search
+  const isCurrent = isLink && currentUrl === item.path
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (loading && location.pathname === item.path) setLoading(false)
-  }, [location.pathname, loading, item.path])
+    if (loading && currentUrl === item.path) setLoading(false)
+  }, [currentUrl, loading, item.path])
 
   return (
     <button
@@ -95,6 +103,13 @@ function SidebarNavItem({
   const groupKey = `${parentKey}>${item.label}`
   const isPinned = Boolean(openGroups[groupKey])
   const isOpen = isPinned || hoverGroup.has(groupKey) || depth === 0
+  // A group can also be a real page (e.g. Payroll's "Human Resource" —
+  // matches the legacy menu, where clicking that parent node lands on its
+  // Holiday Management/All Leave Request page). currentUrl mirrors
+  // SidebarLeaf's own comment: compared with the search string included
+  // since a group's path can carry one too.
+  const currentUrl = location.pathname + location.search
+  const isCurrent = Boolean(item.path) && currentUrl === item.path
   return (
     <div
       className="pt-0.5 first:pt-0"
@@ -120,10 +135,18 @@ function SidebarNavItem({
       <div className="flex items-center gap-1 pr-1">
         <button
           type="button"
-          onClick={() => toggleGroup(groupKey, parentKey)}
+          onClick={() => {
+            if (item.path) {
+              navigate(item.path)
+              if (!isPinned) toggleGroup(groupKey, parentKey)
+            } else {
+              toggleGroup(groupKey, parentKey)
+            }
+          }}
+          onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
           style={{ paddingLeft: `${depth * 0.75 + 0.25}rem` }}
           className={`flex-1 min-w-0 text-left py-1.5 rounded-md text-[13px] font-semibold transition-colors ${
-            isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
+            isCurrent || isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
           }`}
         >
           <span className="truncate">{item.label}</span>

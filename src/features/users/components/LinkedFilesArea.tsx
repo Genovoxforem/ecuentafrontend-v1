@@ -1,16 +1,12 @@
 import { useState } from 'react'
-import { Link2, FolderPlus, RefreshCw, Folder, X } from 'lucide-react'
+import { Link2, Folder, FolderTree, ExternalLink } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useLocalCollection } from '../../../shared/localCollection'
+import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 
-// Matches the reference "Linked Files Area" (DMS/ECM)'s real split: Automatic
-// Tree is a fixed, read-only list of one directory per Dolibarr module that
-// can attach files (never editable — there's no "add" affordance for it in
-// the reference app either), while Manual Tree is the user's own
-// hand-created folder tree and genuinely starts empty. No file-storage
-// backend exists for this app, so there's nothing to list documents from
-// either way — both tabs correctly show zero documents once a directory is
-// selected, same as the reference's own demo account.
+// Automatic Tree mirrors the real backend's own fixed list — one directory
+// per Dolibarr module that accepts attachments (ecm/index_auto.php's own
+// array of enabled modules, read directly), so this list is real reference
+// data, not a guess.
 const AUTOMATIC_DIRECTORIES = [
   'Bank Account',
   'Candidatures',
@@ -26,36 +22,29 @@ const AUTOMATIC_DIRECTORIES = [
   'Sales Orders',
   'Social Or Fiscal Taxes',
   'Third-Parties',
-  'Users',
+  'Users',  
   'Vendor Quotation',
   'Vendors Invoices',
 ]
 
-const MANUAL_FOLDERS_KEY = ['local', 'manual-folders'] as const
+// Neither tab has a JSON API on this backend: ecm/index.php (Manual Tree)
+// and ecm/index_auto.php (Automatic Tree) both print raw HTML/jQuery
+// "filetree" markup (core/ajax/ajaxdirtree.php serves the tree nodes as
+// <ul>/<li> fragments, not JSON), and folder create/delete there is a
+// classic <form> POST — confirmed by reading all three files directly, no
+// json_encode/application/json anywhere under ecm/. A real, server-side
+// file store backs both (disk-based, per module dir_output) — this SPA
+// just has no way to browse, create, or upload into it yet. An earlier
+// version of this page worked around that by faking "Manual Tree" folder
+// creation into localStorage — folders that only ever existed in one
+// browser and were never real. Replaced with an honest link out to the
+// real legacy area instead of pretending to manage them here.
+const LEGACY_MANUAL_URL = '/ecm/index.php'
+const LEGACY_AUTOMATIC_URL = '/ecm/index_auto.php'
 
 export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manual' | 'automatic' }) {
   const [tab, setTab] = useState<'manual' | 'automatic'>(defaultTab)
-  const [selectedDir, setSelectedDir] = useState<string | null>(null)
-  const [manualFolders, updateManualFolders] = useLocalCollection<string[]>(MANUAL_FOLDERS_KEY, [])
-  const [creatingFolder, setCreatingFolder] = useState(false)
-  const [newFolderName, setNewFolderName] = useState('')
-
-  const directories = tab === 'automatic' ? AUTOMATIC_DIRECTORIES : manualFolders
-
-  function switchTab(t: 'manual' | 'automatic') {
-    setTab(t)
-    setSelectedDir(null)
-    setCreatingFolder(false)
-  }
-
-  function commitNewFolder() {
-    const name = newFolderName.trim()
-    if (name && !manualFolders.includes(name)) {
-      updateManualFolders((current) => [...current, name])
-    }
-    setNewFolderName('')
-    setCreatingFolder(false)
-  }
+  const legacyUrl = tab === 'manual' ? LEGACY_MANUAL_URL : LEGACY_AUTOMATIC_URL
 
   return (
     <div className="space-y-4">
@@ -68,7 +57,7 @@ export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manua
           <button
             key={t}
             type="button"
-            onClick={() => switchTab(t)}
+            onClick={() => setTab(t)}
             className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${
               tab === t ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted border border-border hover:bg-surface-hover'
             }`}
@@ -79,75 +68,43 @@ export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manua
       </div>
 
       <Card className="!p-0 overflow-hidden">
-        <div className="flex items-center gap-2 p-3 border-b border-border">
-          <button
-            type="button"
-            title={tab === 'manual' ? 'New folder' : 'Automatic Tree is read-only'}
-            disabled={tab !== 'manual'}
-            onClick={() => setCreatingFolder(true)}
-            className="p-1.5 rounded-md text-text-muted hover:bg-surface-hover disabled:opacity-40 disabled:hover:bg-transparent"
+        <div className="flex items-center justify-between gap-2 p-3 border-b border-border">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-faint">{tab === 'manual' ? 'Manual Tree' : 'Automatic Tree'}</p>
+          <a
+            href={stripBackendPrefix(legacyUrl)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
           >
-            <FolderPlus size={16} />
-          </button>
-          <button type="button" title="Refresh" onClick={() => setSelectedDir(null)} className="p-1.5 rounded-md text-text-muted hover:bg-surface-hover">
-            <RefreshCw size={16} />
-          </button>
+            Open in Linked Files <ExternalLink size={12} />
+          </a>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr]">
-          <div className="border-b sm:border-b-0 sm:border-r border-border p-2">
-            <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-text-faint">Directories</p>
-            {creatingFolder && (
-              <div className="flex items-center gap-1 px-2 py-1">
-                <input
-                  autoFocus
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitNewFolder()
-                    if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
-                  }}
-                  onBlur={commitNewFolder}
-                  placeholder="Folder name…"
-                  className="flex-1 min-w-0 rounded border border-input-border bg-input-bg px-2 py-1 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30"
-                />
-                <button type="button" onMouseDown={(e) => { e.preventDefault(); setCreatingFolder(false); setNewFolderName('') }} className="p-1 text-text-faint hover:text-text">
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-            {directories.length === 0 && !creatingFolder && <p className="px-2 py-2 text-xs text-text-faint italic">No folders yet.</p>}
-            {directories.map((dir) => (
-              <button
-                key={dir}
-                type="button"
-                onClick={() => setSelectedDir(dir)}
-                className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-md text-sm ${
-                  selectedDir === dir ? 'bg-brand/10 text-brand font-medium' : 'text-text-muted hover:bg-surface-hover'
-                }`}
-              >
-                <Folder size={14} /> {dir}
-              </button>
-            ))}
+
+        {tab === 'automatic' ? (
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-text-faint">One folder per module that accepts attachments. This backend has no JSON API to list files inside them — browse those in Linked Files.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+              {AUTOMATIC_DIRECTORIES.map((dir) => (
+                <div key={dir} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-text-muted">
+                  <Folder size={14} className="text-text-faint shrink-0" /> {dir}
+                </div>
+              ))}
+            </div>
           </div>
-          <div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-4 py-2.5">Documents</th>
-                  <th className="font-medium px-4 py-2.5">Size</th>
-                  <th className="font-medium px-4 py-2.5">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="px-4 py-6 text-text-faint italic" colSpan={3}>
-                    {selectedDir ? `No documents in "${selectedDir}" yet.` : 'Select a directory in the tree...'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-10 px-4 text-center">
+            <FolderTree size={28} className="text-text-faint" />
+            <p className="max-w-sm text-sm text-text-faint">This backend has no JSON API for browsing or creating folders here — Manual Tree is managed entirely server-side in the legacy app.</p>
+            <a
+              href={stripBackendPrefix(LEGACY_MANUAL_URL)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
+            >
+              Manage in Linked Files <ExternalLink size={12} />
+            </a>
           </div>
-        </div>
+        )}
       </Card>
     </div>
   )

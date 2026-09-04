@@ -133,12 +133,20 @@ function itemContainsCurrent(item: NavItem, pathname: string): boolean {
 
 function NavLeaf({ item, depth = 0, navigate, location }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location }) {
   const isLink = Boolean(item.path)
-  const isCurrent = isLink && location.pathname === item.path
+  // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
+  // "Calendar" links — see users.nav.ts) carry a query string as part of
+  // their own `path`, all pointing at the same route. Comparing against
+  // `location.pathname` alone can never match those — it never includes
+  // the search string — which left every one of them permanently "loading"
+  // (the reset effect's condition never became true) and never highlighted
+  // as current even while actually on that exact filtered page.
+  const currentUrl = location.pathname + location.search
+  const isCurrent = isLink && currentUrl === item.path
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (loading && location.pathname === item.path) setLoading(false)
-  }, [location.pathname, loading, item.path])
+    if (loading && currentUrl === item.path) setLoading(false)
+  }, [currentUrl, loading, item.path])
 
   return (
     <button
@@ -172,21 +180,36 @@ function NavGroup({
   isOpen,
   onToggle,
 }: {
-  item: { label: string; items: NavItem[] }
+  item: { label: string; path?: string; items: NavItem[] }
   depth: number
   navigate: NavigateFunction
   location: Location
   isOpen: boolean
   onToggle: () => void
 }) {
+  // A group can also be a real page (e.g. Payroll's "Human Resource" —
+  // matches the legacy menu, where clicking that parent node lands on its
+  // Holiday Management/All Leave Request page). Mirrors NavLeaf's own
+  // currentUrl comment: search string included since a group's path can
+  // carry one too.
+  const currentUrl = location.pathname + location.search
+  const isCurrent = Boolean(item.path) && currentUrl === item.path
   return (
     <div>
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => {
+          if (item.path) {
+            navigate(item.path)
+            if (!isOpen) onToggle()
+          } else {
+            onToggle()
+          }
+        }}
+        onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
         style={{ paddingLeft: `${1.5 + depth * 0.75}rem` }}
         className={`w-full flex items-center justify-between gap-2 pr-2.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
-          isOpen ? 'text-white' : 'text-white/45 hover:text-white/80'
+          isOpen || isCurrent ? 'text-white' : 'text-white/45 hover:text-white/80'
         }`}
       >
         <span className="truncate">{item.label}</span>

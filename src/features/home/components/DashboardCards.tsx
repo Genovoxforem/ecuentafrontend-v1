@@ -43,7 +43,7 @@ export function StatCard({
   tone?: StatTone
 }) {
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${GRADIENTS[tone]} p-4 transition-shadow hover:shadow-lg hover:shadow-black/5`}>
+    <div className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${GRADIENTS[tone]} p-4 h-full flex flex-col justify-center transition-shadow hover:shadow-lg hover:shadow-black/5`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-text-muted uppercase tracking-wide truncate">{label}</p>

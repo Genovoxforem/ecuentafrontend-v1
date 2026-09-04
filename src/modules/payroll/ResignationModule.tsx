@@ -1,5 +1,5 @@
-import { ResignationForm } from '../../features/payroll/components/ResignationForm'
+import { ResignationList } from '../../features/payroll/components/ResignationList'
 
 export function ResignationModule() {
-  return <ResignationForm />
+  return <ResignationList />
 }
