@@ -7,10 +7,12 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
+import { Avatar } from '../../../shared/components/Avatar'
 import { api } from '../../../api/axios'
 import { fetchLegacyDocument } from '../../../shared/legacyHtmlFetch'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions, callProductInfoFile } from '../../products/products.queries'
 import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
@@ -250,10 +252,15 @@ const WIZARD_STEPS = [
 // by number inputs across the rest of the app too.
 const noSpinnerCls = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
-export function OrderCreateForm() {
+// `fixedCustomerId` powers OrderCreateFromCustomerForm.tsx (reached from a
+// specific customer's own Customer tab, "AddOrder" button) — same real
+// customer-locked-field-not-a-different-page behavior confirmed for
+// Quotations (see QuotationCreateForm.tsx's own comment), generalized here
+// the same way rather than duplicated.
+export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const today = new Date().toISOString().slice(0, 10)
   const [step, setStep] = useState(0)
-  const [customerId, setCustomerId] = useState('')
+  const [customerId, setCustomerId] = useState(fixedCustomerId ?? '')
   const [refCustomer, setRefCustomer] = useState('')
   const [date, setDate] = useState(today)
   // Added/confirmed lines only — the in-progress line being built lives in
@@ -286,7 +293,9 @@ export function OrderCreateForm() {
   const [notePublic, setNotePublic] = useState('')
   const [notePrivate, setNotePrivate] = useState('')
 
+  const listLink = backTo ?? ROUTES.orderList
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   // Rich picker for the Customer field — matches the reference layout's own customer search
   // dropdown (Form::select_thirdparty_list()), which shows ref/Tpin/Country per result
   // instead of a plain name. Same pattern as productOptions below.
@@ -528,10 +537,10 @@ export function OrderCreateForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders'] })
-      const customerName = customers?.find((c) => c.id === customerId)?.name ?? 'a customer'
+      const customerName = fixedCustomer?.name ?? customers?.find((c) => c.id === customerId)?.name ?? 'a customer'
       const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
       logActivity({ label: `New sales order for ${customerName}`, category: 'orders', authorName })
-      navigate(ROUTES.orderList)
+      navigate(listLink)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create order'),
   })
@@ -645,7 +654,7 @@ export function OrderCreateForm() {
       // the "Customer is required." style messages goNext() sets on failed validation.
       footerLeft={
         <div className="flex items-center gap-3">
-          <Link to={ROUTES.orderList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
             <X size={14} /> Cancel
           </Link>
           {formError && <p className="text-sm font-medium text-danger">{formError}</p>}
@@ -708,14 +717,27 @@ export function OrderCreateForm() {
                   matching the reference layout (commande/salesorder/index_v2.php). */}
               <div className="rounded-lg bg-surface-alt border border-border p-3 mb-4">
                 <Field label="Customer" required>
-                  <SearchableSelect
-                    value={customerId}
-                    onChange={setCustomerId}
-                    options={customerSelectOptions}
-                    placeholder={customersLoading ? 'Loading…' : 'Select a third party'}
-                    onAddNew={() => setShowCustomerModal(true)}
-                    addNewLabel="Add New Customer"
-                  />
+                  {fixedCustomerId ? (
+                    <div className={`${inputClasses} flex items-center gap-2`}>
+                      <Avatar name={fixedCustomer?.name ?? ''} size={20} color="bg-brand" />
+                      {fixedCustomer ? (
+                        <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                          {fixedCustomer.name}
+                        </Link>
+                      ) : (
+                        <span className="text-text-faint">Loading…</span>
+                      )}
+                    </div>
+                  ) : (
+                    <SearchableSelect
+                      value={customerId}
+                      onChange={setCustomerId}
+                      options={customerSelectOptions}
+                      placeholder={customersLoading ? 'Loading…' : 'Select a third party'}
+                      onAddNew={() => setShowCustomerModal(true)}
+                      addNewLabel="Add New Customer"
+                    />
+                  )}
                 </Field>
               </div>
 

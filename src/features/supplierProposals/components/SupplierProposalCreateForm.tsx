@@ -5,17 +5,26 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
+import { Avatar } from '../../../shared/components/Avatar'
 import { useVendorOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useAuth } from '../../auth/AuthContext'
 import { useCreateSupplierProposal } from '../supplierProposals.queries'
 
-export function SupplierProposalCreateForm() {
+// `fixedCustomerId` powers SupplierProposalCreateFromCustomerForm.tsx
+// (reached from a specific vendor's own Vendor tab, "Create A Price
+// Request" button) — same real vendor-locked-field-not-a-different-page
+// behavior confirmed for Quotations (see QuotationCreateForm.tsx's own
+// comment), generalized here the same way rather than duplicated.
+export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const { user } = useAuth()
   const { data: vendors, isLoading: vendorsLoading } = useVendorOptions()
+  const { data: fixedVendor } = useCustomerDetail(fixedCustomerId)
   const createProposal = useCreateSupplierProposal()
   const navigate = useNavigate()
+  const listLink = backTo ?? ROUTES.supplierProposalList
 
-  const [vendorId, setVendorId] = useState('')
+  const [vendorId, setVendorId] = useState(fixedCustomerId ?? '')
   const [plannedDelivery, setPlannedDelivery] = useState('')
   const [amount, setAmount] = useState(0)
   const [formError, setFormError] = useState('')
@@ -23,20 +32,20 @@ export function SupplierProposalCreateForm() {
 
   function handleSubmit() {
     setFormError('')
-    const vendor = vendors?.find((v) => v.id === vendorId)
-    if (!vendor) {
+    const vendorName = fixedVendor?.name ?? vendors?.find((v) => v.id === vendorId)?.name
+    if (!vendorName) {
       setFormError('Vendor is required.')
       return
     }
     setPending(true)
     createProposal({
-      thirdParty: vendor.name,
+      thirdParty: vendorName,
       plannedDelivery,
       amountExclTax: amount,
       author: user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown',
     })
     setPending(false)
-    navigate(ROUTES.supplierProposalList)
+    navigate(listLink)
   }
 
   return (
@@ -47,7 +56,7 @@ export function SupplierProposalCreateForm() {
         </h2>
       }
       footerLeft={
-        <Link to={ROUTES.supplierProposalList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+        <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel
         </Link>
       }
@@ -68,14 +77,27 @@ export function SupplierProposalCreateForm() {
             <input disabled defaultValue="Draft" className={`${inputClasses} text-text-faint`} />
           </Field>
           <Field label="Vendor" required>
-            <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={inputClasses}>
-              <option value="">{vendorsLoading ? 'Loading…' : 'Select a vendor'}</option>
-              {vendors?.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+            {fixedCustomerId ? (
+              <div className={`${inputClasses} flex items-center gap-2`}>
+                <Avatar name={fixedVendor?.name ?? ''} size={20} color="bg-brand" />
+                {fixedVendor ? (
+                  <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                    {fixedVendor.name}
+                  </Link>
+                ) : (
+                  <span className="text-text-faint">Loading…</span>
+                )}
+              </div>
+            ) : (
+              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={inputClasses}>
+                <option value="">{vendorsLoading ? 'Loading…' : 'Select a vendor'}</option>
+                {vendors?.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
 
           <Field label="Payment Terms">

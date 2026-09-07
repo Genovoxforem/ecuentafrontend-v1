@@ -76,7 +76,7 @@ function FiltersForm({
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const isAuthIssue = message.toLowerCase().includes('signed in')
+  const isAuthIssue = /signed in|forbidden|403/i.test(message)
   return (
     <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
       <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />

@@ -36,7 +36,6 @@ import {
   Bot,
   Mail,
   Phone,
-  ExternalLink,
   Truck,
   Search,
   Upload,
@@ -91,6 +90,7 @@ import {
   type CustomerTabDocRow,
   type AccountingResponse,
   type TicketsFilters,
+  type CustomerTabButton,
 } from '../customerDetailTabs.queries'
 
 // Native rebuild of the legacy Third-Party detail page
@@ -1660,6 +1660,56 @@ function ContractsTab({ socid }: { socid: string | undefined }) {
   )
 }
 
+// Keys of societe/api/customer.php's own buttons[] array (real, backend-driven —
+// confirmed live for socid=1990: create_proposal/create_order/create_contract/
+// create_job_card/bill_orders(_refused)/create_invoice/advance_list). Only
+// keys with a real in-app page get routed internally; everything else is
+// rendered honestly disabled instead of linking out to the legacy PHP page.
+function customerActionRoute(key: string, socid: string): string | null {
+  switch (key) {
+    case 'create_proposal':
+      return ROUTES.customerQuotationCreate.replace(':id', socid)
+    case 'create_order':
+      return ROUTES.customerOrderCreate.replace(':id', socid)
+    case 'create_contract':
+      return ROUTES.customerContractCreate.replace(':id', socid)
+    case 'create_invoice':
+      return ROUTES.customerInvoiceCreate.replace(':id', socid)
+    case 'create_job_card':
+      return ROUTES.customerJobCardCreate.replace(':id', socid)
+    case 'advance_list':
+      return ROUTES.customerAdvanceList.replace(':id', socid)
+    default:
+      return null
+  }
+}
+
+function CustomerActionButton({ button, socid }: { button: CustomerTabButton; socid: string }) {
+  if (button.refused) {
+    return (
+      <span title={button.title} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-faint opacity-60 cursor-not-allowed">
+        {button.label}
+      </span>
+    )
+  }
+  const route = customerActionRoute(button.key, socid)
+  if (route) {
+    return (
+      <Link key={button.key} to={route} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover">
+        {button.label}
+      </Link>
+    )
+  }
+  return (
+    <span
+      title="No in-app page exists yet for this action."
+      className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-faint opacity-60 cursor-not-allowed"
+    >
+      {button.label}
+    </span>
+  )
+}
+
 function CustomerTab({ socid, profile }: { socid: string | undefined; profile: CustomerProfile }) {
   const { data, isLoading, isError, error, refetch } = useCustomerTab(socid)
   if (isLoading) return <LegacyLoadingCard label="Loading customer info…" />
@@ -1701,9 +1751,9 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
           <p className="text-xs text-text-faint uppercase tracking-wide">Customer Credit / Advance</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.advance)}</p>
           <p className="text-xs text-text-faint">Discount: {data.remise_percent}%</p>
-          <a href={stripBackendPrefix(data.urls.discount)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+          <span title="No in-app page exists yet for this action." className="text-xs font-medium text-text-faint cursor-not-allowed">
             Manage discounts
-          </a>
+          </span>
         </Card>
       </div>
 
@@ -1726,30 +1776,18 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
         <RecentDocsCard title="Recent invoices" doc={data.invoices} viewAllUrl={data.urls.invoices_list} createUrl={data.urls.invoices_create} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {data.buttons
-          .filter((b) => b.visible)
-          .map((b) =>
-            b.refused ? (
-              <span
-                key={b.key}
-                title={b.title}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-faint opacity-60 cursor-not-allowed"
-              >
-                {b.label}
-              </span>
-            ) : (
-              <a
-                key={b.key}
-                href={stripBackendPrefix(b.url)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
-              >
-                {b.label} <ExternalLink size={12} />
-              </a>
-            ),
-          )}
+      {/* Sticky to the tab's own scroll container (CustomerDetail's overflow-y-auto
+          div, which has py-4) — -mb-4 cancels that bottom padding the same way
+          the page header above cancels -m-6's p-6, so bottom-0 clamps flush
+          against the true bottom of the scroll viewport instead of leaving a gap. */}
+      <div className="sticky bottom-0 z-10 -mx-6 -mb-4 border-t border-border bg-white px-6 py-3 dark:bg-gray-950">
+        <div className="flex flex-wrap gap-2">
+          {data.buttons
+            .filter((b) => b.visible)
+            .map((b) => (
+              <CustomerActionButton key={b.key} button={b} socid={socid ?? ''} />
+            ))}
+        </div>
       </div>
     </div>
   )
@@ -1841,30 +1879,24 @@ function VendorTab({ socid }: { socid: string | undefined }) {
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        <a
-          href={stripBackendPrefix(data.buttons.create_proposal)}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          to={ROUTES.customerSupplierProposalCreate.replace(':id', socid ?? '')}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
         >
-          Create A Price Request <ExternalLink size={12} />
-        </a>
-        <a
-          href={stripBackendPrefix(data.buttons.create_order)}
-          target="_blank"
-          rel="noreferrer"
+          Create A Price Request
+        </Link>
+        <Link
+          to={ROUTES.customerPurchaseOrderCreate.replace(':id', socid ?? '')}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
         >
-          Create Order <ExternalLink size={12} />
-        </a>
-        <a
-          href={stripBackendPrefix(data.buttons.create_invoice)}
-          target="_blank"
-          rel="noreferrer"
+          Create Order
+        </Link>
+        <Link
+          to={ROUTES.customerVendorInvoiceCreate.replace(':id', socid ?? '')}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover"
         >
-          Create Invoice Or Credit Note <ExternalLink size={12} />
-        </a>
+          Create Invoice Or Credit Note
+        </Link>
       </div>
     </div>
   )
@@ -2262,14 +2294,9 @@ function TicketsTab({ socid }: { socid: string | undefined }) {
       <div className="flex items-center justify-between">
         <TabTitle>Tickets</TabTitle>
         {data.can_create && (
-          <a
-            href={stripBackendPrefix(data.urls.create)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-          >
+          <Link to={ROUTES.ticketNew} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New ticket
-          </a>
+          </Link>
         )}
       </div>
       <Card className="!h-auto">
@@ -2374,14 +2401,12 @@ function ProjectsTab({ socid }: { socid: string | undefined }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <TabTitle>Projects</TabTitle>
-        <a
-          href={stripBackendPrefix(data.urls.create)}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        <span
+          title="Project creation has no working backend on this instance yet — see the standalone Projects module's own New Project page."
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white opacity-60 cursor-not-allowed"
         >
           <Plus size={14} /> New project
-        </a>
+        </span>
       </div>
       <Card className="!h-auto">
         {data.projects.length === 0 ? (

@@ -8,9 +8,11 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
+import { Avatar } from '../../../shared/components/Avatar'
 import { api } from '../../../api/axios'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 import { useLogActivity } from '../../agenda/agenda.queries'
@@ -155,13 +157,20 @@ interface CreatedQuotation {
   ref: string
 }
 
-export function QuotationCreateForm() {
+// `fixedCustomerId` powers QuotationCreateFromCustomerForm.tsx (reached from
+// a specific customer's own Customer tab, "AddProp" button). Confirmed live
+// against the reference app (comm/propal/card.php?action=create&socid=X)
+// that this is genuinely the SAME create form, just with the customer field
+// locked instead of a free-pick dropdown — not a structurally different
+// page the way Contracts' customer-scoped create is — so this component is
+// generalized with a prop rather than duplicated.
+export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const today = new Date().toISOString().slice(0, 10)
   const defaultValidity = new Date()
   defaultValidity.setDate(defaultValidity.getDate() + 15)
   const defaultValidityIso = defaultValidity.toISOString().slice(0, 10)
 
-  const [customerId, setCustomerId] = useState('')
+  const [customerId, setCustomerId] = useState(fixedCustomerId ?? '')
   const [refCustomer, setRefCustomer] = useState('')
   const [date, setDate] = useState(today)
   const [projectId, setProjectId] = useState('')
@@ -194,7 +203,9 @@ export function QuotationCreateForm() {
 
   const { user } = useAuth()
   const logActivity = useLogActivity()
+  const listLink = backTo ?? ROUTES.quotationList
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   const customerOptions = customers?.map((c) => ({
     value: c.id,
     label: c.name,
@@ -372,7 +383,7 @@ export function QuotationCreateForm() {
 
   function startNewQuotation() {
     setCreatedQuotation(null)
-    setCustomerId('')
+    setCustomerId(fixedCustomerId ?? '')
     setRefCustomer('')
     setDate(today)
     setProjectId('')
@@ -401,7 +412,7 @@ export function QuotationCreateForm() {
             <FileBadge size={20} className="text-brand" /> New Quotation
           </h2>
         }
-        footerLeft={<Link to={ROUTES.quotationList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">Back to List</Link>}
+        footerLeft={<Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">Back to List</Link>}
         footerRight={
           <button type="button" onClick={startNewQuotation} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New Quotation
@@ -424,6 +435,7 @@ export function QuotationCreateForm() {
 
   return (
     <StickyFormShell
+      scrollsInternally={false}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileBadge size={20} className="text-brand" /> New Quotation
@@ -431,7 +443,7 @@ export function QuotationCreateForm() {
       }
       footerLeft={
         <div className="flex items-center gap-4">
-          <Link to={ROUTES.quotationList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
             <X size={14} /> Cancel
           </Link>
           <div className="text-xs text-text-faint leading-tight">
@@ -471,7 +483,20 @@ export function QuotationCreateForm() {
         <Card className="!h-auto shrink-0">
           <div className="rounded-lg bg-surface-alt border border-border p-3 mb-4">
             <Field label="Customer" required>
-              <SearchableSelect value={customerId} onChange={setCustomerId} options={customerOptions ?? []} placeholder={customersLoading ? 'Loading…' : 'Select a third party'} />
+              {fixedCustomerId ? (
+                <div className={`${inputClasses} flex items-center gap-2`}>
+                  <Avatar name={fixedCustomer?.name ?? ''} size={20} color="bg-brand" />
+                  {fixedCustomer ? (
+                    <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                      {fixedCustomer.name}
+                    </Link>
+                  ) : (
+                    <span className="text-text-faint">Loading…</span>
+                  )}
+                </div>
+              ) : (
+                <SearchableSelect value={customerId} onChange={setCustomerId} options={customerOptions ?? []} placeholder={customersLoading ? 'Loading…' : 'Select a third party'} />
+              )}
             </Field>
           </div>
 

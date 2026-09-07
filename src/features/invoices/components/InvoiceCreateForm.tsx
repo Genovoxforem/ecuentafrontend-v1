@@ -5,7 +5,9 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, Select, inputClasses } from '../../../shared/components/forms/FormField'
+import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCreateInvoice, type NewInvoiceLine } from '../invoiceCreate.queries'
 import { formatMoney } from '../../../utils/format'
@@ -45,16 +47,23 @@ function newLine(): LineState {
 // the backend only accepts customer/date/ref.customer/payment type/note/
 // lines, so those fields don't reach it (same honesty as the fields this
 // form already left as bare Selects before).
-export function InvoiceCreateForm() {
+// `fixedCustomerId` powers InvoiceCreateFromCustomerForm.tsx (reached from a
+// specific customer's own Customer tab, "Create invoice or credit note"
+// button) — same real customer-locked-field-not-a-different-page behavior
+// confirmed for Quotations (see QuotationCreateForm.tsx's own comment),
+// generalized here the same way rather than duplicated.
+export function InvoiceCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   const { data: products } = useProductOptions()
   const createInvoice = useCreateInvoice()
   const navigate = useNavigate()
+  const listLink = backTo ?? ROUTES.invoiceList
 
   const [type, setType] = useState(INVOICE_TYPES[0])
   const today = new Date().toISOString().slice(0, 10)
 
-  const [customerId, setCustomerId] = useState('')
+  const [customerId, setCustomerId] = useState(fixedCustomerId ?? '')
   const [refClient, setRefClient] = useState('')
   const [date, setDate] = useState(today)
   const [paymentModeCode, setPaymentModeCode] = useState('')
@@ -92,7 +101,7 @@ export function InvoiceCreateForm() {
         lines: lines.filter((l) => l.label.trim() && l.qty > 0).map(({ key: _key, ...l }) => l),
       },
       {
-        onSuccess: () => navigate(ROUTES.invoiceList),
+        onSuccess: () => navigate(listLink),
         // POST /api/invoices/list/ doesn't exist on the current backend (see
         // BackendUnavailable.tsx) — this create draft action gets the honest "not available"
         // message instead of the generic retry-suggesting one.
@@ -110,7 +119,7 @@ export function InvoiceCreateForm() {
         </h2>
       }
       footerLeft={
-        <Link to={ROUTES.invoiceList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+        <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel
         </Link>
       }
@@ -127,14 +136,27 @@ export function InvoiceCreateForm() {
     >
       <Card className="bg-surface-hover! grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Customer" required>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={inputClasses}>
-            <option value="">{customersLoading ? 'Loading…' : 'Select a third party'}</option>
-            {customers?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          {fixedCustomerId ? (
+            <div className={`${inputClasses} flex items-center gap-2`}>
+              <Avatar name={fixedCustomer?.name ?? ''} size={20} color="bg-brand" />
+              {fixedCustomer ? (
+                <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                  {fixedCustomer.name}
+                </Link>
+              ) : (
+                <span className="text-text-faint">Loading…</span>
+              )}
+            </div>
+          ) : (
+            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={inputClasses}>
+              <option value="">{customersLoading ? 'Loading…' : 'Select a third party'}</option>
+              {customers?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
         <div>
           <p className="text-sm text-danger">Ref.*</p>
