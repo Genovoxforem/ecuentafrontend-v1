@@ -71,10 +71,25 @@ function normalizeLabel(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-function flattenPaths(internalKey: string, items: NavItem[], out: Map<string, string>) {
+// `ancestors` is the chain of parent labels above `items` (empty at the
+// section root). Every path gets indexed twice: once under a composite key
+// that includes its full ancestor chain (so a repeated leaf label like
+// "ToDispatch" under 3 different parents — General Ledger's Customer/Vendor/
+// Expense-report invoice binding all real, different pages — resolves to the
+// right one), and once under the old flat leaf-only key (so every other
+// already-working *.nav.ts file, none of which has this kind of collision,
+// keeps matching exactly as before). mapNode below tries the composite key
+// first and falls back to the flat one.
+function flattenPaths(internalKey: string, items: NavItem[], out: Map<string, string>, ancestors: string[] = []) {
   for (const item of items) {
-    if ('path' in item && item.path) out.set(`${internalKey}::${normalizeLabel(item.label)}`, item.path)
-    if ('items' in item && item.items) flattenPaths(internalKey, item.items, out)
+    if ('path' in item && item.path) {
+      out.set(`${internalKey}::${normalizeLabel(item.label)}`, item.path)
+      if (ancestors.length > 0) {
+        const composite = [...ancestors, item.label].map(normalizeLabel).join('>')
+        out.set(`${internalKey}::${composite}`, item.path)
+      }
+    }
+    if ('items' in item && item.items) flattenPaths(internalKey, item.items, out, [...ancestors, item.label])
   }
 }
 
@@ -90,8 +105,13 @@ function buildPathIndex(existingSections: NavSection[]): Map<string, string> {
   return index
 }
 
-function mapNode(internalKey: string, node: BackendMenuNode, pathIndex: Map<string, string>): NavItem {
-  const path = pathIndex.get(`${internalKey}::${normalizeLabel(node.titre)}`)
+function mapNode(internalKey: string, node: BackendMenuNode, pathIndex: Map<string, string>, ancestors: string[] = []): NavItem {
+  // Try the full-ancestor-chain composite key first — needed for real menus
+  // where the same leaf label repeats under different parents (see
+  // flattenPaths' own comment) — then fall back to the flat leaf-only key
+  // every other module's nav file already relies on.
+  const composite = ancestors.length > 0 ? [...ancestors, node.titre].map(normalizeLabel).join('>') : null
+  const path = (composite && pathIndex.get(`${internalKey}::${composite}`)) ?? pathIndex.get(`${internalKey}::${normalizeLabel(node.titre)}`)
   if (node.children.length > 0) {
     // `path` carries through even though this node also has children — a
     // real node can be both (see NavGroupItem's own comment). Dropping it
@@ -99,7 +119,8 @@ function mapNode(internalKey: string, node: BackendMenuNode, pathIndex: Map<stri
     // calendar AND parent of New Event/List/Calendar/Reporting/Tags) resolve
     // to no path at all, breaking both its breadcrumb and its own direct
     // link once real backend data replaced the flat local fallback tree.
-    return { label: node.titre, path, items: node.children.map((child) => mapNode(internalKey, child, pathIndex)) }
+    const nextAncestors = [...ancestors, node.titre]
+    return { label: node.titre, path, items: node.children.map((child) => mapNode(internalKey, child, pathIndex, nextAncestors)) }
   }
   return { label: node.titre, path }
 }

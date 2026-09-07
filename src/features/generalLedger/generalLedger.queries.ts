@@ -1,25 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
-import { parseJournalsDocument, looksLikeLegacyLoginPage, type LedgerReport, type LedgerAccountGroup, type JournalsReport } from './ledgerHtmlParser'
+import type { LedgerReport, LedgerAccountGroup, JournalsReport, JournalRow } from './ledgerHtmlParser'
 
-// Journals still has no REST API on this backend (only the old PHP-rendered
-// list.php report page does) — that hook still scrapes it directly,
-// same-origin, relying on the DOLSESSID cookie established by
-// establishLegacySession at login time (see legacySession.ts), parsed via
-// ledgerHtmlParser.ts.
-//
-// View by Account (useLedgerReport, below) is DIFFERENT: this session's
-// audit of the General Ledger module found a real, complete, already-built
-// JSON API sitting unused right next to the scraped page —
-// accountancy/bookkeeping/listbyaccount_ajax_api.php. Confirmed by reading
-// its PHP directly (real filtering/sorting/pagination, grouped-by-account
-// output with subtotals and opening/period/closing balances, real per-line
-// edit/delete URLs and permission flags) and live-tested (real fiscal year,
-// real account groups, 112 real total records). Neither listbyaccount.php
-// nor listbysubaccount.php actually calls this endpoint themselves — it was
-// built and never wired into the legacy page's own UI. Replaced the scrape
-// with this real API; see mapApiResponseToLedgerReport() below for the
-// shape conversion (kept identical to the old HTML-parsed LedgerReport so
-// LedgerModule.tsx needed zero changes).
+// This session's audit of the General Ledger module found a real, complete,
+// already-built JSON API sitting unused right next to the classic
+// server-rendered report pages — accountancy/bookkeeping/listbyaccount_ajax_api.php.
+// Confirmed by reading its PHP directly (real filtering/sorting/pagination,
+// grouped-by-account output with subtotals and opening/period/closing
+// balances, real per-line edit/delete URLs and permission flags) and
+// live-tested (real fiscal year, real account groups, 112 real total
+// records). Neither listbyaccount.php, listbysubaccount.php, nor list.php
+// (Journals) actually calls this endpoint themselves — it was built and
+// never wired into any legacy page's own UI. Both hooks below share it:
+// useLedgerReport groups its response by account (mapApiResponseToLedgerReport);
+// useJournalsReport flattens the same real entries and re-sorts them by
+// date/piece instead (mapApiResponseToJournalsReport) — this used to scrape
+// list.php's HTML with DOMParser (see ledgerHtmlParser.ts's now-unused
+// parseJournalsDocument/looksLikeLegacyLoginPage), which violated this
+// project's "no HTML-scraping, real API data only" rule; replaced once this
+// real endpoint was found to carry everything Journals needs
+// (code_journal/doc_date/doc_ref/label_operation/debit/credit per entry).
 
 export interface LedgerFilters {
   dateStart: string // yyyy-mm-dd
@@ -50,30 +49,21 @@ function buildParams(filters: LedgerFilters): URLSearchParams {
   return params
 }
 
-const NOT_SIGNED_IN_MESSAGE =
-  'Not signed into the legacy accounting backend. This report has no REST API and reads the real Dolibarr page directly — log out and back in to refresh that session, then retry.'
-
-async function fetchLegacyDoc(path: string, params: URLSearchParams): Promise<Document> {
-  const res = await fetch(`${path}?${params.toString()}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy accounting backend returned ${res.status}.`)
-  const html = await res.text()
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-  return doc
-}
-
 interface RawLedgerApiEntry {
   id: number
   piece_num: string
+  piece_url: string
   code_journal: string
   doc_date: string | null
   doc_ref: string
+  subledger_account: string
   label_operation: string
   currency_code: string
   currency_amo: number
   cur_montant: number
   debit: number
   credit: number
+  date_export: string | null
 }
 interface RawLedgerApiGroup {
   account_number: string
@@ -109,7 +99,7 @@ function mapApiResponseToLedgerReport(data: RawLedgerApiResponse): LedgerReport 
       balanceSide: balance >= 0 ? 'Dr' : 'Cr',
       rows: g.entries.map((e) => ({
         transactionNum: e.piece_num,
-        cardUrl: `/accountancy/bookkeeping/card.php?piece_num=${encodeURIComponent(e.piece_num)}`,
+        cardUrl: e.piece_url,
         journal: e.code_journal,
         date: e.doc_date ?? '',
         accountingDoc: e.doc_ref,
@@ -134,18 +124,45 @@ function mapApiResponseToLedgerReport(data: RawLedgerApiResponse): LedgerReport 
   }
 }
 
+function mapApiResponseToJournalsReport(data: RawLedgerApiResponse): JournalsReport {
+  const rows: JournalRow[] = data.groups
+    .flatMap((g) =>
+      g.entries.map(
+        (e): JournalRow => ({
+          transactionNum: e.piece_num,
+          cardUrl: e.piece_url,
+          journal: e.code_journal,
+          date: e.doc_date ?? '',
+          accountingDoc: e.doc_ref,
+          accountCode: g.account_number,
+          subledgerAccount: e.subledger_account,
+          label: e.label_operation,
+          debit: e.debit,
+          credit: e.credit,
+          dateExport: e.date_export ?? '',
+        }),
+      ),
+    )
+    // The API groups by account for the Ledger view; Journals wants the
+    // same real entries in chronological/piece order instead.
+    .sort((a, b) => a.date.localeCompare(b.date) || a.transactionNum.localeCompare(b.transactionNum))
+  return { rows, totalDebit: data.summary.period.debit, totalCredit: data.summary.period.credit }
+}
+
+async function fetchBookkeepingApi(filters: LedgerFilters): Promise<RawLedgerApiResponse> {
+  const params = buildParams(filters)
+  params.set('limit', '200')
+  const res = await fetch(`/accountancy/bookkeeping/listbyaccount_ajax_api.php?${params.toString()}`, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const data: RawLedgerApiResponse = await res.json()
+  if (data.error) throw new Error(data.error)
+  return data
+}
+
 export function useLedgerReport(filters: LedgerFilters) {
   return useQuery({
     queryKey: ['generalLedger', 'byAccount', filters],
-    queryFn: async (): Promise<LedgerReport> => {
-      const params = buildParams(filters)
-      params.set('limit', '200')
-      const res = await fetch(`/accountancy/bookkeeping/listbyaccount_ajax_api.php?${params.toString()}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawLedgerApiResponse = await res.json()
-      if (data.error) throw new Error(data.error)
-      return mapApiResponseToLedgerReport(data)
-    },
+    queryFn: async (): Promise<LedgerReport> => mapApiResponseToLedgerReport(await fetchBookkeepingApi(filters)),
     staleTime: 1000 * 30,
   })
 }
@@ -153,12 +170,8 @@ export function useLedgerReport(filters: LedgerFilters) {
 export function useJournalsReport(filters: LedgerFilters) {
   return useQuery({
     queryKey: ['generalLedger', 'journals', filters],
-    queryFn: async (): Promise<JournalsReport> => {
-      const doc = await fetchLegacyDoc('/accountancy/bookkeeping/list.php', buildParams(filters))
-      return parseJournalsDocument(doc)
-    },
+    queryFn: async (): Promise<JournalsReport> => mapApiResponseToJournalsReport(await fetchBookkeepingApi(filters)),
     staleTime: 1000 * 30,
-    retry: false,
   })
 }
 

@@ -20,6 +20,7 @@ export function ActionFormShell({
   errorMessage,
   onAddAnother,
   backTo,
+  writeEndpointPath = 'payroll/ajax.php',
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -34,6 +35,11 @@ export function ActionFormShell({
   // Path back to this entity's list page. Optional so callers with no
   // paired list (e.g. Advance/Loan/Hourly Grade/Shift) are unaffected.
   backTo?: string
+  // The real endpoint this form actually posts to, named in the banner
+  // below. Defaults to Payroll's shared ajax.php so all of that module's
+  // existing callers stay unchanged; other modules (e.g. General Ledger's
+  // own real endpoints) pass their own.
+  writeEndpointPath?: string
 }) {
   return (
     <div className="space-y-4">
@@ -52,7 +58,7 @@ export function ActionFormShell({
         <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
         <p className="text-xs text-info-fg">
           Backend page: <code className="font-mono">{sourcePath}</code>. This form posts directly to that page's own real write endpoint (
-          <code className="font-mono">payroll/ajax.php</code>) — the record is genuinely saved. There's no matching JSON read endpoint though, so the list
+          <code className="font-mono">{writeEndpointPath}</code>) — the record is genuinely saved. There's no matching JSON read endpoint though, so the list
           {backTo ? " you came from only reflects what's been created in this browser session" : ' below is not shown here'}; view the classic page to
           confirm what's really on the backend.
         </p>

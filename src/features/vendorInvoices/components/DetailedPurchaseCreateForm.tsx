@@ -7,9 +7,11 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
+import { Avatar } from '../../../shared/components/Avatar'
 import { api } from '../../../api/axios'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useVendorOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useBankAccountOptions, useWarehouseOptionsForPurchaseInvoice } from '../vendorInvoices.queries'
 
@@ -71,8 +73,16 @@ const disabledClasses = `${inputClasses} bg-surface-hover text-text-faint cursor
 // all regardless (Type is hardcoded to Standard invoice, currency to the
 // base ZMW, the invoice date itself is always "now" server-side) — kept in
 // the layout to match the real screen, marked inert.
-export function DetailedPurchaseCreateForm() {
+// `fixedCustomerId` powers VendorInvoiceCreateFromCustomerForm.tsx (reached
+// from a specific vendor's own Vendor tab, "Create Invoice Or Credit Note"
+// button) — same customer-locked-field generalization as
+// QuotationCreateForm.tsx (see its own comment). Note the Save actions below
+// are unrelated pre-existing, confirmed-broken backend behavior (see the
+// disabled buttons' own tooltips) — untouched here; this only fixes how the
+// vendor is pre-filled and threaded into the honest legacy-fallback link.
+export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const { data: vendors, isLoading: vendorsLoading } = useVendorOptions()
+  const { data: fixedVendor } = useCustomerDetail(fixedCustomerId)
   const vendorOptions = useMemo(() => (vendors ?? []).map((v) => ({ value: v.id, label: v.name })), [vendors])
   const { data: products } = useProductOptions()
   const productOptions = useMemo(
@@ -96,7 +106,8 @@ export function DetailedPurchaseCreateForm() {
   const { data: warehouses } = useWarehouseOptionsForPurchaseInvoice()
 
   const today = new Date().toISOString().slice(0, 10)
-  const [vendorId, setVendorId] = useState('')
+  const listLink = backTo ?? ROUTES.vendorInvoiceList
+  const [vendorId, setVendorId] = useState(fixedCustomerId ?? '')
   const [refSupplier, setRefSupplier] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(today)
   const [warehouseId, setWarehouseId] = useState('')
@@ -204,7 +215,7 @@ export function DetailedPurchaseCreateForm() {
       }
       footerLeft={
         <div className="flex items-center gap-4">
-          <Link to={ROUTES.vendorInvoiceList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
             <X size={14} /> Cancel
           </Link>
           <div className="text-xs text-text-faint leading-tight">
@@ -257,7 +268,20 @@ export function DetailedPurchaseCreateForm() {
         <Card className="!h-auto shrink-0">
           <div className="rounded-lg bg-surface-alt border border-border p-3 mb-4">
             <Field label="Vendor" required>
-              <SearchableSelect value={vendorId} onChange={setVendorId} options={vendorOptions} placeholder={vendorsLoading ? 'Loading…' : 'Select a third party'} />
+              {fixedCustomerId ? (
+                <div className={`${inputClasses} flex items-center gap-2`}>
+                  <Avatar name={fixedVendor?.name ?? ''} size={20} color="bg-brand" />
+                  {fixedVendor ? (
+                    <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                      {fixedVendor.name}
+                    </Link>
+                  ) : (
+                    <span className="text-text-faint">Loading…</span>
+                  )}
+                </div>
+              ) : (
+                <SearchableSelect value={vendorId} onChange={setVendorId} options={vendorOptions} placeholder={vendorsLoading ? 'Loading…' : 'Select a third party'} />
+              )}
             </Field>
           </div>
 

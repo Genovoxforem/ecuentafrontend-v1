@@ -8,10 +8,12 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
+import { Avatar } from '../../../shared/components/Avatar'
 import { fetchLegacyDocument } from '../../../shared/legacyHtmlFetch'
 import { api } from '../../../api/axios'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useVendorOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 import { useLogActivity } from '../../agenda/agenda.queries'
@@ -234,9 +236,14 @@ interface CreatedOrder {
   total_ttc: number
 }
 
-export function PurchaseOrderCreateForm() {
+// `fixedCustomerId` powers PurchaseOrderCreateFromCustomerForm.tsx (reached
+// from a specific vendor's own Vendor tab, "Create Order" button) — same
+// real customer/vendor-locked-field-not-a-different-page behavior confirmed
+// for Quotations (see QuotationCreateForm.tsx's own comment), generalized
+// here the same way rather than duplicated.
+export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const today = new Date().toISOString().slice(0, 10)
-  const [vendorId, setVendorId] = useState('')
+  const [vendorId, setVendorId] = useState(fixedCustomerId ?? '')
   const [refVendor, setRefVendor] = useState('')
   const [date, setDate] = useState(today)
   const [projectId, setProjectId] = useState('')
@@ -265,7 +272,9 @@ export function PurchaseOrderCreateForm() {
 
   const { user } = useAuth()
   const logActivity = useLogActivity()
+  const listLink = backTo ?? ROUTES.purchaseOrderList
   const { data: vendors, isLoading: vendorsLoading } = useVendorOptions()
+  const { data: fixedVendor } = useCustomerDetail(fixedCustomerId)
   const vendorOptions = useMemo(() => (vendors ?? []).map((v) => ({ value: v.id, label: v.name })), [vendors])
   const { data: products } = useProductOptions()
   const productOptions = useMemo(
@@ -462,7 +471,7 @@ export function PurchaseOrderCreateForm() {
 
   function startNewOrder() {
     setCreatedOrder(null)
-    setVendorId('')
+    setVendorId(fixedCustomerId ?? '')
     setRefVendor('')
     setDate(today)
     setProjectId('')
@@ -487,7 +496,7 @@ export function PurchaseOrderCreateForm() {
             <ShoppingCart size={20} className="text-brand" /> New Purchase Order
           </h2>
         }
-        footerLeft={<Link to={ROUTES.purchaseOrderList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">Back to List</Link>}
+        footerLeft={<Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">Back to List</Link>}
         footerRight={
           <button type="button" onClick={startNewOrder} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New Purchase Order
@@ -527,7 +536,7 @@ export function PurchaseOrderCreateForm() {
       }
       footerLeft={
         <div className="flex items-center gap-4">
-          <Link to={ROUTES.purchaseOrderList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
             <X size={14} /> Cancel
           </Link>
           <div className="text-xs text-text-faint leading-tight">
@@ -583,7 +592,20 @@ export function PurchaseOrderCreateForm() {
         <Card className="!h-auto shrink-0">
           <div className="rounded-lg bg-surface-alt border border-border p-3 mb-4">
             <Field label="Vendor" required>
-              <SearchableSelect value={vendorId} onChange={setVendorId} options={vendorOptions} placeholder={vendorsLoading ? 'Loading…' : 'Select a third party'} />
+              {fixedCustomerId ? (
+                <div className={`${inputClasses} flex items-center gap-2`}>
+                  <Avatar name={fixedVendor?.name ?? ''} size={20} color="bg-brand" />
+                  {fixedVendor ? (
+                    <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                      {fixedVendor.name}
+                    </Link>
+                  ) : (
+                    <span className="text-text-faint">Loading…</span>
+                  )}
+                </div>
+              ) : (
+                <SearchableSelect value={vendorId} onChange={setVendorId} options={vendorOptions} placeholder={vendorsLoading ? 'Loading…' : 'Select a third party'} />
+              )}
             </Field>
           </div>
 
