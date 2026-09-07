@@ -1,5 +1,5 @@
-import { WarningForm } from '../../features/payroll/components/WarningForm'
+import { WarningList } from '../../features/payroll/components/WarningList'
 
 export function WarningModule() {
-  return <WarningForm />
+  return <WarningList />
 }

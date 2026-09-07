@@ -264,6 +264,7 @@ export function QuickInvoiceCreateForm() {
 
   return (
     <StickyFormShell
+      scrollsInternally={false}
       header={
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">

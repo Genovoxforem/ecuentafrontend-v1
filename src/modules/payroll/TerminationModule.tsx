@@ -1,5 +1,5 @@
-import { TerminationForm } from '../../features/payroll/components/TerminationForm'
+import { TerminationList } from '../../features/payroll/components/TerminationList'
 
 export function TerminationModule() {
-  return <TerminationForm />
+  return <TerminationList />
 }

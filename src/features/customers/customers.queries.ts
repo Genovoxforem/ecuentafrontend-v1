@@ -74,6 +74,7 @@ export function toThirdPartyRow(item: ApiCustomerRow): ThirdPartyRow {
     id: item.id,
     name: item.name || '(unnamed)',
     country: item.country || '',
+    countryCode: item.country_code || undefined,
     outstandingBalance: item.outstanding_balance ?? 0,
     tpin: item.tpin ?? '',
     salesRep: item.sales_rep || '',

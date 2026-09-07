@@ -1,5 +1,7 @@
-import { Star, Info } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, Star, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ROUTES } from '../../../routes'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-3 py-2 cursor-not-allowed'
 
@@ -14,9 +16,14 @@ const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-
 export function AppraisalForm() {
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Star size={20} className="text-brand" /> Appraisal
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Star size={20} className="text-brand" /> Appraisal
+        </h2>
+        <Link to={ROUTES.payrollEmployeeAppraisal} className="flex items-center gap-1.5 text-sm font-medium text-text-muted hover:text-text">
+          <ArrowLeft size={14} /> Back to list
+        </Link>
+      </div>
 
       <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
         <Info size={15} className="text-info-fg mt-0.5 shrink-0" />

@@ -17,11 +17,20 @@ export const nav: NavSection = {
   items: [
     { label: 'Payroll Dashboard', path: ROUTES.payrollDashboard },
     {
+      // Matches the legacy menu: clicking "Human Resource" itself (not
+      // just a child) lands on Holiday Management / All Leave Request —
+      // its default page.
       label: 'Human Resource',
+      path: ROUTES.payrollAllLeaveRequest,
       items: [
         { label: 'Leave Request', path: ROUTES.payrollLeaveRequest },
         { label: 'All Leave Request', path: ROUTES.payrollAllLeaveRequest },
-        { label: 'Calendar Holidays', path: ROUTES.payrollCalendarHolidays },
+        // "Calender" (not "Calendar") — matches the live backend menu's own
+        // real (misspelled) title verbatim; buildNavSections.ts's path
+        // lookup matches by exact normalized label text, so this has to
+        // mirror the real title, not correct it, or the live sidebar node
+        // never resolves a path and becomes unclickable.
+        { label: 'Calender Holidays', path: ROUTES.payrollCalendarHolidays },
         { label: 'Employee Award', path: ROUTES.payrollEmployeeAward },
         { label: 'Employee Transfers', path: ROUTES.payrollEmployeeTransfers },
         { label: 'Employee Resignation', path: ROUTES.payrollEmployeeResignation },

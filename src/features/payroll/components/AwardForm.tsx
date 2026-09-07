@@ -3,14 +3,19 @@ import { Award } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useUsersSummary } from '../../users/users.queries'
+import { useAuth } from '../../auth/AuthContext'
+import { ROUTES } from '../../../routes'
 import { useCreateAward } from '../payrollActions.queries'
+import { useRecordAward } from '../payrollLists.queries'
 
 // Real via payroll/ajax.php?saveaward=... (payroll/award.php's "Give
 // Award" panel). Employee list is the app's real userprofile/api/users.php
 // list (the real page's own Employee <select> has no JSON API of its own).
 export function AwardForm() {
   const { data: users } = useUsersSummary()
+  const { user } = useAuth()
   const createAward = useCreateAward()
+  const recordAward = useRecordAward()
 
   const [employeeId, setEmployeeId] = useState('')
   const [award, setAward] = useState('')
@@ -39,9 +44,15 @@ export function AwardForm() {
     if (!award.trim()) return setError('Enter an award name.')
     if (!month) return setError('Select a month.')
     if (!awardDate) return setError('Select an award date.')
+    const employee = users?.users.find((u) => String(u.id) === employeeId)
+    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
     createAward.mutate(
       { employeeId: Number(employeeId), award, giftItem, cashPrice, month, awardDate, comments },
-      { onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.') },
+      {
+        onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
+        onSuccess: () =>
+          recordAward.add({ createdBy, employeeName: employee?.name || employee?.login || 'Unknown', award, giftItem, cashPrice, month, awardDate, comments }),
+      },
     )
   }
 
@@ -56,6 +67,7 @@ export function AwardForm() {
       successMessage="Award saved."
       errorMessage={error}
       onAddAnother={reset}
+      backTo={ROUTES.payrollEmployeeAward}
     >
       <Field label="Employee" required>
         <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={inputClasses}>

@@ -21,9 +21,17 @@ import type { NavSection } from '../navTypes'
 // see calendarApi.queries.ts's useCalendarEvents (status: todo/done maps
 // straight to real percent-based status; scope: all sends the real
 // filtert=-1 "no owner restriction" value, mine defaults to the current
-// user, matching the backend's own default). Reporting and Tags/Categories
-// have no React page built yet, so they're intentionally left unmapped
-// (renders disabled) rather than guessed at.
+// user, matching the backend's own default).
+//
+// Reporting (comm/action/rapport/index.php) and Tags/Categories
+// (categories/index.php?type=actioncomm) both have real backends but no
+// JSON API — server-rendered HTML + server-generated PDF for the former,
+// classic form-POST CRUD for the latter (both confirmed by reading those
+// files directly). Rather than leave them permanently disabled, each now
+// has its own real React page (ReportingPage / EventCategoriesPage) that
+// says so honestly and links out to the real legacy page — Tags/Categories
+// also shows the real category list itself, since that part *is* already
+// real data via getFilters.
 export const nav: NavSection = {
   key: 'users',
   label: 'Users',
@@ -53,6 +61,8 @@ export const nav: NavSection = {
         { label: 'My Terminated Events', path: `${ROUTES.agenda}?status=done&scope=mine&view=list` },
         { label: 'All Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=all&view=list` },
         { label: 'All Terminated Events', path: `${ROUTES.agenda}?status=done&scope=all&view=list` },
+        { label: 'Reporting', path: ROUTES.agendaReporting },
+        { label: 'Tags/Categories', path: ROUTES.agendaCategories },
       ],
     },
     {

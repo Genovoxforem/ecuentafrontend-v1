@@ -1,47 +1,64 @@
-import { Users, Info } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Trash2, Users } from 'lucide-react'
+import { ROUTES } from '../../../routes'
+import { PayrollRecordList, type PayrollListColumn } from '../../../shared/components/payroll/PayrollRecordList'
+import { useSalaryAssignmentRecords, useRecordSalaryAssignment, type SalaryAssignmentRecord } from '../payrollLists.queries'
 
-const COLUMNS = ['Employee Name', 'Designation', 'Assigned Salary Grade', 'Assigned Shift', 'Assign Details']
+type Key = 'employee' | 'role' | 'salaryType' | 'basicSalary' | 'overtime' | 'action'
 
-// payroll/manage_salary_list.php is a pure read-only report — a plain PHP
+// payroll/manage_salary_list.php is a pure read-only report (a plain PHP
 // loop over llx_payroll_salary_list joined to llx_user, no JSON API and no
-// write action of its own (confirmed by reading it directly: no
-// $_REQUEST-based ajax.php action targets this page's data at all).
+// write action of its own — confirmed by reading it directly). It reads the
+// same table Manage Salary's real saveSalaryList write populates, so this
+// shows the session-local assignments that page has created instead —
+// same honesty pattern as every other list here, see PayrollRecordList's
+// localOnlyNote banner.
 export function ManageSalaryListView() {
+  const rows = useSalaryAssignmentRecords()
+  const recordAssignment = useRecordSalaryAssignment()
+
+  const columns: PayrollListColumn<SalaryAssignmentRecord, Key>[] = [
+    { key: 'employee', label: 'Employee Name', render: (r) => r.employeeName, sortValue: (r) => r.employeeName, exportValue: (r) => r.employeeName },
+    { key: 'role', label: 'Employee Role', render: (r) => r.employeeRole, sortValue: (r) => r.employeeRole, exportValue: (r) => r.employeeRole },
+    { key: 'salaryType', label: 'Salary Type', render: (r) => r.salaryType, sortValue: (r) => r.salaryType, exportValue: (r) => r.salaryType },
+    {
+      key: 'basicSalary',
+      label: 'Basic Salary',
+      render: (r) => (r.basicSalary ? r.basicSalary.toFixed(2) : '-'),
+      align: 'right',
+      sortValue: (r) => r.basicSalary,
+      exportValue: (r) => r.basicSalary.toFixed(2),
+    },
+    {
+      key: 'overtime',
+      label: 'Over Time (Per Hour)',
+      render: (r) => (r.overtimePerHour ? r.overtimePerHour.toFixed(2) : '-'),
+      align: 'right',
+      sortValue: (r) => r.overtimePerHour,
+      exportValue: (r) => r.overtimePerHour.toFixed(2),
+    },
+    {
+      key: 'action',
+      label: 'Action',
+      render: (r) => (
+        <button type="button" onClick={() => recordAssignment.remove(r.ref)} className="flex items-center gap-1 text-xs text-danger hover:underline">
+          <Trash2 size={12} /> Remove
+        </button>
+      ),
+    },
+  ]
+
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Users size={20} className="text-brand" /> Employee Salary List
-      </h2>
-
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">payroll/manage_salary_list.php</code> — a plain server-rendered report with no JSON API and no write
-          action of its own. View the real column layout below; the rows themselves aren't available without scraping the classic page.
-        </p>
-      </Card>
-
-      <Card className="!h-auto overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-text-faint">
-              {COLUMNS.map((c) => (
-                <th key={c} className="py-2 pr-4 font-medium">
-                  {c}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={COLUMNS.length} className="py-4 text-center text-text-faint">
-                No data available here.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
-    </div>
+    <PayrollRecordList
+      icon={Users}
+      title="Employee Salary List"
+      addLabel="Assign Salary"
+      addPath={ROUTES.payrollManageSalary}
+      columns={columns}
+      rows={rows}
+      getRowKey={(r) => r.ref}
+      getSearchText={(r) => `${r.employeeName} ${r.employeeRole} ${r.salaryType}`}
+      exportTitle="Employee Salary List"
+      localOnlyNote
+    />
   )
 }

@@ -358,3 +358,106 @@ export function useCreateShift() {
     },
   })
 }
+
+// Real via payroll/ajax.php?saveSalaryList=1&user_id=... (payroll/
+// manage_salary.php's per-employee "Assign Details" panel). That panel
+// itself only exists as an HTML fragment rendered by
+// payroll/ajax_search.php per employee — not scraped here — but its own
+// saveList() JS (read directly) gives the exact real POST contract used
+// below. gradeTyy must be the real llx_payroll_hourly_template /
+// llx_payroll_monthly_template row id — there's no JSON lookup for that,
+// so it's a plain manual numeric field on the form, same honesty pattern as
+// MarkAttendance's Shift ID. Shift assignment (shiftA/shiftB/dates) is left
+// at its real "no shift" default (0) — Assign Shifts already covers
+// creating shifts themselves; wiring the alternating-shift-with-dates flow
+// here too would be scope far beyond what a salary assignment needs.
+export interface NewSalaryAssignmentInput {
+  employeeId: number
+  userRole: string
+  gradeType: 'llx_payroll_hourly_template' | 'llx_payroll_monthly_template'
+  templateId: number
+  bankName: string
+  ifsc: string
+  micr: string
+  accountNo: string
+  leaveType: string
+  comments: string
+}
+export function useCreateSalaryAssignment() {
+  return useMutation({
+    mutationFn: async (input: NewSalaryAssignmentInput) => {
+      const params = new URLSearchParams({
+        saveSalaryList: '1',
+        user_id: String(input.employeeId),
+        user_role: input.userRole,
+        grade: input.gradeType,
+        gradeTyy: String(input.templateId),
+        b_name: input.bankName,
+        ifsc: input.ifsc,
+        micr: input.micr,
+        comments: input.comments,
+        shiftA: '0',
+        shiftB: '0',
+        alternate_mode: 'none',
+        inserted_id: '',
+        stdate: '',
+        enddate: '',
+        assId: '',
+        leavetype: input.leaveType,
+        acc_no: input.accountNo,
+      })
+      const res = await fetch(`/payroll/ajax.php?${params.toString()}`, { method: 'POST', credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const code = (await res.text()).trim()
+      if (code === '0') return
+      if (code === '3') throw new Error('This employee already has a shift assigned on that date.')
+      throw new Error('The legacy backend rejected the request.')
+    },
+  })
+}
+
+// Real via payroll/shiftsmanual_ajax.php?saveshift=1 (payroll/
+// shiftsmanual_amount.php's Manage Holiday/Special Shift Salary tables —
+// confirmed by reading that handler directly: genuine JSON in and out,
+// upserts into llx_payroll_manual_shifts via ON DUPLICATE KEY UPDATE). The
+// real page's own row list comes from shiftsmanual_ajax.php?entershifts=1
+// as an HTML fragment, not rebuilt here; ShiftSalarySearchForm builds its
+// row list from the real user list instead, same approach already used for
+// Mark Attendance / Mark Special+Holiday Shift Attendance. shiftId reuses
+// the same confirmed-real mapping as useMarkManualShiftAttendance (3 =
+// Special Shift, 4 = Holiday shift — the only two llx_payroll_shifts rows
+// with those shift_type values on this deployment).
+export interface ManualShiftAmountEntry {
+  employeeId: number
+  method: 'Amount' | 'Percentage'
+  amount: string
+}
+export interface SaveManualShiftAmountsInput {
+  shiftId: 3 | 4
+  month: string // YYYY-MM
+  entries: ManualShiftAmountEntry[]
+}
+interface RawSaveShiftResponse {
+  status: string
+  results: Array<{ status?: string; message?: string }>
+}
+export function useSaveManualShiftAmounts() {
+  return useMutation({
+    mutationFn: async (input: SaveManualShiftAmountsInput) => {
+      const body = new URLSearchParams()
+      for (const entry of input.entries) {
+        body.append('empid[]', String(entry.employeeId))
+        body.append('method[]', entry.method)
+        body.append('amount[]', entry.amount)
+        body.append('entity[]', SINGLE_ENTITY_ID)
+      }
+      body.set('shift_id', String(input.shiftId))
+      body.set('month', input.month)
+      const res = await fetch('/payroll/shiftsmanual_ajax.php?saveshift=1', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: RawSaveShiftResponse = await res.json()
+      if (data.status !== 'success') throw new Error('The legacy backend rejected the request.')
+      return data
+    },
+  })
+}

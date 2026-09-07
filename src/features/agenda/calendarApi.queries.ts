@@ -218,6 +218,91 @@ export function useContactsByCompany(socid: number | null) {
   })
 }
 
+export interface EventDetail {
+  id: number
+  label: string
+  description: string
+  datepFormatted: string
+  datefFormatted: string
+  fullDayEvent: boolean
+  percentage: number
+  statusLabel: string
+  typeLabel: string
+  typeColor: string
+  priority: number
+  location: string
+  busy: boolean
+  projectTitle: string
+  thirdpartyName: string
+  contactName: string
+  userOwner: string
+  userAssigned: { id: number; name: string }[]
+  url: string
+}
+
+interface RawEventDetail {
+  id: number
+  label: string
+  description: string
+  datep_formatted: string
+  datef_formatted: string
+  fulldayevent: number
+  percentage: number
+  status_label: string
+  type_label: string
+  type_color: string
+  priority: number
+  location: string
+  transparency: number
+  project_title: string
+  thirdparty_name: string
+  contact_name: string
+  user_owner: string
+  userassigned: { id: number; name: string }[]
+  url: string
+}
+
+// Real via api_action=getEventDetails&event_id=X — was already returned by
+// this same real endpoint (confirmed by reading calendar_api.php directly)
+// but never called: every event chip/row instead linked out to the legacy
+// card.php page via its own `url` field. Powers an in-app detail view
+// instead, so viewing an event no longer leaves the SPA.
+export function useEventDetail(eventId: number | null) {
+  return useQuery({
+    queryKey: ['agenda', 'eventDetail', eventId],
+    queryFn: async (): Promise<EventDetail> => {
+      const body = new URLSearchParams({ api_action: 'getEventDetails', event_id: String(eventId) })
+      const res = await fetch('/comm/action/ajax/calendar_api.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const json: { success: boolean; error?: string; event?: RawEventDetail } = await res.json()
+      if (!json.success || !json.event) throw new Error(json.error || 'Could not load event.')
+      const e = json.event
+      return {
+        id: e.id,
+        label: e.label,
+        description: e.description ?? '',
+        datepFormatted: e.datep_formatted,
+        datefFormatted: e.datef_formatted,
+        fullDayEvent: !!e.fulldayevent,
+        percentage: e.percentage,
+        statusLabel: e.status_label,
+        typeLabel: e.type_label,
+        typeColor: e.type_color || '#397db9',
+        priority: e.priority,
+        location: e.location ?? '',
+        busy: !!e.transparency,
+        projectTitle: e.project_title ?? '',
+        thirdpartyName: e.thirdparty_name ?? '',
+        contactName: e.contact_name ?? '',
+        userOwner: e.user_owner ?? '',
+        userAssigned: e.userassigned ?? [],
+        url: e.url,
+      }
+    },
+    enabled: !!eventId,
+  })
+}
+
 export interface CreateEventInput {
   actioncode: string
   label: string

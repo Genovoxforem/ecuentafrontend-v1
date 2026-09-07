@@ -1,5 +1,5 @@
-import { TravelForm } from '../../features/payroll/components/TravelForm'
+import { TravelList } from '../../features/payroll/components/TravelList'
 
 export function TravelModule() {
-  return <TravelForm />
+  return <TravelList />
 }

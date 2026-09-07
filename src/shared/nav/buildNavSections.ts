@@ -55,6 +55,18 @@ for (const [k, v] of Object.entries(MAINMENU_TO_INTERNAL_KEY)) {
   MAINMENU_TO_INTERNAL_KEY_LOWER[k.toLowerCase()] = v
 }
 
+// Opt-in exception to the "always trust the live backend tree" rule below:
+// expenses/list.php has zero child rows in llx_menu at all (confirmed by
+// reading core/menus/ecumenu/expences-link.php directly — see
+// expenses.nav.ts's own header comment), not a module this app simply
+// hasn't built pages for. Every one of its 12 local nav items is a real,
+// already-verified route, so an empty backend tree here means "the sidebar
+// has nothing to show," not "these pages don't exist" — worth falling back
+// to the hand-built list instead of leaving the section permanently empty.
+// Members/Reports are deliberately NOT in this set: their empty tree really
+// does mean no pages exist yet for them.
+const FALLBACK_TO_LOCAL_NAV_KEYS = new Set(['expenses'])
+
 function normalizeLabel(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, ' ')
 }
@@ -81,7 +93,13 @@ function buildPathIndex(existingSections: NavSection[]): Map<string, string> {
 function mapNode(internalKey: string, node: BackendMenuNode, pathIndex: Map<string, string>): NavItem {
   const path = pathIndex.get(`${internalKey}::${normalizeLabel(node.titre)}`)
   if (node.children.length > 0) {
-    return { label: node.titre, items: node.children.map((child) => mapNode(internalKey, child, pathIndex)) }
+    // `path` carries through even though this node also has children — a
+    // real node can be both (see NavGroupItem's own comment). Dropping it
+    // here previously made a node like Agenda's "Events" (link to the bare
+    // calendar AND parent of New Event/List/Calendar/Reporting/Tags) resolve
+    // to no path at all, breaking both its breadcrumb and its own direct
+    // link once real backend data replaced the flat local fallback tree.
+    return { label: node.titre, path, items: node.children.map((child) => mapNode(internalKey, child, pathIndex)) }
   }
   return { label: node.titre, path }
 }
@@ -101,7 +119,16 @@ export function buildNavSections(menu: AppMenuResponse, existingSections: NavSec
     // by the live backend response, even though every item in those files
     // is a real, already-verified page — the sidebar should reflect what
     // this instance's actual menu contains, not a hand-assembled list.
-    const items = tree.map((node) => mapNode(internalKey, node, pathIndex))
+    //
+    // Expenses is the one deliberate exception (see
+    // FALLBACK_TO_LOCAL_NAV_KEYS above) — without this, every one of its 12
+    // real pages was reachable only by typing the URL directly; the sidebar
+    // section itself rendered as "Nothing here yet." with no way to click
+    // into any of them.
+    const items =
+      tree.length === 0 && FALLBACK_TO_LOCAL_NAV_KEYS.has(internalKey) && existing
+        ? existing.items
+        : tree.map((node) => mapNode(internalKey, node, pathIndex))
     return {
       key: internalKey,
       label: existing?.label ?? tm.title,

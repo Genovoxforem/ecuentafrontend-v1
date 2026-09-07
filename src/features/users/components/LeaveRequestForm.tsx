@@ -21,6 +21,14 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 const inputCls = 'w-full h-10 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const halfDayCls = 'h-10 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 shrink-0 w-44'
+
+type DayPortion = 'full' | 'morning' | 'afternoon'
+const DAY_PORTION_OPTIONS: { value: DayPortion; label: string }[] = [
+  { value: 'full', label: 'Full Day' },
+  { value: 'morning', label: 'Morning Half Day' },
+  { value: 'afternoon', label: 'Afternoon Half Day' },
+]
 
 export function LeaveRequestForm() {
   const navigate = useNavigate()
@@ -34,7 +42,9 @@ export function LeaveRequestForm() {
   const [typeCode, setTypeCode] = useState('')
   const [mode, setMode] = useState<'single' | 'multiple'>('single')
   const [startDate, setStartDate] = useState(todayIso())
+  const [startDayPortion, setStartDayPortion] = useState<DayPortion>('full')
   const [endDate, setEndDate] = useState(todayIso())
+  const [endDayPortion, setEndDayPortion] = useState<DayPortion>('full')
   const [validatorId, setValidatorId] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
@@ -105,11 +115,33 @@ export function LeaveRequestForm() {
           </Field>
 
           <Field label={mode === 'single' ? 'Date' : 'Start Date'} required>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+            {mode === 'multiple' ? (
+              <div className="flex gap-2">
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+                <select value={startDayPortion} onChange={(e) => setStartDayPortion(e.target.value as DayPortion)} className={halfDayCls}>
+                  {DAY_PORTION_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+            )}
           </Field>
           {mode === 'multiple' && (
             <Field label="End Date" required>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate} className={inputCls} />
+              <div className="flex gap-2">
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate} className={inputCls} />
+                <select value={endDayPortion} onChange={(e) => setEndDayPortion(e.target.value as DayPortion)} className={halfDayCls}>
+                  {DAY_PORTION_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </Field>
           )}
 

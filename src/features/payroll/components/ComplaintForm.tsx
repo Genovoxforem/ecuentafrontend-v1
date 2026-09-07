@@ -3,13 +3,18 @@ import { MessageSquareWarning } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useUsersSummary } from '../../users/users.queries'
+import { useAuth } from '../../auth/AuthContext'
+import { ROUTES } from '../../../routes'
 import { useCreateComplaint } from '../payrollActions.queries'
+import { useRecordComplaint } from '../payrollLists.queries'
 
 // Real via payroll/ajax.php?savecomplaint=1... (payroll/complaints.php's
 // "Add Complaints" panel).
 export function ComplaintForm() {
   const { data: users } = useUsersSummary()
+  const { user } = useAuth()
   const createComplaint = useCreateComplaint()
+  const recordComplaint = useRecordComplaint()
 
   const [fromId, setFromId] = useState('')
   const [againstId, setAgainstId] = useState('')
@@ -34,9 +39,23 @@ export function ComplaintForm() {
     if (!againstId) return setError('Select who the complaint is against.')
     if (!title.trim()) return setError('Enter a title.')
     if (!complaintDate) return setError('Select a complaint date.')
+    const fromUser = users?.users.find((u) => String(u.id) === fromId)
+    const againstUser = users?.users.find((u) => String(u.id) === againstId)
+    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
     createComplaint.mutate(
       { complaintFromId: Number(fromId), complaintAgainstId: Number(againstId), title, complaintDate, description },
-      { onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.') },
+      {
+        onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
+        onSuccess: () =>
+          recordComplaint.add({
+            createdBy,
+            complaintFromName: fromUser?.name || fromUser?.login || 'Unknown',
+            complaintAgainstName: againstUser?.name || againstUser?.login || 'Unknown',
+            title,
+            complaintDate,
+            description,
+          }),
+      },
     )
   }
 
@@ -51,6 +70,7 @@ export function ComplaintForm() {
       successMessage="Complaint saved."
       errorMessage={error}
       onAddAnother={reset}
+      backTo={ROUTES.payrollEmployeeComplaints}
     >
       <Field label="Complaint From" required>
         <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={inputClasses}>

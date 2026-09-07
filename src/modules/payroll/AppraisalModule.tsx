@@ -1,5 +1,5 @@
-import { AppraisalForm } from '../../features/payroll/components/AppraisalForm'
+import { AppraisalList } from '../../features/payroll/components/AppraisalList'
 
 export function AppraisalModule() {
-  return <AppraisalForm />
+  return <AppraisalList />
 }

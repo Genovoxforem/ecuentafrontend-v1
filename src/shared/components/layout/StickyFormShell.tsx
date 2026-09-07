@@ -25,6 +25,7 @@ export function StickyFormShell({
   headerClassName = 'py-3',
   footerLeft,
   footerRight,
+  scrollsInternally = true,
   children,
 }: {
   header: ReactNode
@@ -35,10 +36,22 @@ export function StickyFormShell({
   footerLeft: ReactNode
   // Right side of the footer bar — the secondary/primary action button(s), grouped together.
   footerRight: ReactNode
+  // Set false for pages whose content is a plain stack of cards with no child that manages
+  // its own internal scrolling (e.g. a create form's field cards, as opposed to a list page's
+  // fixed-height table panel). true (the default, matching every page this was extracted
+  // from) lets the wrapper shrink below its content's intrinsic size via min-h-0 so a child
+  // card's own overflow-auto can engage — but that same shrink makes content taller than the
+  // viewport spill past the wrapper's now-undersized box, so the footer (laid out right after
+  // that box, not after the spillover) ends up stuck mid-content instead of past it. false
+  // drops min-h-0 so the wrapper's automatic min-height stays content-based: it still grows
+  // to fill the viewport when content is short (no gap under the footer), but never shrinks
+  // below taller content, so the footer's sticky containing block always covers the true
+  // content height and the page scrolls as a whole via AppShell's own scrollport instead.
+  scrollsInternally?: boolean
   children: ReactNode
 }) {
   return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0">
+    <div className={`-m-6 flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''}`}>
       <div className={`sticky -top-6 z-10 border-b border-border bg-white px-6 dark:bg-gray-950 ${headerClassName}`}>{header}</div>
       {/* flex flex-col (not just flex-1): lets a single-card page opt its Card into flex-1
           too, so the card's own box stretches down to meet the footer instead of leaving a
@@ -46,7 +59,7 @@ export function StickyFormShell({
           itself. min-h-0 lets it shrink below its content's intrinsic size when a child card
           handles its own internal scrolling (needed for that child's overflow-auto to engage
           at all, per the usual nested-flexbox-scroll gotcha). */}
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">{children}</div>
+      <div className={`flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''} space-y-4 px-6 py-4`}>{children}</div>
       <div className="sticky -bottom-6 z-10 flex items-center justify-between gap-3 border-t border-border bg-white px-6 py-2.5 dark:bg-gray-950">
         {footerLeft}
         <div className="flex items-center gap-3">{footerRight}</div>

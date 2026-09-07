@@ -1,8 +1,13 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AddContactModal } from './AddContactModal'
+import { ActivityFormModal } from './ActivityFormModal'
+import { ActivityDetailModal } from './ActivityDetailModal'
+import { ScheduleActivityModal } from './ScheduleActivityModal'
 import {
   ChevronLeft,
+  ChevronRight,
   X,
   Info,
   MapPin,
@@ -35,6 +40,12 @@ import {
   Truck,
   Search,
   Upload,
+  Eye,
+  ListChecks,
+  History,
+  LoaderCircle,
+  ChevronDown,
+  Filter,
 } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -55,6 +66,7 @@ import {
 import {
   useCustomerLedger,
   useCustomerActivities,
+  useActivityDetail,
   useCustomerContacts,
   useCustomerContracts,
   useCustomerTab,
@@ -248,6 +260,38 @@ export function CustomerDetail() {
   const [isEditing, setIsEditing] = useState(false)
   const [formValues, setFormValues] = useState<CustomerEditableFields>({})
   const updateCustomer = useUpdateCustomer(Number(id))
+
+  // Drives the tab strip's scroll-arrow visibility — this list runs to 17
+  // entries (societe/assets/js/app.js's own tab bar has the same "more than
+  // fits" problem the legacy page solves with native scroll only; this one
+  // adds explicit prev/next controls on top of it).
+  const tabsScrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false)
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false)
+  const updateTabScrollState = useCallback(() => {
+    const el = tabsScrollRef.current
+    if (!el) return
+    setCanScrollTabsLeft(el.scrollLeft > 1)
+    setCanScrollTabsRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+  useEffect(() => {
+    updateTabScrollState()
+    const el = tabsScrollRef.current
+    // No node yet on the render where `data` first arrives and this loading
+    // gate's early `return` stops firing — re-runs on the next render once
+    // the tab strip is actually in the DOM (data flips undefined -> object
+    // exactly once, so this only re-subscribes, never loops).
+    if (!el) return
+    el.addEventListener('scroll', updateTabScrollState, { passive: true })
+    window.addEventListener('resize', updateTabScrollState)
+    return () => {
+      el.removeEventListener('scroll', updateTabScrollState)
+      window.removeEventListener('resize', updateTabScrollState)
+    }
+  }, [updateTabScrollState, data])
+  function scrollTabs(direction: 1 | -1) {
+    tabsScrollRef.current?.scrollBy({ left: direction * 220, behavior: 'smooth' })
+  }
 
   if (isLoading) {
     return (
@@ -445,28 +489,50 @@ export function CustomerDetail() {
               <StatTile label="Advance" value={formatMoney(data.advance)} count={data.kpiAdvanceCount} />
             </div>
 
-            <div className="border-t border-border">
-              <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden -mx-6 px-6" style={{ scrollBehavior: 'smooth' }}>
-                {TABS.filter((t) => (t.key !== 'customer' || customerTabLabel(data)) && (t.key !== 'vendor' || data.isVendor)).map(({ key, label, icon: Icon }) => {
-                  const displayLabel = key === 'customer' ? customerTabLabel(data) : label
-                  // Real count from the same profile fetch (task_count +
-                  // call_count + meeting_count) — confirmed live against the
-                  // reference page's own "2" badge on this exact tab.
-                  const badgeCount = key === 'agenda' ? data.taskCount + data.callCount + data.meetingCount : 0
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setTab(key)}
-                      className={`flex items-center gap-1.5 shrink-0 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
-                        tab === key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'
-                      }`}
-                    >
-                      <Icon size={14} className="shrink-0" /> {displayLabel}
-                      {badgeCount > 0 && <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badgeCount}</span>}
-                    </button>
-                  )
-                })}
+            <div className="border-t border-border px-3 py-2.5">
+              <div className="flex items-center gap-1.5">
+                {canScrollTabsLeft && (
+                  <button
+                    type="button"
+                    onClick={() => scrollTabs(-1)}
+                    aria-label="Scroll tabs left"
+                    className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                )}
+                <div ref={tabsScrollRef} className="flex items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar bg-surface rounded-full p-1 flex-1 min-w-0">
+                  {TABS.filter((t) => (t.key !== 'customer' || customerTabLabel(data)) && (t.key !== 'vendor' || data.isVendor)).map(({ key, label, icon: Icon }) => {
+                    const displayLabel = key === 'customer' ? customerTabLabel(data) : label
+                    // Real count from the same profile fetch (task_count +
+                    // call_count + meeting_count) — confirmed live against the
+                    // reference page's own "2" badge on this exact tab.
+                    const badgeCount = key === 'agenda' ? data.taskCount + data.callCount + data.meetingCount : 0
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setTab(key)}
+                        className={`flex items-center gap-1.5 shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                          tab === key ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:text-text hover:bg-surface-hover'
+                        }`}
+                      >
+                        <Icon size={14} className="shrink-0" /> {displayLabel}
+                        {badgeCount > 0 && <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badgeCount}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+                {canScrollTabsRight && (
+                  <button
+                    type="button"
+                    onClick={() => scrollTabs(1)}
+                    aria-label="Scroll tabs right"
+                    className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                )}
               </div>
             </div>
           </Card>
@@ -721,19 +787,378 @@ function NotesTab({ data, socid }: { data: CustomerProfile; socid: string | unde
 // mistakenly assumed to be the only real option before this real,
 // per-third-party backend was found.
 
-function TransactionsTab({ socid }: { socid: string | undefined }) {
-  const today = new Date()
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-  const toInputDate = (d: Date) => d.toISOString().slice(0, 10)
-  const toUsDate = (iso: string) => {
-    const [y, m, d] = iso.split('-')
-    return `${m}/${d}/${y}`
+const DATE_RANGE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month', 'Last Month', 'This Year', 'Last Year', 'Custom Range'] as const
+type DateRangePreset = (typeof DATE_RANGE_PRESETS)[number]
+
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+function addDays(d: Date, n: number) {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
+}
+function presetRange(preset: DateRangePreset): { from: Date; to: Date } | null {
+  const now = startOfDay(new Date())
+  switch (preset) {
+    case 'Today':
+      return { from: now, to: now }
+    case 'Yesterday':
+      return { from: addDays(now, -1), to: addDays(now, -1) }
+    case 'Last 7 Days':
+      return { from: addDays(now, -6), to: now }
+    case 'Last 30 Days':
+      return { from: addDays(now, -29), to: now }
+    case 'This Month':
+      return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth() + 1, 0) }
+    case 'Last Month':
+      return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 0) }
+    case 'This Year':
+      return { from: new Date(now.getFullYear(), 0, 1), to: new Date(now.getFullYear(), 11, 31) }
+    case 'Last Year':
+      return { from: new Date(now.getFullYear() - 1, 0, 1), to: new Date(now.getFullYear() - 1, 11, 31) }
+    case 'Custom Range':
+      return null
+  }
+}
+function toInputDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function fromInputDate(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+function toUsDate(iso: string) {
+  const [y, m, d] = iso.split('-')
+  return `${m}/${d}/${y}`
+}
+function shiftMonth(year: number, month: number, delta: number) {
+  const d = new Date(year, month + delta, 1)
+  return { year: d.getFullYear(), month: d.getMonth() }
+}
+function buildMonthGrid(year: number, month: number) {
+  const firstOfMonth = new Date(year, month, 1)
+  const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay())
+  return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i))
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const CALENDAR_CURRENT_YEAR = new Date().getFullYear()
+const CALENDAR_YEAR_OPTIONS = Array.from({ length: 21 }, (_, i) => CALENDAR_CURRENT_YEAR - 15 + i)
+
+// One month grid, used twice side-by-side inside the date-range dropdown
+// panel below. Each side navigates independently (own prev/next + month/year
+// selects), matching the legacy jQuery daterangepicker's two-calendar view.
+function MonthCalendar({
+  year,
+  month,
+  onNavigate,
+  fromIso,
+  toIso,
+  onPickDay,
+}: {
+  year: number
+  month: number
+  onNavigate: (year: number, month: number) => void
+  fromIso: string
+  toIso: string
+  onPickDay: (d: Date) => void
+}) {
+  const grid = buildMonthGrid(year, month)
+  return (
+    <div className="w-64">
+      <div className="flex items-center justify-between gap-1 mb-2">
+        <button
+          type="button"
+          onClick={() => {
+            const s = shiftMonth(year, month, -1)
+            onNavigate(s.year, s.month)
+          }}
+          className="p-1 rounded hover:bg-surface-hover text-text-faint"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <div className="flex items-center gap-1">
+          <select
+            value={month}
+            onChange={(e) => onNavigate(year, Number(e.target.value))}
+            className="text-xs rounded-md border border-input-border bg-input-bg text-text px-1 py-1"
+          >
+            {MONTH_NAMES.map((m, i) => (
+              <option key={m} value={i}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => onNavigate(Number(e.target.value), month)}
+            className="text-xs rounded-md border border-input-border bg-input-bg text-text px-1 py-1"
+          >
+            {CALENDAR_YEAR_OPTIONS.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const s = shiftMonth(year, month, 1)
+            onNavigate(s.year, s.month)
+          }}
+          className="p-1 rounded hover:bg-surface-hover text-text-faint"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-y-1 text-center">
+        {WEEKDAY_LABELS.map((w) => (
+          <div key={w} className="text-[11px] font-medium text-text-faint py-1">
+            {w}
+          </div>
+        ))}
+        {grid.map((d) => {
+          const iso = toInputDate(d)
+          const inMonth = d.getMonth() === month
+          const inRange = iso >= fromIso && iso <= toIso
+          const isStart = iso === fromIso
+          const isEnd = iso === toIso
+          const dimClass = inMonth ? 'text-text' : 'text-text-faint/40'
+          let cellClass = dimClass
+          if (isStart && isEnd) cellClass = 'bg-brand text-white rounded-md'
+          else if (isStart) cellClass = 'bg-brand text-white rounded-l-md'
+          else if (isEnd) cellClass = 'bg-brand text-white rounded-r-md'
+          else if (inRange) cellClass = `bg-brand/15 ${dimClass}`
+          return (
+            <button key={iso} type="button" onClick={() => onPickDay(d)} className={`text-xs py-1.5 ${cellClass}`}>
+              {d.getDate()}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Native replacement for the legacy page's own jQuery daterangepicker
+// (societe/card.php's Transactions tab) — same 9 presets, same dual
+// month-calendar layout, and the same pending-selection-until-Apply
+// behavior: picking a preset or a day only updates the panel's own pending
+// state, nothing is flowed up to the parent (and the ledger query, which
+// only re-fetches on the outer "Filter" click per useCustomerLedger's
+// datefilter contract — see customerDetailTabs.queries.ts) until "Apply" is
+// clicked. "Clear" and an outside click both discard the pending picks.
+//
+// The panel renders through a portal into document.body (see
+// SearchableSelect for the same pattern) rather than as a plain `position:
+// absolute` child — this dropdown sits inside a Card with `overflow-hidden`
+// (for the table's rounded corners), which silently clips a plain absolute
+// child once it's tall/wide enough to spill past the Card's own box.
+const DATE_RANGE_PANEL_WIDTH = 704
+
+function DateRangeDropdown({
+  preset,
+  fromDate,
+  toDate,
+  onChange,
+}: {
+  preset: DateRangePreset
+  fromDate: string
+  toDate: string
+  onChange: (preset: DateRangePreset, fromDate: string, toDate: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 })
+
+  const [pendingPreset, setPendingPreset] = useState<DateRangePreset>(preset)
+  const [pendingFrom, setPendingFrom] = useState(fromDate)
+  const [pendingTo, setPendingTo] = useState(toDate)
+  // First day picked in an in-progress custom range click; null once a
+  // start+end pair is complete (so the next click starts a fresh range).
+  const [anchor, setAnchor] = useState<string | null>(null)
+  const [leftCursor, setLeftCursor] = useState(() => {
+    const d = fromInputDate(fromDate)
+    return { year: d.getFullYear(), month: d.getMonth() }
+  })
+  const [rightCursor, setRightCursor] = useState(() => shiftMonth(leftCursor.year, leftCursor.month, 1))
+
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node
+      if (rootRef.current?.contains(target)) return
+      if (panelRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [open])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    function updatePosition() {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const left = Math.min(rect.left, window.innerWidth - DATE_RANGE_PANEL_WIDTH - 8)
+      setPanelPos({ top: rect.bottom + 4, left: Math.max(8, left) })
+    }
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [open])
+
+  // Reset the panel to the last-applied value every time it's opened, so
+  // Clear/outside-click (which just close without calling onChange) always
+  // discard back to a known-good state rather than whatever was left
+  // mid-pick from the previous time the panel was open.
+  useEffect(() => {
+    if (!open) return
+    setPendingPreset(preset)
+    setPendingFrom(fromDate)
+    setPendingTo(toDate)
+    setAnchor(null)
+    const d = fromInputDate(fromDate)
+    setLeftCursor({ year: d.getFullYear(), month: d.getMonth() })
+    setRightCursor(shiftMonth(d.getFullYear(), d.getMonth(), 1))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  function selectPreset(p: DateRangePreset) {
+    setPendingPreset(p)
+    setAnchor(null)
+    const range = presetRange(p)
+    if (range) {
+      setPendingFrom(toInputDate(range.from))
+      setPendingTo(toInputDate(range.to))
+      setLeftCursor({ year: range.from.getFullYear(), month: range.from.getMonth() })
+      setRightCursor(shiftMonth(range.from.getFullYear(), range.from.getMonth(), 1))
+    }
+    // Custom Range — leave the pending dates and calendars as-is so the user can pick days.
   }
 
-  const [fromDate, setFromDate] = useState(toInputDate(monthStart))
-  const [toDate, setToDate] = useState(toInputDate(monthEnd))
-  const { data, isLoading, isError, error, refetch } = useCustomerLedger(socid, toUsDate(fromDate), toUsDate(toDate))
+  function pickDay(d: Date) {
+    const iso = toInputDate(d)
+    setPendingPreset('Custom Range')
+    if (!anchor) {
+      setAnchor(iso)
+      setPendingFrom(iso)
+      setPendingTo(iso)
+    } else {
+      const [a, b] = anchor <= iso ? [anchor, iso] : [iso, anchor]
+      setPendingFrom(a)
+      setPendingTo(b)
+      setAnchor(null)
+    }
+  }
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-1.5 min-w-[220px]"
+      >
+        <CalendarClock size={14} className="text-text-faint shrink-0" />
+        <span className="flex-1 text-left">
+          {toUsDate(fromDate)} - {toUsDate(toDate)}
+        </span>
+        <ChevronDown size={14} className="text-text-faint shrink-0" />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'fixed', top: panelPos.top, left: panelPos.left, width: DATE_RANGE_PANEL_WIDTH }}
+            className="z-50 flex rounded-lg border border-border bg-surface shadow-lg overflow-hidden"
+          >
+            <div className="w-36 py-1 border-r border-border shrink-0">
+              {DATE_RANGE_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => selectPreset(p)}
+                  className={`block w-full text-left px-3 py-1.5 text-sm ${pendingPreset === p ? 'bg-brand text-white' : 'text-text hover:bg-surface-hover'}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <div>
+              <div className="flex gap-4 p-3">
+                <MonthCalendar
+                  year={leftCursor.year}
+                  month={leftCursor.month}
+                  onNavigate={(y, m) => setLeftCursor({ year: y, month: m })}
+                  fromIso={pendingFrom}
+                  toIso={pendingTo}
+                  onPickDay={pickDay}
+                />
+                <MonthCalendar
+                  year={rightCursor.year}
+                  month={rightCursor.month}
+                  onNavigate={(y, m) => setRightCursor({ year: y, month: m })}
+                  fromIso={pendingFrom}
+                  toIso={pendingTo}
+                  onPickDay={pickDay}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-border">
+                <span className="text-sm text-text">
+                  {toUsDate(pendingFrom)} - {toUsDate(pendingTo)}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="text-sm rounded-md border border-border text-text-muted px-3 py-1.5 hover:bg-surface-hover"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(pendingPreset, pendingFrom, pendingTo)
+                      setOpen(false)
+                    }}
+                    className="text-sm font-medium rounded-md bg-brand text-white px-3 py-1.5 hover:bg-brand/90"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  )
+}
+
+export function TransactionsTab({ socid }: { socid: string | undefined }) {
+  const thisMonth = presetRange('This Month')!
+
+  // "Pending" is whatever's selected in the dropdown/inputs right now;
+  // "applied" is what useCustomerLedger actually queries with — only
+  // updated when Filter is clicked, so switching presets or editing a
+  // custom date doesn't refetch until the user asks it to.
+  const [preset, setPreset] = useState<DateRangePreset>('This Month')
+  const [fromDate, setFromDate] = useState(toInputDate(thisMonth.from))
+  const [toDate, setToDate] = useState(toInputDate(thisMonth.to))
+  const [appliedFrom, setAppliedFrom] = useState(fromDate)
+  const [appliedTo, setAppliedTo] = useState(toDate)
+
+  const { data, isLoading, isError, error, refetch } = useCustomerLedger(socid, toUsDate(appliedFrom), toUsDate(appliedTo))
 
   if (isLoading) return <LegacyLoadingCard label="Loading transactions…" />
   if (isError || !data) {
@@ -763,9 +1188,27 @@ function TransactionsTab({ socid }: { socid: string | undefined }) {
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
         <div className="flex items-center gap-2">
           <label className="text-xs text-text-faint">Date Range:</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5" />
-          <span className="text-text-faint text-sm">–</span>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5" />
+          <DateRangeDropdown
+            preset={preset}
+            fromDate={fromDate}
+            toDate={toDate}
+            onChange={(p, f, t) => {
+              setPreset(p)
+              setFromDate(f)
+              setToDate(t)
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setAppliedFrom(fromDate)
+              setAppliedTo(toDate)
+            }}
+            className="flex items-center gap-1.5 text-sm font-medium rounded-md bg-brand text-white px-3 py-1.5 hover:bg-brand/90"
+          >
+            <Filter size={14} />
+            Filter
+          </button>
         </div>
         <TableExportButtons title={data.account_title} getExportData={getExportData} />
       </div>
@@ -820,7 +1263,47 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
 }
 
-function ActivityTable({ items, emptyLabel }: { items: ActivityItem[]; emptyLabel: string }) {
+type ActivityPanel = 'view' | 'edit' | 'schedule'
+
+// Loads the full ActivityDetail record on demand (the list rows are a
+// leaner subset — see ActivityItem vs ActivityDetail in
+// customerDetailTabs.queries.ts) and hands it to the right modal for
+// whichever Actions-column icon was clicked. Matches the real page's own
+// activities.php?action=detail round-trip on every icon click (see
+// activities.js's openActivity), rather than assuming the list row already
+// has enough data.
+function ActivityActionModal({ socid, activityId, panel, onClose }: { socid: string; activityId: number; panel: ActivityPanel; onClose: () => void }) {
+  const { data, isLoading, isError, error, refetch } = useActivityDetail(socid, activityId)
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="rounded-lg bg-surface border border-border p-6 shadow-xl flex items-center gap-2 text-sm text-text-muted" onClick={(e) => e.stopPropagation()}>
+          <LoaderCircle size={16} className="animate-spin" /> Loading…
+        </div>
+      </div>
+    )
+  }
+  if (isError || !data) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <LegacyErrorCard title="Couldn't load activity" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+        </div>
+      </div>
+    )
+  }
+  if (panel === 'schedule') return <ScheduleActivityModal socid={socid} item={data} onClose={onClose} />
+  if (panel === 'edit') {
+    const type: ActivityType = data.processtype === 'meeting' ? 'meetings' : data.processtype === 'calls' ? 'calls' : 'tasks'
+    return <ActivityFormModal socid={socid} type={type} mode="edit" initial={data} onClose={onClose} />
+  }
+  return <ActivityDetailModal socid={socid} item={data} onClose={onClose} />
+}
+
+// Actions column matches the real page's own 3 icons exactly (View always;
+// Edit/Schedule only on open items — see
+// activities.js's actionButtons()/isOpen check).
+function ActivityTable({ items, emptyLabel, onAction }: { items: ActivityItem[]; emptyLabel: string; onAction: (id: number, panel: ActivityPanel) => void }) {
   if (items.length === 0) return <p className="text-sm text-text-faint italic py-4 text-center">{emptyLabel}</p>
   return (
     <table className="w-full text-sm">
@@ -830,44 +1313,95 @@ function ActivityTable({ items, emptyLabel }: { items: ActivityItem[]; emptyLabe
           <th className="font-medium py-2 pr-3">Date</th>
           <th className="font-medium py-2 pr-3">Priority</th>
           <th className="font-medium py-2 pr-3">Accounting Needs</th>
-          <th className="font-medium py-2">Status</th>
+          <th className="font-medium py-2 pr-3">Status</th>
+          <th className="font-medium py-2 text-right">Actions</th>
         </tr>
       </thead>
       <tbody>
-        {items.map((item) => (
-          <tr key={item.id} className="border-b border-border last:border-0">
-            <td className="py-2 pr-3">
-              <p className="font-medium text-text!">{item.subject}</p>
-              {item.description && <p className="text-xs text-text-faint">{item.description}</p>}
-            </td>
-            <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{item.duedate || item.createddate}</td>
-            <td className="py-2 pr-3 text-text-muted capitalize">{item.priority}</td>
-            <td className="py-2 pr-3 text-text-muted capitalize">{item.relatedto}</td>
-            <td className="py-2">
-              <StatusBadge status={item.status} />
-            </td>
-          </tr>
-        ))}
+        {items.map((item) => {
+          const isOpen = item.status === 'open'
+          return (
+            <tr key={item.id} className="border-b border-border last:border-0">
+              <td className="py-2 pr-3">
+                <p className="font-medium text-text!">{item.subject}</p>
+                {item.description && <p className="text-xs text-text-faint">{item.description}</p>}
+              </td>
+              <td className="py-2 pr-3 text-text-muted whitespace-nowrap">{item.duedate || item.createddate}</td>
+              <td className="py-2 pr-3 text-text-muted capitalize">{item.priority}</td>
+              <td className="py-2 pr-3 text-text-muted capitalize">{item.relatedto}</td>
+              <td className="py-2 pr-3">
+                <StatusBadge status={item.status} />
+              </td>
+              <td className="py-2 text-right">
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onAction(item.id, 'view')}
+                    title="View"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand"
+                  >
+                    <Eye size={14} />
+                  </button>
+                  {isOpen && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onAction(item.id, 'edit')}
+                        title="Edit"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onAction(item.id, 'schedule')}
+                        title="Schedule"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-info hover:bg-info-bg"
+                      >
+                        <CalendarClock size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
 }
 
+const ACTIVITY_TYPE_LABEL: Record<ActivityType, string> = { tasks: 'Task', meetings: 'Meeting', calls: 'Call' }
+
 function ActivitySubtab({ socid, type }: { socid: string | undefined; type: ActivityType }) {
   const { data, isLoading, isError, error, refetch } = useCustomerActivities(socid, type)
+  const [action, setAction] = useState<{ id: number; panel: ActivityPanel } | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
   if (isLoading) return <LegacyLoadingCard label={`Loading ${type}…`} />
   if (isError || !data) {
     return <LegacyErrorCard title={`Couldn't load ${type}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   }
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        >
+          <Plus size={14} /> Add
+        </button>
+      </div>
+      {showAdd && socid && <ActivityFormModal socid={socid} type={type} mode="create" onClose={() => setShowAdd(false)} />}
+      {action && socid && <ActivityActionModal socid={socid} activityId={action.id} panel={action.panel} onClose={() => setAction(null)} />}
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-text!">Open Activity</h3>
           <span className="text-xs text-text-faint">{data.open.length}</span>
         </div>
         <div className="px-4 py-2 overflow-x-auto">
-          <ActivityTable items={data.open} emptyLabel="No open items." />
+          <ActivityTable items={data.open} emptyLabel={`No open ${ACTIVITY_TYPE_LABEL[type].toLowerCase()}s.`} onAction={(id, panel) => setAction({ id, panel })} />
         </div>
       </Card>
       <Card className="!h-auto !p-0 overflow-hidden">
@@ -876,33 +1410,35 @@ function ActivitySubtab({ socid, type }: { socid: string | undefined; type: Acti
           <span className="text-xs text-text-faint">{data.closed.length}</span>
         </div>
         <div className="px-4 py-2 overflow-x-auto">
-          <ActivityTable items={data.closed} emptyLabel="No closed items." />
+          <ActivityTable items={data.closed} emptyLabel={`No closed ${ACTIVITY_TYPE_LABEL[type].toLowerCase()}s.`} onAction={(id, panel) => setAction({ id, panel })} />
         </div>
       </Card>
     </div>
   )
 }
 
-const ACTIVITY_SUBTABS: Array<{ key: ActivityType | 'timeline'; label: string }> = [
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'meetings', label: 'Meetings' },
-  { key: 'calls', label: 'Calls' },
-  { key: 'timeline', label: 'Timeline' },
+const ACTIVITY_SUBTABS: Array<{ key: ActivityType | 'timeline'; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
+  { key: 'tasks', label: 'Tasks', icon: ListChecks },
+  { key: 'meetings', label: 'Meetings', icon: Users2 },
+  { key: 'calls', label: 'Calls', icon: Phone },
+  { key: 'timeline', label: 'Timeline', icon: History },
 ]
 
 function ActivitiesTab({ socid }: { socid: string | undefined }) {
   const [subtab, setSubtab] = useState<ActivityType | 'timeline'>('tasks')
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-1 border-b border-border">
+      <div className="flex items-center gap-1.5">
         {ACTIVITY_SUBTABS.map((s) => (
           <button
             key={s.key}
             type="button"
             onClick={() => setSubtab(s.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${subtab === s.key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'}`}
+            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              subtab === s.key ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:bg-surface-hover'
+            }`}
           >
-            {s.label}
+            <s.icon size={14} /> {s.label}
           </button>
         ))}
       </div>
@@ -1084,14 +1620,12 @@ function ContractsTab({ socid }: { socid: string | undefined }) {
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <TabTitle>Contracts</TabTitle>
-          <a
-            href={stripBackendPrefix(data.urls.create)}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to={ROUTES.customerContractCreate.replace(':id', socid ?? '')}
             className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
           >
             <Plus size={14} /> New contract
-          </a>
+          </Link>
         </div>
         <div className="p-4 overflow-x-auto">
           {data.rows.length === 0 ? (

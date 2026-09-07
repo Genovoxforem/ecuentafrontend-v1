@@ -1,5 +1,5 @@
-import { IndicatorForm } from '../../features/payroll/components/IndicatorForm'
+import { IndicatorList } from '../../features/payroll/components/IndicatorList'
 
 export function IndicatorModule() {
-  return <IndicatorForm />
+  return <IndicatorList />
 }

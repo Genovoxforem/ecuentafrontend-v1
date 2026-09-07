@@ -1,5 +1,5 @@
-import { LoanForm } from '../../features/payroll/components/LoanForm'
+import { LoanList } from '../../features/payroll/components/LoanList'
 
 export function LoanModule() {
-  return <LoanForm />
+  return <LoanList />
 }

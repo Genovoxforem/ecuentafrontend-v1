@@ -1,5 +1,5 @@
-import { AdvanceSalaryForm } from '../../features/payroll/components/AdvanceSalaryForm'
+import { AdvanceSalaryList } from '../../features/payroll/components/AdvanceSalaryList'
 
 export function AdvanceSalaryModule() {
-  return <AdvanceSalaryForm />
+  return <AdvanceSalaryList />
 }

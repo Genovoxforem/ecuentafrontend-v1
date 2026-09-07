@@ -4,6 +4,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // this session by a full audit of both payroll/ and the never-activated
 // payroll_v2/ against the live database — see the module's other 52 pages,
 // all NotBuiltPage placeholders, for the rest of that finding).
+//
+// The real "Devices" dropdown on payroll/attendance_rip.php is
+// server-rendered straight from `device_setting` — there's no JSON list
+// endpoint for it (custom/payroll/admin/save_ajax.php only has a
+// single-device-by-id brand lookup and bare-status-code writes, confirmed
+// by reading that file directly), so this deliberately does NOT scrape that
+// page's HTML to fabricate one. Instead the Devices filter below is derived
+// from whichever `device` values are actually present in the real JSON rows
+// already being fetched — real API data, just narrower: only devices that
+// appear in the selected date's attendance records, not every device ever
+// registered.
 
 // ── Date Wise Attendance (read) ──────────────────────────────────────────
 export interface AttendanceSummary {
@@ -47,6 +58,13 @@ function stripTags(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim()
 }
 
+// Device filtering happens client-side in DateWiseAttendance.tsx over these
+// real rows, not server-side: attendance_rip_ajax.php's own `devicename`
+// param matches against `llx_user.device` (the employee's assigned device),
+// a different column from the per-row `device` value returned here (which
+// resolves through device_setting via each attendance record's device_ip)
+// — passing one as the other isn't a confirmed-correct filter, so this
+// doesn't guess at it.
 export function useDateWiseAttendance(date: string) {
   return useQuery({
     queryKey: ['payroll', 'attendance', 'date-wise', date],
@@ -84,17 +102,23 @@ export function useDateWiseAttendance(date: string) {
 // ── Mark Attendance (write) ──────────────────────────────────────────────
 // Real, but the underlying PHP loops the request over EVERY active
 // employee and only acts on the ones with a `shiftId[id]` entry present —
-// designed for a bulk-editable table, not a single-record form. This hook
-// exposes the honest single-employee shape (one entry in each keyed array)
-// since that's what a simplified real form can responsibly send; a full
-// bulk-table rebuild matching the original page's richer UI is future work.
-export interface MarkAttendanceInput {
+// designed for a bulk-editable table, not a single-record form. `entries`
+// mirrors that real shape directly (one bracket-keyed set of fields per
+// employee id in one request), so a page built on this can genuinely
+// submit several rows at once, same as the real bulk table — see
+// MarkAttendance.tsx for the one deliberate simplification left (Shift is
+// a plain numeric ID shared across the submitted rows; no real JSON source
+// for shift names/llx_payroll_shifts was found in this module's audit).
+export interface MarkAttendanceEntry {
   employeeId: number
-  date: string // YYYY-MM-DD
   shiftId: number
   status: 'Present' | 'Absent' | 'Permission'
   clockIn?: string // HH:mm
   clockOut?: string // HH:mm
+}
+export interface MarkAttendanceInput {
+  date: string // YYYY-MM-DD
+  entries: MarkAttendanceEntry[]
 }
 interface RawMarkAttendanceResponse {
   status: string
@@ -104,15 +128,17 @@ export function useMarkAttendance() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: MarkAttendanceInput) => {
-      const id = String(input.employeeId)
       const body = new URLSearchParams()
-      body.set(`shiftId[${id}]`, String(input.shiftId))
-      body.set(`realAttendance[${id}]`, input.status)
-      body.set(`realAttenTime[${id}]`, '')
-      body.set(`clockInEmp[${id}]`, input.clockIn ?? '')
-      body.set(`clockoutEmp[${id}]`, input.clockOut ?? '')
-      body.set(`permissFrom[${id}]`, '')
-      body.set(`permissTo[${id}]`, '')
+      for (const entry of input.entries) {
+        const id = String(entry.employeeId)
+        body.set(`shiftId[${id}]`, String(entry.shiftId))
+        body.set(`realAttendance[${id}]`, entry.status)
+        body.set(`realAttenTime[${id}]`, '')
+        body.set(`clockInEmp[${id}]`, entry.clockIn ?? '')
+        body.set(`clockoutEmp[${id}]`, entry.clockOut ?? '')
+        body.set(`permissFrom[${id}]`, '')
+        body.set(`permissTo[${id}]`, '')
+      }
       body.set('datee', input.date)
       const res = await fetch('/payroll/saveAttendance.php', { method: 'POST', credentials: 'same-origin', body })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
@@ -132,30 +158,38 @@ export function useMarkAttendance() {
 // Shift) and ?shift=holidayshift (Holiday Shift). Genuinely returns JSON
 // (confirmed by reading the handler directly), unlike that same page's own
 // read side (?enterAttendance=1), which renders an HTML fragment with no
-// JSON contract to scrape — so, same simplification as useMarkAttendance
-// above, this is a single-employee form rather than the real page's bulk
-// per-employee table. shiftId is fixed per page (3 = "Special Shift", 4 =
-// "Holiday shift" — the only two rows in llx_payroll_shifts with those
-// shift_type values on this deployment, confirmed by query, not guessed).
-export interface MarkManualShiftAttendanceInput {
-  shiftId: 3 | 4
+// JSON contract to scrape. `entries` mirrors the real endpoint's own
+// index-keyed row list (`empid[0]`, `empid[1]`, ...; `Attendance[id]` keyed
+// by employee id, not index) so a page built on this can submit several
+// rows in one request, same as the real bulk table. shiftId is a single
+// top-level field, same as the real endpoint — fixed per page (3 =
+// "Special Shift", 4 = "Holiday shift", the only two rows in
+// llx_payroll_shifts with those shift_type values on this deployment,
+// confirmed by query, not guessed), not per-row.
+export interface MarkManualShiftAttendanceEntry {
   employeeId: number
-  date: string // YYYY-MM-DD
   present: boolean
   clockIn?: string // HH:mm
   clockOut?: string // HH:mm
 }
+export interface MarkManualShiftAttendanceInput {
+  shiftId: 3 | 4
+  date: string // YYYY-MM-DD
+  entries: MarkManualShiftAttendanceEntry[]
+}
 export function useMarkManualShiftAttendance() {
   return useMutation({
     mutationFn: async (input: MarkManualShiftAttendanceInput) => {
-      const id = String(input.employeeId)
       const body = new URLSearchParams()
-      body.set('empid[0]', id)
-      body.set('clockInEmp[0]', input.clockIn ?? '')
-      body.set('clockoutEmp[0]', input.clockOut ?? '')
+      input.entries.forEach((entry, i) => {
+        const id = String(entry.employeeId)
+        body.set(`empid[${i}]`, id)
+        body.set(`clockInEmp[${i}]`, entry.clockIn ?? '')
+        body.set(`clockoutEmp[${i}]`, entry.clockOut ?? '')
+        if (entry.present) body.set(`Attendance[${id}]`, 'Present')
+      })
       body.set('shiftId', String(input.shiftId))
       body.set('datee', input.date)
-      if (input.present) body.set(`Attendance[${id}]`, 'Present')
       const res = await fetch('/payroll/shiftsmanual_ajax.php?saveAttendance=1', { method: 'POST', credentials: 'same-origin', body })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data: RawMarkAttendanceResponse = await res.json()

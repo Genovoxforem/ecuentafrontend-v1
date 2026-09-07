@@ -83,6 +83,16 @@ export function useCustomerLedger(socid: string | undefined, dateFrom: string, d
 }
 
 // --- Activities (Tasks / Meetings / Calls) -----------------------------
+//
+// Full real contract confirmed this session by reading
+// societe/api/activities.php directly (not guessed): sc_act_row() is the
+// exact field set both the list and the detail=X actions return, and the
+// meta/create/update/schedule/close/delete branches below name their own
+// accepted POST fields explicitly. Mirrors the same real 3-icon Actions
+// column (View/Edit/Schedule) and Schedule-follow-up flow the legacy JS
+// widget (societe/assets/js/components/activities.js) implements — Edit and
+// Schedule only apply to OPEN items there, so the same restriction is kept
+// here.
 
 export interface ActivityItem {
   id: number
@@ -116,8 +126,68 @@ export function useCustomerActivities(socid: string | undefined, type: ActivityT
   })
 }
 
+// Full detail row — every field sc_act_row() actually returns, not just the
+// list-table subset ActivityItem covers. `*_raw` fields are DB-format
+// (Y-m-d H:i:s), suitable for seeding a <input type="datetime-local">
+// (via .slice(0,16)) when editing/scheduling.
+export interface ActivityDetail extends ActivityItem {
+  startdate: string
+  startdate_raw: string
+  duedate_raw: string
+  industry: string
+  assign_salesperson: number
+  assign_salesperson_name: string
+  fk_parent_id: number
+  reminder: boolean
+  remtime: string
+  remtime_raw: string
+  repeatp: boolean
+  reptime: string
+  userremainder: string
+  participentsremainder: string
+  demo_given: string
+  proposal_shared: string
+  demo_date: string
+  demo_date_raw: string
+  proposal_date: string
+  proposal_date_raw: string
+  status_code: string
+  loss_reason: string
+  decision_maker: string
+  statusdescription: string
+  agenda: string
+  followup_type: string
+  lead_type: string
+  last_contact_date: string
+  last_contact_date_raw: string
+  closedby_name: string
+  statusupdatedtime: string
+}
+
+export function useActivityDetail(socid: string | undefined, activityId: number | null) {
+  return useQuery({
+    queryKey: ['customers', 'detail', socid, 'activityDetail', activityId],
+    queryFn: async (): Promise<ActivityDetail> => {
+      const data = await fetchJson<{ activity: ActivityDetail }>(`/societe/api/activities.php?action=detail&activity_id=${activityId}&socid=${socid}`)
+      return data.activity
+    },
+    enabled: !!socid && !!activityId,
+  })
+}
+
+// Real via ?action=meta&socid= — the exact dropdown sources
+// buildTaskForm/buildMeetingForm/buildCallForm read from (this.meta in the
+// legacy JS), confirmed by reading that GET branch directly.
 export interface ActivitiesMeta {
+  users: Array<{ id: number; name: string }>
+  parents: Array<{ id: number; subject: string }>
   accounting_needs: Array<{ value: string; label: string }>
+  priorities: string[]
+  call_statuses: string[]
+  call_purposes: string[]
+  followup_types: Record<string, string>
+  lead_types: string[]
+  meeting_statuses: Record<string, string>
 }
 export function useCustomerActivitiesMeta(socid: string | undefined) {
   return useQuery({
@@ -125,6 +195,240 @@ export function useCustomerActivitiesMeta(socid: string | undefined) {
     queryFn: () => fetchJson<ActivitiesMeta>(`/societe/api/activities.php?action=meta&socid=${socid}`),
     enabled: !!socid,
     staleTime: 1000 * 60 * 10,
+  })
+}
+
+// One shape covers all 3 processtypes — every field is optional and only
+// the ones relevant to the active type are ever sent (see
+// ActivityFormModal), matching exactly the column set each of the 3
+// INSERT branches (task/meeting/calls) in activities.php reads.
+export interface ActivityFormInput {
+  subject: string
+  description: string
+  relatedto: string
+  fk_parent_id: number
+  // Task
+  duedate: string
+  priority: string
+  industry: string
+  assign_salesperson: number | ''
+  reminder: boolean
+  remtime: string
+  repeatp: boolean
+  reptime: string
+  // Meeting
+  location: string
+  startdate: string
+  demo_given: string
+  demo_date: string
+  userremainder: number[]
+  participentsremainder: number[]
+  proposal_shared: string
+  proposal_date: string
+  statusdescription: string
+  status_code: string
+  loss_reason: string
+  decision_maker: string
+  // Calls
+  callstatus: string
+  callpurpose: string
+  agenda: string
+  followup_type: string
+  lead_type: string
+  last_contact_date: string
+}
+
+function activityFormBody(type: ActivityType, input: Partial<ActivityFormInput>) {
+  const processtype = type === 'tasks' ? 'task' : type === 'meetings' ? 'meeting' : 'calls'
+  const body: Record<string, unknown> = { processtype, subject: input.subject, description: input.description, relatedto: input.relatedto, fk_parent_id: input.fk_parent_id }
+  if (processtype === 'task') {
+    Object.assign(body, {
+      duedate: input.duedate,
+      priority: input.priority,
+      industry: input.industry,
+      assign_salesperson: input.assign_salesperson || undefined,
+      reminder: input.reminder,
+      remtime: input.remtime,
+      repeatp: input.repeatp,
+      reptime: input.reptime,
+    })
+  } else if (processtype === 'meeting') {
+    Object.assign(body, {
+      location: input.location,
+      startdate: input.startdate,
+      duedate: input.duedate,
+      demo_given: input.demo_given,
+      demo_date: input.demo_date,
+      userremainder: input.userremainder,
+      participentsremainder: input.participentsremainder,
+      proposal_shared: input.proposal_shared,
+      proposal_date: input.proposal_date,
+      statusdescription: input.statusdescription,
+      status_code: input.status_code,
+      loss_reason: input.loss_reason,
+      decision_maker: input.decision_maker,
+      reminder: input.reminder,
+      remtime: input.remtime,
+    })
+  } else {
+    Object.assign(body, {
+      duedate: input.duedate,
+      callstatus: input.callstatus,
+      callpurpose: input.callpurpose,
+      agenda: input.agenda,
+      followup_type: input.followup_type,
+      lead_type: input.lead_type,
+      assign_salesperson: input.assign_salesperson || undefined,
+      last_contact_date: input.last_contact_date,
+      remtime: input.remtime,
+    })
+  }
+  return body
+}
+
+// Real POST to the same societe/api/activities.php namespace the list above
+// reads from (?type=tasks|meetings|calls&socid=), CSRF-token-gated exactly
+// like societe/api/contacts.php's own create action (see
+// scrapeSocieteToken/useCreateContact below — same token, same third party
+// page it's scraped from). Not live-tested against this instance's database
+// (mutation, requires per-instance approval) — same standing caveat as
+// every other write in this file.
+export function useCreateActivity(socid: string | undefined, type: ActivityType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: ActivityFormInput) => {
+      if (!socid) throw new Error('Missing third party id.')
+      const token = await scrapeSocieteToken(socid)
+      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...activityFormBody(type, input), action: 'create', type, token }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string; id?: number }
+      if (!data.ok) throw new Error(data.error ?? 'Could not create the activity.')
+      return data.id
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
+    },
+  })
+}
+
+// Real POST action=update (activities.php also accepts 'edit'/'save' as
+// aliases, or a plain PUT — 'update' is used here to match the legacy JS's
+// own bindEditForm). Only changed/relevant fields need to be sent — the
+// backend does a real column-by-column `isset($input[...])` merge, not a
+// full-row replace.
+export function useUpdateActivity(socid: string | undefined, type: ActivityType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: number; input: ActivityFormInput }) => {
+      if (!socid) throw new Error('Missing third party id.')
+      const token = await scrapeSocieteToken(socid)
+      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...activityFormBody(type, input), action: 'update', activity_id: id, token }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!data.ok) throw new Error(data.error ?? 'Could not update the activity.')
+    },
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activityDetail', id] })
+    },
+  })
+}
+
+export interface ScheduleActivityInput {
+  description: string
+  schedule_at: string
+  reminder: boolean
+  remtime: string
+  status_code?: string
+  loss_reason?: string
+  statusdescription?: string
+  demo_date?: string
+  proposal_date?: string
+  last_contact_date?: string
+}
+
+// Real POST action=schedule — a real "log a follow-up / reschedule" action
+// (not a calendar add): moves duedate (and startdate for meetings) to
+// schedule_at, requires a non-empty description, reopens the activity, and
+// optionally arms a reminder. This is the 3rd Actions-column icon in the
+// legacy UI (fa-calendar-plus, titled "Schedule") — confirmed by reading
+// societe/assets/js/components/activities.js's bindScheduleForm directly,
+// not guessed.
+export function useScheduleActivity(socid: string | undefined, type: ActivityType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, processtype, input }: { id: number; processtype: string; input: ScheduleActivityInput }) => {
+      if (!socid) throw new Error('Missing third party id.')
+      const token = await scrapeSocieteToken(socid)
+      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...input, action: 'schedule', activity_id: id, processtype, token }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!data.ok) throw new Error(data.error ?? 'Could not schedule the follow-up.')
+    },
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activityDetail', id] })
+    },
+  })
+}
+
+// Real POST action=close — the legacy panel's green "Close" quick-action
+// (from both the View tab and the Schedule tab).
+export function useCloseActivity(socid: string | undefined, type: ActivityType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, processtype, description }: { id: number; processtype: string; description?: string }) => {
+      if (!socid) throw new Error('Missing third party id.')
+      const token = await scrapeSocieteToken(socid)
+      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'close', activity_id: id, processtype, description, token }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!data.ok) throw new Error(data.error ?? 'Could not close the activity.')
+    },
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activityDetail', id] })
+    },
+  })
+}
+
+// Real POST action=delete — only ever offered for OPEN items in the legacy
+// Edit panel (matches this file's own `mode === 'edit' && d.status ===
+// 'open'` guard on the Delete button).
+export function useDeleteActivity(socid: string | undefined, type: ActivityType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      if (!socid) throw new Error('Missing third party id.')
+      const token = await scrapeSocieteToken(socid)
+      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', activity_id: id, token }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (!data.ok) throw new Error(data.error ?? 'Could not delete the activity.')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
+    },
   })
 }
 
