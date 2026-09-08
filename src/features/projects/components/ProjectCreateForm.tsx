@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Network, ExternalLink } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useCustomerOptions } from '../../customers/customerOptions'
@@ -34,15 +34,20 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
   const projectId = projectIdProp ?? (idParam ? Number(idParam) : undefined)
   const isEdit = Boolean(projectId)
   const { data: customers } = useCustomerOptions()
+  const [searchParams] = useSearchParams()
 
   const [title, setTitle] = useState('')
-  const [thirdPartyId, setThirdPartyId] = useState('')
+  // Pre-filled when reached from a specific customer's own Projects tab
+  // ("New project" — see CustomerDetail.tsx) — this field isn't disabled
+  // (unlike most below), so the prefill is genuinely visible, even though
+  // nothing on this page actually saves.
+  const [thirdPartyId, setThirdPartyId] = useState(searchParams.get('customerId') ?? '')
   const [description, setDescription] = useState('')
   const [followOpportunity, setFollowOpportunity] = useState(true)
   const [followTask, setFollowTask] = useState(true)
   const [billTime, setBillTime] = useState(false)
 
-  const legacyUrl = isEdit ? `/projet/card.php?action=edit&id=${projectId}` : '/projet/card.php?action=create'
+  const legacyUrl = isEdit ? `/projet/card.php?action=edit&id=${projectId}` : `/projet/card.php?action=create${thirdPartyId ? `&socid=${thirdPartyId}` : ''}`
 
   return (
     <div className="space-y-4">

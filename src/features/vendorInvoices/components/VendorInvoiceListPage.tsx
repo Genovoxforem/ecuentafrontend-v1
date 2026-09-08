@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Lock, Truck, FileText, Bot, HandCoins, Search } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Lock, Truck, FileText, Bot, HandCoins, Search, X as XIcon } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -62,10 +62,19 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
   const [search, setSearch] = useState('')
 
   const { data, isLoading, isError } = useVendorInvoices(status, search, 1, 500)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Real vendor-scoping filter — thirdPartyId is now populated for real from
+  // the row's own third-party link (see vendorInvoices.queries.ts). Lets a
+  // vendor's own Related Items tab ("View all" on Supplier invoices) link
+  // here instead of the legacy backend's own filtered list.php.
+  const customerIdParam = searchParams.get('customerId')
+  const customerId = customerIdParam ? Number(customerIdParam) : null
 
   useEffect(() => setPage(1), [search, perPage, status])
 
-  const allRows = data?.items ?? []
+  const customerScoped = data?.items ?? []
+  const allRows = customerId ? customerScoped.filter((r) => r.thirdPartyId === customerId) : customerScoped
+  const customerName = customerId ? allRows[0]?.thirdPartyName : null
   const total = allRows.length
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<VendorInvoiceRow, SortKey>(allRows, sortValue)
   const rows = sortedRows.slice((page - 1) * perPage, page * perPage)
@@ -118,6 +127,24 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+      {customerId && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
+          <span className="text-text!">
+            Showing only invoices for <span className="font-semibold">{customerName ?? `vendor #${customerId}`}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('customerId')
+              setSearchParams(next)
+            }}
+            className="flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+          >
+            <XIcon size={12} /> Clear filter
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="!p-3 !flex-row items-center justify-between gap-3 !h-auto">
           <div className="min-w-0">

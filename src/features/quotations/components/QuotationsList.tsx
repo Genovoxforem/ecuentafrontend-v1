@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, CalendarDays, TriangleAlert, FileDown } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, CalendarDays, TriangleAlert, FileDown, X as XIcon } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
@@ -68,8 +68,17 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Real customer-scoping filter — reads QuotationRow.socid (already parsed
+  // from the row's own third-party link, see quotationListParser.ts). Lets
+  // a customer's own Related Items tab ("View all" on its Proposals card)
+  // link here instead of the legacy backend's own filtered list.php.
+  const customerIdParam = searchParams.get('customerId')
+  const customerId = customerIdParam ? Number(customerIdParam) : null
 
-  const filteredQuotations = useMemo(() => summary.quotations.filter((q) => matchesSearch(q, search)), [summary.quotations, search])
+  const customerScoped = useMemo(() => (customerId ? summary.quotations.filter((q) => q.socid === customerId) : summary.quotations), [summary.quotations, customerId])
+  const customerName = customerId ? customerScoped[0]?.thirdParty : null
+  const filteredQuotations = useMemo(() => customerScoped.filter((q) => matchesSearch(q, search)), [customerScoped, search])
   const { sorted: sortedQuotations, sort, toggleSort } = useSortableRows<QuotationRow, SortKey>(filteredQuotations, sortValue)
   const pageQuotations = sortedQuotations.slice((page - 1) * perPage, page * perPage)
 
@@ -116,6 +125,24 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {customerId && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
+            <span className="text-text!">
+              Showing only quotations for <span className="font-semibold">{customerName ?? `customer #${customerId}`}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('customerId')
+                setSearchParams(next)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+            >
+              <XIcon size={12} /> Clear filter
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <Card className="!p-3 !flex-row items-center justify-between gap-3">
             <div>

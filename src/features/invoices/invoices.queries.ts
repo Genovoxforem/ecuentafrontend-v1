@@ -7,6 +7,7 @@ export interface InvoiceRow {
   invoiceNo: string
   invoiceDate: string
   thirdParty: string
+  socid: number | null
   city: string
   paymentType: string
   amountInclTax: number
@@ -31,18 +32,22 @@ export interface InvoicesSummary {
 
 // GET /api/invoices/ (api/invoices/index.php on the real backend, read
 // directly). Confirms the row shape exactly — notably: `date`, not `datef`;
-// `thirdparty_name`; a ready-made `status_label` ('Draft'|'Unpaid'|'Paid')
-// so there's no need to guess a status-code mapping; and a `zra_sdc` object
-// (null unless a real ZRA e-invoicing upload happened) rather than a plain
-// status string. City, payment type, and author aren't returned by this
-// endpoint at all (Dolibarr invoices don't track an "author" field, and
-// this query doesn't join for town/payment mode) — those stay blank rather
-// than the wrong guesses this used to make up.
+// `thirdparty_name`; a real `socid` (plain numeric field, no HTML-link
+// parsing needed, unlike the DataTables-backed lists elsewhere in this app)
+// used to power customer-scoped filtering (see InvoicesList.tsx); a
+// ready-made `status_label` ('Draft'|'Unpaid'|'Paid') so there's no need to
+// guess a status-code mapping; and a `zra_sdc` object (null unless a real
+// ZRA e-invoicing upload happened) rather than a plain status string. City,
+// payment type, and author aren't returned by this endpoint at all
+// (Dolibarr invoices don't track an "author" field, and this query doesn't
+// join for town/payment mode) — those stay blank rather than the wrong
+// guesses this used to make up.
 interface RawInvoice {
   id: number
   ref: string
   date: string
   thirdparty_name: string
+  socid?: number
   total_ttc: number
   status_label: 'Draft' | 'Unpaid' | 'Paid'
   statut: number
@@ -68,6 +73,7 @@ export function toRow(raw: RawInvoice): InvoiceRow {
     invoiceNo: raw.ref ?? '',
     invoiceDate: raw.date ?? '',
     thirdParty: raw.thirdparty_name ?? '',
+    socid: raw.socid ?? null,
     // Not returned by this endpoint — see comment above.
     city: '',
     paymentType: '',

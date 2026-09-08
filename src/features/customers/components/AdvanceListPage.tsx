@@ -14,7 +14,7 @@ export function AdvanceListPage() {
   const { id } = useParams<{ id: string }>()
   const { data: customer } = useCustomerDetail(id)
   const { data, isLoading, isError, error, refetch } = useCustomerAdvancePayments(id)
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#customer` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=customer` : ROUTES.customerList
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">

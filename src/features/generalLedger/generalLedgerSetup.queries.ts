@@ -149,3 +149,125 @@ export function flattenCoaTree(nodes: CoaNode[]): CoaNode[] {
   walk(nodes)
   return out
 }
+
+// ── Default Accounts (accountancy/admin/defaultaccounts.php) ────────────
+// Classic full-page form, no JSON — confirmed by reading the PHP source
+// directly. Every field is a real Dolibarr constant (each <select> is
+// FormAccounting::select_account(), the exact same real Chart-of-Accounts
+// data already fetched for the CoA tree page above), saved one at a time
+// server-side via ecuenta_set_const() when action=update is posted. The 30
+// real field names below were confirmed two ways: reading the PHP array
+// build logic (list_account_main/list_account) AND cross-checking every
+// `name="..."` actually rendered on the live page — the isInEEC()/
+// isModEnabled() conditionals in the source mean the true field set can
+// only be confirmed by checking the live render, not the source alone.
+//
+// This form updates 30 fields at once from a single Save click, and each
+// field's real POST value defaults to empty string if omitted — submitting
+// only the changed field(s) would silently blank out every other one. Per
+// this app's established safe-write pattern for this exact shape of
+// problem (see userDetailTabs.queries.ts's Leave Types save), a fresh copy
+// of the real form is fetched immediately before submit and its real
+// FormData is used as the base (carrying every other field's current
+// value forward untouched), with only the field(s) the user actually
+// changed overridden — never read into React state or displayed, so
+// nothing here scrapes the page for display data, only to safely preserve
+// what isn't being changed.
+export const DEFAULT_ACCOUNT_GROUPS: { heading: string; fields: { key: string; label: string }[] }[] = [
+  {
+    heading: 'Third Parties | Users',
+    fields: [
+      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER', label: 'Customer Account' },
+      { key: 'ACCOUNTING_ACCOUNT_SUPPLIER', label: 'Supplier Account' },
+      { key: 'SALARIES_ACCOUNTING_ACCOUNT_PAYMENT', label: 'Salaries Payment Account' },
+    ],
+  },
+  {
+    heading: 'Product',
+    fields: [
+      { key: 'ACCOUNTING_PRODUCT_SOLD_ACCOUNT', label: 'Product Sold Account' },
+      { key: 'ACCOUNTING_PRODUCT_SOLD_EXPORT_ACCOUNT', label: 'Product Sold Account (Export)' },
+      { key: 'ACCOUNTING_PRODUCT_BUY_ACCOUNT', label: 'Product Bought Account' },
+      { key: 'ACCOUNTING_PRODUCT_BUY_EXPORT_ACCOUNT', label: 'Product Bought Account (Export)' },
+    ],
+  },
+  {
+    heading: 'Service',
+    fields: [
+      { key: 'ACCOUNTING_SERVICE_SOLD_ACCOUNT', label: 'Service Sold Account' },
+      { key: 'ACCOUNTING_SERVICE_SOLD_EXPORT_ACCOUNT', label: 'Service Sold Account (Export)' },
+      { key: 'ACCOUNTING_SERVICE_BUY_ACCOUNT', label: 'Service Bought Account' },
+      { key: 'ACCOUNTING_SERVICE_BUY_EXPORT_ACCOUNT', label: 'Service Bought Account (Export)' },
+    ],
+  },
+  {
+    heading: 'Others',
+    fields: [
+      { key: 'ACCOUNTING_VAT_BUY_ACCOUNT', label: 'VAT Bought Account' },
+      { key: 'ACCOUNTING_VAT_SOLD_ACCOUNT', label: 'VAT Sold Account' },
+      { key: 'ACCOUNTING_VAT_PAY_ACCOUNT', label: 'VAT Pay Account' },
+      { key: 'ACCOUNTING_ACCOUNT_SUSPENSE', label: 'Suspense Account' },
+      { key: 'ACCOUNTING_ACCOUNT_TRANSFER_CASH', label: 'Transfer Cash Account' },
+      { key: 'DONATION_ACCOUNTINGACCOUNT', label: 'Donation Account' },
+      { key: 'ADHERENT_SUBSCRIPTION_ACCOUNTINGACCOUNT', label: 'Subscription Account' },
+      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_DEPOSIT', label: 'Customer Deposit Account' },
+      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_OPENING', label: 'Customer Opening Account' },
+      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_ADVANCE', label: 'Customer Advance Account' },
+      { key: 'ACCOUNTING_ACCOUNT_SUPPLIER_ADVANCE', label: 'Supplier Advance Account' },
+      { key: 'ACCOUNTING_ACCOUNT_LEDGER_OPENING', label: 'Ledger Opening Account' },
+      { key: 'ACCOUNTING_ACCOUNT_LEDGER_SHIPPING', label: 'Ledger Shipping Account' },
+      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_LOAN', label: 'Customer Loan Account' },
+      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_INTEREST', label: 'Customer Interest Account' },
+    ],
+  },
+  {
+    heading: 'Loan Management',
+    fields: [
+      { key: 'LOAN_ACCOUNTING_ACCOUNT_CAPITAL', label: 'Loan Capital Account' },
+      { key: 'LOAN_ACCOUNTING_ACCOUNT_INTEREST', label: 'Loan Interest Account' },
+      { key: 'LOAN_ACCOUNTING_ACCOUNT_INSURANCE', label: 'Loan Insurance Account' },
+      { key: 'LOAN_ACCOUNTING_ACCOUNT_PENALTY', label: 'Loan Penalty Account' },
+    ],
+  },
+]
+
+async function fetchDefaultAccountsForm(): Promise<{ form: HTMLFormElement; token: string }> {
+  const res = await fetch('/accountancy/admin/defaultaccounts.php', { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const html = await res.text()
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const form = Array.from(doc.querySelectorAll('form')).find((f) => f.querySelector('input[name="action"][value="update"]'))
+  if (!form) throw new Error('Could not find the real Default Accounts form on the legacy page.')
+  const token = (form.querySelector('input[name="token"]') as HTMLInputElement | null)?.value ?? ''
+  if (!token) throw new Error('Could not find a CSRF token on the Default Accounts page.')
+  return { form, token }
+}
+
+export function useUpdateDefaultAccounts() {
+  return useMutation({
+    mutationFn: async (changes: Record<string, string>) => {
+      const { form, token } = await fetchDefaultAccountsForm()
+      const body = new FormData(form)
+      body.set('token', token)
+      for (const [key, value] of Object.entries(changes)) body.set(key, value)
+      const res = await fetch('/accountancy/admin/defaultaccounts.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+  })
+}
+
+export function useSetDefaultAccountsToReference() {
+  return useMutation({
+    mutationFn: async () => {
+      const { token } = await fetchDefaultAccountsForm()
+      const body = new URLSearchParams({ token, action: 'set_reference_defaults', button_set_reference_defaults: '1' })
+      const res = await fetch('/accountancy/admin/defaultaccounts.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+  })
+}

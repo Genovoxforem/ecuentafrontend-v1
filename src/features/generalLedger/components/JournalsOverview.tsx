@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { BookText, Search, X as XIcon, Loader2, AlertTriangle, ExternalLink, FileText } from 'lucide-react'
+import { BookText, Search, X as XIcon, Loader2, AlertTriangle, FileText } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
-import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { useJournalsReport, defaultLedgerFilters, type LedgerFilters } from '../generalLedger.queries'
 
@@ -158,12 +157,11 @@ export function JournalsOverview() {
                   report.rows.map((entry, i) => (
                     <tr key={`${entry.transactionNum}-${entry.accountCode}-${i}`} className="border-b border-border hover:bg-surface-hover">
                       <td className="px-3 py-2">
-                        {entry.cardUrl ? (
-                          <a href={resolveBackendAsset(entry.cardUrl)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-brand hover:underline">
+                        {entry.transactionNum ? (
+                          <Link to={ROUTES.ledgerPieceDetail.replace(':pieceNum', entry.transactionNum)} className="flex items-center gap-1 text-brand hover:underline">
                             <FileText size={12} />
                             {entry.transactionNum}
-                            <ExternalLink size={10} className="text-text-faint" />
-                          </a>
+                          </Link>
                         ) : (
                           entry.transactionNum
                         )}

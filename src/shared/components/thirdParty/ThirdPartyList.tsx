@@ -124,11 +124,16 @@ function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
 // is still real and correctly saved. Only bailing out on a missing name used
 // to blank the whole cell, hiding a perfectly valid date along with it; now
 // the date renders on its own whenever it's the only thing available.
-function CreatorCell({ name, date }: { name: string; date: string }) {
+function CreatorCell({ id, name, date }: { id: number | null; name: string; date: string }) {
   const userId = useUserIdByName(name)
   if (!name && !date) return null
   if (!name) {
-    return <div className="whitespace-nowrap text-xs text-text-faint">On : {formatDateTimeAmPm(date)}</div>
+    const formattedDate = formatDateTimeAmPm(date)
+    return (
+      <div className="whitespace-nowrap text-xs text-text-faint">
+        On : {id ? <Link to={ROUTES.customerDetail.replace(':id', String(id))} className="text-brand hover:underline">{formattedDate}</Link> : formattedDate}
+      </div>
+    )
   }
   return (
     <div className="flex items-center gap-2">
@@ -141,7 +146,9 @@ function CreatorCell({ name, date }: { name: string; date: string }) {
         ) : (
           <div className="truncate text-brand">{name}</div>
         )}
-        <div className="whitespace-nowrap text-xs text-text-faint">On : {formatDateTimeAmPm(date)}</div>
+        <div className="whitespace-nowrap text-xs text-text-faint">
+          On : {id ? <Link to={ROUTES.customerDetail.replace(':id', String(id))} className="text-brand hover:underline">{formatDateTimeAmPm(date)}</Link> : formatDateTimeAmPm(date)}
+        </div>
       </div>
     </div>
   )
@@ -461,7 +468,7 @@ export function ThirdPartyList({
                     </td>
                     <td className="px-4 py-3 text-text-muted">{r.trackingId}</td>
                     <td className="px-4 py-3">
-                      <CreatorCell name={r.creatorName} date={r.creationDate} />
+                      <CreatorCell id={r.id} name={r.creatorName} date={r.creationDate} />
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.status === 'Active' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>

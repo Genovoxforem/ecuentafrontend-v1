@@ -7,6 +7,6 @@ import { PurchaseOrderCreateForm } from './PurchaseOrderCreateForm'
 // with a fixedCustomerId prop rather than duplicated — see its own comment.
 export function PurchaseOrderCreateFromCustomerForm() {
   const { id } = useParams<{ id: string }>()
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#vendor` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=vendor` : ROUTES.customerList
   return <PurchaseOrderCreateForm fixedCustomerId={id} backTo={backTo} />
 }

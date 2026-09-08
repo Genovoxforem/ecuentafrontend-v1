@@ -8,6 +8,7 @@ export interface OrderRow {
   refCustomer: string
   projectRef: string
   thirdParty: string
+  socid: number | null
   city: string
   zipCode: string
   orderDate: string
@@ -36,6 +37,7 @@ function toRow(raw: RawOrderListRow): OrderRow {
     refCustomer: parsed.refCustomer,
     projectRef: parsed.projectRef,
     thirdParty: parsed.thirdParty,
+    socid: parsed.socid,
     city: parsed.city,
     zipCode: parsed.zipCode,
     orderDate: parsed.orderDate,

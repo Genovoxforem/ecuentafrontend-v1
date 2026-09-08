@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, CalendarDays, CreditCard, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
@@ -152,8 +152,17 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Real customer-scoping filter — InvoiceRow.socid is a real plain field
+  // straight off the JSON API (see invoices.queries.ts), no parsing needed.
+  // Lets a customer's own Related Items tab ("View all" on Invoices) link
+  // here instead of the legacy backend's own filtered list.php.
+  const customerIdParam = searchParams.get('customerId')
+  const customerId = customerIdParam ? Number(customerIdParam) : null
 
-  const filteredRows = useMemo(() => summary.rows.filter((r) => matchesSearch(r, deferredSearch)), [summary.rows, deferredSearch])
+  const customerScoped = useMemo(() => (customerId ? summary.rows.filter((r) => r.socid === customerId) : summary.rows), [summary.rows, customerId])
+  const customerName = customerId ? customerScoped[0]?.thirdParty : null
+  const filteredRows = useMemo(() => customerScoped.filter((r) => matchesSearch(r, deferredSearch)), [customerScoped, deferredSearch])
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<InvoiceRow, SortKey>(filteredRows, sortValue)
   const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
 
@@ -202,6 +211,24 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {customerId && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
+            <span className="text-text!">
+              Showing only invoices for <span className="font-semibold">{customerName ?? `customer #${customerId}`}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('customerId')
+                setSearchParams(next)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+            >
+              <X size={12} /> Clear filter
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <Card className="!p-3 !flex-row items-center justify-between gap-3">
             <div>

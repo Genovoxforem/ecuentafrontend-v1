@@ -1,5 +1,5 @@
 ﻿import { lazy, Suspense, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ChevronLeft,
   X,
@@ -12,7 +12,7 @@ import {
   Check,
   Pencil,
   CalendarClock,
-  ExternalLink,
+  Lock,
   Link2,
   TrendingUp,
   Percent,
@@ -25,6 +25,7 @@ import {
   FileCog,
   LoaderCircle,
   Eye,
+  Plus,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
@@ -34,15 +35,24 @@ import {
   useOrderDetail,
   useOrderDocuments,
   useGenerateOrderDoc,
+  useRestoreOrderToDraft,
+  useValidateOrder,
+  useReopenOrder,
+  useClassifyOrderDelivered,
+  useSetOrderBilled,
+  useCloneOrder,
+  useCancelOrder,
+  useDeleteOrder,
 } from '../orderDetail.queries'
 import type { OrderDetail as OrderDetailData } from '../orderCardParser'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { SendOrderEmailModal } from './SendOrderEmailModal'
+import { AddOrderEventModal } from './AddOrderEventModal'
 import { OrderQuickSearchPanel } from './OrderQuickSearchPanel'
 import { InfoRow, EditPencil, EventByAvatar, StatCard, deleteOrderDocument, TABS, type TabKey } from './OrderDetailShared'
 
 // Non-default tabs (Contacts, Shipments, Consumption, Notes, Documents,
-// Events/Agenda) are lazy-loaded from a separate chunk — only the active
+// Events/Agenda) are lazy-loaded from a separate chunk - only the active
 // tab's code downloads, cutting the initial OrderDetail chunk from ~71KB
 // to ~35KB. DetailsTab stays inline (it's the default, always visible).
 const LazyTabRenderer = lazy(() => import('./OrderDetailTabs').then((m) => ({ default: m.LazyTabRenderer })))
@@ -79,15 +89,15 @@ function StatusBadge({ label }: { label: string }) {
 // fabricated POST.
 function HeaderIconLink({ url, title, tone, children }: { url: string; title: string; tone?: 'danger'; children: ReactNode }) {
   return (
-    <a
-      href={stripBackendPrefix(url)}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
       title={title}
-      className={`p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text ${tone === 'danger' ? 'hover:bg-danger-bg hover:text-danger-fg' : ''}`}
+      className={`p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text disabled:opacity-50 ${tone === 'danger' ? 'hover:bg-danger-bg hover:text-danger-fg' : ''}`}
     >
       {children}
-    </a>
+    </button>
   )
 }
 
@@ -110,9 +120,74 @@ function nativeRouteForRelatedObjectType(type: string): string | null {
 
 export function OrderDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<TabKey>('details')
   const [showQuickSearch, setShowQuickSearch] = useState(false)
   const { data, isLoading, isError, error, refetch } = useOrderDetail(id)
+  const restoreToDraft = useRestoreOrderToDraft(id)
+  const validateOrder = useValidateOrder(id)
+  const reopenOrder = useReopenOrder(id)
+  const cloneOrder = useCloneOrder(id)
+  const deleteOrder = useDeleteOrder(id)
+  const classifyDelivered = useClassifyOrderDelivered(id)
+  const setBilled = useSetOrderBilled(id)
+  const cancelOrder = useCancelOrder(id)
+
+  function handleModify() {
+    if (!window.confirm(`Are you sure you want to restore order ${data?.ref ?? ''} to draft status?`)) return
+    restoreToDraft.mutate()
+  }
+  function handleValidate() {
+    if (!window.confirm(`Are you sure you want to validate this order under name ${data?.ref ?? ''}?`)) return
+    validateOrder.mutate()
+  }
+  function handleReopen() {
+    reopenOrder.mutate()
+  }
+  function handleClone() {
+    if (!window.confirm(`Clone order ${data?.ref ?? ''} into a new draft?`)) return
+    cloneOrder.mutate(data?.thirdPartySocid ?? null, {
+      onSuccess: (newId) => newId && navigate(ROUTES.orderDetail.replace(':id', newId)),
+    })
+  }
+  function handleDelete() {
+    if (!window.confirm(`Delete order ${data?.ref ?? ''}? This cannot be undone.`)) return
+    deleteOrder.mutate(undefined, { onSuccess: () => navigate(ROUTES.orderList) })
+  }
+  function handleClassifyDelivered() {
+    if (!window.confirm(`Are you sure you want to set this order to delivered? Once an order is delivered, it can be set to billed.`)) return
+    classifyDelivered.mutate()
+  }
+  function handleSetBilled(billed: boolean) {
+    if (billed && !window.confirm(`Classify order ${data?.ref ?? ''} as billed?`)) return
+    if (!billed && !window.confirm(`Classify order ${data?.ref ?? ''} as unbilled?`)) return
+    setBilled.mutate(billed)
+  }
+  function handleCancel() {
+    if (!window.confirm('Are you sure you want to cancel')) return
+    cancelOrder.mutate()
+  }
+
+  const orderActions = {
+    onModify: handleModify,
+    onValidate: handleValidate,
+    onReopen: handleReopen,
+    onClone: handleClone,
+    onDelete: handleDelete,
+    onClassifyDelivered: handleClassifyDelivered,
+    onSetBilled: handleSetBilled,
+    onCancel: handleCancel,
+    pending: {
+      modify: restoreToDraft.isPending,
+      validate: validateOrder.isPending,
+      reopen: reopenOrder.isPending,
+      clone: cloneOrder.isPending,
+      delete: deleteOrder.isPending,
+      classifyDelivered: classifyDelivered.isPending,
+      setBilled: setBilled.isPending,
+      cancel: cancelOrder.isPending,
+    },
+  }
 
   if (isLoading) {
     return (
@@ -190,12 +265,12 @@ export function OrderDetail() {
                   ) : (
                     <span className="text-text-faint">—</span>
                   )}
-                  {data.otherOrdersUrl && (
+                  {data.otherOrdersUrl && data.thirdPartySocid && (
                     <span>
                       (
-                      <a href={stripBackendPrefix(data.otherOrdersUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                      <Link to={`${ROUTES.orderList}?customerId=${data.thirdPartySocid}`} className="text-brand hover:underline">
                         Other orders
-                      </a>
+                      </Link>
                       )
                     </span>
                   )}
@@ -212,21 +287,15 @@ export function OrderDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {data.editUrl && (
-                  <HeaderIconLink url={data.editUrl} title="Edit">
-                    <Pencil size={16} />
-                  </HeaderIconLink>
-                )}
-                {data.cloneUrl && (
-                  <HeaderIconLink url={data.cloneUrl} title="Clone">
-                    <Copy size={16} />
-                  </HeaderIconLink>
-                )}
-                {data.deleteUrl && (
-                  <HeaderIconLink url={data.deleteUrl} title="Delete" tone="danger">
-                    <Trash2 size={16} />
-                  </HeaderIconLink>
-                )}
+                <HeaderIconButton onClick={handleModify} title="Edit (restores this order to draft status)" disabled={orderActions.pending.modify}>
+                  <Pencil size={16} />
+                </HeaderIconButton>
+                <HeaderIconButton onClick={handleClone} title="Clone" disabled={orderActions.pending.clone}>
+                  <Copy size={16} />
+                </HeaderIconButton>
+                <HeaderIconButton onClick={handleDelete} title="Delete" tone="danger" disabled={orderActions.pending.delete}>
+                  <Trash2 size={16} />
+                </HeaderIconButton>
               </div>
             </div>
             <div className="border-t border-border">
@@ -254,7 +323,7 @@ export function OrderDetail() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
-        {tab === 'details' && <DetailsTab id={id} data={data} onRefresh={() => refetch()} onSwitchTab={setTab} />}
+        {tab === 'details' && <DetailsTab id={id} data={data} onRefresh={() => refetch()} onSwitchTab={setTab} actions={orderActions} />}
         {tab !== 'details' && (
           <Suspense fallback={<LegacyLoadingCard label="Loading..." />}>
             <LazyTabRenderer tab={tab} id={id} data={data} />
@@ -265,11 +334,46 @@ export function OrderDetail() {
   )
 }
 
-function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefined; data: OrderDetailData; onRefresh: () => void; onSwitchTab: (tab: TabKey) => void }) {
+interface OrderActions {
+  onModify: () => void
+  onValidate: () => void
+  onReopen: () => void
+  onClone: () => void
+  onDelete: () => void
+  onClassifyDelivered: () => void
+  onSetBilled: (billed: boolean) => void
+  onCancel: () => void
+  pending: {
+    modify: boolean
+    validate: boolean
+    reopen: boolean
+    clone: boolean
+    delete: boolean
+    classifyDelivered: boolean
+    setBilled: boolean
+    cancel: boolean
+  }
+}
+
+function DetailsTab({
+  id,
+  data,
+  onRefresh,
+  onSwitchTab,
+  actions,
+}: {
+  id: string | undefined
+  data: OrderDetailData
+  onRefresh: () => void
+  onSwitchTab: (tab: TabKey) => void
+  actions: OrderActions
+}) {
   const [showEmailModal, setShowEmailModal] = useState(false)
+  const [showAddEventModal, setShowAddEventModal] = useState(false)
   return (
     <div className="space-y-4">
       {showEmailModal && id && <SendOrderEmailModal id={id} orderRef={data.ref} onClose={() => setShowEmailModal(false)} />}
+      {showAddEventModal && id && <AddOrderEventModal id={id} socid={data.thirdPartySocid} onClose={() => setShowAddEventModal(false)} />}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="!h-auto">
@@ -386,11 +490,15 @@ function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefin
                     <td className="py-2 px-3 text-right font-medium text-text!">{formatMoney(line.totalTtc)}</td>
                     <td className="py-2 px-3 text-center">{line.stockReserve && <Check size={14} className="inline text-success-fg" />}</td>
                     <td className="py-2 px-4 text-center">
-                      {data.editUrl && (
-                        <a href={stripBackendPrefix(data.editUrl)} target="_blank" rel="noreferrer" title="Open order to edit this line" className="inline-flex text-text-faint hover:text-text">
-                          <MoreVertical size={14} />
-                        </a>
-                      )}
+                      <button
+                        type="button"
+                        onClick={actions.onModify}
+                        disabled={actions.pending.modify}
+                        title="Restore order to draft to edit this line"
+                        className="inline-flex text-text-faint hover:text-text disabled:opacity-50"
+                      >
+                        <MoreVertical size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -405,7 +513,7 @@ function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefin
           <div className="flex flex-wrap gap-2">
             {data.actions.map((action) => {
               const danger = action.label === 'Cancel' || action.label === 'Delete'
-              const actionBtnCls = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors ${
+              const actionBtnCls = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors disabled:opacity-60 ${
                 danger ? 'bg-danger hover:opacity-90' : 'bg-brand hover:bg-brand-hover'
               }`
               // "Create shipment" points at the exact same real page
@@ -429,17 +537,103 @@ function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefin
                   </button>
                 )
               }
+              // "Modify" really means "restore this Validated order to
+              // draft status" (same confirm_modif action the header's Edit
+              // pencil fires) - see orderDetail.queries.ts.
+              if (action.label === 'Modify') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onModify} disabled={actions.pending.modify} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Validate') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onValidate} disabled={actions.pending.validate} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Re-Open') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onReopen} disabled={actions.pending.reopen} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Classify delivered') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onClassifyDelivered} disabled={actions.pending.classifyDelivered} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Classify Billed' || action.label === "Classify 'Unbilled'") {
+                const billed = action.label === 'Classify Billed'
+                return (
+                  <button key={action.label} type="button" onClick={() => actions.onSetBilled(billed)} disabled={actions.pending.setBilled} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Clone') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onClone} disabled={actions.pending.clone} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Cancel') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onCancel} disabled={actions.pending.cancel} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              if (action.label === 'Delete') {
+                return (
+                  <button key={action.label} type="button" onClick={actions.onDelete} disabled={actions.pending.delete} className={actionBtnCls}>
+                    {action.label}
+                  </button>
+                )
+              }
+              // "Create contract"/"Create Invoice" convert this order's
+              // real lines into a new Contract/Invoice, exactly like the
+              // legacy contrat/index_v2.php / compta/facture/card.php
+              // conversion buttons - real in-app pages, not a PHP link.
+              if (action.label === 'Create contract' && id) {
+                return (
+                  <Link key={action.label} to={ROUTES.orderCreateContract.replace(':id', id)} className={actionBtnCls}>
+                    {action.label}
+                  </Link>
+                )
+              }
+              if (action.label === 'Create Invoice' && id) {
+                return (
+                  <Link key={action.label} to={ROUTES.orderCreateInvoice.replace(':id', id)} className={actionBtnCls}>
+                    {action.label}
+                  </Link>
+                )
+              }
+              // Any other real backend action this app hasn't wired yet
+              // (e.g. workflow buttons gated behind config flags this
+              // deployment doesn't use) is shown honestly disabled rather
+              // than silently dropped or linked out to PHP.
               return (
-                <a key={action.label} href={stripBackendPrefix(action.url)} target="_blank" rel="noreferrer" className={actionBtnCls}>
-                  {action.label} <ExternalLink size={11} className="shrink-0 opacity-70" />
-                </a>
+                <span
+                  key={action.label}
+                  title="This action isn't available in this app yet."
+                  className={`${actionBtnCls} bg-neutral-bg! text-neutral-fg cursor-not-allowed`}
+                >
+                  <Lock size={11} className="opacity-70" /> {action.label}
+                </span>
               )
             })}
           </div>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <LinkedFilesCard id={id} data={data} />
         <Card className="!h-auto !p-0 overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
@@ -463,23 +657,27 @@ function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefin
               </a>
             )}
           </div>
-          {data.relatedObjects.length === 0 ? (
-            <p className="text-sm text-text-faint italic py-6 text-center">None.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                    <th className="font-medium py-2 px-4">Type</th>
-                    <th className="font-medium py-2 px-3">Ref.</th>
-                    <th className="font-medium py-2 px-3">Date</th>
-                    <th className="font-medium py-2 px-3 text-right">Amount</th>
-                    <th className="font-medium py-2 px-3">Status</th>
-                    <th className="font-medium py-2 px-4 text-center">Action</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium py-2 px-4">Type</th>
+                  <th className="font-medium py-2 px-3">Ref.</th>
+                  <th className="font-medium py-2 px-3">Date</th>
+                  <th className="font-medium py-2 px-3 text-right">Amount</th>
+                  <th className="font-medium py-2 px-3">Status</th>
+                  <th className="font-medium py-2 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.relatedObjects.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-2 px-4 text-text-faint italic">
+                      None.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {data.relatedObjects.map((obj, i) => {
+                ) : (
+                  data.relatedObjects.map((obj, i) => {
                     const nativeRoute = nativeRouteForRelatedObjectType(obj.type)
                     return (
                       <tr key={i} className="border-b border-border last:border-0">
@@ -511,11 +709,11 @@ function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefin
                         </td>
                       </tr>
                     )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </Card>
       </div>
 
@@ -525,9 +723,19 @@ function DetailsTab({ id, data, onRefresh, onSwitchTab }: { id: string | undefin
             <CalendarClock size={14} className="text-brand" />
             <h3 className="font-semibold text-text!">Latest linked events</h3>
           </div>
-          <button type="button" onClick={onRefresh} title="Refresh" className="p-1 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
-            <RefreshCw size={13} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowAddEventModal(true)}
+              title="Add Event"
+              className="p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover"
+            >
+              <Plus size={13} />
+            </button>
+            <button type="button" onClick={onRefresh} title="Refresh" className="p-1 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+              <RefreshCw size={13} />
+            </button>
+          </div>
         </div>
         {data.linkedEvents.length === 0 ? (
           <p className="text-sm text-text-faint italic py-6 text-center">No events recorded for this order yet.</p>
@@ -635,7 +843,7 @@ function LinkedFilesCard({ id, data }: { id: string | undefined; data: OrderDeta
                   <FileText size={13} className="shrink-0" /> {doc.name}
                 </a>
                 <span className="flex items-center gap-2 text-xs text-text-faint shrink-0">
-                  {doc.size} Â· {doc.date}
+                  {doc.size} - {doc.date}
                   <a href={stripBackendPrefix(doc.url)} target="_blank" rel="noreferrer" title="Preview" className="text-text-faint hover:text-text">
                     <Eye size={13} />
                   </a>

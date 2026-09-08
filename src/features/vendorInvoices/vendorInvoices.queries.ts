@@ -93,7 +93,13 @@ export function useVendorInvoices(status: VendorInvoiceStatus, search = '', page
         ref: r.ref,
         refSupplier: r.refSupplier,
         invoiceDate: r.invoiceDate,
-        thirdPartyId: null,
+        // r.thirdPartyUrl is the real Societe::getNomUrl(option='supplier')
+        // href (fourn/card.php?socid=N) already parsed out by
+        // vendorInvoiceListParser.ts — extracting the id from it here (same
+        // technique already used for Purchase Orders/Quotations) rather than
+        // leaving this always null, so a vendor's own Related Items tab can
+        // filter this list to just their invoices.
+        thirdPartyId: r.thirdPartyUrl ? Number(r.thirdPartyUrl.match(/socid=(\d+)/)?.[1]) || null : null,
         thirdPartyName: r.thirdPartyName,
         paymentTypeLabel: r.paymentTypeLabel,
         amountHt: r.amountHt,

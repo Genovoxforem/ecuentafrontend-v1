@@ -1,33 +1,13 @@
 import { PackageCheck } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
+import { InertListPage } from '../../../shared/components/forms/InertListPage'
 
 const COLUMNS = ['Ref.', 'Ref. Vendor', 'Third-Party', 'City', 'Zip Code', 'Planned Date Of Delivery', 'Status', 'Billed']
 
-export function ReceptionStatusList() {
-  return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <PackageCheck size={20} className="text-brand" /> List Of Receptions
-      </h2>
-      <Card className="!p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10">
-            <TheadRow>
-              {COLUMNS.map((c) => (
-                <Th key={c} className="whitespace-nowrap">{c}</Th>
-              ))}
-            </TheadRow>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={COLUMNS.length} className="px-4 py-4 text-text-faint italic">
-                No Data Available In Table
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  )
+// reception/ has no json_encode anywhere on this backend (grepped the whole
+// directory) — unlike expedition/, which turned out to have a real
+// shipment-sidebar-list-ajax.php. No hidden API exists here, so this stays
+// honestly empty via the shared InertListPage shell instead of a bare
+// unexplained "No Data Available" table.
+export function ReceptionStatusList({ title = 'List Of Receptions' }: { title?: string }) {
+  return <InertListPage icon={PackageCheck} title={title} sourcePath="reception/list.php" columns={COLUMNS} />
 }

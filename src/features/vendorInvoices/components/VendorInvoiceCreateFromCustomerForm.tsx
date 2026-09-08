@@ -9,6 +9,6 @@ import { DetailedPurchaseCreateForm } from './DetailedPurchaseCreateForm'
 // navigation + vendor pre-fill).
 export function VendorInvoiceCreateFromCustomerForm() {
   const { id } = useParams<{ id: string }>()
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#vendor` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=vendor` : ROUTES.customerList
   return <DetailedPurchaseCreateForm fixedCustomerId={id} backTo={backTo} />
 }

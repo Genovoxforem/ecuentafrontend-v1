@@ -481,7 +481,8 @@ export function useUserDetail(id: string | number | undefined) {
 export function useUserIdByName(name: string | undefined) {
   const { data } = useUsersSummary()
   if (!name || !data) return undefined
-  const matches = data.users.filter((u) => u.name === name)
+  const normalizedName = name.trim().replace(/\s+/g, ' ').toLowerCase()
+  const matches = data.users.filter((u) => [u.name, u.login].some((value) => value.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedName))
   return matches.length === 1 ? matches[0].id : undefined
 }
 

@@ -5,6 +5,7 @@ import { StockCorrectionPage } from '../../features/warehouses/components/StockC
 import { StockTransferPage } from '../../features/warehouses/components/StockTransferPage'
 import { MassStockTransferPage } from '../../features/warehouses/components/MassStockTransferPage'
 import { ReplenishmentPage } from '../../features/warehouses/components/ReplenishmentPage'
+import { StockMovementReportPage } from '../../features/warehouses/components/StockMovementReportPage'
 
 export function StockMovementsListModule() {
   return <StockMovementsListPage />
@@ -26,4 +27,7 @@ export function MassStockTransferModule() {
 }
 export function ReplenishmentModule() {
   return <ReplenishmentPage />
+}
+export function StockMovementReportModule() {
+  return <StockMovementReportPage />
 }
