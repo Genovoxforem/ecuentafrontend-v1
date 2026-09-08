@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   FileText,
   Users,
@@ -8,7 +9,6 @@ import {
   CalendarClock,
   Percent,
   Wallet,
-  ExternalLink,
   LoaderCircle,
   Upload,
   Link2,
@@ -17,6 +17,7 @@ import {
   Plus,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -31,12 +32,29 @@ import {
   useOrderDocumentsPageMeta,
   useUploadOrderDocument,
   useLinkOrderDocument,
+  useCreateShipmentFromOrder,
 } from '../orderDetail.queries'
 import type { OrderDetail as OrderDetailData } from '../orderCardParser'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { InfoRow, EditPencil, EventByAvatar, StatCard, deleteOrderDocument, type TabKey } from './OrderDetailShared'
+import { AddOrderEventModal } from './AddOrderEventModal'
 
 const selectCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30'
+
+// Same idea as OrderDetail.tsx's nativeRouteForRelatedObjectType, but keyed
+// off the legacy backend's own URL path (this Agenda tab's related-object
+// links carry no separate "type" label to match on) — routes to this app's
+// own native SECTION for that record type instead of the legacy PHP page.
+function nativeRouteForUrl(url: string): string | null {
+  if (!url) return null
+  if (url.includes('/compta/facture/card.php')) return ROUTES.invoiceList
+  if (url.includes('/contrat/')) return ROUTES.contractList
+  if (url.includes('/comm/propal/')) return ROUTES.quotationList
+  if (url.includes('/commande/card.php')) return ROUTES.orderList
+  if (url.includes('/fourn/commande')) return ROUTES.purchaseOrderList
+  if (url.includes('/fourn/facture')) return ROUTES.vendorInvoiceList
+  return null
+}
 
 function ContactsTab({ id }: { id: string | undefined }) {
   const [company, setCompany] = useState<string | undefined>(undefined)
@@ -209,7 +227,36 @@ function ContactsTab({ id }: { id: string | undefined }) {
 
 function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailData }) {
   const { data: shipmentData, isLoading, isError, error, refetch } = useOrderShipmentStock(id)
+  const createShipment = useCreateShipmentFromOrder(id)
   const [warehouse, setWarehouse] = useState('')
+  // Keyed by the ORDER line's real rowid (data.lines[i].id) so it survives
+  // shipmentData refetching between renders — seeded from each row's own
+  // real "Remain to ship" figure, same default the legacy create form uses.
+  const [qtyByLineId, setQtyByLineId] = useState<Record<number, number>>({})
+
+  function qtyFor(lineId: number, remainToShip: number): number {
+    return qtyByLineId[lineId] ?? remainToShip
+  }
+
+  async function handleCreateShipment() {
+    if (!shipmentData || !id) return
+    const chosenWarehouse = warehouse || shipmentData.createForm.defaultWarehouseId
+    if (!chosenWarehouse) return
+    // expedition/card.php?action=add needs idl<i>/qtyl<i> for every one of
+    // the ORDER's own lines, in the exact index order data.lines already
+    // holds them (both this tab's Stock Details rows and the main order
+    // query's lines come from the same fetch_lines() call on this same
+    // order - see orderDetail.queries.ts's useCreateShipmentFromOrder
+    // comment). Lines left at 0 are skipped server-side, not rejected.
+    const lines = data.lines.map((line, i) => ({ lineId: line.id, qty: qtyFor(line.id, shipmentData.stockRows[i]?.remainToShip ?? 0) }))
+    if (!lines.some((l) => l.qty > 0)) return
+    // No shipment-detail route exists in this app (only this order's own
+    // Shipments tab shows shipment data) - staying put and letting the
+    // mutation's own query invalidation refresh Stock Details in place is
+    // the honest landing point, not a fabricated destination.
+    await createShipment.mutateAsync({ warehouseId: chosenWarehouse, lines })
+    setQtyByLineId({})
+  }
 
   return (
     <div className="space-y-4">
@@ -251,27 +298,45 @@ function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailD
                   <th className="font-medium py-2 px-3 text-center">Qty shipped</th>
                   <th className="font-medium py-2 px-3 text-center">Remain to ship</th>
                   <th className="font-medium py-2 px-4 text-center">Real Stock</th>
+                  <th className="font-medium py-2 px-4 text-center">Qty to ship</th>
                 </tr>
               </thead>
               <tbody>
-                {shipmentData.stockRows.map((row, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
-                    <td className="py-2 px-4 text-text!">{row.description}</td>
-                    <td className="py-2 px-3 text-center text-text-muted">{row.qtyOrdered}</td>
-                    <td className="py-2 px-3 text-center text-text-muted">{row.qtyShipped}</td>
-                    <td className="py-2 px-3 text-center text-text-muted">{row.remainToShip}</td>
-                    <td className="py-2 px-4 text-center text-text-muted">{row.realStock}</td>
-                  </tr>
-                ))}
+                {shipmentData.stockRows.map((row, i) => {
+                  const lineId = data.lines[i]?.id
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="py-2 px-4 text-text!">{row.description}</td>
+                      <td className="py-2 px-3 text-center text-text-muted">{row.qtyOrdered}</td>
+                      <td className="py-2 px-3 text-center text-text-muted">{row.qtyShipped}</td>
+                      <td className="py-2 px-3 text-center text-text-muted">{row.remainToShip}</td>
+                      <td className="py-2 px-4 text-center text-text-muted">{row.realStock}</td>
+                      <td className="py-2 px-4 text-center">
+                        {lineId ? (
+                          <input
+                            type="number"
+                            min={0}
+                            max={row.remainToShip || undefined}
+                            value={qtyFor(lineId, row.remainToShip)}
+                            onChange={(e) => setQtyByLineId((prev) => ({ ...prev, [lineId]: Number(e.target.value) }))}
+                            className="w-20 text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1 text-center"
+                          />
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
 
-      {/* Real form: GET expedition/card.php?action=create&origin=commande&
-          origin_id=X&entrepot_id=Y — a safe navigation to the actual
-          shipment-creation review page, not itself a destructive submit. */}
+      {/* Real POST expedition/card.php?action=add — see
+          orderDetail.queries.ts's useCreateShipmentFromOrder comment for
+          the exact confirmed field contract. */}
       {shipmentData && shipmentData.createForm.warehouseOptions.length > 0 && id && (
         <Card className="!h-auto">
           <h3 className="font-semibold text-text! mb-3 flex items-center gap-2">
@@ -292,17 +357,18 @@ function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailD
                 ))}
               </select>
             </label>
-            <a
-              href={stripBackendPrefix(
-                `/expedition/card.php?action=create&shipping_method_id=&origin=commande&origin_id=${id}&projectid=&entrepot_id=${warehouse || shipmentData.createForm.defaultWarehouseId}`,
-              )}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover"
+            <button
+              type="button"
+              disabled={createShipment.isPending}
+              onClick={handleCreateShipment}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-60"
             >
-              Create Shipment <ExternalLink size={11} className="opacity-70" />
-            </a>
+              {createShipment.isPending ? <LoaderCircle size={13} className="animate-spin" /> : null} Create Shipment
+            </button>
           </div>
+          {createShipment.isError && (
+            <p className="text-xs text-danger mt-2">{createShipment.error instanceof Error ? createShipment.error.message : 'Could not create the shipment.'}</p>
+          )}
         </Card>
       )}
     </div>
@@ -656,11 +722,13 @@ function DocumentsTab({ id }: { id: string | undefined }) {
 
 function EventsAgendaTab({ id, data }: { id: string | undefined; data: OrderDetailData }) {
   const { data: agenda, isLoading, isError, error, refetch } = useOrderAgendaPage(id)
+  const [showAddEventModal, setShowAddEventModal] = useState(false)
   if (isLoading) return <LegacyLoadingCard label="Loading events…" />
   if (isError || !agenda) return <LegacyErrorCard title="Couldn't load events" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
   return (
     <div className="space-y-4">
+      {showAddEventModal && id && <AddOrderEventModal id={id} socid={data.thirdPartySocid} onClose={() => setShowAddEventModal(false)} />}
       <Card className="!h-auto">
         <InfoRow label="Created by" value={<EventByAvatar name={agenda.createdBy} />} />
         <InfoRow label="Creation date" value={agenda.creationDate} />
@@ -675,16 +743,13 @@ function EventsAgendaTab({ id, data }: { id: string | undefined; data: OrderDeta
             <CalendarClock size={14} className="text-brand" />
             <h3 className="font-semibold text-text!">Events on order</h3>
           </div>
-          {data.addEventUrl && (
-            <a
-              href={stripBackendPrefix(data.addEventUrl)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover"
-            >
-              <Plus size={12} /> Add Event
-            </a>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowAddEventModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover"
+          >
+            <Plus size={12} /> Add Event
+          </button>
         </div>
         {agenda.events.length === 0 ? (
           <p className="text-sm text-text-faint italic py-6 text-center">No events recorded for this order yet.</p>
@@ -702,34 +767,33 @@ function EventsAgendaTab({ id, data }: { id: string | undefined; data: OrderDeta
                 </tr>
               </thead>
               <tbody>
-                {agenda.events.map((event, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
-                    <td className="py-2 px-4">
-                      {event.url ? (
-                        <a href={stripBackendPrefix(event.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {event.ref}
-                        </a>
-                      ) : (
-                        <span className="text-text!">{event.ref}</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-text-muted whitespace-nowrap">{event.date}</td>
-                    <td className="py-2 px-3 text-text-muted">
-                      <EventByAvatar name={event.owner} />
-                    </td>
-                    <td className="py-2 px-3 text-text-muted">{event.label}</td>
-                    <td className="py-2 px-3">
-                      {event.relatedObjectUrl ? (
-                        <a href={stripBackendPrefix(event.relatedObjectUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {event.relatedObjectRef}
-                        </a>
-                      ) : (
-                        <span className="text-text-muted">{event.relatedObjectRef || '—'}</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-4 text-center text-text-muted">{event.statusLabel}</td>
-                  </tr>
-                ))}
+                {agenda.events.map((event, i) => {
+                  const relatedRoute = nativeRouteForUrl(event.relatedObjectUrl)
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      {/* No in-app Event Detail page exists (this app's own
+                          Agenda area is a local mock, not backed by these
+                          real events), so this is plain text rather than a
+                          link to the legacy PHP page. */}
+                      <td className="py-2 px-4 text-text!">{event.ref}</td>
+                      <td className="py-2 px-3 text-text-muted whitespace-nowrap">{event.date}</td>
+                      <td className="py-2 px-3 text-text-muted">
+                        <EventByAvatar name={event.owner} />
+                      </td>
+                      <td className="py-2 px-3 text-text-muted">{event.label}</td>
+                      <td className="py-2 px-3">
+                        {relatedRoute ? (
+                          <Link to={relatedRoute} title="Open in this app" className="text-brand hover:underline">
+                            {event.relatedObjectRef}
+                          </Link>
+                        ) : (
+                          <span className="text-text-muted">{event.relatedObjectRef || '—'}</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-4 text-center text-text-muted">{event.statusLabel}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

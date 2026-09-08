@@ -32,6 +32,7 @@ async function postForm<T>(url: string, body: URLSearchParams | FormData): Promi
 export interface InvoiceLineRow {
   rowid: string
   seq: number
+  product_id: string | null
   product_ref: string
   label: string
   desc: string
@@ -41,6 +42,7 @@ export interface InvoiceLineRow {
   tva_tx: string
   remise_percent: string
   total_ttc_f: string
+  has_product: boolean
   product_url: string | null
 }
 

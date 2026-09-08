@@ -51,8 +51,12 @@ function newLine(): LineState {
 // specific customer's own Customer tab, "Create invoice or credit note"
 // button) — same real customer-locked-field-not-a-different-page behavior
 // confirmed for Quotations (see QuotationCreateForm.tsx's own comment),
-// generalized here the same way rather than duplicated.
-export function InvoiceCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
+// generalized here the same way rather than duplicated. `initialLines`
+// powers InvoiceCreateFromOrderForm.tsx (the order's own real "Create
+// Invoice" action) — seeds the Item Table from that order's real lines,
+// same real conversion Dolibarr's own compta/facture/card.php?origin=
+// commande does, without copying that PHP page's code.
+export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { fixedCustomerId?: string; backTo?: string; initialLines?: NewInvoiceLine[] } = {}) {
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   const { data: products } = useProductOptions()
@@ -67,7 +71,7 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
   const [refClient, setRefClient] = useState('')
   const [date, setDate] = useState(today)
   const [paymentModeCode, setPaymentModeCode] = useState('')
-  const [lines, setLines] = useState<LineState[]>([newLine()])
+  const [lines, setLines] = useState<LineState[]>(() => (initialLines?.length ? initialLines.map((l) => ({ ...l, key: lineKeySeq++ })) : [newLine()]))
   const [formError, setFormError] = useState('')
 
   function updateLine(key: number, patch: Partial<LineState>) {

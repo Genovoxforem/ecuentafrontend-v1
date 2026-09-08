@@ -54,6 +54,7 @@ export interface OrderListRow {
   refCustomer: string
   projectRef: string
   thirdParty: string
+  socid: number | null
   city: string
   zipCode: string
   orderDate: string
@@ -90,28 +91,35 @@ function parseOrderRef(html: string): { id: number | null; ref: string } {
 // Same avatar-circle-exclusion shape as societeListParser.ts's parseCustName
 // — the third-party's <a> contains a `<div class="avatar-circle">INITIALS</div>`
 // sibling before the name's own text node, so only the anchor's direct text
-// nodes are the real name.
-function parseThirdParty(html: string): string {
+// nodes are the real name. Also extracts the real socid from that same
+// anchor's href (fourn/card.php?socid=N pattern), the same technique already
+// used for Purchase Orders/Quotations — not new scraping, just reading an
+// already-real JSON field's small embedded link.
+function parseThirdParty(html: string): { socid: number | null; name: string } {
   const root = parseFragment(html)
   const anchor = root.querySelector('a[href*="socid="]')
-  if (!anchor) return text(root)
+  if (!anchor) return { socid: null, name: text(root) }
+  const socidMatch = anchor.getAttribute('href')?.match(/socid=(\d+)/)
+  const socid = socidMatch ? Number(socidMatch[1]) : null
   const name = Array.from(anchor.childNodes)
     .filter((node) => node.nodeType === Node.TEXT_NODE)
     .map((node) => node.textContent ?? '')
     .join('')
     .trim()
-  return name || text(anchor)
+  return { socid, name: name || text(anchor) }
 }
 
 export function parseOrderListRow(raw: RawOrderListRow): OrderListRow {
   const { id, ref } = parseOrderRef(raw.cust_name)
+  const { socid, name } = parseThirdParty(raw.typent_code)
 
   return {
     id,
     ref,
     refCustomer: raw.currency?.trim() ?? '',
     projectRef: text(parseFragment(raw.labelcountry ?? '')),
-    thirdParty: parseThirdParty(raw.typent_code),
+    thirdParty: name,
+    socid,
     city: raw.contact?.trim() ?? '',
     zipCode: raw.cust_type?.trim() ?? '',
     orderDate: raw.entity?.trim() ?? '',

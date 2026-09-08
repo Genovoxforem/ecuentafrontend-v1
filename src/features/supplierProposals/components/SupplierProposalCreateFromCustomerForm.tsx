@@ -8,6 +8,6 @@ import { SupplierProposalCreateForm } from './SupplierProposalCreateForm'
 // own comment.
 export function SupplierProposalCreateFromCustomerForm() {
   const { id } = useParams<{ id: string }>()
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#vendor` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=vendor` : ROUTES.customerList
   return <SupplierProposalCreateForm fixedCustomerId={id} backTo={backTo} />
 }

@@ -51,6 +51,7 @@ export interface ContractListRow {
   thirdParty: string
   thirdPartySubtitle: string
   thirdPartyUrl: string | null
+  thirdPartyId: string | null
   salesRep: string
   contractDate: string
   endDateOfServices: string
@@ -66,6 +67,8 @@ export function parseContractListRow(raw: RawContractListRow): ContractListRow {
   const companyDoc = new DOMParser().parseFromString(raw.company, 'text/html')
   const companyAnchor = companyDoc.querySelector('a')
   const companySmall = companyDoc.querySelector('small')
+  const companyHref = companyAnchor?.getAttribute('href') ?? null
+  const socidMatch = companyHref?.match(/[?&]socid=(\d+)/)
 
   return {
     id: idMatch ? Number(idMatch[1]) : null,
@@ -75,7 +78,8 @@ export function parseContractListRow(raw: RawContractListRow): ContractListRow {
     refVendor: raw.ref_supplier ?? '',
     thirdParty: (companyAnchor?.textContent ?? cellText(raw.company)).trim(),
     thirdPartySubtitle: (companySmall?.textContent ?? '').trim(),
-    thirdPartyUrl: companyAnchor?.getAttribute('href') ?? null,
+    thirdPartyUrl: companyHref,
+    thirdPartyId: socidMatch ? socidMatch[1] : null,
     salesRep: cellText(raw.sales_representatives),
     contractDate: raw.date ?? '',
     endDateOfServices: raw.end_date ?? '',

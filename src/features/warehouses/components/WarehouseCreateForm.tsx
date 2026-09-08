@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Warehouse, LoaderCircle } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Warehouse, LoaderCircle, X, Check } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 import { useCreateWarehouseReal, useWarehouses } from '../warehouseExtras.queries'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -60,82 +62,84 @@ export function WarehouseCreateForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Warehouse size={20} className="text-brand" /> New warehouse / Stock Location
-      </h2>
-      {error && <p className="text-sm font-medium text-danger">{error}</p>}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
-        <Field label="Ref." required>
-          <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Short name location">
-          <input value={shortName} onChange={(e) => setShortName(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Add in">
-          <select value={fkParent} onChange={(e) => setFkParent(e.target.value)} className={selectCls}>
-            <option value="">None</option>
-            {existingWarehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.ref}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Zip Code">
-          <input value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Description">
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Address">
-          <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="City">
-          <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Country">
-          <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={selectCls}>
-            <option value="">Select…</option>
-            {(lookups?.countries ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Phone">
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Fax">
-          <input value={fax} onChange={(e) => setFax(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Status">
-          <select value={status} onChange={(e) => setStatus(e.target.value as 'Open' | 'Closed')} className={selectCls}>
-            <option>Open</option>
-            <option>Closed</option>
-          </select>
-        </Field>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => navigate(ROUTES.warehouseList)}
-          className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover"
-        >
-          Cancel
-        </button>
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Warehouse size={20} className="text-brand" /> New warehouse / Stock Location
+        </h2>
+      }
+      footerLeft={
+        <Link to={ROUTES.warehouseList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+      }
+      footerRight={
         <button
           type="button"
           disabled={createWarehouse.isPending}
           onClick={handleCreate}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
-          {createWarehouse.isPending && <LoaderCircle size={14} className="animate-spin" />} Create
+          {createWarehouse.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Create
         </button>
-      </div>
-    </div>
+      }
+    >
+      {error && <p className="text-sm font-medium text-danger">{error}</p>}
+
+      <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
+          <Field label="Ref." required>
+            <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Short name location">
+            <input value={shortName} onChange={(e) => setShortName(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Add in">
+            <select value={fkParent} onChange={(e) => setFkParent(e.target.value)} className={selectCls}>
+              <option value="">None</option>
+              {existingWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.ref}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Zip Code">
+            <input value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Description">
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Address">
+            <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="City">
+            <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Country">
+            <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={selectCls}>
+              <option value="">Select…</option>
+              {(lookups?.countries ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Phone">
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Fax">
+            <input value={fax} onChange={(e) => setFax(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Status">
+            <select value={status} onChange={(e) => setStatus(e.target.value as 'Open' | 'Closed')} className={selectCls}>
+              <option>Open</option>
+              <option>Closed</option>
+            </select>
+          </Field>
+        </div>
+      </Card>
+    </StickyFormShell>
   )
 }

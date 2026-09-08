@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FileOutput, Plus, ChevronLeft } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
@@ -15,7 +16,8 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 const EXPORTABLE_DATASETS = [{ module: 'Invoices', dataset: 'Customer Invoices And Invoice Details' }]
 
 export function ExportAssistant() {
-  const [step, setStep] = useState<'list' | 'new'>('list')
+  const [searchParams] = useSearchParams()
+  const [step, setStep] = useState<'list' | 'new'>(searchParams.get('step') === 'new' ? 'new' : 'list')
 
   if (step === 'new') {
     return (

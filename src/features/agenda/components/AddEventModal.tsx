@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarPlus, X, LoaderCircle, Check } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CalendarPlus, X, LoaderCircle, Check, Link2 } from 'lucide-react'
 import { useAgendaFilterOptions, useContactsByCompany, useCreateEvent } from '../calendarApi.queries'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -106,25 +107,46 @@ function ChipMultiSelect({
 // it is fabricated. elementtype/fkElement stay optional so this same modal
 // works both linked to an origin record (existing callers: CustomerDetail,
 // ContractDetail, InvoiceDetail, OrderDetail, QuotationDetail,
-// PurchaseOrderDetail, ContactDetail) and standalone from the Agenda page
-// itself (a real "direct event" per the backend's own family classification
-// when elementtype/fk_element/socid are all empty).
+// PurchaseOrderDetail, ContactDetail, WarehouseDetail) and standalone from
+// the Agenda page itself (a real "direct event" per the backend's own
+// family classification when elementtype/fk_element/socid are all empty).
+//
+// Confirmed live against the real classic create form (comm/action/card.php
+// ?action=create&origin=X&originid=Y) for two different origins (stock,
+// propal): whenever it's invoked with an origin, Dolibarr hides its own
+// "Type" selector entirely and hardcodes a fixed default instead, and shows
+// a read-only "Linked object" line pointing back at the origin record. This
+// modal mirrors both: the Type field is skipped (defaulting to the real
+// 'AC_OTH' — "Other (manually inserted events)" — code from the live type
+// list) whenever a caller passes elementtype+fkElement, and a "Linked
+// object" row shows when the caller also passes linkedObjectLabel. The
+// classic form's own "Once only / Every week / Every month" recurrence
+// picker and its "Task" selector are NOT reproduced here — read directly:
+// comm/action/ajax/calendar_api.php's createEvent() has no recurrence
+// handling at all, and no api_action exists anywhere in that file for
+// listing a project's tasks, so wiring either would mean a fake field with
+// no real backend behind it.
 export function AddEventModal({
   elementtype,
   fkElement,
   socid: initialSocid,
+  linkedObjectLabel,
+  linkedObjectPath,
   onClose,
   onCreated,
 }: {
   elementtype?: string
   fkElement?: number
   socid?: number
+  linkedObjectLabel?: string
+  linkedObjectPath?: string
   onClose: () => void
   onCreated: () => void
 }) {
   const { data: options, isLoading, isError, error, refetch } = useAgendaFilterOptions()
   const createEvent = useCreateEvent()
   const { user } = useAuth()
+  const isLinkedCreate = !!elementtype && !!fkElement
 
   const [actioncode, setActioncode] = useState('')
   const [label, setLabel] = useState('')
@@ -153,6 +175,17 @@ export function AddEventModal({
     if (user?.id && assignedUserIds.length === 0) setAssignedUserIds([Number(user.id)])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
+
+  // Real default for an origin-linked create (see this component's own
+  // header comment) — 'AC_OTH' when the live type list has it, else just
+  // the first real type, so the hidden field always holds a genuine code
+  // from options.types rather than a guessed value.
+  useEffect(() => {
+    if (isLinkedCreate && options && !actioncode) {
+      setActioncode(options.types.find((t) => t.code === 'AC_OTH')?.code ?? options.types[0]?.code ?? '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLinkedCreate, options])
 
   const companyOptions = useMemo(() => (options?.thirdparties ?? []).map((t) => ({ value: String(t.id), label: t.name })), [options])
   const projectOptions = useMemo(() => (options?.projects ?? []).map((p) => ({ value: String(p.id), label: p.name })), [options])
@@ -237,16 +270,33 @@ export function AddEventModal({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Type" required>
-                <select value={actioncode} onChange={(e) => setActioncode(e.target.value)} className={inputCls}>
-                  <option value="">Select type…</option>
-                  {options.types.map((t) => (
-                    <option key={t.code} value={t.code}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              {isLinkedCreate ? (
+                linkedObjectLabel && (
+                  <Field label="Linked object">
+                    <div className="flex items-center gap-1.5 text-sm text-text! h-[38px]">
+                      <Link2 size={14} className="text-brand shrink-0" />
+                      {linkedObjectPath ? (
+                        <Link to={linkedObjectPath} className="text-brand hover:underline" onClick={onClose}>
+                          {linkedObjectLabel}
+                        </Link>
+                      ) : (
+                        linkedObjectLabel
+                      )}
+                    </div>
+                  </Field>
+                )
+              ) : (
+                <Field label="Type" required>
+                  <select value={actioncode} onChange={(e) => setActioncode(e.target.value)} className={inputCls}>
+                    <option value="">Select type…</option>
+                    {options.types.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="Label" required>
                 <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Enter label" className={inputCls} />
               </Field>

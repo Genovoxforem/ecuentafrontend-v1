@@ -361,8 +361,14 @@ export function parseWarehouseCardDocument(doc: Document, id: number): Warehouse
     return `/product/stock/${relativeHref.replace(/^\.?\/?/, '')}`
   }
 
+  // The real product table's id changed from "example" to
+  // "stock_product_table" at some point after this parser was first built
+  // (confirmed live: every other selector on this page — header stats,
+  // tooltip format, transfer/correction links, the totalRow skip-class —
+  // is unchanged, only this one id moved), which silently zeroed out this
+  // list for every warehouse without breaking anything else on the page.
   const products: WarehouseProductRow[] = []
-  doc.querySelectorAll('table#example tbody tr').forEach((row) => {
+  doc.querySelectorAll('table#stock_product_table tbody tr').forEach((row) => {
     if (row.classList.contains('totalRow')) return
     const cells = row.querySelectorAll('td')
     const productLink = cells[0]?.querySelector('a[href*="product.php?id="]')
@@ -526,6 +532,7 @@ export interface InventoryCard {
   deleteUrl: string
   relatedObjects: RelatedObjectRow[]
   linkedEvents: LinkedEventRow[]
+  addEventUrl: string
 }
 
 function parseGenericTableRows(doc: Document, headerTitles: string[]): Element[] {
@@ -608,6 +615,10 @@ export function parseInventoryCardDocument(doc: Document, id: number): Inventory
     deleteUrl: deleteLink?.getAttribute('href') ?? '',
     relatedObjects,
     linkedEvents,
+    // Real link is /comm/action/card.php?action=create&origin=inventory&
+    // originid=X — same real "AddEvent" title attribute pattern already
+    // confirmed for the Warehouse card page.
+    addEventUrl: doc.querySelector('a[title="AddEvent"]')?.getAttribute('href') ?? '',
   }
 }
 
@@ -659,6 +670,7 @@ export interface WarehouseMovementsData {
   inventoryCodes: string[]
   dateRange: string
   zraEnabled: boolean
+  batchTrackingEnabled: boolean
 }
 
 function parseOriginHtml(html: string): { text: string; url: string } {
@@ -716,6 +728,12 @@ export function parseMovementListApiResponse(data: any): WarehouseMovementsData 
     inventoryCodes: Array.isArray(data.filters?.inventory_codes) ? data.filters.inventory_codes : [],
     dateRange: data.date_range ?? '',
     zraEnabled: !!data.zra_enabled,
+    // Real per-install flag (confirmed live: false on this backend) — when
+    // off, the reference page itself drops both the Lot/Serial column
+    // (arrayfields['m.batch'].enabled: 0) and the "Total Lot Used" stat tile,
+    // even though the Lot/Serial *filter* dropdown stays (batches can still
+    // be real and non-empty from historical data with tracking now off).
+    batchTrackingEnabled: !!data.productbatch_enabled,
   }
 }
 
@@ -758,6 +776,7 @@ export interface WarehouseEventsData {
   addEventUrl: string
   createdByName: string
   createdByUrl: string
+  createdById: number | null
   creationDate: string
   lastModificationDate: string
 }
@@ -824,13 +843,17 @@ export function parseWarehouseEventsDocument(doc: Document): WarehouseEventsData
   const creationMatch = infoText.match(/Creation date:\s*(.*?)(?=Latest modification date:|$)/)
   const modificationMatch = infoText.match(/Latest modification date:\s*(.*)$/)
 
+  const createdByUrl = createdByLink?.getAttribute('href') ?? ''
+  const createdByIdMatch = createdByUrl.match(/[?&]id=(\d+)/)
+
   return {
     linkedFiles,
     docGen,
     events,
     addEventUrl,
     createdByName: (createdByLink?.querySelector('.usertext')?.textContent ?? createdByLink?.textContent ?? '').trim(),
-    createdByUrl: createdByLink?.getAttribute('href') ?? '',
+    createdByUrl,
+    createdById: createdByIdMatch ? Number(createdByIdMatch[1]) : null,
     creationDate: (creationMatch?.[1] ?? '').trim(),
     lastModificationDate: (modificationMatch?.[1] ?? '').trim(),
   }

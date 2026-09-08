@@ -1727,25 +1727,25 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
           <p className="text-xs text-text-faint uppercase tracking-wide">Proposals</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.proposals_kpi.total_ht)}</p>
           <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.proposals_kpi.opened)}</p>
-          <a href={stripBackendPrefix(data.urls.proposals_list)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+          <Link to={`${ROUTES.quotationList}?customerId=${socid ?? ''}`} className="text-xs font-medium text-brand hover:underline">
             View all
-          </a>
+          </Link>
         </Card>
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Orders</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.orders_kpi.total_ht)}</p>
           <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.orders_kpi.opened)}</p>
-          <a href={stripBackendPrefix(data.urls.orders_list)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+          <Link to={`${ROUTES.orderList}?customerId=${socid ?? ''}`} className="text-xs font-medium text-brand hover:underline">
             View all
-          </a>
+          </Link>
         </Card>
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Invoices</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(profile.kpiInvoice)}</p>
           <p className="text-xs text-text-faint">Outstanding: {formatMoney(data.outstanding.total_ht)}</p>
-          <a href={stripBackendPrefix(data.urls.invoices_list)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
+          <Link to={`${ROUTES.invoiceList}?customerId=${socid ?? ''}`} className="text-xs font-medium text-brand hover:underline">
             View all
-          </a>
+          </Link>
         </Card>
         <Card className="!h-auto">
           <p className="text-xs text-text-faint uppercase tracking-wide">Customer Credit / Advance</p>
@@ -1771,9 +1771,24 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <RecentDocsCard title="Recent proposals" doc={data.proposals} viewAllUrl={data.urls.proposals_list} createUrl={data.urls.proposals_create} />
-        <RecentDocsCard title="Recent orders" doc={data.orders} viewAllUrl={data.urls.orders_list} createUrl={data.urls.orders_create} />
-        <RecentDocsCard title="Recent invoices" doc={data.invoices} viewAllUrl={data.urls.invoices_list} createUrl={data.urls.invoices_create} />
+        <RecentDocsCard
+          title="Recent proposals"
+          doc={data.proposals}
+          viewAllRoute={`${ROUTES.quotationList}?customerId=${socid ?? ''}`}
+          createRoute={ROUTES.customerQuotationCreate.replace(':id', socid ?? '')}
+        />
+        <RecentDocsCard
+          title="Recent orders"
+          doc={data.orders}
+          viewAllRoute={`${ROUTES.orderList}?customerId=${socid ?? ''}`}
+          createRoute={ROUTES.customerOrderCreate.replace(':id', socid ?? '')}
+        />
+        <RecentDocsCard
+          title="Recent invoices"
+          doc={data.invoices}
+          viewAllRoute={`${ROUTES.invoiceList}?customerId=${socid ?? ''}`}
+          createRoute={ROUTES.customerInvoiceCreate.replace(':id', socid ?? '')}
+        />
       </div>
 
       {/* Sticky to the tab's own scroll container (CustomerDetail's overflow-y-auto
@@ -1793,7 +1808,17 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
   )
 }
 
-function RecentDocsCard({ title, doc, viewAllUrl, createUrl }: { title: string; doc: { count: number; rows: CustomerTabDocRow[] }; viewAllUrl: string; createUrl: string }) {
+function RecentDocsCard({
+  title,
+  doc,
+  viewAllRoute,
+  createRoute,
+}: {
+  title: string
+  doc: { count: number; rows: CustomerTabDocRow[] }
+  viewAllRoute: string
+  createRoute: string
+}) {
   return (
     <Card className="!h-auto !p-0 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -1802,17 +1827,12 @@ function RecentDocsCard({ title, doc, viewAllUrl, createUrl }: { title: string; 
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{doc.count}</span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <a href={stripBackendPrefix(viewAllUrl)} target="_blank" rel="noreferrer" className="text-xs font-medium text-text-muted hover:text-text">
+          <Link to={viewAllRoute} className="text-xs font-medium text-text-muted hover:text-text">
             View all
-          </a>
-          <a
-            href={stripBackendPrefix(createUrl)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
-          >
+          </Link>
+          <Link to={createRoute} className="flex items-center gap-1 rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover">
             <Plus size={12} /> New
-          </a>
+          </Link>
         </div>
       </div>
       <div className="p-4">
@@ -1923,13 +1943,7 @@ function AgendaTimelineList({ days }: { days: AgendaDay[] }) {
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-text-faint mb-0.5">{ev.time}</p>
-                  {ev.url ? (
-                    <a href={stripBackendPrefix(ev.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
-                      {ev.label}
-                    </a>
-                  ) : (
-                    <p className="font-medium text-text!">{ev.label}</p>
-                  )}
+                  <p className="font-medium text-text!">{ev.label}</p>
                   <p className="text-xs text-text-faint mt-0.5 italic">
                     {ev.type_label} · {ev.user}
                   </p>
@@ -2195,11 +2209,55 @@ function NotificationsTab({ socid }: { socid: string | undefined }) {
 }
 
 const CONSUMPTION_SECTIONS = ['propals', 'orders', 'invoices', 'interventions', 'supplier_orders', 'supplier_invoices'] as const
+type ConsumptionSectionKey = (typeof CONSUMPTION_SECTIONS)[number]
+
+// In-app List page per section, customer-scoped via the ?customerId= filter
+// added to each list (see QuotationsList.tsx/OrdersList.tsx/InvoicesList.tsx/
+// PurchaseOrdersList.tsx/VendorInvoiceListPage.tsx). "interventions" has no
+// real customer-filtered list page — fichinter's own real DataTables sidebar
+// endpoint (jobcard-sidebar-list-ajax.php) never selects fk_soc, so there's
+// no way to scope it — omitted rather than linking to an unfiltered page.
+function consumptionListRoute(key: ConsumptionSectionKey, socid: string): string | null {
+  switch (key) {
+    case 'propals':
+      return `${ROUTES.quotationList}?customerId=${socid}`
+    case 'orders':
+      return `${ROUTES.orderList}?customerId=${socid}`
+    case 'invoices':
+      return `${ROUTES.invoiceList}?customerId=${socid}`
+    case 'supplier_orders':
+      return `${ROUTES.purchaseOrderList}?customerId=${socid}`
+    case 'supplier_invoices':
+      return `${ROUTES.vendorInvoiceList}?customerId=${socid}`
+    case 'interventions':
+      return null
+  }
+}
+
+// Real per-row detail route. row.id is already a plain real numeric id
+// (societe/api/consumption.php's own rowid, not parsed from a link) — no
+// detail route exists yet for supplier_invoices or interventions (confirmed
+// while auditing this tab), so those stay plain text instead of a link.
+function consumptionDetailRoute(key: ConsumptionSectionKey, id: number): string | null {
+  switch (key) {
+    case 'propals':
+      return ROUTES.quotationDetail.replace(':id', String(id))
+    case 'orders':
+      return ROUTES.orderDetail.replace(':id', String(id))
+    case 'invoices':
+      return ROUTES.invoiceDetail.replace(':id', String(id))
+    case 'supplier_orders':
+      return ROUTES.purchaseOrderDetail.replace(':id', String(id))
+    case 'supplier_invoices':
+    case 'interventions':
+      return null
+  }
+}
 
 // societe/api/consumption.php — real per-table counts/rows (propal/
 // commande/facture/fichinter, or the supplier-side tables for a vendor),
-// confirmed by reading that file directly. Read-only, matching the real
-// page's own "Open list"/"All" links out rather than any inline action.
+// confirmed by reading that file directly. Read-only; "Open list"/"All"/
+// per-row links now route in-app instead of out to the legacy backend.
 function ConsumptionTab({ socid }: { socid: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useCustomerConsumption(socid)
   if (isLoading) return <LegacyLoadingCard label="Loading consumption…" />
@@ -2216,50 +2274,64 @@ function ConsumptionTab({ socid }: { socid: string | undefined }) {
     <div className="space-y-3">
       <TabTitle>Consumption</TabTitle>
       <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${sectionKeys.length > 4 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
-        {sectionKeys.map((key) => (
-          <Card key={key} className="!h-auto">
-            <p className="text-xs text-text-faint uppercase tracking-wide">{data.section_labels[key]}</p>
-            <p className="text-lg font-bold text-text! mt-0.5">{data.summary[key] ?? 0}</p>
-            <a href={stripBackendPrefix(data.urls.lists[key] ?? '')} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline">
-              Open list
-            </a>
-          </Card>
-        ))}
+        {sectionKeys.map((key) => {
+          const listRoute = socid ? consumptionListRoute(key, socid) : null
+          return (
+            <Card key={key} className="!h-auto">
+              <p className="text-xs text-text-faint uppercase tracking-wide">{data.section_labels[key]}</p>
+              <p className="text-lg font-bold text-text! mt-0.5">{data.summary[key] ?? 0}</p>
+              {listRoute ? (
+                <Link to={listRoute} className="text-xs font-medium text-brand hover:underline">
+                  Open list
+                </Link>
+              ) : (
+                <span className="text-xs font-medium text-text-faint">No filtered list available</span>
+              )}
+            </Card>
+          )
+        })}
       </div>
-      {sectionKeys.map((key) => (
-        <Card key={key} className="!h-auto !p-0 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h3 className="font-semibold text-text!">{data.section_labels[key]}</h3>
-            <a
-              href={stripBackendPrefix(data.urls.lists[key] ?? '')}
-              target="_blank"
-              rel="noreferrer"
-              className="px-2.5 py-1 rounded-md border border-border text-xs font-medium text-text-muted hover:bg-surface-hover hover:text-text"
-            >
-              All
-            </a>
-          </div>
-          <div className="p-4">
-            {(data.sections[key] ?? []).length === 0 ? (
-              <p className="text-sm text-text-faint italic text-center py-2">No recent rows.</p>
-            ) : (
-              <ul className="space-y-2">
-                {data.sections[key].map((row) => (
-                  <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
-                    <a href={stripBackendPrefix(row.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline truncate">
-                      {row.ref}
-                    </a>
-                    <span className="text-text-muted shrink-0 flex items-center gap-3">
-                      <span>{row.date}</span>
-                      {row.total > 0 && <span>{formatMoney(row.total)}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-      ))}
+      {sectionKeys.map((key) => {
+        const listRoute = socid ? consumptionListRoute(key, socid) : null
+        return (
+          <Card key={key} className="!h-auto !p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="font-semibold text-text!">{data.section_labels[key]}</h3>
+              {listRoute && (
+                <Link to={listRoute} className="px-2.5 py-1 rounded-md border border-border text-xs font-medium text-text-muted hover:bg-surface-hover hover:text-text">
+                  All
+                </Link>
+              )}
+            </div>
+            <div className="p-4">
+              {(data.sections[key] ?? []).length === 0 ? (
+                <p className="text-sm text-text-faint italic text-center py-2">No recent rows.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {data.sections[key].map((row) => {
+                    const detailRoute = consumptionDetailRoute(key, row.id)
+                    return (
+                      <li key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                        {detailRoute ? (
+                          <Link to={detailRoute} className="font-medium text-brand hover:underline truncate">
+                            {row.ref}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-text! truncate">{row.ref}</span>
+                        )}
+                        <span className="text-text-muted shrink-0 flex items-center gap-3">
+                          <span>{row.date}</span>
+                          {row.total > 0 && <span>{formatMoney(row.total)}</span>}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </Card>
+        )
+      })}
     </div>
   )
 }
@@ -2370,9 +2442,9 @@ function TicketsTab({ socid }: { socid: string | undefined }) {
                 {data.rows.map((t) => (
                   <tr key={t.id} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3">
-                      <a href={stripBackendPrefix(t.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                      <Link to={ROUTES.ticketDetail.replace(':id', String(t.id))} className="font-medium text-brand hover:underline">
                         {t.ref}
-                      </a>
+                      </Link>
                     </td>
                     <td className="py-2 pr-3 text-text!">{t.subject}</td>
                     <td className="py-2 pr-3 text-text-muted">{t.type_label}</td>
@@ -2401,12 +2473,13 @@ function ProjectsTab({ socid }: { socid: string | undefined }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <TabTitle>Projects</TabTitle>
-        <span
-          title="Project creation has no working backend on this instance yet — see the standalone Projects module's own New Project page."
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white opacity-60 cursor-not-allowed"
+        <Link
+          to={`${ROUTES.projectCreate}?customerId=${socid ?? ''}`}
+          title="No real backend exists on this instance to save a project yet — this opens the same reference-layout page the standalone Projects module uses."
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
         >
           <Plus size={14} /> New project
-        </span>
+        </Link>
       </div>
       <Card className="!h-auto">
         {data.projects.length === 0 ? (
@@ -2428,9 +2501,9 @@ function ProjectsTab({ socid }: { socid: string | undefined }) {
                 {data.projects.map((p) => (
                   <tr key={p.id} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3">
-                      <a href={stripBackendPrefix(p.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                      <Link to={ROUTES.projectDetail.replace(':id', String(p.id))} className="font-medium text-brand hover:underline">
                         {p.ref}
-                      </a>
+                      </Link>
                     </td>
                     <td className="py-2 pr-3 text-text!">{p.title}</td>
                     <td className="py-2 pr-3 text-text-muted">{p.date_start}</td>
@@ -2479,9 +2552,9 @@ function ExpensesTab({ socid }: { socid: string | undefined }) {
                 {data.expenses.map((e) => (
                   <tr key={e.id} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3">
-                      <a href={stripBackendPrefix(e.url)} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                      <Link to={ROUTES.expenseReportDetail.replace(':id', String(e.id))} className="font-medium text-brand hover:underline">
                         {e.ref}
-                      </a>
+                      </Link>
                     </td>
                     <td className="py-2 pr-3 text-text-muted">{e.date_start}</td>
                     <td className="py-2 pr-3 text-text-muted">{e.date_end}</td>

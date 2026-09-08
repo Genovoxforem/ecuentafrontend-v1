@@ -513,6 +513,7 @@ export interface ContractSummaryCard {
 }
 
 export interface ContractRow {
+  id: number
   ref: string
   ref_customer: string
   ref_supplier: string

@@ -6,6 +6,6 @@ import { JobCardCreateForm } from './JobCardCreateForm'
 // button — see CustomerDetail.tsx).
 export function JobCardCreateFromCustomerForm() {
   const { id } = useParams<{ id: string }>()
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#customer` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=customer` : ROUTES.customerList
   return <JobCardCreateForm fixedCustomerId={id} backTo={backTo} />
 }

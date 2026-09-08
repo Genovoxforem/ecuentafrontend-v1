@@ -38,6 +38,7 @@ export const ROUTES = {
   stockTransfer: '/warehouses/stock-movement/transfer',
   massStockTransfer: '/warehouses/stock-movement/mass-transfer',
   replenishment: '/warehouses/stock-movement/replenishment',
+  stockMovementReport: '/warehouses/stock-movement/report',
   racksArea: '/warehouses/rack/racks',
   shelvesList: '/warehouses/rack/shelves',
   racksList: '/warehouses/rack/racks-list',
@@ -189,6 +190,7 @@ export const ROUTES = {
   payrollHrmJobPositions: '/payroll/hrm-job-positions',
   ledgerDashboard: '/ledger-dashboard',
   ledgerList: '/ledger-list',
+  ledgerPieceDetail: '/ledger/piece/:pieceNum',
   ledgerSubledger: '/ledger-subledger',
   ledgerCreate: '/ledger-create',
   // Setup
@@ -311,6 +313,8 @@ export const ROUTES = {
   orderCreate: '/orders/create',
   orderStats: '/orders/statistics',
   orderDetail: '/orders/:id',
+  orderCreateContract: '/orders/:id/create-contract',
+  orderCreateInvoice: '/orders/:id/create-invoice',
   contractList: '/contracts',
   contractCreate: '/contracts/create',
   contractServices: '/contracts/services',
@@ -412,4 +416,5 @@ export const ROUTES = {
   exportAssistant: '/settings/export',
   importAssistant: '/settings/import',
   cashflowSettings: '/settings/cashflow',
+  whatsappSettings: '/settings/whatsapp',
 } as const

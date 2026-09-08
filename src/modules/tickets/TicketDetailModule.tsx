@@ -1,5 +1,5 @@
-import { TicketDetailReplica } from '../../features/tickets/components/TicketDetailReplica'
+import { TicketDetail } from '../../features/tickets/components/TicketDetail'
 
 export function TicketDetailModule() {
-  return <TicketDetailReplica />
+  return <TicketDetail />
 }

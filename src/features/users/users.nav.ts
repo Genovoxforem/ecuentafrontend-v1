@@ -39,9 +39,14 @@ export const nav: NavSection = {
   items: [
     {
       label: 'Users',
+      path: ROUTES.usersDashboard,
       items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'Users tags/categories', path: ROUTES.userTags }],
     },
-    { label: 'User Groups', items: [{ label: 'Add User Group', path: ROUTES.userGroupCreate }, { label: 'User Groups List', path: ROUTES.userGroupList }] },
+    {
+      label: 'User Groups',
+      path: ROUTES.userGroupList,
+      items: [{ label: 'Add User Group', path: ROUTES.userGroupCreate }, { label: 'User Groups List', path: ROUTES.userGroupList }],
+    },
     {
       label: 'Leave Management',
       items: [
@@ -57,10 +62,26 @@ export const nav: NavSection = {
       items: [
         { label: 'Events', path: ROUTES.agenda },
         { label: 'New Event', path: `${ROUTES.agenda}?new=1` },
-        { label: 'My Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=mine&view=list` },
-        { label: 'My Terminated Events', path: `${ROUTES.agenda}?status=done&scope=mine&view=list` },
-        { label: 'All Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=all&view=list` },
-        { label: 'All Terminated Events', path: `${ROUTES.agenda}?status=done&scope=all&view=list` },
+        {
+          label: 'List',
+          path: `${ROUTES.agenda}?view=list`,
+          items: [
+            { label: 'My Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=mine&view=list` },
+            { label: 'My Terminated Events', path: `${ROUTES.agenda}?status=done&scope=mine&view=list` },
+            { label: 'All Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=all&view=list` },
+            { label: 'All Terminated Events', path: `${ROUTES.agenda}?status=done&scope=all&view=list` },
+          ],
+        },
+        {
+          label: 'Calendar',
+          path: `${ROUTES.agenda}?view=calendar`,
+          items: [
+            { label: 'My Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=mine&view=calendar` },
+            { label: 'My Terminated Events', path: `${ROUTES.agenda}?status=done&scope=mine&view=calendar` },
+            { label: 'All Incomplete Events', path: `${ROUTES.agenda}?status=todo&scope=all&view=calendar` },
+            { label: 'All Terminated Events', path: `${ROUTES.agenda}?status=done&scope=all&view=calendar` },
+          ],
+        },
         { label: 'Reporting', path: ROUTES.agendaReporting },
         { label: 'Tags/Categories', path: ROUTES.agendaCategories },
       ],

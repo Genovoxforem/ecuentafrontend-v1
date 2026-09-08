@@ -6,7 +6,9 @@ import { ROUTES } from '../../../routes'
 import { api } from '../../../api/axios'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
+import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useAuth } from '../../auth/AuthContext'
 import { useCreateContract } from '../contracts.queries'
@@ -79,24 +81,41 @@ function RepChip({ name }: { name: string }) {
   )
 }
 
-export function ContractCreateForm() {
+// `fixedCustomerId`/`backTo` power ContractCreateFromOrderForm.tsx (a Sales
+// Order's own real "Create contract" action) — same real
+// customer-locked-field-not-a-different-page behavior already generalized
+// this way for Quotations/Orders/Invoices/Purchase Orders/Supplier
+// Proposals/Vendor Invoices. `initialLines` seeds this form's own real Item
+// Table (which does submit real lines through useCreateContract, see
+// handleSubmit below) from that order's real lines — the same real
+// conversion Dolibarr's own contrat/card.php?origin=commande path performs
+// (this app's actual live contract-creation page, contrat/index_v2.php,
+// never reimplemented that copy — confirmed by reading it directly — so
+// this is a genuine improvement over the legacy page, not a regression).
+export function ContractCreateForm({
+  fixedCustomerId,
+  backTo,
+  initialLines,
+}: { fixedCustomerId?: string; backTo?: string; initialLines?: Omit<ContractLine, 'key'>[] } = {}) {
   const today = todayIso()
   const { user } = useAuth()
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   const { data: products } = useProductOptions()
   const { data: projects, isLoading: projectsLoading } = useProjectOptions()
   const createContract = useCreateContract()
   const navigate = useNavigate()
   const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
+  const listLink = backTo ?? ROUTES.contractList
 
-  const [thirdPartyId, setThirdPartyId] = useState('')
+  const [thirdPartyId, setThirdPartyId] = useState(fixedCustomerId ?? '')
   const [refCustomer, setRefCustomer] = useState('')
   const [refVendor, setRefVendor] = useState('')
   const [projectId, setProjectId] = useState('')
   const [date, setDate] = useState(today)
   const [notePublic, setNotePublic] = useState('')
   const [notePrivate, setNotePrivate] = useState('')
-  const [lines, setLines] = useState<ContractLine[]>([newLine()])
+  const [lines, setLines] = useState<ContractLine[]>(() => (initialLines?.length ? initialLines.map((l) => ({ ...l, key: lineKeySeq++ })) : [newLine()]))
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -148,7 +167,7 @@ export function ContractCreateForm() {
         authorName,
       )
       void created
-      navigate(ROUTES.contractList)
+      navigate(listLink)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create contract.')
     } finally {
@@ -164,7 +183,7 @@ export function ContractCreateForm() {
         </h2>
       }
       footerLeft={
-        <Link to={ROUTES.contractList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+        <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel
         </Link>
       }
@@ -202,14 +221,27 @@ export function ContractCreateForm() {
             <input type="text" value={refVendor} onChange={(e) => setRefVendor(e.target.value)} className={inputClasses} />
           </Field>
           <Field label="Third-party" required>
-            <select value={thirdPartyId} onChange={(e) => setThirdPartyId(e.target.value)} className={inputClasses}>
-              <option value="">{customersLoading ? 'Loading…' : 'Select a third party'}</option>
-              {customers?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            {fixedCustomerId ? (
+              <div className={`${inputClasses} flex items-center gap-2`}>
+                <Avatar name={fixedCustomer?.name ?? ''} size={20} color="bg-brand" />
+                {fixedCustomer ? (
+                  <Link to={ROUTES.customerDetail.replace(':id', fixedCustomerId)} className="text-brand hover:underline">
+                    {fixedCustomer.name}
+                  </Link>
+                ) : (
+                  <span className="text-text-faint">Loading…</span>
+                )}
+              </div>
+            ) : (
+              <select value={thirdPartyId} onChange={(e) => setThirdPartyId(e.target.value)} className={inputClasses}>
+                <option value="">{customersLoading ? 'Loading…' : 'Select a third party'}</option>
+                {customers?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
 
           <Field label="Sales representative following-up contract" required>

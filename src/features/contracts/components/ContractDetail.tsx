@@ -105,10 +105,10 @@ export function ContractDetail() {
                   </p>
                   <p className="flex items-center gap-1">
                     <span className="text-text-faint">Third-party:</span>{' '}
-                    {contract.thirdPartyUrl ? (
-                      <a href={contract.thirdPartyUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium">
+                    {contract.thirdPartyId ? (
+                      <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="text-brand hover:underline font-medium">
                         {contract.thirdParty}
-                      </a>
+                      </Link>
                     ) : (
                       <span className="font-medium text-text!">{contract.thirdParty}</span>
                     )}

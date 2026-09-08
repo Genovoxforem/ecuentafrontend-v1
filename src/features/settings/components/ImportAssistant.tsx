@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FileInput, Plus, ChevronLeft } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
@@ -38,7 +39,8 @@ const IMPORTABLE_DATASETS = [
 ]
 
 export function ImportAssistant() {
-  const [step, setStep] = useState<'list' | 'new'>('list')
+  const [searchParams] = useSearchParams()
+  const [step, setStep] = useState<'list' | 'new'>(searchParams.get('step') === 'new' ? 'new' : 'list')
 
   if (step === 'new') {
     return (

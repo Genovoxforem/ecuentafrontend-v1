@@ -149,9 +149,9 @@ function mapApiResponseToJournalsReport(data: RawLedgerApiResponse): JournalsRep
   return { rows, totalDebit: data.summary.period.debit, totalCredit: data.summary.period.credit }
 }
 
-async function fetchBookkeepingApi(filters: LedgerFilters): Promise<RawLedgerApiResponse> {
+async function fetchBookkeepingApi(filters: LedgerFilters, limit = 200): Promise<RawLedgerApiResponse> {
   const params = buildParams(filters)
-  params.set('limit', '200')
+  params.set('limit', String(limit))
   const res = await fetch(`/accountancy/bookkeeping/listbyaccount_ajax_api.php?${params.toString()}`, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
   const data: RawLedgerApiResponse = await res.json()
@@ -171,6 +171,60 @@ export function useJournalsReport(filters: LedgerFilters) {
   return useQuery({
     queryKey: ['generalLedger', 'journals', filters],
     queryFn: async (): Promise<JournalsReport> => mapApiResponseToJournalsReport(await fetchBookkeepingApi(filters)),
+    staleTime: 1000 * 30,
+  })
+}
+
+export interface PieceLine {
+  accountCode: string
+  accountLabel: string
+  subledgerAccount: string
+  journal: string
+  date: string
+  accountingDoc: string
+  label: string
+  debit: number
+  credit: number
+}
+
+// Every journal-entry row's real `piece_url` (Ledger/Journals' "view
+// source" link) points at the exact same generic accountancy/bookkeeping/
+// card.php?piece_num=X — not a per-object link into the invoice/order/bank
+// entry that generated it, confirmed live (sampled real entries across
+// every journal code present on this instance: OD/BQ/ER all resolved to
+// that one URL shape). That page is classic HTML with no JSON of its own,
+// but every real field it would show (account/label/journal/date/debit/
+// credit per line of the balanced entry) is already sitting in the same
+// listbyaccount_ajax_api.php response Ledger/Journals already fetch — so
+// this refetches that same real endpoint over a wide date range and
+// filters client-side to the one piece, rather than linking out to the
+// classic page or scraping it.
+export function usePieceDetail(pieceNum: string | undefined) {
+  return useQuery({
+    queryKey: ['generalLedger', 'piece', pieceNum],
+    queryFn: async (): Promise<PieceLine[]> => {
+      const data = await fetchBookkeepingApi({ dateStart: '2000-01-01', dateEnd: '2100-12-31', accountCode: '' }, 5000)
+      const lines: PieceLine[] = []
+      for (const g of data.groups) {
+        for (const e of g.entries) {
+          if (e.piece_num === pieceNum) {
+            lines.push({
+              accountCode: g.account_number,
+              accountLabel: g.account_label,
+              subledgerAccount: e.subledger_account,
+              journal: e.code_journal,
+              date: e.doc_date ?? '',
+              accountingDoc: e.doc_ref,
+              label: e.label_operation,
+              debit: e.debit,
+              credit: e.credit,
+            })
+          }
+        }
+      }
+      return lines
+    },
+    enabled: !!pieceNum,
     staleTime: 1000 * 30,
   })
 }

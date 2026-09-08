@@ -11,16 +11,16 @@ export function ReceptionCreateModule() {
   return <ReceptionCreatePage />
 }
 export function ReceptionListModule() {
-  return <ReceptionStatusList />
+  return <ReceptionStatusList title="List Of Receptions" />
 }
 export function ReceptionDraftModule() {
-  return <ReceptionStatusList />
+  return <ReceptionStatusList title="Draft Receptions" />
 }
 export function ReceptionValidatedModule() {
-  return <ReceptionStatusList />
+  return <ReceptionStatusList title="Validated Receptions" />
 }
 export function ReceptionProcessedModule() {
-  return <ReceptionStatusList />
+  return <ReceptionStatusList title="Processed Receptions" />
 }
 export function ReceptionStatisticsModule() {
   return <ReceptionStatisticsPage />

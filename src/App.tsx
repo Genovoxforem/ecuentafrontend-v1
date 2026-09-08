@@ -51,6 +51,7 @@ const OtherSetupModule = lazy(() => import('./modules/settings/OtherSetupModule'
 const ExportAssistantModule = lazy(() => import('./modules/settings/ExportAssistantModule').then((m) => ({ default: m.ExportAssistantModule })))
 const ImportAssistantModule = lazy(() => import('./modules/settings/ImportAssistantModule').then((m) => ({ default: m.ImportAssistantModule })))
 const CashflowSettingsModule = lazy(() => import('./modules/settings/CashflowSettingsModule').then((m) => ({ default: m.CashflowSettingsModule })))
+const WhatsappSettingsModule = lazy(() => import('./modules/settings/WhatsappSettingsModule').then((m) => ({ default: m.WhatsappSettingsModule })))
 const ZraModule = lazy(() => import('./modules/zra/ZraModule').then((m) => ({ default: m.ZraModule })))
 const ZraImportModule = lazy(() => import('./modules/zra/ZraImportModule').then((m) => ({ default: m.ZraImportModule })))
 const ZraAutomaticPurchaseModule = lazy(() => import('./modules/zra/ZraAutomaticPurchaseModule').then((m) => ({ default: m.ZraAutomaticPurchaseModule })))
@@ -98,6 +99,7 @@ const StockCorrectionModule = lazy(() => import('./modules/warehouses/StockMovem
 const StockTransferModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockTransferModule })))
 const MassStockTransferModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.MassStockTransferModule })))
 const ReplenishmentModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.ReplenishmentModule })))
+const StockMovementReportModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockMovementReportModule })))
 const RacksAreaModule = lazy(() => import('./modules/warehouses/RackModules').then((m) => ({ default: m.RacksAreaModule })))
 const ShelvesModule = lazy(() => import('./modules/warehouses/RackModules').then((m) => ({ default: m.ShelvesModule })))
 const RacksListModule = lazy(() => import('./modules/warehouses/RackModules').then((m) => ({ default: m.RacksListModule })))
@@ -170,6 +172,7 @@ const BudgetModule = lazy(() => import('./modules/budget/BudgetModule').then((m)
 const TicketsListModule = lazy(() => import('./modules/tickets/TicketsListModule').then((m) => ({ default: m.TicketsListModule })))
 const MyAssignedTicketsModule = lazy(() => import('./modules/tickets/MyAssignedTicketsModule').then((m) => ({ default: m.MyAssignedTicketsModule })))
 const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatisticsModule').then((m) => ({ default: m.TicketStatisticsModule })))
+const TicketCreateModule = lazy(() => import('./modules/tickets/TicketCreateModule').then((m) => ({ default: m.TicketCreateModule })))
 const TicketPlaceholderModule = lazy(() => import('./modules/tickets/TicketPlaceholderModule').then((m) => ({ default: m.TicketPlaceholderModule })))
 const ExpenseReportsListModule = lazy(() => import('./modules/expenses/ExpenseReportsListModule').then((m) => ({ default: m.ExpenseReportsListModule })))
 const SpecialExpensesModule = lazy(() => import('./modules/expenses/SpecialExpensesModule').then((m) => ({ default: m.SpecialExpensesModule })))
@@ -186,6 +189,7 @@ const ExpenseAnalyticsModule = lazy(() => import('./modules/expenses/ExpenseAnal
 const ExpenseBudgetsModule = lazy(() => import('./modules/expenses/ExpenseBudgetsModule').then((m) => ({ default: m.ExpenseBudgetsModule })))
 const LedgerModule = lazy(() => import('./modules/ledger/LedgerModule').then((m) => ({ default: m.LedgerModule })))
 const JournalsModule = lazy(() => import('./modules/ledger/JournalsModule').then((m) => ({ default: m.JournalsModule })))
+const PieceDetailModule = lazy(() => import('./modules/ledger/PieceDetailModule').then((m) => ({ default: m.PieceDetailModule })))
 const SubledgerModule = lazy(() => import('./modules/ledger/SubledgerModule').then((m) => ({ default: m.SubledgerModule })))
 const NewTransactionModule = lazy(() => import('./modules/ledger/NewTransactionModule').then((m) => ({ default: m.NewTransactionModule })))
 const ChartOfAccountsModule = lazy(() => import('./modules/ledger/ChartOfAccountsModule').then((m) => ({ default: m.ChartOfAccountsModule })))
@@ -334,6 +338,8 @@ const OrdersListModule = lazy(() => import('./modules/salesOrders/OrdersListModu
 const OrderCreateModule = lazy(() => import('./modules/salesOrders/OrderCreateModule').then((m) => ({ default: m.OrderCreateModule })))
 const OrderDetailModule = lazy(() => import('./modules/salesOrders/OrderDetailModule').then((m) => ({ default: m.OrderDetailModule })))
 const OrderStatisticsModule = lazy(() => import('./modules/salesOrders/OrderStatisticsModule').then((m) => ({ default: m.OrderStatisticsModule })))
+const OrderCreateContractModule = lazy(() => import('./modules/salesOrders/OrderCreateContractModule').then((m) => ({ default: m.OrderCreateContractModule })))
+const OrderCreateInvoiceModule = lazy(() => import('./modules/salesOrders/OrderCreateInvoiceModule').then((m) => ({ default: m.OrderCreateInvoiceModule })))
 const ContractsListModule = lazy(() => import('./modules/contracts/ContractsListModule').then((m) => ({ default: m.ContractsListModule })))
 const ContractCreateModule = lazy(() => import('./modules/contracts/ContractCreateModule').then((m) => ({ default: m.ContractCreateModule })))
 const ContractCreateFromCustomerModule = lazy(() => import('./modules/contracts/ContractCreateFromCustomerModule').then((m) => ({ default: m.ContractCreateFromCustomerModule })))
@@ -482,6 +488,7 @@ function App() {
                   <Route path={ROUTES.stockTransfer} element={<RouteBoundary><StockTransferModule /></RouteBoundary>} />
                   <Route path={ROUTES.massStockTransfer} element={<RouteBoundary><MassStockTransferModule /></RouteBoundary>} />
                   <Route path={ROUTES.replenishment} element={<RouteBoundary><ReplenishmentModule /></RouteBoundary>} />
+                  <Route path={ROUTES.stockMovementReport} element={<RouteBoundary><StockMovementReportModule /></RouteBoundary>} />
                   <Route path={ROUTES.racksArea} element={<RouteBoundary><RacksAreaModule /></RouteBoundary>} />
                   <Route path={ROUTES.shelvesList} element={<RouteBoundary><ShelvesModule /></RouteBoundary>} />
                   <Route path={ROUTES.racksList} element={<RouteBoundary><RacksListModule /></RouteBoundary>} />
@@ -559,6 +566,7 @@ function App() {
                   <Route path={ROUTES.ticketList} element={<RouteBoundary><TicketsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.ticketMyAssigned} element={<RouteBoundary><MyAssignedTicketsModule /></RouteBoundary>} />
                   <Route path={ROUTES.ticketStatistics} element={<RouteBoundary><TicketStatisticsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ticketNew} element={<RouteBoundary><TicketCreateModule /></RouteBoundary>} />
                   {TICKET_PLACEHOLDERS.map((p) => (
                     <Route key={p.path} path={p.path} element={<RouteBoundary><TicketPlaceholderModule /></RouteBoundary>} />
                   ))}
@@ -577,6 +585,7 @@ function App() {
                   <Route path={ROUTES.expensesBudgets} element={<RouteBoundary><ExpenseBudgetsModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerDashboard} element={<RouteBoundary><LedgerModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerList} element={<RouteBoundary><JournalsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.ledgerPieceDetail} element={<RouteBoundary><PieceDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerSubledger} element={<RouteBoundary><SubledgerModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerCreate} element={<RouteBoundary><NewTransactionModule /></RouteBoundary>} />
                   <Route path={ROUTES.ledgerChartOfAccounts} element={<RouteBoundary><ChartOfAccountsModule /></RouteBoundary>} />
@@ -709,6 +718,8 @@ function App() {
                   <Route path={ROUTES.orderCreate} element={<RouteBoundary><OrderCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.orderStats} element={<RouteBoundary><OrderStatisticsModule /></RouteBoundary>} />
                   <Route path={ROUTES.orderDetail} element={<RouteBoundary><OrderDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.orderCreateContract} element={<RouteBoundary><OrderCreateContractModule /></RouteBoundary>} />
+                  <Route path={ROUTES.orderCreateInvoice} element={<RouteBoundary><OrderCreateInvoiceModule /></RouteBoundary>} />
                   <Route path={ROUTES.contractList} element={<RouteBoundary><ContractsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.contractCreate} element={<RouteBoundary><ContractCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.contractServices} element={<RouteBoundary><ServicesDetailsModule /></RouteBoundary>} />
@@ -805,6 +816,7 @@ function App() {
                   <Route path={ROUTES.exportAssistant} element={<RouteBoundary><ExportAssistantModule /></RouteBoundary>} />
                   <Route path={ROUTES.importAssistant} element={<RouteBoundary><ImportAssistantModule /></RouteBoundary>} />
                   <Route path={ROUTES.cashflowSettings} element={<RouteBoundary><CashflowSettingsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.whatsappSettings} element={<RouteBoundary><WhatsappSettingsModule /></RouteBoundary>} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Route>
                 </Route>

@@ -248,6 +248,220 @@ export function useOrderAgendaPage(id: string | undefined) {
   })
 }
 
+// A page-wide CSRF token sits in every real page's own <meta
+// name="anti-csrf-newtoken"> tag (confirmed live — same value as every
+// hidden name="token" input on that same page, same convention already used
+// for Quotations/Purchase Orders' own action buttons) — refetching card.php
+// for a fresh one keeps these mutations correct even if the page the user
+// is looking at has gone stale.
+function scrapePageToken(doc: Document): string {
+  return doc.querySelector('meta[name="anti-csrf-newtoken"]')?.getAttribute('content') ?? ''
+}
+
+async function scrapeOrderToken(id: string): Promise<string> {
+  const html = await fetchHtml(`/commande/card.php?id=${id}`)
+  return scrapePageToken(new DOMParser().parseFromString(html, 'text/html'))
+}
+
+function invalidateOrderDetail(queryClient: ReturnType<typeof useQueryClient>, id: string | undefined) {
+  queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id] })
+  queryClient.invalidateQueries({ queryKey: ['salesOrders', 'summary'] })
+}
+
+// The bottom action bar's "Modify" button (and the header's own Edit
+// pencil, which GETs the same action=modif without the modal) both really
+// mean "set this Validated order back to Draft so its lines become
+// editable again" — confirmed by reading commande/card.php's own
+// `action=='confirm_modif'` handler directly (`$object->setDraft($user)`),
+// and by its own `action=='modif'` (GET, no confirm) branch building the
+// exact same "ConfirmUnvalidateOrder" prompt. Real POST, form-encoded
+// (`#confirmModal`'s own `#confirm-form`), not JSON.
+export function useRestoreOrderToDraft(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams({ token, action: 'confirm_modif', confirm: 'yes' })
+      const res = await fetch(`/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => invalidateOrderDetail(queryClient, id),
+  })
+}
+
+// "Validate" (shown for a Draft order) — real `action=confirm_validate`
+// (`$object->valid($user, $idwarehouse)` in commande/card.php, read
+// directly), same modal-confirm treatment as Modify/Cancel above.
+export function useValidateOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams({ token, action: 'confirm_validate', confirm: 'yes' })
+      const res = await fetch(`/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => invalidateOrderDetail(queryClient, id),
+  })
+}
+
+// "Re-Open" (shown for a Cancelled/Closed order) — real plain
+// `?action=reopen` GET (`$object->set_reopen($user)`, no CSRF token check
+// on this action — confirmed by reading that handler directly), same real
+// toggle already used for Classify Billed/Unbilled above.
+export function useReopenOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing order id.')
+      await fetchHtml(`/commande/card.php?id=${id}&action=reopen`)
+    },
+    onSuccess: () => invalidateOrderDetail(queryClient, id),
+  })
+}
+
+// "Classify delivered" — real `action=confirm_shipped` (`$object->cloture($user)`
+// in commande/card.php, read directly), same modal-confirm treatment.
+export function useClassifyOrderDelivered(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams({ token, action: 'confirm_shipped', confirm: 'yes' })
+      const res = await fetch(`/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => invalidateOrderDetail(queryClient, id),
+  })
+}
+
+// "Classify Billed" / "Classify 'Unbilled'" — plain `?action=classifybilled`
+// or `?action=classifyunbilled` GETs on card.php itself (no CSRF token
+// check on either action — confirmed by reading that handler directly),
+// same real toggle Quotations' own Classify Billed already uses.
+export function useSetOrderBilled(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (billed: boolean) => {
+      if (!id) throw new Error('Missing order id.')
+      await fetchHtml(`/commande/card.php?id=${id}&action=${billed ? 'classifybilled' : 'classifyunbilled'}`)
+    },
+    onSuccess: () => invalidateOrderDetail(queryClient, id),
+  })
+}
+
+// Clone (`action=confirm_clone`, object=commande) redirects to the new
+// cloned order's own card.php?id=NEW_ID on success — `fetch` follows that
+// redirect automatically, so the new id is read back out of the final
+// `res.url`, same technique already used for Quotations'/Purchase Orders'
+// own Clone. The real modal also lets picking a different customer to
+// clone into; simplified here to always clone into the same customer, same
+// simplification already made for those two siblings.
+export function useCloneOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (socid: number | null) => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams({ token, action: 'confirm_clone', object: 'commande', confirm: 'yes', socid: String(socid ?? '') })
+      const res = await fetch(`/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const newIdMatch = res.url.match(/[?&]id=(\d+)/)
+      return newIdMatch ? newIdMatch[1] : null
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesOrders', 'summary'] }),
+  })
+}
+
+// "Cancel" — real `action=confirm_cancel` (`$object->cancel($user)` path in
+// commande/card.php, read directly), same modal-confirm treatment.
+export function useCancelOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams({ token, action: 'confirm_cancel', confirm: 'yes' })
+      const res = await fetch(`/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => invalidateOrderDetail(queryClient, id),
+  })
+}
+
+// "Delete" — real `action=confirm_delete` (`$object->delete($user)` in
+// commande/card.php, read directly) redirects to list.php?... on success —
+// same real full-page-reload write already used for Quotations'/Purchase
+// Orders' own Delete, just detected via the final redirected `res.url`
+// this time (matching Quotations' Clone technique) rather than assuming
+// success from a 200 status alone.
+export function useDeleteOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams({ token, action: 'confirm_delete', confirm: 'yes' })
+      const res = await fetch(`/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      if (!res.url.includes('list.php')) throw new Error('The legacy backend rejected this delete.')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesOrders', 'summary'] }),
+  })
+}
+
+// Real `expedition/card.php?action=add` create-shipment POST (read
+// directly): for each of the ORDER's own lines (in the exact index order
+// `$objectsrc->lines` holds them — the same order orderCardParser.ts's
+// `data.lines` already parses them in), the simple non-batch/
+// non-multi-warehouse-split path reads `idl<i>` (the line's real rowid) +
+// `qtyl<i>` (qty to ship for that line — 0/omitted lines are skipped, not
+// rejected), falling back to a single global `entrepot_id` for every line
+// that doesn't send its own `entl<i>` (confirmed by reading the handler's
+// exact fallback: `is_numeric(GETPOST($ent)) ? GETPOST($ent) :
+// GETPOST('entrepot_id')`) — so one warehouse picker for the whole
+// shipment is a real, correct simplification of the full per-line-split
+// form, not a fabrication. On success this redirects to the new shipment's
+// own card.php?id=NEW_ID; `fetch` follows it and the new id is read back
+// out of the final `res.url`, same technique as Clone above.
+export function useCreateShipmentFromOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { warehouseId: string; lines: Array<{ lineId: number; qty: number }> }) => {
+      if (!id) throw new Error('Missing order id.')
+      const token = await scrapeOrderToken(id)
+      const body = new URLSearchParams()
+      body.set('token', token)
+      body.set('action', 'add')
+      body.set('origin', 'commande')
+      body.set('origin_id', id)
+      body.set('entrepot_id', input.warehouseId)
+      input.lines.forEach((line, i) => {
+        body.set(`idl${i}`, String(line.lineId))
+        body.set(`qtyl${i}`, String(line.qty))
+      })
+      const res = await fetch('/expedition/card.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
+      if (errorMatch) {
+        const div = document.createElement('div')
+        div.innerHTML = errorMatch[1]
+        throw new Error((div.textContent ?? 'The legacy backend rejected this shipment.').trim())
+      }
+      const newIdMatch = res.url.match(/[?&]id=(\d+)/)
+      return newIdMatch ? newIdMatch[1] : null
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'shipmentStock'] })
+      invalidateOrderDetail(queryClient, id)
+    },
+  })
+}
+
 // POSTs to the exact real action the "Generate" button on card.php's own
 // Linked files section submits (action=builddoc) — see orderCardParser.ts's
 // parseDocGenOptions() comment. Real backend document generation, not a
@@ -269,6 +483,105 @@ export function useGenerateOrderDoc(id: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documents'] })
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id] })
+    },
+  })
+}
+
+// Real event creation — comm/action/card.php?action=add (read directly).
+// Two real quirks confirmed from that source, not guessed:
+//  1. The CSRF token AND the mandatory "assigned to" owner both come from
+//     first GETting the real create-form page itself: rendering it seeds
+//     $_SESSION['assignedtouser'] with the logged-in user by default (line
+//     ~1189 of that file) as a side effect, and `add` hard-rejects
+//     ("ActionsOwnedBy" required) if that session value is empty. So this
+//     mutation does the same real two-step the browser does — GET the
+//     create page (capturing its token, and seeding the owner as a side
+//     effect), then POST `action=add` — rather than trying to fabricate an
+//     owner value the backend wouldn't accept. Reassigning to someone other
+//     than yourself isn't wired (that's the separate, heavier
+//     select_dolusers_forevent widget) — same scope-narrowing as this
+//     app's other create forms.
+//  2. actioncode is a hidden, fixed field on the real page (value "50",
+//     confirmed live) — AGENDA_USE_EVENT_TYPE isn't enabled on this
+//     install, so there's no real "Type" picker to reproduce.
+export interface NewOrderEventInput {
+  label: string
+  note: string
+  fullDay: boolean
+  startDate: string // datetime-local value
+  endDate: string // datetime-local value, optional
+  complete: '-1' | '0' | '50' | '100'
+  location: string
+}
+
+function dateParts(value: string) {
+  const d = new Date(value)
+  return { day: String(d.getDate()), month: String(d.getMonth() + 1), year: String(d.getFullYear()), hour: String(d.getHours()), min: String(d.getMinutes()) }
+}
+
+export function useCreateOrderEvent(id: string | undefined, socid: number | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: NewOrderEventInput) => {
+      if (!id) throw new Error('Missing order id.')
+      const createPageHtml = await fetchHtml(
+        `/comm/action/card.php?action=create&origin=order&originid=${id}&socid=${socid ?? ''}`,
+      )
+      const token = scrapePageToken(new DOMParser().parseFromString(createPageHtml, 'text/html'))
+
+      const body = new URLSearchParams()
+      body.set('token', token)
+      body.set('action', 'add')
+      body.set('donotclearsession', '1')
+      body.set('backtopage', `/commande/card.php?id=${id}`)
+      body.set('actioncode', '50')
+      body.set('label', input.label)
+      body.set('note', input.note)
+      body.set('location', input.location)
+      body.set('fk_element', id)
+      body.set('elementtype', 'order')
+      body.set('origin', 'order')
+      body.set('originid', id)
+      if (socid) body.set('socid', String(socid))
+
+      if (input.fullDay) body.set('fullday', 'on')
+      const start = dateParts(input.startDate)
+      body.set('apday', start.day)
+      body.set('apmonth', start.month)
+      body.set('apyear', start.year)
+      body.set('aphour', input.fullDay ? '0' : start.hour)
+      body.set('apmin', input.fullDay ? '0' : start.min)
+      body.set('apsec', '0')
+
+      if (input.endDate) {
+        const end = dateParts(input.endDate)
+        body.set('p2day', end.day)
+        body.set('p2month', end.month)
+        body.set('p2year', end.year)
+        body.set('p2hour', input.fullDay ? '23' : end.hour)
+        body.set('p2min', input.fullDay ? '59' : end.min)
+        body.set('p2sec', '0')
+      }
+
+      body.set('complete', input.complete)
+      if (input.complete === '0' || input.complete === '50') body.set('percentage', input.complete)
+
+      const res = await fetch('/comm/action/card.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (!res.url.includes('commande/card.php')) {
+        const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
+        if (errorMatch) {
+          const div = document.createElement('div')
+          div.innerHTML = errorMatch[1]
+          throw new Error((div.textContent ?? 'The legacy backend rejected this event.').trim())
+        }
+        throw new Error('The legacy backend rejected this event.')
+      }
+    },
+    onSuccess: () => {
+      invalidateOrderDetail(queryClient, id)
+      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'agendaPage'] })
     },
   })
 }

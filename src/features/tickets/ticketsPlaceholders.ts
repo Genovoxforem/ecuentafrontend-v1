@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { FilePlus, Wrench } from 'lucide-react'
+import { Wrench } from 'lucide-react'
 import { ROUTES } from '../../routes'
 
 export interface TicketPlaceholder {
@@ -10,7 +10,6 @@ export interface TicketPlaceholder {
 }
 
 export const TICKET_PLACEHOLDERS: TicketPlaceholder[] = [
-  { path: ROUTES.ticketNew, icon: FilePlus, title: 'New Ticket', description: 'Real page: ticket/card.php?action=create — classic form-POST, no JSON API.' },
   {
     path: ROUTES.ticketIntervention,
     icon: Wrench,

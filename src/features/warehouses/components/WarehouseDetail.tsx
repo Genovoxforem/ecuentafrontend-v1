@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ChevronLeft,
+  ChevronsLeft,
+  ChevronRight,
+  ChevronsRight,
   X,
   Warehouse,
   Pencil,
@@ -12,10 +15,6 @@ import {
   CalendarClock,
   UploadCloud,
   Plus,
-  Boxes,
-  Layers,
-  Banknote,
-  Clock,
   PackageOpen,
   ShoppingCart,
   Truck,
@@ -31,6 +30,7 @@ import {
   MapPin,
   LoaderCircle,
   FileCog,
+  Search as SearchIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -40,8 +40,13 @@ import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAllProductsRich } from '../../products/products.queries'
 import { useWarehouseDetail, useWarehouseMovements, useWarehouseEvents, useGenerateWarehouseDoc, type WarehouseMovementFilters } from '../warehouseExtras.queries'
+import type { WarehouseProductRow } from '../warehouseHtmlParser'
+import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { getPageNumbers } from '../../../shared/components/ListPagination'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { WarehouseEditModal } from './WarehouseEditModal'
+import { AddEventModal } from '../../agenda/components/AddEventModal'
 
 // Native rebuild of product/stock/card.php?id=X plus its two sibling tabs,
 // Stock Movements (movement_list.php — a JS SPA shell backed by a real JSON
@@ -55,10 +60,10 @@ import { WarehouseEditModal } from './WarehouseEditModal'
 
 type WarehouseTab = 'warehouse' | 'movements' | 'events'
 
-const TABS: { key: WarehouseTab; label: string }[] = [
-  { key: 'warehouse', label: 'Warehouse' },
-  { key: 'movements', label: 'Stock Movements' },
-  { key: 'events', label: 'Events' },
+const TABS: { key: WarehouseTab; label: string; icon: LucideIcon }[] = [
+  { key: 'warehouse', label: 'Warehouse', icon: Warehouse },
+  { key: 'movements', label: 'Stock Movements', icon: ArrowLeftRight },
+  { key: 'events', label: 'Events', icon: CalendarClock },
 ]
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
@@ -73,12 +78,15 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
 // Matches the real .ec-meta-item pills on product/stock/card.php's own
 // header banner (icon + label + bold value) — verified live (warehouse
 // id=9): fa-boxes-stacked/fa-cubes/fa-money-bill/fa-clock, in this order.
-function MetaItem({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+// Matches CustomerDetail.tsx's own StatTile exactly (label/value pair in the
+// header's stat row) — named differently here only because this file's own
+// Stock Movements tab already has an unrelated icon-based StatTile.
+function HeaderStatTile({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-text-faint">
-      <Icon size={13} className="text-text-faint" />
-      {label}: <strong className="font-semibold text-text!">{value}</strong>
-    </span>
+    <div className="flex-1 min-w-[120px]">
+      <p className="text-xs text-text-faint uppercase tracking-wide">{label}</p>
+      <p className="text-lg font-bold text-text! mt-0.5">{value}</p>
+    </div>
   )
 }
 
@@ -125,134 +133,107 @@ export function WarehouseDetail() {
         </Link>
       </div>
 
+      {/* Unified "identity card" header — avatar, name/status, id/location,
+          real stats, pill tab bar — matching the same polished layout as
+          CustomerDetail.tsx (see its own StatTile/pill-tab-bar pattern),
+          instead of the previous two-separate-Cards + underline-tabs look.
+          Every value shown is the same real data as before, just restyled;
+          the three real "reuses the Stock Movements tab" shortcuts (see the
+          Transfer stock/Correct stock/Update to ZRA comment they used to
+          carry) become icon buttons alongside Edit/Delete/Close rather than
+          full-width bordered buttons, since the reference layout keeps
+          header actions compact and icon-only. */}
       <div className="sticky top-0 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
             <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
-              <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-11 h-10 rounded-xl bg-brand/10 text-brand shrink-0">
-                  <Warehouse size={20} />
+              <div className="flex items-start gap-4 min-w-[240px] flex-1">
+                <span className="flex items-center justify-center w-16 h-16 rounded-lg bg-brand text-white shrink-0">
+                  <Warehouse size={28} />
                 </span>
-                <div className="space-y-1">
-                  <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
-                  {data.description && <p className="text-xs text-text-faint">{data.description}</p>}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <MetaItem icon={Boxes} label="Total number of products" value={String(data.totalProductsCount)} />
-                    <MetaItem icon={Layers} label="Number of different products" value={String(data.differentProductsCount)} />
-                    <MetaItem icon={Banknote} label="Input stock value" value={formatMoney(data.inputStockValue)} />
-                    <MetaItem icon={Clock} label="Latest movement" value={data.latestMovement || 'None'} />
+                <div className="space-y-1.5 pt-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.statusLabel === 'Open' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
+                      {data.statusLabel}
+                    </span>
                   </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Transfer stock/Correct stock/Update to ZRA: the real
-                    card.php reuses movement_list.php's header markup for
-                    these three buttons, but never loads
-                    movement_list_app.js (which defines window.EcMovementApp,
-                    confirmed by reading card.php's own source) — so on the
-                    real Warehouse tab these are silently dead JS calls. They
-                    only work on the Stock Movements tab, which does load
-                    that script, so these route there instead of replicating
-                    the real page's broken buttons. Native Stock Movements
-                    page (real via movement_list_api.php, read-only — the
-                    correct/transfer/ZRA actions themselves are mutations and
-                    aren't wired here) — see stockMovements.queries.ts. */}
-                <Link
-                  to={`${ROUTES.stockMovements}?id=${data.id}`}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/5"
-                >
-                  <ArrowLeftRight size={13} /> Transfer stock
-                </Link>
-                <Link
-                  to={`${ROUTES.stockMovements}?id=${data.id}`}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/5"
-                >
-                  <FilePenLine size={13} /> Correct stock
-                </Link>
-                <Link
-                  to={`${ROUTES.stockMovements}?id=${data.id}`}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/5"
-                >
-                  <UploadCloud size={13} /> Update to ZRA
-                </Link>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Real card.php's own "identity card" (name/location on the left,
-            status + Edit/Delete/Close grouped on the right) — a genuinely
-            separate block from the ec-movement-product-card banner above
-            it, confirmed live: the banner itself never carries a status
-            badge or edit/delete/close controls at all. */}
-        <div className="px-6">
-          <Card className="!h-auto">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-text!">{data.ref}</h3>
-                <p className="text-xs text-text-faint mt-0.5">Short name location :</p>
-                {data.locationSummary && (
-                  <p className="flex items-center gap-1 text-xs text-text-muted mt-0.5">
-                    <MapPin size={12} /> {data.locationSummary}
+                  <p className="text-xs text-text-faint">
+                    #{data.id}
+                    {data.description && ` · ${data.description}`}
                   </p>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.statusLabel === 'Open' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
-                  {data.statusLabel}
-                </span>
-                <div className="flex items-center gap-1">
-                  {data.editUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setShowEditModal(true)}
-                      title="Edit"
-                      className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
-                    >
-                      <Pencil size={16} />
-                    </button>
+                  {data.locationSummary && (
+                    <p className="flex items-center gap-1 text-xs text-text-faint">
+                      <MapPin size={12} /> {data.locationSummary}
+                    </p>
                   )}
-                  {data.deleteUrl ? (
-                    <a
-                      href={stripBackendPrefix(data.deleteUrl)}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Delete"
-                      className="p-1.5 rounded-md text-text-faint hover:bg-danger-bg hover:text-danger-fg"
-                    >
-                      <Trash2 size={16} />
-                    </a>
-                  ) : (
-                    data.deleteRefusedTitle && (
-                      <span title={data.deleteRefusedTitle} className="p-1.5 rounded-md text-text-faint/50 cursor-not-allowed">
-                        <Trash2 size={16} />
-                      </span>
-                    )
-                  )}
-                  <Link to={ROUTES.warehouseList} title="Close" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
-                    <X size={16} />
-                  </Link>
                 </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {/* Real card.php reuses movement_list.php's header markup for
+                    these three buttons, but never loads movement_list_app.js
+                    (which defines window.EcMovementApp, confirmed by reading
+                    card.php's own source) — so on the real Warehouse tab
+                    these are silently dead JS calls. They only work on the
+                    Stock Movements tab, which does load that script, so
+                    these route there instead of replicating the real page's
+                    broken buttons. */}
+                <Link to={`${ROUTES.stockMovements}?id=${data.id}`} title="Transfer stock" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+                  <ArrowLeftRight size={16} />
+                </Link>
+                <Link to={`${ROUTES.stockMovements}?id=${data.id}`} title="Correct stock" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+                  <FilePenLine size={16} />
+                </Link>
+                <Link to={`${ROUTES.stockMovements}?id=${data.id}`} title="Update to ZRA" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+                  <UploadCloud size={16} />
+                </Link>
+                <span className="w-px h-5 bg-border mx-1" />
+                {data.editUrl && (
+                  <button type="button" onClick={() => setShowEditModal(true)} title="Edit" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+                    <Pencil size={16} />
+                  </button>
+                )}
+                {data.deleteUrl ? (
+                  <a href={stripBackendPrefix(data.deleteUrl)} target="_blank" rel="noreferrer" title="Delete" className="p-1.5 rounded-md text-text-faint hover:bg-danger-bg hover:text-danger-fg">
+                    <Trash2 size={16} />
+                  </a>
+                ) : (
+                  data.deleteRefusedTitle && (
+                    <span title={data.deleteRefusedTitle} className="p-1.5 rounded-md text-text-faint/50 cursor-not-allowed">
+                      <Trash2 size={16} />
+                    </span>
+                  )
+                )}
+                <Link to={ROUTES.warehouseList} title="Close" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+                  <X size={16} />
+                </Link>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
+              <HeaderStatTile label="Total Products" value={String(data.totalProductsCount)} />
+              <HeaderStatTile label="Different Products" value={String(data.differentProductsCount)} />
+              <HeaderStatTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} />
+              <HeaderStatTile label="Latest Movement" value={data.latestMovement || 'None'} />
+            </div>
+
+            <div className="border-t border-border px-3 py-2.5">
+              <div className="flex items-center gap-1 bg-surface rounded-full p-1 w-fit">
+                {TABS.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      tab === key ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:text-text hover:bg-surface-hover'
+                    }`}
+                  >
+                    <Icon size={14} className="shrink-0" /> {label}
+                  </button>
+                ))}
               </div>
             </div>
           </Card>
-        </div>
-
-        <div className="px-6">
-          <div className="flex items-center gap-1 border-b border-border">
-            {TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide border-b-2 -mb-px ${
-                  tab === key ? 'border-brand text-brand' : 'border-transparent text-text-faint hover:text-text'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -316,88 +297,242 @@ export function WarehouseDetail() {
                   </button>
                 )}
               </div>
-              <div className="p-4 overflow-x-auto">
-                {(() => {
-                  const visibleProducts = appliedProductSearchId
-                    ? data.products.filter((p) => String(p.id) === appliedProductSearchId)
-                    : data.products
-                  return (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                        <th className="font-medium py-2 pr-3">Product</th>
-                        <th className="font-medium py-2 pr-3 text-right">Units</th>
-                        <th className="font-medium py-2 pr-3 text-right">Weighted Avg. Price</th>
-                        <th className="font-medium py-2 pr-3 text-right">Input Stock Value</th>
-                        <th className="font-medium py-2 pr-3 text-right">Selling Unit Price</th>
-                        <th className="font-medium py-2 pr-3 text-right">Value For Sell</th>
-                        <th className="font-medium py-2 pr-3"></th>
-                        <th className="font-medium py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleProducts.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-6 text-sm text-text-faint italic text-center">
-                            {appliedProductSearchId ? 'No matching product found in this warehouse.' : 'No products in this warehouse.'}
-                          </td>
-                        </tr>
-                      ) : (
-                        visibleProducts.map((p) => (
-                          <tr key={p.id} className="border-b border-border last:border-0">
-                            <td className="py-2 pr-3">
-                              <Link to={ROUTES.productDetail.replace(':id', String(p.id))} className="font-medium text-brand hover:underline">
-                                {p.label}
-                              </Link>
-                              <p className="text-xs text-text-faint">Ref: {p.ref}</p>
-                            </td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{p.units}</td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{formatMoney(p.weightedAvgPrice)}</td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{formatMoney(p.inputStockValue)}</td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{formatMoney(p.sellingUnitPrice)}</td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-text!">{formatMoney(p.valueForSell)}</td>
-                            <td className="py-2 pr-3 whitespace-nowrap">
-                              {p.transferUrl && (
-                                <a
-                                  href={stripBackendPrefix(p.transferUrl)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-brand hover:underline"
-                                >
-                                  <ArrowLeftRight size={13} /> Stock Movement
-                                </a>
-                              )}
-                            </td>
-                            <td className="py-2 whitespace-nowrap">
-                              {p.correctionUrl && (
-                                <a
-                                  href={stripBackendPrefix(p.correctionUrl)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-brand hover:underline"
-                                >
-                                  <FilePenLine size={13} /> Stock Correction
-                                </a>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                  )
-                })()}
-              </div>
+              <WarehouseProductsTable
+                products={appliedProductSearchId ? data.products.filter((p) => String(p.id) === appliedProductSearchId) : data.products}
+                emptyMessage={appliedProductSearchId ? 'No matching product found in this warehouse.' : 'No products in this warehouse.'}
+              />
             </Card>
           </>
         )}
 
         {tab === 'movements' && <WarehouseMovementsTab warehouseId={data.id} />}
-        {tab === 'events' && <WarehouseEventsTab warehouseId={data.id} />}
+        {tab === 'events' && <WarehouseEventsTab warehouseId={data.id} warehouseRef={data.ref} />}
       </div>
 
       {showEditModal && <WarehouseEditModal id={String(data.id)} warehouseRef={data.ref} onClose={() => setShowEditModal(false)} />}
     </div>
+  )
+}
+
+// The real card.php table has none of this (no search box, no per-page
+// selector, no sortable headers, no export, no scroll cap) — it just prints
+// every stocked product in one static table. Added here as a real, client-
+// side-only enhancement over the already-real `data.products` rows (same
+// convention as every other list table in this app: fetch once, then
+// search/sort/paginate/export in the browser) so a warehouse with a large
+// catalog doesn't render an unbounded page-height table with no way to find
+// a specific row.
+const PRODUCT_TABLE_PAGE_SIZES = [10, 15, 25, 50, 100]
+type ProductSortKey = 'product' | 'units' | 'weightedAvgPrice' | 'inputStockValue' | 'sellingUnitPrice' | 'valueForSell'
+
+const PRODUCT_COLUMNS: { label: string; key: ProductSortKey; align?: 'right' }[] = [
+  { label: 'Product', key: 'product' },
+  { label: 'Units', key: 'units', align: 'right' },
+  { label: 'Weighted Avg. Price', key: 'weightedAvgPrice', align: 'right' },
+  { label: 'Input Stock Value', key: 'inputStockValue', align: 'right' },
+  { label: 'Selling Unit Price', key: 'sellingUnitPrice', align: 'right' },
+  { label: 'Value For Sell', key: 'valueForSell', align: 'right' },
+]
+
+function productSortValue(row: WarehouseProductRow, key: ProductSortKey): string | number {
+  switch (key) {
+    case 'product':
+      return row.label
+    case 'units':
+      return row.units
+    case 'weightedAvgPrice':
+      return row.weightedAvgPrice
+    case 'inputStockValue':
+      return row.inputStockValue
+    case 'sellingUnitPrice':
+      return row.sellingUnitPrice
+    case 'valueForSell':
+      return row.valueForSell
+  }
+}
+
+function WarehouseProductsTable({ products, emptyMessage }: { products: WarehouseProductRow[]; emptyMessage: string }) {
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
+
+  const filtered = products.filter((p) => {
+    const q = search.trim().toLowerCase()
+    return !q || p.label.toLowerCase().includes(q) || p.ref.toLowerCase().includes(q)
+  })
+  const { sorted, sort, toggleSort } = useSortableRows<WarehouseProductRow, ProductSortKey>(filtered, productSortValue)
+
+  const total = sorted.length
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = sorted.slice((currentPage - 1) * perPage, currentPage * perPage)
+  const rangeStart = total === 0 ? 0 : (currentPage - 1) * perPage + 1
+  const rangeEnd = Math.min(currentPage * perPage, total)
+
+  function getExportData() {
+    return {
+      headers: ['#', 'Product', 'Ref', ...PRODUCT_COLUMNS.slice(1).map((c) => c.label), 'Stock Movement', 'Stock Correction'],
+      rows: sorted.map((p, i) => [
+        String(i + 1),
+        p.label,
+        p.ref,
+        String(p.units),
+        formatMoney(p.weightedAvgPrice),
+        formatMoney(p.inputStockValue),
+        formatMoney(p.sellingUnitPrice),
+        formatMoney(p.valueForSell),
+        p.transferUrl ? 'Yes' : '',
+        p.correctionUrl ? 'Yes' : '',
+      ]),
+    }
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border">
+        <select
+          value={perPage}
+          onChange={(e) => {
+            setPerPage(Number(e.target.value))
+            setPage(1)
+          }}
+          className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+        >
+          {PRODUCT_TABLE_PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <TableExportButtons title="Products In Warehouse" getExportData={getExportData} />
+        <div className="relative flex-1 min-w-[200px] max-w-80 sm:ml-auto">
+          <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+            placeholder="Search product…"
+            className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5 outline-none focus:ring-2 focus:ring-brand/30"
+          />
+        </div>
+      </div>
+
+      <div className="max-h-[28rem] overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 z-10">
+            <TheadRow>
+              <Th>#</Th>
+              {PRODUCT_COLUMNS.map((col) => (
+                <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.align}>
+                  {col.label}
+                </Th>
+              ))}
+              <Th>Stock Movement</Th>
+              <Th>Stock Correction</Th>
+            </TheadRow>
+          </thead>
+          <tbody>
+            {pageRows.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-6 text-sm text-text-faint italic text-center">
+                  {search ? 'No matching product found.' : emptyMessage}
+                </td>
+              </tr>
+            ) : (
+              pageRows.map((p, i) => (
+                <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
+                  <td className="px-4 py-2 text-text-faint">{(currentPage - 1) * perPage + i + 1}</td>
+                  <td className="px-4 py-2">
+                    <Link to={ROUTES.productDetail.replace(':id', String(p.id))} className="font-medium text-brand hover:underline">
+                      {p.label}
+                    </Link>
+                    <p className="text-xs text-text-faint">Ref: {p.ref}</p>
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text-muted">{p.units}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text-muted">{formatMoney(p.weightedAvgPrice)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text-muted">{formatMoney(p.inputStockValue)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text-muted">{formatMoney(p.sellingUnitPrice)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text!">{formatMoney(p.valueForSell)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {p.transferUrl && (
+                      <a href={stripBackendPrefix(p.transferUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+                        <ArrowLeftRight size={13} /> Stock Movement
+                      </a>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {p.correctionUrl && (
+                      <a href={stripBackendPrefix(p.correctionUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+                        <FilePenLine size={13} /> Stock Correction
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border text-sm text-text-faint">
+          <span>
+            Showing {rangeStart} to {rangeEnd} of {total} entries
+          </span>
+          <div className="flex items-center gap-1">
+            <button type="button" disabled={currentPage <= 1} onClick={() => setPage(1)} className="p-1.5 rounded-md hover:bg-surface-hover disabled:opacity-40" title="First page">
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="p-1.5 rounded-md hover:bg-surface-hover disabled:opacity-40"
+              title="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {getPageNumbers(currentPage, totalPages).map((p, i) =>
+              p === '…' ? (
+                <span key={`ellipsis-${i}`} className="px-2 text-text-faint select-none">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  className={`min-w-[2rem] px-2 py-1 rounded-md text-sm ${p === currentPage ? 'bg-brand text-white font-semibold' : 'text-text hover:bg-surface-hover'}`}
+                >
+                  {p}
+                </button>
+              ),
+            )}
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="p-1.5 rounded-md hover:bg-surface-hover disabled:opacity-40"
+              title="Next page"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage(totalPages)}
+              className="p-1.5 rounded-md hover:bg-surface-hover disabled:opacity-40"
+              title="Last page"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -466,17 +601,45 @@ function exportMovementsExcel(table: HTMLTableElement | null) {
   URL.revokeObjectURL(url)
 }
 
+interface MovementFilterDraft {
+  productId: string
+  batch: string
+  inventoryCode: string
+  startDate: string
+  endDate: string
+}
+const emptyMovementFilterDraft: MovementFilterDraft = { productId: '', batch: '', inventoryCode: '', startDate: '', endDate: '' }
+
 function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
-  const [productId, setProductId] = useState('')
-  const [batch, setBatch] = useState('')
-  const [inventoryCode, setInventoryCode] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  // Draft/applied split matches the real page's own Filters panel — typing a
+  // date or picking a dropdown value there doesn't refetch until "Search" is
+  // clicked (confirmed live), rather than firing a request per keystroke.
+  const [draft, setDraft] = useState<MovementFilterDraft>(emptyMovementFilterDraft)
+  const [applied, setApplied] = useState<MovementFilterDraft>(emptyMovementFilterDraft)
   const [page, setPage] = useState(0)
   const tableRef = useRef<HTMLTableElement>(null)
-  const dateRange = startDate && endDate ? `${toLegacyDate(startDate)}-${toLegacyDate(endDate)}` : undefined
-  const filters: WarehouseMovementFilters = { productId, batch, inventoryCode, page, dateRange }
+  // A single-sided pick (only From, or only To) used to be silently dropped
+  // entirely — the real newdatepicker param always needs both bounds, so an
+  // open end here is filled with a far-past/far-future date rather than
+  // requiring the user to fill in both fields for a simple "since X" filter.
+  const dateRange =
+    applied.startDate || applied.endDate
+      ? `${applied.startDate ? toLegacyDate(applied.startDate) : '01/01/1970'}-${applied.endDate ? toLegacyDate(applied.endDate) : '12/31/2099'}`
+      : undefined
+  const filters: WarehouseMovementFilters = { productId: applied.productId, batch: applied.batch, inventoryCode: applied.inventoryCode, page, dateRange }
   const { data, isLoading, isError, error, refetch } = useWarehouseMovements(String(warehouseId), filters)
+  const hasAppliedFilters = applied.startDate || applied.endDate || applied.productId || applied.batch || applied.inventoryCode
+  const hasDraftChanges = JSON.stringify(draft) !== JSON.stringify(emptyMovementFilterDraft)
+
+  function handleSearch() {
+    setApplied(draft)
+    setPage(0)
+  }
+  function handleReset() {
+    setDraft(emptyMovementFilterDraft)
+    setApplied(emptyMovementFilterDraft)
+    setPage(0)
+  }
 
   if (isLoading) return <LegacyLoadingCard label="Loading stock movements…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load stock movements" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
@@ -507,11 +670,14 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className={`grid grid-cols-2 sm:grid-cols-3 ${data.batchTrackingEnabled ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-3`}>
         <StatTile icon={PackageOpen} title="Product Use For Sale" total={data.stats.saleUseQty} totalUnit="Qty" today={data.stats.saleUseToday} />
         <StatTile icon={ShoppingCart} title="Total Product Sold" total={data.stats.soldQty} totalUnit="Qty" today={data.stats.soldToday} />
         <StatTile icon={Truck} title="Total Purchase Done" total={data.stats.purchaseQty} totalUnit="Qty" today={data.stats.purchaseToday} />
-        <StatTile icon={Tag} tone="orange" title="Total Lot Used" total={data.stats.lotUsedCount} totalUnit="Lots" today={data.stats.lotUsedToday} />
+        {/* Real per-install flag (see warehouseHtmlParser.ts's batchTrackingEnabled
+            comment) — the reference page itself drops this tile when lot/batch
+            tracking isn't active, confirmed live (only 4 tiles shown there). */}
+        {data.batchTrackingEnabled && <StatTile icon={Tag} tone="orange" title="Total Lot Used" total={data.stats.lotUsedCount} totalUnit="Lots" today={data.stats.lotUsedToday} />}
         <StatTile icon={RotateCw} title="Stock Correction" total={data.stats.correctionCount} today={data.stats.correctionToday} />
       </div>
 
@@ -519,36 +685,40 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
         <div className="flex items-center gap-2 text-sm font-semibold text-text! mb-3">
           <Filter size={14} className="text-brand" /> Filters
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[130px]">
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Grouped as one control (shared border, arrow between) so the
+              two ends of a single date range read as one field, not two
+              unrelated ones — `max`/`min` cross-constrain each other so the
+              native calendar can't pick an end before its own start. */}
+          <div>
             <label className="flex items-center gap-1 text-xs text-text-faint mb-1">
-              <Calendar size={12} /> Movement Date (From)
+              <Calendar size={12} /> Movement Date Range
             </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(0) }}
-              className="w-full rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
-            />
-          </div>
-          <div className="min-w-[130px]">
-            <label className="flex items-center gap-1 text-xs text-text-faint mb-1">
-              <Calendar size={12} /> Movement Date (To)
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(0) }}
-              className="w-full rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
-            />
+            <div className="flex items-center gap-1.5 rounded-md border border-input-border bg-input-bg px-1.5 py-1">
+              <input
+                type="date"
+                value={draft.startDate}
+                max={draft.endDate || undefined}
+                onChange={(e) => setDraft((d) => ({ ...d, startDate: e.target.value }))}
+                className="w-[130px] bg-transparent px-1 py-0.5 text-sm text-text outline-none"
+              />
+              <span className="text-text-faint">→</span>
+              <input
+                type="date"
+                value={draft.endDate}
+                min={draft.startDate || undefined}
+                onChange={(e) => setDraft((d) => ({ ...d, endDate: e.target.value }))}
+                className="w-[130px] bg-transparent px-1 py-0.5 text-sm text-text outline-none"
+              />
+            </div>
           </div>
           <div className="min-w-[180px]">
             <label className="flex items-center gap-1 text-xs text-text-faint mb-1">
               <Package size={12} /> Product
             </label>
             <select
-              value={productId}
-              onChange={(e) => { setProductId(e.target.value); setPage(0) }}
+              value={draft.productId}
+              onChange={(e) => setDraft((d) => ({ ...d, productId: e.target.value }))}
               className="w-full rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
             >
               <option value="">Search a product</option>
@@ -562,8 +732,8 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
               <Tag size={12} /> Lot/Serial
             </label>
             <select
-              value={batch}
-              onChange={(e) => { setBatch(e.target.value); setPage(0) }}
+              value={draft.batch}
+              onChange={(e) => setDraft((d) => ({ ...d, batch: e.target.value }))}
               className="w-full rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
             >
               <option value="">Select a Lot</option>
@@ -577,8 +747,8 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
               <Barcode size={12} /> Inv./Mov. Code
             </label>
             <select
-              value={inventoryCode}
-              onChange={(e) => { setInventoryCode(e.target.value); setPage(0) }}
+              value={draft.inventoryCode}
+              onChange={(e) => setDraft((d) => ({ ...d, inventoryCode: e.target.value }))}
               className="w-full rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
             >
               <option value="">Select a Inv/Code</option>
@@ -587,28 +757,43 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
               ))}
             </select>
           </div>
-          {(startDate || endDate || productId || batch || inventoryCode) && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => { setStartDate(''); setEndDate(''); setProductId(''); setBatch(''); setInventoryCode(''); setPage(0) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-text-faint border border-border hover:bg-surface-hover"
+              onClick={handleSearch}
+              disabled={!hasDraftChanges && !hasAppliedFilters}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50"
             >
-              <RotateCcw size={13} /> Reset
+              <SearchIcon size={13} /> Search
             </button>
-          )}
+            {(hasAppliedFilters || hasDraftChanges) && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-text-faint border border-border hover:bg-surface-hover"
+              >
+                <RotateCcw size={13} /> Reset
+              </button>
+            )}
+          </div>
         </div>
       </Card>
 
       <Card className="!h-auto !p-0 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Fixed height + its own scroll + sticky header — a warehouse with
+            months of movements would otherwise stretch this table to an
+            unbounded page height with no way to see the filters/stat tiles
+            above it at the same time (same fix as the Warehouse tab's own
+            product table). */}
+        <div className="max-h-[28rem] overflow-auto">
           <table ref={tableRef} className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-surface-alt">
               <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
                 <th className="font-medium px-4 py-2">Ref.</th>
                 <th className="font-medium px-4 py-2">Date</th>
                 <th className="font-medium px-4 py-2">Product Ref.</th>
                 <th className="font-medium px-4 py-2">Product Label</th>
-                <th className="font-medium px-4 py-2">Lot/Serial</th>
+                {data.batchTrackingEnabled && <th className="font-medium px-4 py-2">Lot/Serial</th>}
                 <th className="font-medium px-4 py-2">Inv./Mov. Code</th>
                 <th className="font-medium px-4 py-2">Label Of Movement</th>
                 <th className="font-medium px-4 py-2">Type</th>
@@ -621,7 +806,7 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
             <tbody>
               {data.movements.length === 0 ? (
                 <tr>
-                  <td colSpan={data.zraEnabled ? 12 : 11} className="px-4 py-6 text-sm text-text-faint italic text-center">
+                  <td colSpan={10 + (data.batchTrackingEnabled ? 1 : 0) + (data.zraEnabled ? 1 : 0)} className="px-4 py-6 text-sm text-text-faint italic text-center">
                     No stock movements found.
                   </td>
                 </tr>
@@ -632,7 +817,7 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
                     <td className="px-4 py-2 text-text-muted whitespace-nowrap">{m.dateFormatted}</td>
                     <td className="px-4 py-2 text-text-muted">{m.productRef}</td>
                     <td className="px-4 py-2 text-text!">{m.productLabel}</td>
-                    <td className="px-4 py-2 text-text-muted">{m.batch || '—'}</td>
+                    {data.batchTrackingEnabled && <td className="px-4 py-2 text-text-muted">{m.batch || '—'}</td>}
                     <td className="px-4 py-2 text-text-muted">{m.inventoryCode || '—'}</td>
                     <td className="px-4 py-2 text-text-muted">{m.label}</td>
                     <td className="px-4 py-2 text-text-muted">{m.typeLabel}</td>
@@ -680,11 +865,12 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
   )
 }
 
-function WarehouseEventsTab({ warehouseId }: { warehouseId: number }) {
+function WarehouseEventsTab({ warehouseId, warehouseRef }: { warehouseId: number; warehouseRef: string }) {
   const { data, isLoading, isError, error, refetch } = useWarehouseEvents(String(warehouseId))
   const generateDoc = useGenerateWarehouseDoc(String(warehouseId))
   const [model, setModel] = useState('')
   const [langId, setLangId] = useState('')
+  const [showAddEvent, setShowAddEvent] = useState(false)
 
   useEffect(() => {
     if (!data) return
@@ -764,18 +950,33 @@ function WarehouseEventsTab({ warehouseId }: { warehouseId: number }) {
             <CalendarClock size={14} className="text-brand" />
             <h3 className="font-semibold text-text!">Latest 10 linked events</h3>
           </div>
+          {/* Real link is /comm/action/card.php?action=create&origin=stock&originid=X
+              (a raw legacy page). Routed instead through the same real
+              AddEventModal every other detail page (Customer/Contract/
+              Invoice/Order/Quotation/PurchaseOrder/Contact) already reuses
+              for this — elementtype="stock" matches Entrepot::$element,
+              confirmed by the real link's own origin=stock param, so the
+              created event stays genuinely linked to this warehouse
+              server-side via elementtype/fk_element, same as the reference. */}
           {data.addEventUrl && (
-            <a
-              href={stripBackendPrefix(data.addEventUrl)}
-              target="_blank"
-              rel="noreferrer"
-              title="Add event"
-              className="flex items-center justify-center w-6 h-6 rounded-md bg-brand text-white hover:bg-brand-hover"
-            >
+            <button type="button" onClick={() => setShowAddEvent(true)} title="Add event" className="flex items-center justify-center w-6 h-6 rounded-md bg-brand text-white hover:bg-brand-hover">
               <Plus size={14} />
-            </a>
+            </button>
           )}
         </div>
+        {showAddEvent && (
+          <AddEventModal
+            elementtype="stock"
+            fkElement={warehouseId}
+            linkedObjectLabel={warehouseRef}
+            linkedObjectPath={ROUTES.warehouseDetail.replace(':id', String(warehouseId))}
+            onClose={() => setShowAddEvent(false)}
+            onCreated={() => {
+              setShowAddEvent(false)
+              refetch()
+            }}
+          />
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -812,10 +1013,10 @@ function WarehouseEventsTab({ warehouseId }: { warehouseId: number }) {
         <div className="flex items-center gap-2 text-sm text-text-muted">
           <span>Created by</span>
           {data.createdByName && <Avatar name={data.createdByName} size={22} />}
-          {data.createdByUrl ? (
-            <a href={stripBackendPrefix(data.createdByUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+          {data.createdById ? (
+            <Link to={ROUTES.userDetail.replace(':id', String(data.createdById))} className="text-brand hover:underline">
               {data.createdByName}
-            </a>
+            </Link>
           ) : (
             <span className="text-text!">{data.createdByName}</span>
           )}

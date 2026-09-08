@@ -102,9 +102,9 @@ export function InvoiceDetail() {
                 </div>
                 <p className="text-xs text-text-faint mt-1">
                   Ref. customer: {inv.ref_client || '—'} · Third-party:{' '}
-                  <a href={data.customer.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                  <Link to={ROUTES.customerDetail.replace(':id', data.customer.id)} className="text-brand hover:underline">
                     {data.customer.name}
-                  </a>
+                  </Link>
                 </p>
               </div>
             </div>
@@ -209,10 +209,10 @@ function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').Inv
                   data.lines.map((l) => (
                     <tr key={l.rowid} className="border-b border-border last:border-0">
                       <td className="px-4 py-2.5">
-                        {l.product_url ? (
-                          <a href={l.product_url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                        {l.has_product && l.product_id ? (
+                          <Link to={ROUTES.productDetail.replace(':id', l.product_id)} className="font-medium text-brand hover:underline">
                             {l.label || l.product_ref}
-                          </a>
+                          </Link>
                         ) : (
                           <span className="font-medium text-text!">{l.label || l.desc}</span>
                         )}

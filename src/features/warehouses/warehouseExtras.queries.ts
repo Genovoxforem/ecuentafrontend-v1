@@ -348,6 +348,82 @@ export function useCreateInventoryReal() {
   })
 }
 
+// Real delete is a two-step GET flow, confirmed by reading the rendered
+// card.php live: the toolbar's own href is only `action=delete&token=...`
+// (no confirm param at all — Dolibarr renders its own confirm box on that
+// same page first), and that box's real "Yes" button is
+// `action=confirm_delete&confirm=yes&token=...`. window.confirm() here
+// replaces that in-page box; the token is re-scraped fresh right before
+// deleting (same "fetch a live token, don't cache one" pattern already used
+// for Create above) since it can rotate between page loads.
+//
+// Live-tested against a disposable record on this backend and found a real,
+// pre-existing bug: deleting an inventory always fails with a genuine SQL
+// error — "Table 'bazaudye.llx_inventory_extrafields' doesn't exist" (the
+// Inventory class's delete() also tries to clear that table; it was never
+// created on this database). Dolibarr returns this as HTTP 200 with the
+// error delivered via an inline showToast(msg, "error") script call, not a
+// non-2xx status or a static error div — so checking only `res.ok` would
+// have silently reported success on every delete attempt while the record
+// stayed exactly as it was. Checked here the same way the real Send Email
+// failure was found to surface (see inventoryEmail.queries.ts).
+export function useDeleteInventoryReal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const cardHtml = await (await fetch(`/product/inventory/card.php?id=${id}`, { credentials: 'same-origin' })).text()
+      const tokenMatch = cardHtml.match(/name="token" value="([a-f0-9]+)"/)
+      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
+      const res = await fetch(`/product/inventory/card.php?id=${id}&action=confirm_delete&confirm=yes&token=${tokenMatch[1]}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      const toastErrorMatch = html.match(/showToast\("((?:[^"\\]|\\.)*)",\s*"error"\)/)
+      if (toastErrorMatch) {
+        const div = document.createElement('div')
+        div.innerHTML = toastErrorMatch[1].replace(/\\'/g, "'")
+        throw new Error((div.textContent ?? 'The legacy backend rejected this delete.').trim())
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: INVENTORY_LIST_KEY })
+    },
+  })
+}
+
+// Real "Back to Draft" is a two-step GET flow, same shape as Delete — the
+// toolbar's own href (`action=setdraft&confirm=yes&token=...`) looks like a
+// one-step call (it already carries confirm=yes) but is NOT: card.php's own
+// source unconditionally renders a formconfirm() box for `action==setdraft`
+// regardless of that param, and the box's real "Yes" button submits a
+// DIFFERENT action, `confirm_setdraft`. Confirmed live the hard way — the
+// first version of this used action=setdraft directly, returned HTTP 200
+// with no error, and silently did nothing (status never actually changed);
+// action=confirm_setdraft is what actually flips it, verified by checking
+// the record's own status link before and after.
+export function useSetInventoryToDraftReal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const cardHtml = await (await fetch(`/product/inventory/card.php?id=${id}`, { credentials: 'same-origin' })).text()
+      const tokenMatch = cardHtml.match(/name="token" value="([a-f0-9]+)"/)
+      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
+      const res = await fetch(`/product/inventory/card.php?id=${id}&action=confirm_setdraft&confirm=yes&token=${tokenMatch[1]}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      const toastErrorMatch = html.match(/showToast\("((?:[^"\\]|\\.)*)",\s*"error"\)/)
+      if (toastErrorMatch) {
+        const div = document.createElement('div')
+        div.innerHTML = toastErrorMatch[1].replace(/\\'/g, "'")
+        throw new Error((div.textContent ?? 'The legacy backend rejected this action.').trim())
+      }
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: INVENTORY_LIST_KEY })
+      queryClient.invalidateQueries({ queryKey: ['warehouses', 'inventoryDetail', id] })
+    },
+  })
+}
+
 // The create page's three real picker fields (Purchase Invoice, Landed Cost
 // Invoice, Landed Expense) all turned out to be bespoke modal/DataTable
 // widgets rather than plain dropdowns, and this pass couldn't find a plain
@@ -469,6 +545,55 @@ export function useCreateShelf() {
     update((cur) => [record, ...cur])
     return record
   }
+}
+
+// expedition/shipment-sidebar-list-ajax.php — a real DataTables JSON
+// endpoint (same {module}-sidebar-list-ajax.php pattern already confirmed
+// real for loan/loan-sidebar-list-ajax.php), found by grepping the
+// expedition/ tree for json_encode after ShipmentSearchPage/
+// ShipmentStatusList's own comments wrongly claimed no shipment endpoint
+// exists. It only selects rowid/ref/ref_customer/fk_statut/date_creation —
+// no city/zip/tracking/delivery-date fields, so the table below only shows
+// what's real rather than the reference app's full (unavailable) column set.
+// fk_statut: 0=Draft, 1=Validated, 2=Closed (same convention confirmed for
+// other Dolibarr status columns elsewhere in this app).
+export interface ShipmentRow {
+  id: string
+  ref: string
+  customerRef: string | null
+  statusCode: number
+  dateCreation: string
+}
+
+const SHIPMENTS_KEY = ['warehouses', 'shipments'] as const
+
+export function useShipments() {
+  return useQuery({
+    queryKey: SHIPMENTS_KEY,
+    queryFn: async (): Promise<ShipmentRow[]> => {
+      // length=-1 (the usual "fetch everything" DataTables convention used
+      // elsewhere in this app) breaks this endpoint — it passes length
+      // straight into a MySQL LIMIT clause, which rejects a negative value
+      // and silently returns zero rows (confirmed live). A large explicit
+      // length gets the same "everything" result without that failure mode.
+      const res = await fetch('/expedition/shipment-sidebar-list-ajax.php?draw=1&start=0&length=1000', { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      let json: { data?: Array<{ rowid: string; ref: string; custmr: string | null; fk_statut: string; date_creation: string }> }
+      try {
+        json = await res.json()
+      } catch {
+        throw new Error(NOT_SIGNED_IN_MESSAGE)
+      }
+      return (json.data ?? []).map((row) => ({
+        id: row.rowid,
+        ref: row.ref,
+        customerRef: row.custmr,
+        statusCode: Number(row.fk_statut),
+        dateCreation: row.date_creation,
+      }))
+    },
+    staleTime: 1000 * 30,
+  })
 }
 
 export interface RackAssignmentRecord {

@@ -7,13 +7,13 @@ export function ShipmentSearchModule() {
   return <ShipmentSearchPage />
 }
 export function ShipmentDraftModule() {
-  return <ShipmentStatusList title="List Of Shipments" />
+  return <ShipmentStatusList title="Draft Shipments" statusFilter={0} />
 }
 export function ShipmentValidatedModule() {
-  return <ShipmentStatusList title="List Of Shipments" />
+  return <ShipmentStatusList title="Validated Shipments" statusFilter={1} />
 }
 export function ShipmentProcessedModule() {
-  return <ShipmentStatusList title="List Of Shipments" />
+  return <ShipmentStatusList title="Processed Shipments" statusFilter={2} />
 }
 export function StatisticsShipmentModule() {
   return <StatisticsShipmentPage />

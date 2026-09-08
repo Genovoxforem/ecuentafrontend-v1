@@ -8,6 +8,6 @@ import { InvoiceCreateForm } from './InvoiceCreateForm'
 // own comment.
 export function InvoiceCreateFromCustomerForm() {
   const { id } = useParams<{ id: string }>()
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#customer` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=customer` : ROUTES.customerList
   return <InvoiceCreateForm fixedCustomerId={id} backTo={backTo} />
 }

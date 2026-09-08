@@ -9,6 +9,6 @@ import { QuotationCreateForm } from './QuotationCreateForm'
 // same real form, just with the customer field locked, not a different page).
 export function QuotationCreateFromCustomerForm() {
   const { id } = useParams<{ id: string }>()
-  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}#customer` : ROUTES.customerList
+  const backTo = id ? `${ROUTES.customerDetail.replace(':id', id)}?tab=customer` : ROUTES.customerList
   return <QuotationCreateForm fixedCustomerId={id} backTo={backTo} />
 }

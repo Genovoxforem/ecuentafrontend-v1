@@ -330,7 +330,7 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           title="Stock Transfer & Reports"
           actions={[
             { icon: Shuffle, label: 'Mass Transfer', path: ROUTES.massStockTransfer },
-            { icon: ListChecks, label: 'Movement Report' },
+            { icon: ListChecks, label: 'Movement Report', path: ROUTES.stockMovementReport },
             { icon: BarChart2, label: 'Statistics' },
           ]}
         />
