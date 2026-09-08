@@ -1,5 +1,7 @@
-﻿import { useState } from 'react'
+﻿import { useState, useEffect, useRef, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  ChevronLeft,
   ChevronRight,
   X,
   FileText,
@@ -84,8 +86,10 @@ import {
   useSaveProductNotes,
   useProductAgendaEvents,
   useProductInvoiceStats,
+  useUpdateProductPrice,
   type ProductUomOverview,
   type ProductVariantOverview,
+  type ProductPriceOverview,
 } from '../products.queries'
 import {
   Th,
@@ -104,13 +108,134 @@ import {
   type Tab,
 } from './ProductDetailShared'
 
+function extractSelectOptions(html: string | null, name: string): { value: string; label: string; selected: boolean }[] {
+  if (!html) return []
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const select = doc.querySelector(`select[name="${name}"]`)
+  if (!select) return []
+  return Array.from(select.querySelectorAll('option')).map((opt) => ({
+    value: opt.getAttribute('value') ?? '',
+    label: opt.textContent?.trim() ?? '',
+    selected: opt.hasAttribute('selected'),
+  }))
+}
+
+function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPriceOverview; onClose: () => void }) {
+  const update = useUpdateProductPrice()
+  const vatOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'tva_tx'), [data.editFormHtml])
+  const iplOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'iplCatCd'), [data.editFormHtml])
+  const tlOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'tlCatCd'), [data.editFormHtml])
+  const exciseOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'exciseTxCatCd'), [data.editFormHtml])
+
+  const [baseType, setBaseType] = useState<'HT' | 'TTC'>(data.priceBaseType === 'TTC' ? 'TTC' : 'HT')
+  const [price, setPrice] = useState(data.price.toFixed(2))
+  const [priceTtc, setPriceTtc] = useState(data.priceTtc.toFixed(2))
+  const [priceMin, setPriceMin] = useState(data.priceMin.toFixed(2))
+  const [priceMinTtc, setPriceMinTtc] = useState(data.priceMinTtc.toFixed(2))
+  const [vat, setVat] = useState(vatOptions.find((o) => o.selected)?.value ?? vatOptions[0]?.value ?? '0')
+  const [ipl, setIpl] = useState(iplOptions.find((o) => o.selected)?.value ?? iplOptions[0]?.value ?? '0')
+  const [tl, setTl] = useState(tlOptions.find((o) => o.selected)?.value ?? tlOptions[0]?.value ?? '0')
+  const [excise, setExcise] = useState(exciseOptions.find((o) => o.selected)?.value ?? exciseOptions[0]?.value ?? '0')
+  const [error, setError] = useState('')
+
+  const selling = baseType === 'TTC' ? priceTtc : price
+  const min = baseType === 'TTC' ? priceMinTtc : priceMin
+  const setSelling = baseType === 'TTC' ? setPriceTtc : setPrice
+  const setMin = baseType === 'TTC' ? setPriceMinTtc : setPriceMin
+
+  function handleSave() {
+    setError('')
+    if (Number.isNaN(Number(selling)) || Number(selling) < 0) return setError('Selling price must be a valid number.')
+    if (Number.isNaN(Number(min)) || Number(min) < 0) return setError('Min. selling price must be a valid number.')
+    update.mutate(
+      { id, price: selling, priceMin: min, priceBaseType: baseType, tvaTx: vat, iplCatCd: ipl, tlCatCd: tl, exciseTxCatCd: excise },
+      { onSuccess: onClose, onError: (err) => setError(err instanceof Error ? err.message : 'Save failed.') },
+    )
+  }
+
+  return (
+    <ModalShell
+      title="New Price"
+      className="max-w-3xl"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-md text-sm font-medium border border-border text-text-muted hover:bg-surface-hover">
+            Cancel
+          </button>
+          <button type="button" onClick={handleSave} disabled={update.isPending} className="px-4 py-2 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60">
+            {update.isPending ? 'Saving...' : 'Save'}
+          </button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-3 gap-3">
+        <ModalField label="VAT category Code">
+          <select value={vat} onChange={(e) => setVat(e.target.value)} className={modalInputCls}>
+            {vatOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </ModalField>
+        {data.zraEnabled && (
+          <>
+            <ModalField label="IPL category code">
+              <select value={ipl} onChange={(e) => setIpl(e.target.value)} className={modalInputCls}>
+                {iplOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </ModalField>
+            <ModalField label="Tourism levy Code">
+              <select value={tl} onChange={(e) => setTl(e.target.value)} className={modalInputCls}>
+                {tlOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </ModalField>
+            <ModalField label="Excise tax category code">
+              <select value={excise} onChange={(e) => setExcise(e.target.value)} className={modalInputCls}>
+                {exciseOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </ModalField>
+          </>
+        )}
+        <ModalField label="Price base">
+          <select value={baseType} onChange={(e) => setBaseType(e.target.value as 'HT' | 'TTC')} className={modalInputCls}>
+            <option value="HT">Excl. tax</option>
+            <option value="TTC">Inc. tax</option>
+          </select>
+        </ModalField>
+        <ModalField label="Selling price">
+          <input value={selling} onChange={(e) => setSelling(e.target.value)} className={modalInputCls} />
+        </ModalField>
+        <ModalField label="Min. selling price">
+          <input value={min} onChange={(e) => setMin(e.target.value)} className={modalInputCls} />
+        </ModalField>
+      </div>
+      {error && <p className="text-sm font-medium text-danger mt-3">{error}</p>}
+    </ModalShell>
+  )
+}
+
 function SellingPricesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductPriceOverview(id)
   const deleteLog = useDeletePriceLog()
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(20)
+  const [showModal, setShowModal] = useState(false)
 
-  if (isLoading) return <LegacyLoadingCard label="Loading selling pricesâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading selling prices..." />
   if (isError) return <LegacyErrorCard title="Couldn't load selling prices" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
@@ -147,11 +272,24 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             <span className="text-xs text-text-faint">Min Price</span>
             <span className="text-sm font-medium">{formatMoney(data.minPrice)} {data.priceBaseType}</span>
           </div>
-          <button type="button" disabled title="Not built yet â€” needs a VAT/ZRA-category picker, same scope as this session's other deferred write actions" className="ml-auto px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-default">
-            Update Default Price
-          </button>
+          {data.canCreate && !data.isVariant ? (
+            <button type="button" onClick={() => setShowModal(true)} className="ml-auto px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:opacity-90">
+              Update Default Price
+            </button>
+          ) : (
+            <button type="button" disabled className="ml-auto px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-default">
+              Update Default Price
+            </button>
+          )}
         </div>
       </Card>
+      {showModal && (
+        <UpdatePriceModal
+          id={id!}
+          data={data}
+          onClose={() => setShowModal(false)}
+        />
+      )}
 
       <Card className="!h-auto flex flex-col">
         <div className="space-y-3 flex-1 flex flex-col">
@@ -260,7 +398,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Editable number field for Stock Alert Threshold / Desired Stock â€” mirrors
+// Editable number field for Stock Alert Threshold / Desired Stock - mirrors
 // the real page's own onchange-save inputs (productinfo_stock.js), saving
 // on blur only when the value actually changed.
 function StockNumberField({ label, value, editable, onSave }: { label: string; value: string; editable: boolean; onSave: (value: string) => void }) {
@@ -278,27 +416,29 @@ function StockNumberField({ label, value, editable, onSave }: { label: string; v
           className="w-24 rounded border border-border bg-surface px-2 py-1 text-sm text-right text-text!"
         />
       ) : (
-        value || 'â€”'
+        value || '—'
       )}
     </FieldRow>
   )
 }
 
-function CorrectStockModal({ id, warehouseOptions, onClose }: { id: string; warehouseOptions: { value: string; label: string }[]; onClose: () => void }) {
+function CorrectStockModal({ id, warehouseOptions, hasBatch, onClose }: { id: string; warehouseOptions: { value: string; label: string }[]; hasBatch: boolean; onClose: () => void }) {
   const correctStock = useCorrectStock()
   const [warehouseId, setWarehouseId] = useState('')
   const [mouvement, setMouvement] = useState<'0' | '1'>('0')
   const [qty, setQty] = useState('')
   const [label, setLabel] = useState('')
   const [unitPrice, setUnitPrice] = useState('')
+  const [batchNumber, setBatchNumber] = useState('')
   const [error, setError] = useState('')
 
   function handleSave() {
     setError('')
     if (!warehouseId) return setError('Warehouse is required!')
     if (!qty || Number(qty) <= 0) return setError('Quantity must be a positive number!')
+    if (hasBatch && !batchNumber.trim()) return setError('Batch number is required for lot/serial tracked products!')
     correctStock.mutate(
-      { id, warehouseId, qty, mouvement, label, unitPrice },
+      { id, warehouseId, qty, mouvement, label, unitPrice, batchNumber: batchNumber.trim() },
       { onSuccess: onClose, onError: (err) => setError(err instanceof Error ? err.message : 'Save failed.') },
     )
   }
@@ -309,13 +449,13 @@ function CorrectStockModal({ id, warehouseOptions, onClose }: { id: string; ware
       onClose={onClose}
       footer={
         <button type="button" onClick={handleSave} disabled={correctStock.isPending} className="px-4 py-2 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60">
-          {correctStock.isPending ? 'Savingâ€¦' : 'Save'}
+          {correctStock.isPending ? 'Saving...' : 'Save'}
         </button>
       }
     >
       <ModalField label="Warehouse">
         <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={modalInputCls}>
-          <option value="">Selectâ€¦</option>
+          <option value="">Select...</option>
           {warehouseOptions.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -340,17 +480,23 @@ function CorrectStockModal({ id, warehouseOptions, onClose }: { id: string; ware
       <ModalField label="Label">
         <input value={label} onChange={(e) => setLabel(e.target.value)} className={modalInputCls} />
       </ModalField>
+      {hasBatch && (
+        <ModalField label="Batch Number">
+          <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="e.g. LOT-001" className={modalInputCls} />
+        </ModalField>
+      )}
       {error && <p className="text-sm font-medium text-danger">{error}</p>}
     </ModalShell>
   )
 }
 
-function TransferStockModal({ id, warehouseOptions, onClose }: { id: string; warehouseOptions: { value: string; label: string }[]; onClose: () => void }) {
+function TransferStockModal({ id, warehouseOptions, hasBatch, onClose }: { id: string; warehouseOptions: { value: string; label: string }[]; hasBatch: boolean; onClose: () => void }) {
   const transferStock = useTransferStock()
   const [warehouseFrom, setWarehouseFrom] = useState('')
   const [warehouseTo, setWarehouseTo] = useState('')
   const [qty, setQty] = useState('')
   const [label, setLabel] = useState('')
+  const [batchNumber, setBatchNumber] = useState('')
   const [error, setError] = useState('')
 
   function handleSave() {
@@ -358,8 +504,9 @@ function TransferStockModal({ id, warehouseOptions, onClose }: { id: string; war
     if (!warehouseFrom || !warehouseTo) return setError('Both warehouses are required!')
     if (warehouseFrom === warehouseTo) return setError('Source and destination warehouses must differ!')
     if (!qty || Number(qty) <= 0) return setError('Quantity must be a positive number!')
+    if (hasBatch && !batchNumber.trim()) return setError('Batch number is required for lot/serial tracked products!')
     transferStock.mutate(
-      { id, warehouseFrom, warehouseTo, qty, label },
+      { id, warehouseFrom, warehouseTo, qty, label, batchNumber: batchNumber.trim() },
       { onSuccess: onClose, onError: (err) => setError(err instanceof Error ? err.message : 'Save failed.') },
     )
   }
@@ -370,14 +517,14 @@ function TransferStockModal({ id, warehouseOptions, onClose }: { id: string; war
       onClose={onClose}
       footer={
         <button type="button" onClick={handleSave} disabled={transferStock.isPending} className="px-4 py-2 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60">
-          {transferStock.isPending ? 'Savingâ€¦' : 'Save'}
+          {transferStock.isPending ? 'Saving...' : 'Save'}
         </button>
       }
     >
       <div className="grid grid-cols-2 gap-3">
         <ModalField label="From Warehouse">
           <select value={warehouseFrom} onChange={(e) => setWarehouseFrom(e.target.value)} className={modalInputCls}>
-            <option value="">Selectâ€¦</option>
+            <option value="">Select...</option>
             {warehouseOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -387,7 +534,7 @@ function TransferStockModal({ id, warehouseOptions, onClose }: { id: string; war
         </ModalField>
         <ModalField label="To Warehouse">
           <select value={warehouseTo} onChange={(e) => setWarehouseTo(e.target.value)} className={modalInputCls}>
-            <option value="">Selectâ€¦</option>
+            <option value="">Select...</option>
             {warehouseOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -402,6 +549,11 @@ function TransferStockModal({ id, warehouseOptions, onClose }: { id: string; war
       <ModalField label="Label">
         <input value={label} onChange={(e) => setLabel(e.target.value)} className={modalInputCls} />
       </ModalField>
+      {hasBatch && (
+        <ModalField label="Batch Number">
+          <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="e.g. LOT-001" className={modalInputCls} />
+        </ModalField>
+      )}
       {error && <p className="text-sm font-medium text-danger">{error}</p>}
     </ModalShell>
   )
@@ -412,7 +564,7 @@ function StockTab({ id }: { id: string | undefined }) {
   const setStockField = useSetStockField()
   const [stockModal, setStockModal] = useState<'correct' | 'transfer' | null>(null)
 
-  if (isLoading) return <LegacyLoadingCard label="Loading stock overviewâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading stock overview..." />
   if (isError) return <LegacyErrorCard title="Couldn't load stock" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
@@ -453,9 +605,9 @@ function StockTab({ id }: { id: string | undefined }) {
                 {data.physicalBelowLimit && <AlertTriangle size={14} className="text-warning" />}
                 {/* Stock At Date / Virtual At Date are their own real
                     legacy reports (product/stock/stockatdate.php) with no
-                    JSON API â€” native inert replica page, see
+                    JSON API - native inert replica page, see
                     StockAtDateReplica.tsx. Full List is real, native via
-                    movement_list_api.php â€” see stockMovements.queries.ts. */}
+                    movement_list_api.php - see stockMovements.queries.ts. */}
                 <Link to={`${ROUTES.productStockAtDate}?productid=${id}`} className="text-xs text-brand hover:underline">
                   Stock At Date
                 </Link>
@@ -506,8 +658,8 @@ function StockTab({ id }: { id: string | undefined }) {
         </div>
       )}
 
-      {stockModal === 'correct' && <CorrectStockModal id={id!} warehouseOptions={data.warehouseOptions} onClose={() => setStockModal(null)} />}
-      {stockModal === 'transfer' && <TransferStockModal id={id!} warehouseOptions={data.warehouseOptions} onClose={() => setStockModal(null)} />}
+      {stockModal === 'correct' && <CorrectStockModal id={id!} warehouseOptions={data.warehouseOptions} hasBatch={data.hasBatch} onClose={() => setStockModal(null)} />}
+      {stockModal === 'transfer' && <TransferStockModal id={id!} warehouseOptions={data.warehouseOptions} hasBatch={data.hasBatch} onClose={() => setStockModal(null)} />}
 
       <Card className="!h-auto">
         <SectionHeader icon={Warehouse} color="violet">
@@ -533,20 +685,20 @@ function StockTab({ id }: { id: string | undefined }) {
                   <tr key={w.id} className="border-b border-border last:border-0">
                     <Td>
                       {w.ref}
-                      {w.place && <span className="text-text-faint"> â€” {w.place}</span>}
+                      {w.place && <span className="text-text-faint"> {w.place}</span>}
                     </Td>
                     <Td right>{formatNumber(w.units)}</Td>
                     <Td right muted>
-                      {w.pmp || 'â€”'}
+                      {w.pmp || '—'}
                     </Td>
                     <Td right muted>
-                      {w.valuePurchase || 'â€”'}
+                      {w.valuePurchase || '—'}
                     </Td>
                     <Td right muted>
-                      {w.sellPriceMin || 'â€”'}
+                      {w.sellPriceMin || '—'}
                     </Td>
                     <Td right muted>
-                      {w.valueSell || 'â€”'}
+                      {w.valueSell || '—'}
                     </Td>
                   </tr>
                 ))
@@ -558,16 +710,16 @@ function StockTab({ id }: { id: string | undefined }) {
                   <Td>Total:</Td>
                   <Td right>{formatNumber(data.totals.totalQty)}</Td>
                   <Td right muted>
-                    {data.totals.avgPmp || 'â€”'}
+                    {data.totals.avgPmp || '—'}
                   </Td>
                   <Td right muted>
-                    {data.totals.totalValuePurchase || 'â€”'}
+                    {data.totals.totalValuePurchase || '—'}
                   </Td>
                   <Td right muted>
-                    {data.totals.avgSellPrice || 'â€”'}
+                    {data.totals.avgSellPrice || '—'}
                   </Td>
                   <Td right muted>
-                    {data.totals.totalValueSell || 'â€”'}
+                    {data.totals.totalValueSell || '—'}
                   </Td>
                 </tr>
               </tfoot>
@@ -613,7 +765,7 @@ function StockTab({ id }: { id: string | undefined }) {
   )
 }
 
-// New Combination modal (variant_api.php?action=create_combination) â€” one
+// New Combination modal (variant_api.php?action=create_combination) - one
 // value select per existing attribute (attributes themselves aren't created
 // here, only combined; matches what the real endpoint accepts).
 function NewCombinationModal({ id, attributes, onClose }: { id: string; attributes: ProductVariantOverview['attributes']; onClose: () => void }) {
@@ -641,7 +793,7 @@ function NewCombinationModal({ id, attributes, onClose }: { id: string; attribut
       onClose={onClose}
       footer={
         <button type="button" onClick={handleSave} disabled={createCombination.isPending} className="px-4 py-2 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60">
-          {createCombination.isPending ? 'Creatingâ€¦' : 'Create'}
+          {createCombination.isPending ? 'Creating...' : 'Create'}
         </button>
       }
     >
@@ -649,7 +801,7 @@ function NewCombinationModal({ id, attributes, onClose }: { id: string; attribut
         {attributes.map((a) => (
           <ModalField key={a.id} label={a.label}>
             <select value={selected[a.id] ?? ''} onChange={(e) => setSelected((s) => ({ ...s, [a.id]: e.target.value }))} className={modalInputCls}>
-              <option value="">Selectâ€¦</option>
+              <option value="">Select...</option>
               {a.values.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.value}
@@ -677,7 +829,7 @@ function NewCombinationModal({ id, attributes, onClose }: { id: string; attribut
   )
 }
 
-// Variants tab (variant_api.php) â€” real attribute values + real
+// Variants tab (variant_api.php) - real attribute values + real
 // combinations, replaces variants/combinations.php natively (New/Delete
 // Combination both write through the real endpoint, no legacy link-out).
 function ProductCombinationsTab({ id }: { id: string | undefined }) {
@@ -685,7 +837,7 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
   const deleteCombination = useDeleteCombination()
   const [showNew, setShowNew] = useState(false)
 
-  if (isLoading) return <LegacyLoadingCard label="Loading variantsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading variants..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Product Combinations" />
   if (isError) return <LegacyErrorCard title="Couldn't load variants" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
@@ -785,12 +937,12 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Statistics tab (stats_api.php) â€” real sales/purchase figures computed
+// Statistics tab (stats_api.php) - real sales/purchase figures computed
 // server-side from llx_facturedet/llx_commande_fournisseurdet, replaces the
 // old legacy-scrape usage report.
 function StatisticsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductStatsOverview(id)
-  if (isLoading) return <LegacyLoadingCard label="Loading statisticsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading statistics..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Statistics" />
   if (isError) return <LegacyErrorCard title="Couldn't load statistics" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
@@ -871,7 +1023,7 @@ function StatisticsTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Notes tab (note_api.php) â€” real llx_product.note_public/note fields,
+// Notes tab (note_api.php) - real llx_product.note_public/note fields,
 // replaces the old (unrouted on this backend) api/products/?action=update-note.
 function NotesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductNotesOverview(id)
@@ -885,7 +1037,7 @@ function NotesTab({ id }: { id: string | undefined }) {
     setNotePrivate(data?.notePrivate ?? '')
   }, [data])
 
-  if (isLoading) return <LegacyLoadingCard label="Loading notesâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading notes..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Notes" />
   if (isError) return <LegacyErrorCard title="Couldn't load notes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
@@ -895,13 +1047,13 @@ function NotesTab({ id }: { id: string | undefined }) {
         <SectionHeader icon={StickyNote} color="blue">
           Public Note
         </SectionHeader>
-        <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={8} className={inputCls} placeholder="Visible to customers on documentsâ€¦" />
+        <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={8} className={inputCls} placeholder="Visible to customers on documents..." />
       </Card>
       <Card className="!h-auto">
         <SectionHeader icon={StickyNote} color="amber">
           Private Note
         </SectionHeader>
-        <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={8} className={inputCls} placeholder="Internal onlyâ€¦" />
+        <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={8} className={inputCls} placeholder="Internal only..." />
       </Card>
       <div className="lg:col-span-2 flex items-center gap-3">
         <button
@@ -910,10 +1062,10 @@ function NotesTab({ id }: { id: string | undefined }) {
           onClick={() => id && saveNotes.mutate({ id, notePublic, notePrivate })}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
-          <Save size={14} /> {saveNotes.isPending ? 'Savingâ€¦' : 'Save notes'}
+          <Save size={14} /> {saveNotes.isPending ? 'Saving...' : 'Save notes'}
         </button>
         {saveNotes.isSuccess && <p className="text-xs text-success">Saved.</p>}
-        {saveNotes.isError && <p className="text-xs text-danger">Could not save â€” please try again.</p>}
+        {saveNotes.isError && <p className="text-xs text-danger">Could not save please try again.</p>}
       </div>
     </div>
   )
@@ -965,14 +1117,14 @@ function UomConversionModal({
           disabled={saveConversion.isPending}
           className="px-4 py-2 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60"
         >
-          {saveConversion.isPending ? 'Savingâ€¦' : 'Save'}
+          {saveConversion.isPending ? 'Saving...' : 'Save'}
         </button>
       }
     >
       <div className="grid grid-cols-2 gap-3">
         <ModalField label="Packing Unit">
           <select value={packingUnit} onChange={(e) => setPackingUnit(e.target.value)} className={modalInputCls}>
-            <option value="">Selectâ€¦</option>
+            <option value="">Select...</option>
             {packingOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -982,7 +1134,7 @@ function UomConversionModal({
         </ModalField>
         <ModalField label="Base UOM">
           <select value={uomUnit} onChange={(e) => setUomUnit(e.target.value)} className={modalInputCls}>
-            <option value="">Selectâ€¦</option>
+            <option value="">Select...</option>
             {uomOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -1023,7 +1175,7 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
 
   useEffect(() => setBarcodeDraft(data?.productBarcode ?? ''), [data?.productBarcode])
 
-  if (isLoading) return <LegacyLoadingCard label="Loading UOM settingsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading UOM settings..." />
   if (isError) return <LegacyErrorCard title="Couldn't load UOM settings" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
@@ -1079,10 +1231,10 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
                     <Td muted>{c.uomLabel}</Td>
                     <Td right>{c.factor}</Td>
                     <Td right muted>
-                      {c.priceOverrideTtc ? formatMoney(c.priceOverrideTtc) : 'â€”'}
+                      {c.priceOverrideTtc ? formatMoney(c.priceOverrideTtc) : '—'}
                     </Td>
-                    <Td muted>{c.barcode || 'â€”'}</Td>
-                    <Td muted>{c.note || 'â€”'}</Td>
+                    <Td muted>{c.barcode || '—'}</Td>
+                    <Td muted>{c.note || '—'}</Td>
                     <Td muted>{c.isDefault ? <CheckCircle2 size={14} className="text-success" /> : ''}</Td>
                     {data.canEdit && (
                       <Td right>
@@ -1151,7 +1303,7 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium disabled:opacity-60"
             >
-              <Save size={14} /> {saveBarcode.isPending ? 'Savingâ€¦' : 'Save'}
+              <Save size={14} /> {saveBarcode.isPending ? 'Saving...' : 'Save'}
             </button>
             <button
               type="button"
@@ -1165,7 +1317,7 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text disabled:opacity-60"
             >
-              <Wand2 size={14} /> {generateBarcode.isPending ? 'Generatingâ€¦' : 'Generate'}
+              <Wand2 size={14} /> {generateBarcode.isPending ? 'Generating...' : 'Generate'}
             </button>
           </div>
           {barcodeError && <p className="text-xs text-danger">{barcodeError}</p>}
@@ -1189,7 +1341,7 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
 
 function BuyingPricesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductSupplierOverview(id)
-  if (isLoading) return <LegacyLoadingCard label="Loading supplier pricesâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading supplier prices..." />
   if (isError) return <LegacyErrorCard title="Couldn't load supplier prices" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
@@ -1197,8 +1349,8 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricTile icon={Truck} color="blue" label="Suppliers" value={data.suppliersCount} caption="Total suppliers linked" />
-        <MetricTile icon={Tag} color="green" label="Best Unit Price" value={data.bestUnitPrice !== null ? formatMoney(data.bestUnitPrice) : 'â€”'} caption={data.bestPriceSupplierName || 'Not available'} />
-        <MetricTile icon={Star} color="violet" label="Avg Price" value={data.avgUnitPrice !== null ? formatMoney(data.avgUnitPrice) : 'â€”'} caption={data.avgUnitPrice !== null ? 'Across all suppliers' : 'Not available'} />
+        <MetricTile icon={Tag} color="green" label="Best Unit Price" value={data.bestUnitPrice !== null ? formatMoney(data.bestUnitPrice) : '—'} caption={data.bestPriceSupplierName || 'Not available'} />
+        <MetricTile icon={Star} color="violet" label="Avg Price" value={data.avgUnitPrice !== null ? formatMoney(data.avgUnitPrice) : '—'} caption={data.avgUnitPrice !== null ? 'Across all suppliers' : 'Not available'} />
       </div>
 
       <Card className="!h-auto">
@@ -1235,12 +1387,12 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
             </thead>
             <tbody>
               {data.suppliers.length === 0 ? (
-                <EmptyRow span={7} label="No Supplier Prices Found â€” add supplier prices to see them listed here." />
+                <EmptyRow span={7} label="No Supplier Prices Found add supplier prices to see them listed here." />
               ) : (
                 data.suppliers.map((row) => (
                   <tr key={row.rowid} className="border-b border-border last:border-0">
                     <Td>{row.supplierName}</Td>
-                    <Td muted>{row.refFourn || 'â€”'}</Td>
+                    <Td muted>{row.refFourn || '—'}</Td>
                     <Td right muted>
                       {formatNumber(row.quantity)}
                     </Td>
@@ -1248,8 +1400,8 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
                       {row.vatRate}
                     </Td>
                     <Td right>{formatMoney(row.unitPrice)}</Td>
-                    <Td muted>{row.deliveryDays ?? 'â€”'}</Td>
-                    <Td muted>{row.reputation || 'â€”'}</Td>
+                    <Td muted>{row.deliveryDays ?? '—'}</Td>
+                    <Td muted>{row.reputation || '—'}</Td>
                   </tr>
                 ))
               )}
@@ -1261,7 +1413,7 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Add Sub-Product panel (subproduct_api.php?action=add_subproduct) â€” search
+// Add Sub-Product panel (subproduct_api.php?action=add_subproduct) - search
 // reuses the existing useProductSearch hook (api/products/?action=list&search=,
 // already wired for the ZRA product picker) rather than subproduct_api.php's
 // own search_products action, same real catalog either way.
@@ -1297,12 +1449,12 @@ function AddSubproductPanel({ id, onClose }: { id: string; onClose: () => void }
       <div className="space-y-3">
         <div className="relative">
           <input
-            value={selected ? `${selected.ref} â€” ${selected.label}` : query}
+            value={selected ? `${selected.ref} - ${selected.label}` : query}
             onChange={(e) => {
               setSelected(null)
               setQuery(e.target.value)
             }}
-            placeholder="Search product by ref or labelâ€¦"
+            placeholder="Search product by ref or label..."
             className={modalInputCls}
           />
           {!selected && debounced.trim().length > 1 && results && results.length > 0 && (
@@ -1317,7 +1469,7 @@ function AddSubproductPanel({ id, onClose }: { id: string; onClose: () => void }
                   }}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
                 >
-                  <span className="font-medium text-text!">{r.ref}</span> <span className="text-text-faint">â€” {r.label}</span>
+                  <span className="font-medium text-text!">{r.ref}</span> <span className="text-text-faint">- {r.label}</span>
                 </button>
               ))}
             </div>
@@ -1339,7 +1491,7 @@ function AddSubproductPanel({ id, onClose }: { id: string; onClose: () => void }
             disabled={addSubproduct.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
           >
-            <Plus size={14} /> {addSubproduct.isPending ? 'Addingâ€¦' : 'Add'}
+            <Plus size={14} /> {addSubproduct.isPending ? 'Adding...' : 'Add'}
           </button>
           <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-md border border-border text-text-muted text-sm hover:bg-surface-alt">
             Cancel
@@ -1350,7 +1502,7 @@ function AddSubproductPanel({ id, onClose }: { id: string; onClose: () => void }
   )
 }
 
-// Composition tab (subproduct_api.php) â€” real kit/bundle sub-products,
+// Composition tab (subproduct_api.php) - real kit/bundle sub-products,
 // replaces product/composition/card.php natively (search-to-add and
 // remove both write through the real endpoint, no legacy link-out).
 function AssociatedProductsTab({ id }: { id: string | undefined }) {
@@ -1358,7 +1510,7 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
   const deleteSubproduct = useDeleteSubproduct()
   const [showAdd, setShowAdd] = useState(false)
 
-  if (isLoading) return <LegacyLoadingCard label="Loading compositionâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading composition..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Composition" />
   if (isError) return <LegacyErrorCard title="Couldn't load composition" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
@@ -1371,7 +1523,7 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricTile icon={Layers} color="blue" label="Nature" value={data.natureLabel || 'â€”'} />
+        <MetricTile icon={Layers} color="blue" label="Nature" value={data.natureLabel || '—'} />
         <MetricTile icon={DollarSign} color="green" label="Total Buy" value={formatMoney(data.totalBuy)} />
         <MetricTile icon={Tag} color="violet" label="Total Sell" value={formatMoney(data.totalSell)} />
       </div>
@@ -1384,7 +1536,7 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
           <div className="flex flex-wrap gap-1.5">
             {data.parents.map((p) => (
               <span key={p.id} className="px-2 py-1 rounded-md border border-border bg-surface-alt text-xs text-text!">
-                {p.ref} â€” {p.label} (Ã— {formatNumber(p.qty)})
+                {p.ref} - {p.label} (Ã— {formatNumber(p.qty)})
               </span>
             ))}
           </div>
@@ -1427,10 +1579,10 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
                     {formatNumber(c.stock)}
                   </Td>
                   <Td right muted>
-                    {c.buyDefined ? formatMoney(c.buyPrice) : 'â€”'}
+                    {c.buyDefined ? formatMoney(c.buyPrice) : '—'}
                   </Td>
                   <Td right muted>
-                    {c.sellPrice !== null ? formatMoney(c.sellPrice) : 'â€”'}
+                    {c.sellPrice !== null ? formatMoney(c.sellPrice) : '—'}
                   </Td>
                   {data.canEdit && (
                     <Td right>
@@ -1451,7 +1603,7 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
 
 // Legacy's Related Items rows link out to that document type's own list
 // page (propal.php, commande.php, facture.php, ...), each pre-filtered to
-// this product â€” this app has no per-product filter on those list pages
+// this product - this app has no per-product filter on those list pages
 // yet, so these route to the real, live list module for that document type
 // instead (same destination a user would reach from the sidebar), rather
 // than routing back to the legacy PHP page per the standing rule. Matched
@@ -1470,7 +1622,7 @@ function refererListRoute(label: string): string | null {
   return null
 }
 
-// Invoice Stats tab (invoice_stats_api.php) â€” customer invoices with this
+// Invoice Stats tab (invoice_stats_api.php) - customer invoices with this
 // product, paginated + filterable by month/year. Mirrors legacy's "Related items"
 // table exactly (product/stats/facture.php), with Period/Year/PageSize filters
 // and invoices detail table.
@@ -1481,7 +1633,7 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
   const [pageSize, setPageSize] = useState(20)
   const { data, isLoading, isError, error, refetch } = useProductInvoiceStats(id, page, month, year, pageSize)
 
-  if (isLoading) return <LegacyLoadingCard label="Loading invoice statsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading invoice stats..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Invoice Stats" />
   if (isError) return <LegacyErrorCard title="Couldn't load invoice stats" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
@@ -1544,8 +1696,8 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
             <tfoot>
               <tr className="border-t border-border font-semibold">
                 <Td>Total</Td>
-                <Td right muted>â€”</Td>
-                <Td right muted>â€”</Td>
+                <Td right muted>-</Td>
+                <Td right muted>-</Td>
                 <Td right>{formatNumber(referersTotalQty)}</Td>
               </tr>
             </tfoot>
@@ -1627,7 +1779,7 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                       <tr key={inv.id} className="border-b border-border last:border-0">
                         <Td muted>
                           {/* No per-invoice detail page exists in this rebuild yet
-                              (routes.ts has no invoiceDetail route) â€” routes to the
+                              (routes.ts has no invoiceDetail route) - routes to the
                               real Invoices module rather than back to the legacy
                               facture.php card, consistent with the Related Items
                               links above. */}
@@ -1693,7 +1845,7 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Documents tab (document_api.php) â€” real filesystem listing under
+// Documents tab (document_api.php) - real filesystem listing under
 // documents/produit/<ref>/, replaces the old product/document.php scrape.
 // Upload/delete both write through the real endpoint, no legacy link-out.
 function LinkedFilesTab({ id }: { id: string | undefined }) {
@@ -1703,7 +1855,7 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadError, setUploadError] = useState('')
 
-  if (isLoading) return <LegacyLoadingCard label="Loading documentsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading documents..." />
   if (isError) return <LegacyErrorCard title="Couldn't load documents" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1732,7 +1884,7 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
             disabled={uploadDocument.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand/40 text-brand text-sm font-medium hover:bg-brand/10 disabled:opacity-60"
           >
-            <Upload size={14} /> {uploadDocument.isPending ? 'Uploadingâ€¦' : 'Upload'}
+            <Upload size={14} /> {uploadDocument.isPending ? 'Uploading...' : 'Upload'}
           </button>
         </div>
       </div>
@@ -1779,13 +1931,13 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Events tab (agenda_api.php's `events` field) â€” real llx_actioncomm rows
+// Events tab (agenda_api.php's `events` field) - real llx_actioncomm rows
 // for this product (fk_element/elementtype = 'product'), rendered as a
 // timeline. Distinct from the Product Card tab's own Activity Timeline
-// (useProductDashboard, invoice-based) â€” this is the product's own agenda.
+// (useProductDashboard, invoice-based) - this is the product's own agenda.
 function EventsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductAgendaEvents(id)
-  if (isLoading) return <LegacyLoadingCard label="Loading eventsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading events..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Events/Agenda" />
   if (isError) return <LegacyErrorCard title="Couldn't load events" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
@@ -1812,7 +1964,7 @@ function EventsTab({ id }: { id: string | undefined }) {
                 </div>
                 <p className="text-xs text-text-faint mt-0.5">
                   {e.date}
-                  {e.dateEnd && e.dateEnd !== e.date ? ` â€” ${e.dateEnd}` : ''}
+                  {e.dateEnd && e.dateEnd !== e.date ? ` - ${e.dateEnd}` : ''}
                   {e.userName && ` Â· ${e.userName}`}
                   {e.percent > 0 && ` Â· ${e.percent}%`}
                 </p>
@@ -1825,13 +1977,13 @@ function EventsTab({ id }: { id: string | undefined }) {
   )
 }
 
-// Margins tab (margin/tabs/productMargins.php) â€” per-invoice selling vs
+// Margins tab (margin/tabs/productMargins.php) - per-invoice selling vs
 // buying price breakdown. No Margin Rate/Mark Rate columns: both
 // DISPLAY_MARGIN_RATES and DISPLAY_MARK_RATES are unset on this install
 // (confirmed live), matching what legacy itself shows here.
 function MarginsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductMargins(id)
-  if (isLoading) return <LegacyLoadingCard label="Loading marginsâ€¦" />
+  if (isLoading) return <LegacyLoadingCard label="Loading margins..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Margins" />
   if (isError) return <LegacyErrorCard title="Couldn't load margins" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   return (
