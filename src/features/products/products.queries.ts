@@ -890,6 +890,7 @@ export interface CorrectStockInput {
   mouvement: '0' | '1' // 0 = add, 1 = remove
   label: string
   unitPrice: string
+  batchNumber: string
 }
 export function useCorrectStock() {
   const queryClient = useQueryClient()
@@ -902,6 +903,7 @@ export function useCorrectStock() {
         mouvement: input.mouvement,
         label: input.label,
         unitprice: input.unitPrice,
+        batch_number: input.batchNumber,
       })
       if (!body.success) throw new Error(body.error || 'Failed to correct stock.')
       return body.data
@@ -919,6 +921,7 @@ export interface TransferStockInput {
   warehouseTo: string
   qty: string
   label: string
+  batchNumber: string
 }
 export function useTransferStock() {
   const queryClient = useQueryClient()
@@ -930,6 +933,7 @@ export function useTransferStock() {
         warehouse_to: input.warehouseTo,
         qty: input.qty,
         label: input.label,
+        batch_number: input.batchNumber,
       })
       if (!body.success) throw new Error(body.error || 'Failed to transfer stock.')
       return body.data
@@ -1310,25 +1314,37 @@ interface RawPriceLogEntry {
 }
 interface RawPriceView {
   product: {
-    price: number
-    price_ttc: number
-    price_min: number
-    price_min_ttc: number
+    price: number | string
+    price_ttc: number | string
+    price_min: number | string
+    price_min_ttc: number | string
     price_base_type: string
     vat_display: string
+    default_vat_code: string | null
   }
   zra: { enabled: boolean; iplCatCd_code: string; iplAmt: number; tlCatCd_code: string; tlAmt: number; exciseTxCatCd_code: string; exciseTxAmt: number }
   price_log: RawPriceLogEntry[]
   permissions: { create: boolean; delete: boolean }
+  edit_form_html?: string
+  is_variant: boolean
 }
 export interface ProductPriceOverview {
   vatDisplay: string
   sellingPrice: number
   minPrice: number
+  price: number
+  priceTtc: number
+  priceMin: number
+  priceMinTtc: number
   priceBaseType: string
+  defaultVatCode: string
+  zraEnabled: boolean
   zra: { label: string; amount: number; code: string }[]
   priceLog: { rowid: number; dateStr: string; price: number; priceTtc: number; priceBaseType: string; priceMin: number; priceMinTtc: number; vatDisplay: string; userName: string }[]
   canDelete: boolean
+  canCreate: boolean
+  isVariant: boolean
+  editFormHtml: string | null
 }
 export function useProductPriceOverview(id: string | undefined) {
   return useQuery({
@@ -1343,9 +1359,15 @@ export function useProductPriceOverview(id: string | undefined) {
       if (d.zra.enabled && d.zra.exciseTxCatCd_code) zra.push({ label: 'Excise tax category code', amount: d.zra.exciseTxAmt, code: d.zra.exciseTxCatCd_code })
       return {
         vatDisplay: d.product.vat_display,
-        sellingPrice: d.product.price_base_type === 'TTC' ? d.product.price_ttc : d.product.price,
-        minPrice: d.product.price_base_type === 'TTC' ? d.product.price_min_ttc : d.product.price_min,
+        sellingPrice: Number(d.product.price_base_type === 'TTC' ? d.product.price_ttc : d.product.price) || 0,
+        minPrice: Number(d.product.price_base_type === 'TTC' ? d.product.price_min_ttc : d.product.price_min) || 0,
+        price: Number(d.product.price) || 0,
+        priceTtc: Number(d.product.price_ttc) || 0,
+        priceMin: Number(d.product.price_min) || 0,
+        priceMinTtc: Number(d.product.price_min_ttc) || 0,
         priceBaseType: d.product.price_base_type,
+        defaultVatCode: d.product.default_vat_code ?? '',
+        zraEnabled: d.zra.enabled,
         zra,
         priceLog: d.price_log.map((p) => ({
           rowid: p.rowid,
@@ -1359,6 +1381,9 @@ export function useProductPriceOverview(id: string | undefined) {
           userName: p.user_name,
         })),
         canDelete: d.permissions.delete,
+        canCreate: d.permissions.create,
+        isVariant: d.is_variant,
+        editFormHtml: d.edit_form_html ?? null,
       }
     },
     enabled: !!id,
@@ -1376,6 +1401,40 @@ export function useDeletePriceLog() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'priceOverview', variables.id] })
+    },
+  })
+}
+
+export interface UpdateProductPriceInput {
+  id: string
+  price: string
+  priceMin: string
+  priceBaseType: string
+  tvaTx: string
+  iplCatCd: string
+  tlCatCd: string
+  exciseTxCatCd: string
+}
+export function useUpdateProductPrice() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UpdateProductPriceInput) => {
+      const body = await callProductInfoFile('price_api.php', 'update_price', {
+        id: input.id,
+        price: input.price,
+        price_min: input.priceMin,
+        price_base_type: input.priceBaseType,
+        tva_tx: input.tvaTx,
+        iplCatCd: input.iplCatCd,
+        tlCatCd: input.tlCatCd,
+        exciseTxCatCd: input.exciseTxCatCd,
+      })
+      if (!body.success) throw new Error(body.error || 'Failed to update price.')
+      return body.data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'priceOverview', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', variables.id] })
     },
   })
 }

@@ -155,7 +155,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   return (
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+      <div className="sticky -top-6 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white p-2.5 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Box size={20} className="text-brand" /> Product List
         </h2>

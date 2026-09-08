@@ -58,7 +58,7 @@ import { InfoRow, EditPencil, EventByAvatar, StatCard, deleteOrderDocument, TABS
 const LazyTabRenderer = lazy(() => import('./OrderDetailTabs').then((m) => ({ default: m.LazyTabRenderer })))
 
 // Native rebuild of commande/card.php?id=X + note.php + document.php +
-// contact.php + expedition/shipment.php - see orderCardParser.ts's header
+// contact.php + expedition/shipment.php — see orderCardParser.ts's header
 // comment for why this scrapes real HTML rather than calling a REST
 // endpoint (no order-detail API exists on this backend), and for how the
 // real per-line Item Table data (a client-side JSON blob, not
@@ -66,7 +66,7 @@ const LazyTabRenderer = lazy(() => import('./OrderDetailTabs').then((m) => ({ de
 // Contacts/Addresses and Shipments-Delivery Receipts tabs' own separate
 // pages. Stock Consumptions has no read-only report of its own on the real
 // page (just a "declare consumption from a warehouse" form with a CSRF
-// token) - its tab reuses this page's own already-fetched line data and
+// token) — its tab reuses this page's own already-fetched line data and
 // links out only for that one mutating submit action, the same treatment
 // already given to Modify/Cancel/Classify delivered below.
 
@@ -82,24 +82,12 @@ function StatusBadge({ label }: { label: string }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${key ? STATUS_STYLES[key] : 'bg-neutral-bg text-neutral-fg'}`}>{label}</span>
 }
 
-// Header icon buttons (Edit/Clone/Delete) fire the exact same real,
-// confirm-protected POSTs as the bottom action bar's Modify/Clone/Delete
-// buttons below (see orderDetail.queries.ts) instead of opening the legacy
-// PHP page in a new tab — same native-confirm-dialog treatment already
-// proven for Quotations'/Purchase Orders' own Detail pages.
-function HeaderIconButton({
-  onClick,
-  title,
-  tone,
-  disabled,
-  children,
-}: {
-  onClick: () => void
-  title: string
-  tone?: 'danger'
-  disabled?: boolean
-  children: ReactNode
-}) {
+// Header icon links (Edit/Clone/Delete) and the bottom action-button row
+// share this same "open the real backend URL in a new tab" treatment — see
+// orderCardParser.ts's parseActionButtons() comment for why mutating,
+// modal-confirm-only actions fall back to the base order page instead of a
+// fabricated POST.
+function HeaderIconLink({ url, title, tone, children }: { url: string; title: string; tone?: 'danger'; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -115,7 +103,7 @@ function HeaderIconButton({
 
 // Related Objects' `type` cell text (e.g. "Customer invoice") maps to this
 // app's own native list page for that record type, rather than the real
-// backend's PHP card page - this app has no per-record detail route for
+// backend's PHP card page — this app has no per-record detail route for
 // invoices/contracts/quotations/purchase orders yet, only list pages, so
 // this is deliberately a link to the right SECTION of the app, not a deep
 // link to the exact record. Falls back to plain (unlinked) text for any
@@ -264,7 +252,7 @@ export function OrderDetail() {
                 <div className="flex items-center gap-1 text-xs text-text-faint">
                   <span className="font-medium">Ref. customer</span>
                   {data.refCustomerEditUrl && <EditPencil url={data.refCustomerEditUrl} title="Edit Ref. customer" />}
-                  <span>: {data.refCustomer || <span className="text-text-faint">-</span>}</span>
+                  <span>: {data.refCustomer || <span className="text-text-faint">—</span>}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1 text-xs text-text-faint">
                   <span className="font-medium flex items-center gap-1">
@@ -275,7 +263,7 @@ export function OrderDetail() {
                       {data.thirdPartyName}
                     </Link>
                   ) : (
-                    <span className="text-text-faint">-</span>
+                    <span className="text-text-faint">—</span>
                   )}
                   {data.otherOrdersUrl && data.thirdPartySocid && (
                     <span>
@@ -293,8 +281,8 @@ export function OrderDetail() {
                   </span>
                   {data.projectEditUrl && <EditPencil url={data.projectEditUrl} title="Set project" />}
                   <span>
-                    : {data.projectRef || <span className="text-text-faint">-</span>}
-                    {data.projectLabel && ` - ${data.projectLabel}`}
+                    : {data.projectRef || <span className="text-text-faint">—</span>}
+                    {data.projectLabel && ` — ${data.projectLabel}`}
                   </span>
                 </div>
               </div>
@@ -406,7 +394,7 @@ function DetailsTab({
               label="Stock Reserve"
               value={
                 data.stockReserveEnabled === null ? (
-                  '-'
+                  '—'
                 ) : (
                   <span className={data.stockReserveEnabled ? 'text-success-fg' : 'text-warning-fg'}>{data.stockReserveEnabled ? 'Enabled' : 'Disabled'}</span>
                 )
@@ -480,14 +468,14 @@ function DetailsTab({
                       {line.productId > 0 ? (
                         <Link to={ROUTES.productDetail.replace(':id', String(line.productId))} className="hover:text-brand hover:underline">
                           {line.productRef && <span className="font-medium">{line.productRef}</span>}
-                          {line.productRef && line.productLabel && ' - '}
+                          {line.productRef && line.productLabel && ' — '}
                           {line.productLabel}
                         </Link>
                       ) : (
                         <>
                           {line.productRef && <span className="font-medium">{line.productRef}</span>}
-                          {line.productRef && line.productLabel && ' - '}
-                          {line.productLabel || line.description || '-'}
+                          {line.productRef && line.productLabel && ' — '}
+                          {line.productLabel || line.description || '—'}
                         </>
                       )}
                     </td>
@@ -497,7 +485,7 @@ function DetailsTab({
                     <td className="py-2 px-3 text-right text-text-muted">{formatMoney(line.unitPriceExcl)}</td>
                     <td className="py-2 px-3 text-right text-text-muted">{formatMoney(line.unitPriceIncl)}</td>
                     <td className="py-2 px-3 text-center text-text-muted">{line.qty}</td>
-                    <td className="py-2 px-3 text-center text-text-muted">{line.discountPercent > 0 ? `${line.discountPercent.toFixed(2)}%` : '-'}</td>
+                    <td className="py-2 px-3 text-center text-text-muted">{line.discountPercent > 0 ? `${line.discountPercent.toFixed(2)}%` : '—'}</td>
                     <td className="py-2 px-3 text-right text-text-muted">{formatMoney(line.costPrice)}</td>
                     <td className="py-2 px-3 text-right font-medium text-text!">{formatMoney(line.totalTtc)}</td>
                     <td className="py-2 px-3 text-center">{line.stockReserve && <Check size={14} className="inline text-success-fg" />}</td>
@@ -530,7 +518,7 @@ function DetailsTab({
               }`
               // "Create shipment" points at the exact same real page
               // (expedition/shipment.php?id=X) our own Shipments -
-              // Delivery Receipts tab already fetches - switching tabs
+              // Delivery Receipts tab already fetches — switching tabs
               // in-app is the correct destination, not a duplicate
               // external copy of a page this app already natively renders.
               if (action.label === 'Create shipment') {
@@ -541,7 +529,7 @@ function DetailsTab({
                 )
               }
               // "Send email" opens a native compose form instead of the
-              // legacy page's own inline one - see SendOrderEmailModal.tsx.
+              // legacy page's own inline one — see SendOrderEmailModal.tsx.
               if (action.label === 'Send email') {
                 return (
                   <button key={action.label} type="button" onClick={() => setShowEmailModal(true)} className={actionBtnCls}>
@@ -655,16 +643,19 @@ function DetailsTab({
             </div>
             {/* The real "Link to..." button opens a dropdown with 7 async,
                 per-type search widgets (quotation/invoice/contract/etc,
-                each its own select2 AJAX search) - not natively rebuilt
-                here, and no single-endpoint equivalent exists to wire for
-                real, so this is honestly disabled rather than opening the
-                legacy PHP page. */}
-            <span
-              title="Linking existing records isn't available in this app yet."
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-neutral-bg text-neutral-fg cursor-not-allowed"
-            >
-              <Lock size={11} className="opacity-70" /> Link to...
-            </span>
+                each its own select2 AJAX search) — not natively rebuilt
+                here; this opens the real page where that flow already
+                works, same treatment as Modify/Cancel/Add Event above. */}
+            {id && (
+              <a
+                href={stripBackendPrefix(`/commande/card.php?id=${id}`)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover"
+              >
+                Link to... <ExternalLink size={11} className="opacity-70" />
+              </a>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -762,7 +753,7 @@ function DetailsTab({
               <tbody>
                 {data.linkedEvents.map((event, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
-                    {/* No link out to the real event's PHP page here - this
+                    {/* No link out to the real event's PHP page here — this
                         app's own Agenda area (see agenda.queries.ts) is a
                         local-only mock with no real events behind it, so
                         linking there would show a page that doesn't
@@ -836,7 +827,7 @@ function LinkedFilesCard({ id, data }: { id: string | undefined; data: OrderDeta
             </button>
           </div>
         )}
-        {generateDoc.isError && <p className="text-xs text-danger">Could not generate the document - please try again.</p>}
+        {generateDoc.isError && <p className="text-xs text-danger">Could not generate the document — please try again.</p>}
 
         {isLoading ? (
           <LegacyLoadingCard label="Loading documents..." />

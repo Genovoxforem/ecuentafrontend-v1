@@ -66,7 +66,7 @@ function TabTable({ children }: { children: React.ReactNode }) {
 // gap between the value and the card's edge.
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border last:border-0 max-w-md">
+    <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border last:border-0">
       <span className="text-xs text-text-faint shrink-0">{label}</span>
       <span className="text-sm text-text! text-right">{value || '—'}</span>
     </div>
@@ -76,7 +76,7 @@ function Field({ label, value }: { label: string; value: string }) {
 // badge/icon/graphic instead of plain text.
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0 max-w-md">
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
       <span className="text-xs text-text-faint shrink-0">{label}</span>
       <span className="text-sm text-right">{children}</span>
     </div>
@@ -140,10 +140,10 @@ function MetricTile({ icon: Icon, color, label, value, caption }: { icon: React.
 // ProductServiceCreateForm.tsx's CreateCategoryModal, not reused directly
 // since that file's own Field/Select are display-form components whose
 // names collide with this file's own read-only Field/FieldRow.
-function ModalShell({ title, onClose, children, footer }: { title: string; onClose: () => void; children: React.ReactNode; footer: React.ReactNode }) {
+function ModalShell({ title, onClose, children, footer, className = 'max-w-md' }: { title: string; onClose: () => void; children: React.ReactNode; footer: React.ReactNode; className?: string }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-md bg-surface border border-border rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className={`w-full ${className} bg-surface border border-border rounded-lg shadow-xl`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <h3 className="text-base font-semibold text-text!">{title}</h3>
           <button type="button" onClick={onClose} className="p-1 rounded-md text-text-muted hover:bg-surface-alt">
