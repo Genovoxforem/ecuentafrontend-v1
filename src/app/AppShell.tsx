@@ -57,9 +57,9 @@ export function AppShell({ children }: AppShellProps) {
             items means the page's `-m-6` only pulls it to the top edge of
             the scroll container (negating its padding), never into the
             breadcrumb row above. */}
-        <main className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-gray-950">
+        <main className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-gray-950 border-t border-border">
           {showBreadcrumb && (
-            <div className="shrink-0 px-6 pt-4 pb-3">
+            <div className="shrink-0 p-2.5 empty:hidden">
               <Breadcrumb sections={SECTIONS} isModern={isModern} />
             </div>
           )}

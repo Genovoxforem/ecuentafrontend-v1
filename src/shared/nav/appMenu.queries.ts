@@ -86,10 +86,10 @@ const MODULE_DASHBOARDS: { url: string; title: string }[] = [
   { url: '/compta/facture/index.php?mainmenu=accountsreceivable', title: 'Sales Dashboard' },
   { url: '/fourn/facture/index.php?mainmenu=ap', title: 'Purchases Dashboard' },
   { url: '/product/stock/index.php?mainmenu=inventwarehouse', title: 'Warehouse Dashboard' },
-  { url: '/custom/payroll/payrollindex.php?mainmenu=payroll', title: 'Payroll Dashboard' },
-  { url: '/accountancy/bookkeeping/listbyaccount.php?mainmenu=dashboard', title: 'Ledger Dashboard' },
-  { url: '/kitchen/dashboard.php?mainmenu=dashboard', title: 'Kitchen Dashboard' },
-  { url: '/booking/dashboard.php?mainmenu=dashboard', title: 'Hotel Dashboard' },
+  // { url: '/custom/payroll/payrollindex.php?mainmenu=payroll', title: 'Payroll Dashboard' },
+  // { url: '/accountancy/bookkeeping/listbyaccount.php?mainmenu=dashboard', title: 'Ledger Dashboard' },
+  // { url: '/kitchen/dashboard.php?mainmenu=dashboard', title: 'Kitchen Dashboard' },
+  // { url: '/booking/dashboard.php?mainmenu=dashboard', title: 'Hotel Dashboard' },
   { url: '/user/list.php?mode=employee&mainmenu=dashboard', title: 'Users Dashboard' },
 ]
 
