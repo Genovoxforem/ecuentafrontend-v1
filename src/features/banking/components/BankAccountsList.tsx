@@ -1,21 +1,39 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Landmark, Search } from 'lucide-react'
+import { Landmark, Search, Plus, Filter } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useBankAccountsList, type BankAccountRow } from '../banking.queries'
+import { useBankAccountsList, useBankAccountsDropdown, useReconcileCounts, type BankAccountRow } from '../banking.queries'
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 type SortKey = 'label' | 'accountNumber' | 'currencyCode' | 'balance'
 
-const COLUMNS: { label: string; key: SortKey }[] = [
-  { label: 'Account', key: 'label' },
-  { label: 'Account Number', key: 'accountNumber' },
-  { label: 'Currency', key: 'currencyCode' },
+// Column set matches the real compta/bank/list.php exactly.
+// Real: Bank Accounts/Label/Number/Currency/Balance (bank-sidebar-list-ajax.php),
+// Status (inferred from presence in api/bank_accounts.php, which hardcodes
+// `WHERE clos = 0` — an account appearing there is genuinely open; one
+// missing is genuinely closed, not guessed), and Entries To Reconcile (the
+// real `search_conciliated=0` count from bankentries_list_ajax.php — see
+// useReconcileCounts in banking.queries.ts for the full explanation of what
+// is and isn't reproduced from the real page's badge).
+// Still honest "—": Type, Accounting Account and Accounting Code Journal —
+// list.php's own direct SQL has zero json_encode anywhere (confirmed by
+// reading it directly) and no other confirmed JSON endpoint returns these
+// fields (bank-sidebar-list-ajax.php's SQL only selects
+// rowid/totbank/label/number/currency_code).
+const COLUMNS: { label: string; key?: SortKey }[] = [
+  { label: 'Bank Accounts', key: 'label' },
+  { label: 'Label' },
+  { label: 'Type' },
+  { label: 'Number', key: 'accountNumber' },
+  { label: 'Accounting Account' },
+  { label: 'Accounting Code Journal' },
+  { label: 'Entries To Reconcile' },
+  { label: 'Status' },
   { label: 'Balance', key: 'balance' },
 ]
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
@@ -48,9 +66,22 @@ function sortValue(a: BankAccountRow, key: SortKey): string | number {
 // on this endpoint server-side — any logged-in user can call it.
 export function BankAccountsList() {
   const { data: accounts, isLoading, isError, error, refetch } = useBankAccountsList()
+  const { data: openAccounts, isLoading: openAccountsLoading } = useBankAccountsDropdown()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+
+  const openAccountIds = useMemo(() => new Set((openAccounts ?? []).map((a) => a.id)), [openAccounts])
+  const accountIds = useMemo(() => (accounts ?? []).map((a) => a.id), [accounts])
+  const reconcileResults = useReconcileCounts(accountIds)
+  const reconcileCounts = useMemo(() => {
+    const map = new Map<number, { loading: boolean; error: boolean; count: number }>()
+    accountIds.forEach((id, i) => {
+      const r = reconcileResults[i]
+      map.set(id, { loading: r.isLoading, error: r.isError, count: r.data ?? 0 })
+    })
+    return map
+  }, [accountIds, reconcileResults])
 
   const filteredAccounts = useMemo(() => (accounts ?? []).filter((a) => matchesSearch(a, search)), [accounts, search])
   const { sorted: sortedAccounts, sort, toggleSort } = useSortableRows<BankAccountRow, SortKey>(filteredAccounts, sortValue)
@@ -67,7 +98,17 @@ export function BankAccountsList() {
   }
 
   function getExportData() {
-    const rows = sortedAccounts.map((a) => [a.label, a.accountNumber || '—', a.currencyCode, formatMoney(a.balance)])
+    const rows = sortedAccounts.map((a) => [
+      a.label,
+      a.label,
+      '—',
+      a.accountNumber || '—',
+      '—',
+      '—',
+      String(reconcileCounts.get(a.id)?.count ?? '—'),
+      openAccountIds.has(a.id) ? 'Open' : 'Closed',
+      formatMoney(a.balance),
+    ])
     return { headers: COLUMN_LABELS, rows }
   }
 
@@ -76,8 +117,21 @@ export function BankAccountsList() {
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Landmark size={20} className="text-brand" /> Bank Accounts
+          <Landmark size={20} className="text-brand" /> Bank Management Details
         </h2>
+        <div className="flex items-center gap-2">
+          <Link to={ROUTES.bankingNewAccount} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+            <Plus size={14} /> New
+          </Link>
+          <button
+            type="button"
+            disabled
+            title="No real filter API confirmed for this backend"
+            className="flex items-center justify-center w-9 h-9 rounded-lg border border-input-border text-text-faint opacity-60 cursor-not-allowed"
+          >
+            <Filter size={14} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
@@ -115,7 +169,7 @@ export function BankAccountsList() {
                 <thead className="sticky top-0 z-10">
                   <TheadRow>
                     {COLUMNS.map((col) => (
-                      <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.key === 'balance' ? 'right' : 'left'}>
+                      <Th key={col.label} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.key === 'balance' ? 'right' : 'left'}>
                         {col.label}
                       </Th>
                     ))}
@@ -138,13 +192,53 @@ export function BankAccountsList() {
                     pageAccounts.map((a) => (
                       <tr key={a.id} className="border-b border-border last:border-0">
                         <td className="px-4 py-2 text-text!">
-                          <Link to={`${ROUTES.bankingEntries}?account=${a.id}`} className="text-brand hover:underline">
-                            {a.label}
+                          <Link to={ROUTES.bankingAccountDetail.replace(':id', String(a.id))} className="flex items-center gap-1.5 text-brand hover:underline">
+                            <Landmark size={13} className="shrink-0" /> {a.label}
                           </Link>
                         </td>
+                        <td className="px-4 py-2 text-text-muted">{a.label}</td>
+                        <td className="px-4 py-2 text-text-faint" title="No real API available on this backend">
+                          —
+                        </td>
                         <td className="px-4 py-2 text-text-muted">{a.accountNumber || '—'}</td>
-                        <td className="px-4 py-2 text-text-muted">{a.currencyCode}</td>
-                        <td className="px-4 py-2 text-right text-text!">{formatMoney(a.balance)}</td>
+                        <td className="px-4 py-2 text-text-faint" title="No real API available on this backend">
+                          —
+                        </td>
+                        <td className="px-4 py-2 text-text-faint" title="No real API available on this backend">
+                          —
+                        </td>
+                        <td className="px-4 py-2">
+                          {(() => {
+                            const r = reconcileCounts.get(a.id)
+                            if (!r || r.loading) return <span className="text-text-faint">…</span>
+                            if (r.error) return <span className="text-text-faint" title="Couldn't load from bankentries_list_ajax.php">—</span>
+                            return (
+                              <span
+                                className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-brand/10 text-brand"
+                                title="Unreconciled entries (search_conciliated=0 count via bankentries_list_ajax.php)"
+                              >
+                                {r.count}
+                              </span>
+                            )
+                          })()}
+                        </td>
+                        <td className="px-4 py-2">
+                          {openAccountsLoading ? (
+                            <span className="text-text-faint">…</span>
+                          ) : (
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                                openAccountIds.has(a.id) ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'
+                              }`}
+                              title="Inferred from presence in api/bank_accounts.php, which filters WHERE clos = 0"
+                            >
+                              {openAccountIds.has(a.id) ? 'Open' : 'Closed'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right text-text!">
+                          {formatMoney(a.balance)} {a.currencyCode}
+                        </td>
                       </tr>
                     ))
                   )}

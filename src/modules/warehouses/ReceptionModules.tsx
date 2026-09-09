@@ -14,13 +14,13 @@ export function ReceptionListModule() {
   return <ReceptionStatusList title="List Of Receptions" />
 }
 export function ReceptionDraftModule() {
-  return <ReceptionStatusList title="Draft Receptions" />
+  return <ReceptionStatusList title="Draft Receptions" statusFilter={0} />
 }
 export function ReceptionValidatedModule() {
-  return <ReceptionStatusList title="Validated Receptions" />
+  return <ReceptionStatusList title="Validated Receptions" statusFilter={1} />
 }
 export function ReceptionProcessedModule() {
-  return <ReceptionStatusList title="Processed Receptions" />
+  return <ReceptionStatusList title="Processed Receptions" statusFilter={2} />
 }
 export function ReceptionStatisticsModule() {
   return <ReceptionStatisticsPage />

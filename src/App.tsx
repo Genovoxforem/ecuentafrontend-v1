@@ -94,6 +94,7 @@ const ReceptionStatisticsModule = lazy(() => import('./modules/warehouses/Recept
 const CreditNoteOrderListModule = lazy(() => import('./modules/warehouses/ReceptionModules').then((m) => ({ default: m.CreditNoteOrderListModule })))
 const StockMovementsListModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockMovementsListModule })))
 const BoxBreakModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.BoxBreakModule })))
+const MinMaxStockModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.MinMaxStockModule })))
 const FefoDashboardModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.FefoDashboardModule })))
 const StockCorrectionModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockCorrectionModule })))
 const StockTransferModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockTransferModule })))
@@ -153,6 +154,7 @@ const OverallAttendanceReportModule = lazy(() => import('./modules/payroll/Overa
 const PayrollSetupModule = lazy(() => import('./modules/payroll/PayrollSetupModule').then((m) => ({ default: m.PayrollSetupModule })))
 const PayrollPlaceholderModule = lazy(() => import('./modules/payroll/PayrollPlaceholderModule').then((m) => ({ default: m.PayrollPlaceholderModule })))
 const BankAccountsListModule = lazy(() => import('./modules/banking/BankAccountsListModule').then((m) => ({ default: m.BankAccountsListModule })))
+const BankAccountDetailModule = lazy(() => import('./modules/banking/BankAccountDetailModule').then((m) => ({ default: m.BankAccountDetailModule })))
 const BankEntriesListModule = lazy(() => import('./modules/banking/BankEntriesListModule').then((m) => ({ default: m.BankEntriesListModule })))
 const BankAccountCategoriesListModule = lazy(() => import('./modules/banking/BankAccountCategoriesListModule').then((m) => ({ default: m.BankAccountCategoriesListModule })))
 const LoanListModule = lazy(() => import('./modules/banking/LoanListModule').then((m) => ({ default: m.LoanListModule })))
@@ -333,6 +335,7 @@ const ProjectTaskCreateModule = lazy(() => import('./modules/projects/ProjectsMo
 const ProjectTaskListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTaskListModule })))
 const ProjectTimeSpentModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTimeSpentModule })))
 const ProjectCategoryCreateModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectCategoryCreateModule })))
+const ProjectCategoryListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectCategoryListModule })))
 const SupplierProposalStatsModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.SupplierProposalStatsModule })))
 const OrdersListModule = lazy(() => import('./modules/salesOrders/OrdersListModule').then((m) => ({ default: m.OrdersListModule })))
 const OrderCreateModule = lazy(() => import('./modules/salesOrders/OrderCreateModule').then((m) => ({ default: m.OrderCreateModule })))
@@ -483,6 +486,7 @@ function App() {
                   <Route path={ROUTES.creditNoteOrderList} element={<RouteBoundary><CreditNoteOrderListModule /></RouteBoundary>} />
                   <Route path={ROUTES.stockMovementsList} element={<RouteBoundary><StockMovementsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.boxBreak} element={<RouteBoundary><BoxBreakModule /></RouteBoundary>} />
+                  <Route path={ROUTES.minMaxStock} element={<RouteBoundary><MinMaxStockModule /></RouteBoundary>} />
                   <Route path={ROUTES.fefoDashboard} element={<RouteBoundary><FefoDashboardModule /></RouteBoundary>} />
                   <Route path={ROUTES.stockCorrection} element={<RouteBoundary><StockCorrectionModule /></RouteBoundary>} />
                   <Route path={ROUTES.stockTransfer} element={<RouteBoundary><StockTransferModule /></RouteBoundary>} />
@@ -544,6 +548,7 @@ function App() {
                     <Route key={p.path} path={p.path} element={<RouteBoundary><PayrollPlaceholderModule /></RouteBoundary>} />
                   ))}
                   <Route path={ROUTES.bankingAccounts} element={<RouteBoundary><BankAccountsListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingAccountDetail} element={<RouteBoundary><BankAccountDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingList} element={<RouteBoundary><BankAccountsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingEntries} element={<RouteBoundary><BankEntriesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingCategories} element={<RouteBoundary><BankAccountCategoriesListModule /></RouteBoundary>} />
@@ -773,6 +778,7 @@ function App() {
                   <Route path={ROUTES.projectTaskCreate} element={<RouteBoundary><ProjectTaskCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.projectTaskList} element={<RouteBoundary><ProjectTaskListModule /></RouteBoundary>} />
                   <Route path={ROUTES.projectTimeSpent} element={<RouteBoundary><ProjectTimeSpentModule /></RouteBoundary>} />
+                  <Route path={ROUTES.projectCategoryList} element={<RouteBoundary><ProjectCategoryListModule /></RouteBoundary>} />
                   <Route path={ROUTES.projectCategoryCreate} element={<RouteBoundary><ProjectCategoryCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.supplierProposalStats} element={<RouteBoundary><SupplierProposalStatsModule /></RouteBoundary>} />
                   <Route path={ROUTES.productList} element={<RouteBoundary><ProductsListModule /></RouteBoundary>} />

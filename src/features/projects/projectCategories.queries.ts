@@ -12,6 +12,56 @@ import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 const NOT_SIGNED_IN_MESSAGE =
   'Not signed into the legacy backend. Project categories have no usable REST API and read the real Dolibarr page directly — log out and back in to refresh that session, then retry.'
 
+// categories/tag-sidebarlist-ajax.php — a genuine, already-deployed JSON
+// endpoint (confirmed by reading it directly), not something added here.
+// Its `type_id` param filters llx_categorie.type server-side (real column,
+// matches TYPE_PROJECT=6 used by the create form above). It only returns
+// 4 columns (rowid, label as "nom", color as "code_client", date_creation
+// as "phone" — reused generic column aliases from whatever list template
+// this was adapted from, but the underlying values are genuinely category
+// data) and has no parent/hierarchy field at all, so this renders a flat
+// list rather than fabricating the real page's tree structure. `length` is
+// hardcoded to 25 server-side with no override, so this pages through
+// `start` itself to build the full list for client-side name search —
+// same "fetch everything, filter client-side" pattern already used
+// elsewhere in this app (e.g. Tickets), capped at 10 pages as a sanity
+// limit.
+export interface ProjectCategoryRow {
+  id: number
+  label: string
+  color: string | null
+  dateCreation: string | null
+}
+interface RawCategoryRow {
+  rowid: number
+  nom: string
+  code_client: string | null
+  phone: string | null
+}
+interface RawCategoryListResponse {
+  recordsTotal: number
+  recordsFiltered: number
+  data: RawCategoryRow[]
+}
+
+export function useProjectCategoriesList() {
+  return useQuery({
+    queryKey: ['projects', 'categories', 'list'],
+    queryFn: async (): Promise<ProjectCategoryRow[]> => {
+      const rows: ProjectCategoryRow[] = []
+      for (let page = 0; page < 10; page++) {
+        const res = await fetch(`/categories/tag-sidebarlist-ajax.php?type_id=6&start=${page * 25}`, { credentials: 'same-origin' })
+        if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+        const data: RawCategoryListResponse = await res.json()
+        rows.push(...data.data.map((r) => ({ id: r.rowid, label: r.nom, color: r.code_client, dateCreation: r.phone })))
+        if (data.data.length < 25) break
+      }
+      return rows
+    },
+    staleTime: 1000 * 30,
+  })
+}
+
 export interface ProjectCategoryFormContext {
   token: string
   parentOptions: { value: string; label: string }[]

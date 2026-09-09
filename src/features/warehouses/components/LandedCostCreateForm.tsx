@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Truck, Info } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Truck, Info, X, Check } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useAuth } from '../../auth/AuthContext'
 import { useCreateLandedCost, useLandedCostFormOptions, todayIso } from '../warehouseExtras.queries'
 import { formatMoney } from '../../../utils/format'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -53,11 +54,23 @@ export function LandedCostCreateForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Truck size={20} className="text-brand" /> Create Landed Cost
-      </h2>
-
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Truck size={20} className="text-brand" /> Create Landed Cost
+        </h2>
+      }
+      footerLeft={
+        <Link to={ROUTES.landedCostList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Back
+        </Link>
+      }
+      footerRight={
+        <button type="button" onClick={handleCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          <Check size={14} /> Create
+        </button>
+      }
+    >
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mb-4">
           <Field label="Start date" required>
@@ -139,15 +152,6 @@ export function LandedCostCreateForm() {
           </table>
         </div>
       </Card>
-
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => navigate(ROUTES.landedCostList)} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-          Back
-        </button>
-        <button type="button" onClick={handleCreate} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          Create
-        </button>
-      </div>
-    </div>
+    </StickyFormShell>
   )
 }

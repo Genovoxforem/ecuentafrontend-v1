@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Network, ExternalLink } from 'lucide-react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Network, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { ROUTES } from '../../../routes'
 
@@ -29,7 +30,6 @@ const LEAD_STATUS_OPTIONS = [
 // shown for layout reference only — every field is disabled and the real,
 // working legacy page is offered as the actual way to do this.
 export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: number } = {}) {
-  const navigate = useNavigate()
   const { id: idParam } = useParams<{ id: string }>()
   const projectId = projectIdProp ?? (idParam ? Number(idParam) : undefined)
   const isEdit = Boolean(projectId)
@@ -47,28 +47,25 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
   const [followTask, setFollowTask] = useState(true)
   const [billTime, setBillTime] = useState(false)
 
-  const legacyUrl = isEdit ? `/projet/card.php?action=edit&id=${projectId}` : `/projet/card.php?action=create${thirdPartyId ? `&socid=${thirdPartyId}` : ''}`
-
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Network size={20} className="text-brand" /> {isEdit ? 'Edit project' : 'New lead or project'}
-      </h2>
-
-      <Card className="!h-auto !bg-warning-bg border-warning/40">
-        <p className="text-sm font-medium text-warning-fg">No real API exists on this backend to {isEdit ? 'update' : 'create'} a project.</p>
-        <p className="text-xs text-text-muted mt-1">The form below matches the real page's layout for reference, but nothing typed into it is saved. Use the legacy system to actually {isEdit ? 'edit' : 'create'} a project.</p>
-        <a
-          href={legacyUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-        >
-          {isEdit ? 'Edit' : 'Create'} in legacy system <ExternalLink size={14} />
-        </a>
-      </Card>
-
-      <Card className="!h-auto">
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Network size={20} className="text-brand" /> {isEdit ? 'Edit project' : 'New lead or project'}
+        </h2>
+      }
+      footerLeft={
+        <Link to={ROUTES.projectList} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </Link>
+      }
+      footerRight={
+        <button type="button" disabled title="No real API available on this backend" className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60 cursor-not-allowed">
+          {isEdit ? 'Save changes' : 'Create draft'}
+        </button>
+      }
+    >
+      <Card>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-xs font-medium text-text-faint mb-1">Project label*</label>
@@ -126,7 +123,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
           </div>
         </div>
 
-        <div className="mb-4">
+        <div>
           <label className="block text-xs font-medium text-text-faint mb-2">Usage</label>
           <div className="flex flex-wrap gap-2">
             {[
@@ -147,16 +144,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
             ))}
           </div>
         </div>
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => navigate(ROUTES.projectList)} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Cancel
-          </button>
-          <button type="button" disabled title="No real API available on this backend" className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60 cursor-not-allowed">
-            {isEdit ? 'Save changes' : 'Create draft'}
-          </button>
-        </div>
       </Card>
-    </div>
+    </StickyFormShell>
   )
 }

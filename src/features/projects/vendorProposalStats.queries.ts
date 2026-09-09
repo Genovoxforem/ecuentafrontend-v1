@@ -15,12 +15,27 @@ export interface VendorProposalStats {
   charts: StatsChart[]
 }
 
-export function useVendorProposalStats(year?: string) {
+export interface VendorProposalStatsFilters {
+  year?: string
+  socid?: string
+  typentId?: string
+  categId?: string
+  userid?: string
+}
+
+// Real GETPOST params confirmed by reading comm/propal/stats/index.php
+// directly: socid (Third-party), typent_id (Third-party type), categ_id
+// (Tag/category vendor), userid (Created by), year.
+export function useVendorProposalStats(filters: VendorProposalStatsFilters) {
   return useQuery({
-    queryKey: ['projects', 'vendorProposalStats', year ?? ''],
+    queryKey: ['projects', 'vendorProposalStats', filters],
     queryFn: async (): Promise<VendorProposalStats> => {
       const params = new URLSearchParams({ mode: 'supplier', mainmenu: 'projectmanagement', leftmenu: '' })
-      if (year) params.set('year', year)
+      if (filters.year) params.set('year', filters.year)
+      if (filters.socid) params.set('socid', filters.socid)
+      if (filters.typentId) params.set('typent_id', filters.typentId)
+      if (filters.categId) params.set('categ_id', filters.categId)
+      if (filters.userid) params.set('userid', filters.userid)
       const doc = await fetchLegacyDocument('/comm/propal/stats/index.php', params)
       if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
       return { yearOptions: parseYearOptions(doc), table: parseResultsTable(doc, 'Year'), charts: parseEmbeddedCharts(doc) }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AddEventModal } from '../../agenda/components/AddEventModal'
 import { SendPurchaseOrderEmailModal } from './SendPurchaseOrderEmailModal'
 import {
@@ -747,7 +747,12 @@ function AgendaTab({ id, socid }: { id: string; socid?: number }) {
 
 export function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>()
-  const [tab, setTab] = useState<TabKey>('order')
+  const [searchParams] = useSearchParams()
+  // Deep-link support (e.g. ?tab=receipts from the "Waiting For Reception"
+  // list's own Create Reception button) — same convention as OrderDetail.tsx's
+  // ?tab=shipments. Falls back to the default tab for any unrecognized value.
+  const initialTab = searchParams.get('tab')
+  const [tab, setTab] = useState<TabKey>(TABS.some((t) => t.key === initialTab) ? (initialTab as TabKey) : 'order')
   const { data, isLoading, isError } = usePurchaseOrderCard(id)
 
   if (isLoading) {

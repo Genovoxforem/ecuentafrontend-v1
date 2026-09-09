@@ -16,16 +16,35 @@ function formatWorkload(seconds: number | null) {
   return `${h}h${m ? ` ${m}m` : ''}`
 }
 
-type SortKey = 'ref' | 'label' | 'dateStart' | 'dateEnd' | 'projectRef' | 'workload' | 'progress'
+// Same status codes/labels ProjectDetail.tsx's STATUS_BADGE uses — real
+// field (projectStatusCode), just not displayed on this list before.
+const PROJECT_STATUS_LABEL: Record<number, string> = { 0: 'Draft', 1: 'Open', 2: 'Closed' }
+const PROJECT_STATUS_BADGE: Record<number, string> = {
+  0: 'bg-surface-hover text-text-muted',
+  1: 'bg-success-bg text-success-fg',
+  2: 'bg-danger-bg text-danger-fg',
+}
 
-const COLUMNS: { label: string; key: SortKey }[] = [
+type SortKey = 'ref' | 'label' | 'dateStart' | 'dateEnd' | 'projectRef' | 'projectStatus' | 'workload' | 'progress'
+
+// Column order matches the real projet/tasks/list.php exactly. Time Spent /
+// Progress On Consumption / Task Progress have no confirmed data source on
+// this backend (no listing endpoint for past time-spent entries, and no
+// separate calculated-progress field in the real /api/project-tasks/
+// response) — shown as honest "—" columns rather than dropped, so the
+// header set still matches the real page.
+const COLUMNS: { label: string; key?: SortKey }[] = [
   { label: 'Task Ref.', key: 'ref' },
   { label: 'Task Label', key: 'label' },
   { label: 'Start Date', key: 'dateStart' },
   { label: 'Deadline', key: 'dateEnd' },
   { label: 'Project Ref.', key: 'projectRef' },
+  { label: 'Project Status', key: 'projectStatus' },
   { label: 'Planned Workload', key: 'workload' },
-  { label: 'Progress', key: 'progress' },
+  { label: 'Time Spent' },
+  { label: 'Progress On Consumption' },
+  { label: 'Declared Real Progress', key: 'progress' },
+  { label: 'Task Progress' },
 ]
 const COLUMN_LABELS = [...COLUMNS.map((c) => c.label), 'Actions']
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -42,6 +61,8 @@ function sortValue(t: TaskRow, key: SortKey): string | number {
       return t.dateEnd ? new Date(t.dateEnd).getTime() : 0
     case 'projectRef':
       return t.projectRef || ''
+    case 'projectStatus':
+      return t.projectStatusCode ?? -1
     case 'workload':
       return t.plannedWorkload ?? 0
     case 'progress':
@@ -97,8 +118,12 @@ export function TasksListPage() {
       t.dateStart ? formatDate(t.dateStart) : '—',
       t.dateEnd ? formatDate(t.dateEnd) : '—',
       t.projectRef || '',
+      t.projectStatusCode != null ? (PROJECT_STATUS_LABEL[t.projectStatusCode] ?? '—') : '—',
       formatWorkload(t.plannedWorkload),
+      '—',
+      '—',
       t.progress != null ? `${t.progress}%` : '—',
+      '—',
     ])
     return { headers: COLUMNS.map((c) => c.label), rows }
   }
@@ -149,7 +174,7 @@ export function TasksListPage() {
               <thead className="sticky top-0 z-10">
                 <TheadRow>
                   {COLUMNS.map((col) => (
-                    <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
+                    <Th key={col.label} sortKey={col.key} sort={sort} onSort={toggleSort}>
                       {col.label}
                     </Th>
                   ))}
@@ -183,8 +208,20 @@ export function TasksListPage() {
                       <td className="py-2.5 px-4 text-text-muted">{t.dateStart ? formatDate(t.dateStart) : '—'}</td>
                       <td className="py-2.5 px-4 text-text-muted">{t.dateEnd ? formatDate(t.dateEnd) : '—'}</td>
                       <td className="py-2.5 px-4 text-text-muted">{t.projectRef}</td>
+                      <td className="py-2.5 px-4">
+                        {t.projectStatusCode != null ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${PROJECT_STATUS_BADGE[t.projectStatusCode] ?? ''}`}>
+                            {PROJECT_STATUS_LABEL[t.projectStatusCode] ?? '—'}
+                          </span>
+                        ) : (
+                          <span className="text-text-faint">—</span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-4 text-text-muted">{formatWorkload(t.plannedWorkload)}</td>
+                      <td className="py-2.5 px-4 text-text-faint" title="No real API available on this backend">—</td>
+                      <td className="py-2.5 px-4 text-text-faint" title="No real API available on this backend">—</td>
                       <td className="py-2.5 px-4 text-text-muted">{t.progress != null ? `${t.progress}%` : '—'}</td>
+                      <td className="py-2.5 px-4 text-text-faint" title="No real API available on this backend">—</td>
                       <td className="py-2.5 px-4 text-right">
                         <button
                           type="button"

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Truck, Search } from 'lucide-react'
+import { Truck, Search, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -97,6 +97,18 @@ export function LandedCostListPage() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {/* fourn/facture/landedcostlist.php (the real reference page) is a
+            classic HTML table with no JSON API behind it, and the create
+            form this list reads from (LandedCostCreateForm.tsx) only writes
+            to a local, session-only collection — see both files' own header
+            comments for why. Surfacing that here too, not just on the create
+            form, so an empty/sparse table doesn't read as "no real landed
+            costs exist" when the real backend may have plenty. */}
+        <div className="flex items-start gap-2 text-xs text-text-faint">
+          <Info size={13} className="shrink-0 mt-0.5" />
+          <span>This list shows only landed costs created in this browser tab — it isn't wired to the real backend's Landed Cost records yet (no confirmed API exists to list or save them).</span>
+        </div>
+
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs text-text-faint mb-1">Product</label>
