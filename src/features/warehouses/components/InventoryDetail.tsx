@@ -18,6 +18,9 @@ import {
   FileText,
   Clock,
   RefreshCw,
+  Mail,
+  Package,
+  ClipboardCheck,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
@@ -109,6 +112,8 @@ export function InventoryDetail() {
       </div>
     )
   }
+
+  const hasBannerAction = !!(data.emailUrl || data.backToDraftUrl || data.deleteUrl)
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
@@ -235,6 +240,56 @@ export function InventoryDetail() {
 
         {tab === 'card' && (
         <>
+        {hasBannerAction && (
+          <Card className="!h-auto !p-0 overflow-hidden bg-gradient-to-r from-brand/5 to-transparent">
+            <div className="flex flex-wrap items-center justify-between gap-6 p-5">
+              <div className="flex flex-wrap items-center gap-3">
+                {data.emailUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSendEmail(true)}
+                    className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
+                  >
+                    <Mail size={16} /> Send Email
+                  </button>
+                )}
+                {data.backToDraftUrl && (
+                  <button
+                    type="button"
+                    disabled={setToDraft.isPending}
+                    onClick={handleSetToDraft}
+                    className="flex items-center gap-2 rounded-lg bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand hover:bg-brand/15 disabled:opacity-50"
+                  >
+                    {setToDraft.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <RotateCcw size={16} />} Back To Draft
+                  </button>
+                )}
+                {data.deleteUrl && (
+                  <button
+                    type="button"
+                    disabled={deleteInventory.isPending}
+                    onClick={handleDelete}
+                    className="flex items-center gap-2 rounded-lg bg-danger px-4 py-2.5 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
+                  >
+                    {deleteInventory.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />} Delete
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="relative flex items-center justify-center w-14 h-14 rounded-full bg-brand/10 shrink-0">
+                  <Package size={26} className="text-brand" />
+                  <span className="absolute -bottom-1 -right-1 flex items-center justify-center w-6 h-6 rounded-lg bg-white dark:bg-gray-950 border border-border shadow-sm">
+                    <ClipboardCheck size={13} className="text-brand" />
+                  </span>
+                </span>
+                <div>
+                  <p className="font-semibold text-text!">Manage your inventory efficiently</p>
+                  <p className="text-sm text-text-faint">Keep track of stock, values and related activities.</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         <Card className="!h-auto !p-0 overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <Link2 size={15} className="text-brand" />

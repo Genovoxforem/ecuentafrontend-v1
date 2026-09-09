@@ -7,6 +7,7 @@ import { TaskCreateForm } from '../../features/projects/components/TaskCreateFor
 import { TasksListPage } from '../../features/projects/components/TasksListPage'
 import { TimeSpentPage } from '../../features/projects/components/TimeSpentPage'
 import { ProjectCategoryCreateForm } from '../../features/projects/components/ProjectCategoryCreateForm'
+import { ProjectCategoriesListPage } from '../../features/projects/components/ProjectCategoriesListPage'
 import { VendorProposalStatisticsPage } from '../../features/projects/components/VendorProposalStatisticsPage'
 
 export function ProjectCreateModule() {
@@ -42,6 +43,9 @@ export function ProjectTimeSpentModule() {
 }
 export function ProjectCategoryCreateModule() {
   return <ProjectCategoryCreateForm />
+}
+export function ProjectCategoryListModule() {
+  return <ProjectCategoriesListPage />
 }
 export function SupplierProposalStatsModule() {
   return <VendorProposalStatisticsPage />

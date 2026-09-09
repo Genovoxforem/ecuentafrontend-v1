@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // The 4 real JSON APIs found in the Banking module this session (confirmed
 // by reading each file's PHP directly) — everything else in this module is
@@ -15,6 +15,44 @@ import { useQuery } from '@tanstack/react-query'
 
 function stripTags(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim()
+}
+
+// Shared by BankAccountDetail.tsx and BankEntriesList.tsx to turn a
+// formatted amount cell (e.g. "1,234.56") from bankentries_list_ajax.php
+// back into a number for client-side aggregation.
+export function parseAmount(cell: string): number {
+  const n = parseFloat(cell.replace(/,/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+// ── Bank Accounts dropdown (api/bank_accounts.php) — a 5th real JSON
+// endpoint found on a later pass, genuinely returns a `bank` (bank name)
+// field the sidebar-list endpoint above doesn't. Its own SQL hardcodes
+// `WHERE clos = 0` though (open accounts only), so a closed account simply
+// won't appear here — this is used only to enrich the detail page's "Bank
+// Name" field (falling back to "—" if not found), not as a list source.
+export interface BankAccountDropdownRow {
+  id: number
+  label: string
+  ref: string
+  bank: string
+}
+interface RawBankAccountDropdownResponse {
+  success: boolean
+  results: Array<{ id: number; label: string; ref: string; bank: string | null }>
+}
+export function useBankAccountsDropdown() {
+  return useQuery({
+    queryKey: ['banking', 'accounts', 'dropdown'],
+    queryFn: async (): Promise<BankAccountDropdownRow[]> => {
+      const res = await fetch('/api/bank_accounts.php', { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data: RawBankAccountDropdownResponse = await res.json()
+      if (!data.success) return []
+      return data.results.map((r) => ({ id: r.id, label: r.label, ref: r.ref, bank: r.bank ?? '' }))
+    },
+    staleTime: 1000 * 30,
+  })
 }
 
 // ── Bank Accounts (bank-sidebar-list-ajax.php) ───────────────────────────
@@ -71,6 +109,7 @@ export interface BankEntryRow {
   debit: string
   credit: string
   runningBalance: string
+  accountStatement: string
   conciliated: boolean
 }
 interface RawBankEntriesResponse {
@@ -80,33 +119,116 @@ interface RawBankEntriesResponse {
   data: string[][]
   error?: string
 }
-export function useBankEntriesList(accountId: number | undefined, page: number, length: number) {
+// All 4 of these are real, confirmed-by-source-read params the PHP already
+// reads (search[value] for the global OR-search across ref/label/num_chq/
+// num_releve/thirdparty-name/bankref; search_start_dt*/search_end_dt* for
+// Operation Date; search_start_dv*/search_end_dv* for Value Date) — not
+// fabricated, just previously unwired.
+export interface BankEntriesFilters {
+  search?: string
+  dateOpsFrom?: string
+  dateOpsTo?: string
+  dateValueFrom?: string
+  dateValueTo?: string
+  unreconciledOnly?: boolean
+}
+function dateParts(iso: string): [string, string, string] {
+  const [y, m, d] = iso.split('-')
+  return [y, String(Number(m)), String(Number(d))]
+}
+export function useBankEntriesList(accountId: number | undefined, page: number, length: number, filters?: BankEntriesFilters) {
   return useQuery({
-    queryKey: ['banking', 'entries', accountId, page, length],
+    queryKey: ['banking', 'entries', accountId, page, length, filters ?? null],
     queryFn: async (): Promise<{ rows: BankEntryRow[]; total: number; filtered: number }> => {
       const params = new URLSearchParams({ draw: '1', start: String(page * length), length: String(length) })
       if (accountId) params.set('search_account', String(accountId))
+      if (filters?.search) params.set('search[value]', filters.search)
+      if (filters?.unreconciledOnly) params.set('search_conciliated', '0')
+      if (filters?.dateOpsFrom) {
+        const [y, m, d] = dateParts(filters.dateOpsFrom)
+        params.set('search_start_dtyear', y)
+        params.set('search_start_dtmonth', m)
+        params.set('search_start_dtday', d)
+      }
+      if (filters?.dateOpsTo) {
+        const [y, m, d] = dateParts(filters.dateOpsTo)
+        params.set('search_end_dtyear', y)
+        params.set('search_end_dtmonth', m)
+        params.set('search_end_dtday', d)
+      }
+      if (filters?.dateValueFrom) {
+        const [y, m, d] = dateParts(filters.dateValueFrom)
+        params.set('search_start_dvyear', y)
+        params.set('search_start_dvmonth', m)
+        params.set('search_start_dvday', d)
+      }
+      if (filters?.dateValueTo) {
+        const [y, m, d] = dateParts(filters.dateValueTo)
+        params.set('search_end_dvyear', y)
+        params.set('search_end_dvmonth', m)
+        params.set('search_end_dvday', d)
+      }
       const res = await fetch(`/compta/bank/bankentries_list_ajax.php?${params.toString()}`, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data: RawBankEntriesResponse = await res.json()
       if (data.error) throw new Error(data.error)
-      const rows: BankEntryRow[] = data.data.map((cells, i) => ({
-        id: i,
-        refLabel: stripTags(cells[0] ?? ''),
-        description: stripTags(cells[1] ?? ''),
-        dateOps: cells[2] ?? '',
-        dateValue: cells[3] ?? '',
-        paymentType: cells[4] ?? '',
-        checkNum: cells[5] ?? '',
-        thirdParty: stripTags(cells[6] ?? ''),
-        bankAccount: stripTags(cells[7] ?? ''),
-        debit: cells[8] ?? '',
-        credit: cells[9] ?? '',
-        runningBalance: cells[10] ?? '',
-        conciliated: stripTags(cells[13] ?? '').toLowerCase() === 'yes',
-      }))
+      const rows: BankEntryRow[] = data.data.map((cells, i) => {
+        // cells[12] is `num_releve_html` when a statement number is linked, else it
+        // just falls back to the same Yes/No text as cells[13] (see bankentries_list_ajax.php:
+        // `!empty($num_releve_html) ? $num_releve_html : $conciliated`) — only keep it when
+        // it's an actual statement number, not the redundant Yes/No fallback.
+        const rawStatement = stripTags(cells[12] ?? '')
+        return {
+          id: i,
+          refLabel: stripTags(cells[0] ?? ''),
+          description: stripTags(cells[1] ?? ''),
+          dateOps: cells[2] ?? '',
+          dateValue: cells[3] ?? '',
+          paymentType: cells[4] ?? '',
+          checkNum: cells[5] ?? '',
+          thirdParty: stripTags(cells[6] ?? ''),
+          bankAccount: stripTags(cells[7] ?? ''),
+          debit: cells[8] ?? '',
+          credit: cells[9] ?? '',
+          runningBalance: cells[10] ?? '',
+          accountStatement: ['yes', 'no'].includes(rawStatement.toLowerCase()) ? '' : rawStatement,
+          conciliated: stripTags(cells[13] ?? '').toLowerCase() === 'yes',
+        }
+      })
       return { rows, total: data.recordsTotal, filtered: data.recordsFiltered }
     },
+  })
+}
+
+// ── Entries To Reconcile count — reuses bankentries_list_ajax.php's real,
+// confirmed `search_conciliated` filter param (read directly in that file's
+// PHP source: `if ($search_conciliated !== '' ...) $sqlWhere .= " AND
+// b.rappro = ".((int) $search_conciliated);`). This is the exact same
+// unreconciled-row count (b.rappro=0, scoped to one account) that
+// Account::load_board()'s `nbtodo` computes for the real list.php page's
+// orange "to reconcile" badge — fetched here with length=1 just to read
+// `recordsFiltered` cheaply, no row data needed. The real page's second,
+// red-triangle "late" sub-count (`nbtodolate`) additionally depends on a
+// server config value (bank->rappro->warning_delay) that no JSON endpoint
+// exposes, so it is not reproduced. Likewise, the real page suppresses this
+// badge entirely for cash / non-reconcilable / closed accounts based on the
+// account's `courant`/`rappro`/`clos` fields — none of which any confirmed
+// JSON endpoint returns either — so this hook always returns the raw count
+// for every account rather than replicating that per-type suppression.
+export function useReconcileCounts(accountIds: number[]) {
+  return useQueries({
+    queries: accountIds.map((id) => ({
+      queryKey: ['banking', 'accounts', 'reconcile-count', id],
+      queryFn: async (): Promise<number> => {
+        const params = new URLSearchParams({ draw: '1', start: '0', length: '1', search_account: String(id), search_conciliated: '0' })
+        const res = await fetch(`/compta/bank/bankentries_list_ajax.php?${params.toString()}`, { credentials: 'same-origin' })
+        if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+        const data: { recordsFiltered: number; error?: string } = await res.json()
+        if (data.error) throw new Error(data.error)
+        return data.recordsFiltered
+      },
+      staleTime: 1000 * 30,
+    })),
   })
 }
 
@@ -170,5 +292,39 @@ export function useLoanList() {
       })
     },
     staleTime: 1000 * 30,
+  })
+}
+
+// ── Linked Files (compta/bank/document.php) — real actions from
+// core/actions_linkedfiles.inc.php, the exact same generic upload/link
+// handler already confirmed and used for Project Documents
+// (see projectDocuments.queries.ts): document.php includes it directly
+// (confirmed by reading the source) with no CSRF check either. Field names
+// are the same generic ones: Upload = sendit=1 + userfile=<File>; Link =
+// linkit=1 + link=<url> + label=<label>. No JSON list endpoint exists here
+// either, so BankLinkedFilesTab.tsx keeps its tables an honest empty state.
+export function useUploadBankDocument(accountId: number | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData()
+      body.set('sendit', '1')
+      body.set('userfile', file)
+      const res = await fetch(`/compta/bank/document.php?account=${accountId}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'accounts', 'detail', accountId, 'documents'] }),
+  })
+}
+
+export function useLinkBankDocument(accountId: number | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { url: string; label: string }) => {
+      const body = new URLSearchParams({ linkit: '1', link: input.url, label: input.label })
+      const res = await fetch(`/compta/bank/document.php?account=${accountId}`, { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'accounts', 'detail', accountId, 'documents'] }),
   })
 }

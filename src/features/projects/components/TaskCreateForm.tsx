@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ListChecks } from 'lucide-react'
+import { ListChecks, X, Check } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { useProjectsList } from '../projects.queries'
 import { useTasksList, useCreateTask } from '../tasks.queries'
 import { ROUTES } from '../../../routes'
@@ -58,11 +59,28 @@ export function TaskCreateForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ListChecks size={20} className="text-brand" /> New task
-      </h2>
-
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <ListChecks size={20} className="text-brand" /> New task
+        </h2>
+      }
+      footerLeft={
+        <button type="button" onClick={() => navigate(ROUTES.projectTaskList)} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </button>
+      }
+      footerRight={
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={createTask.isPending || noProjects}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Check size={14} /> {createTask.isPending ? 'Adding…' : 'Add'}
+        </button>
+      }
+    >
       {noProjects && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           No project defined or owned — create a project first before adding a task to it.
@@ -131,22 +149,8 @@ export function TaskCreateForm() {
           </div>
         </div>
 
-        {formError && <p className="text-sm font-medium text-danger mb-3">{formError}</p>}
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => navigate(ROUTES.projectTaskList)} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={createTask.isPending || noProjects}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {createTask.isPending ? 'Adding…' : 'Add'}
-          </button>
-        </div>
+        {formError && <p className="text-sm font-medium text-danger">{formError}</p>}
       </Card>
-    </div>
+    </StickyFormShell>
   )
 }

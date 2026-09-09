@@ -14,9 +14,12 @@ import {
   Trash2,
   Download,
   Printer,
+  Tag,
   Info,
   ChevronLeft,
   ChevronRight,
+  Filter,
+  RotateCcw,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
@@ -40,6 +43,7 @@ import {
   useSaveBoxBreakTemplate,
   useDeleteBoxBreakTemplate,
   boxBreakExportUrl,
+  boxBreakLabelsUrl,
 } from '../boxBreak.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -240,12 +244,13 @@ interface FormState {
   warehouseId: number | undefined
   uomFrom: string
   uomTo: string
+  qtyPer: string
   qtyBreak: string
   lotNumber: string
   note: string
   cascade: boolean
 }
-const emptyForm: FormState = { productId: undefined, warehouseId: undefined, uomFrom: '', uomTo: '', qtyBreak: '1', lotNumber: '', note: '', cascade: true }
+const emptyForm: FormState = { productId: undefined, warehouseId: undefined, uomFrom: '', uomTo: '', qtyPer: '', qtyBreak: '1', lotNumber: '', note: '', cascade: true }
 
 function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; warehouseId: number } | null; onDone: () => void }) {
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -268,7 +273,7 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
 
   const fromUom = (uoms ?? []).find((u) => u.label === form.uomFrom)
   const smallerUoms = (uoms ?? []).filter((u) => fromUom && u.qty < fromUom.qty)
-  const qtyPer = fromUom?.qty ?? 0
+  const qtyPer = Number(form.qtyPer) || 0
 
   const productOptions = (products ?? []).map((p) => ({ value: String(p.id), label: `${p.ref} — ${p.label}`, keywords: p.ref, description: p.uom_count > 0 ? `${p.uom_count} UOM configured` : 'No UOM configured' }))
   const warehouseOptions = (warehouses ?? []).map((w) => ({ value: String(w.id), label: w.description ? `${w.ref} — ${w.description}` : w.ref }))
@@ -330,6 +335,7 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
       warehouseId: t.fk_entrepot,
       uomFrom: t.uom_from,
       uomTo: t.uom_to,
+      qtyPer: String(t.qty_per || ''),
       qtyBreak: String(t.qty_break_default || 1),
       lotNumber: '',
       note: '',
@@ -378,7 +384,10 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
           <label className="block text-sm mb-1 text-danger">Break FROM*</label>
           <select
             value={form.uomFrom}
-            onChange={(e) => setForm((f) => ({ ...f, uomFrom: e.target.value, uomTo: '' }))}
+            onChange={(e) => {
+              const selected = (uoms ?? []).find((u) => u.label === e.target.value)
+              setForm((f) => ({ ...f, uomFrom: e.target.value, uomTo: '', qtyPer: selected ? String(selected.qty) : '' }))
+            }}
             className={inputCls + ' w-full appearance-none'}
             disabled={!canPickUom}
           >
@@ -408,11 +417,20 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
           {form.uomFrom && smallerUoms.length === 0 && <p className="text-[11px] text-text-faint mt-1">No smaller UOM is configured — type the resulting unit's name freely.</p>}
         </div>
         <div>
-          <label className="block text-sm mb-1 text-text-muted">Base units per {form.uomFrom || 'FROM unit'}</label>
-          <input value={qtyPer || ''} disabled placeholder="auto-filled from UOM config" className={inputCls + ' w-full opacity-70 cursor-not-allowed'} />
+          <label className="block text-sm mb-1 text-danger">Units per Box*</label>
+          <input
+            type="number"
+            min={0.001}
+            step={0.001}
+            value={form.qtyPer}
+            onChange={(e) => setForm((f) => ({ ...f, qtyPer: e.target.value }))}
+            placeholder="auto-filled from UOM"
+            className={inputCls + ' w-full'}
+          />
+          <p className="text-[11px] text-text-faint mt-1">Auto-filled from the selected UOM — override if this pack's actual count differs.</p>
         </div>
         <div>
-          <label className="block text-sm mb-1 text-danger">How many {form.uomFrom || 'units'} to break*</label>
+          <label className="block text-sm mb-1 text-danger">How many boxes to break*</label>
           <input value={form.qtyBreak} onChange={(e) => setForm((f) => ({ ...f, qtyBreak: e.target.value }))} className={inputCls + ' w-full'} />
           {form.productId && form.warehouseId && form.uomFrom && (
             <p className="text-[11px] text-text-faint mt-1">
@@ -446,7 +464,7 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
 
       <label className="flex items-center gap-2 mt-3 text-sm text-text!">
         <input type="checkbox" checked={form.cascade} onChange={(e) => setForm((f) => ({ ...f, cascade: e.target.checked }))} className="text-brand focus:ring-brand/30" />
-        <span className="font-semibold">Cascade Break</span> — record the intermediate UOM chain in the audit trail when FROM/INTO span more than one step
+        <span className="font-semibold">Cascade Break</span> — chain through intermediate UOMs (e.g. PALLET → BOX → UNIT in one step)
       </label>
 
       {doBreak.isError && (
@@ -492,40 +510,69 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
   )
 }
 
-const HISTORY_COLUMNS = ['Ref.', 'Date', 'Product', 'Warehouse', 'From', 'Into', 'Lot', 'By', 'Status', 'Actions']
+const HISTORY_COLUMNS = ['Ref', 'Date', 'Product', 'Warehouse', 'From', 'Qty', 'Into', 'Produced', 'Qty/Box', 'Lot', 'Eat-By', 'Sell-By', 'By', 'Note', 'Actions']
 
 function HistoryTable() {
   const [page, setPage] = useState(1)
+  const [fkProduct, setFkProduct] = useState('')
+  const [fkEntrepot, setFkEntrepot] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const { data, isLoading, isError, error } = useBoxBreakHistory({ page, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined })
+  const filters = { page, fkProduct: fkProduct ? Number(fkProduct) : undefined, fkEntrepot: fkEntrepot ? Number(fkEntrepot) : undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }
+  const { data, isLoading, isError, error, refetch } = useBoxBreakHistory(filters)
+  const { data: products } = useBoxBreakProducts()
+  const { data: warehouses } = useBoxBreakWarehouses()
   const reverse = useReverseBoxBreak()
   const [reversingId, setReversingId] = useState<number | null>(null)
 
   const rows = data?.rows ?? []
 
+  function handleClear() {
+    setFkProduct('')
+    setFkEntrepot('')
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
+  }
+
   return (
     <Card className="!h-auto !p-0 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
         <h3 className="flex items-center gap-2 text-base font-semibold text-text!">
-          <Layers size={16} className="text-brand" /> Break History
+          <Layers size={16} className="text-brand" /> Box Break History
         </h3>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-text-faint">
-            From
-            <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className={inputCls} />
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-text-faint">
-            To
-            <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className={inputCls} />
-          </label>
-          <a
-            href={boxBreakExportUrl({ dateFrom: dateFrom || undefined, dateTo: dateTo || undefined })}
-            className="flex items-center gap-1.5 rounded-lg border border-input-border px-3 py-2 text-xs font-medium text-text-muted hover:bg-surface-hover"
-          >
-            <Download size={13} /> Export CSV
-          </a>
-        </div>
+        <a
+          href={boxBreakExportUrl({ fkProduct: filters.fkProduct, fkEntrepot: filters.fkEntrepot, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined })}
+          className="flex items-center gap-1.5 rounded-lg bg-success-bg px-3 py-2 text-xs font-medium text-success-fg hover:opacity-80"
+        >
+          <Download size={13} /> Export CSV
+        </a>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-4">
+        <select value={fkProduct} onChange={(e) => { setFkProduct(e.target.value); setPage(1) }} className={inputCls + ' appearance-none min-w-40 max-w-52'}>
+          <option value="">All Products</option>
+          {(products ?? []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.ref} — {p.label}
+            </option>
+          ))}
+        </select>
+        <select value={fkEntrepot} onChange={(e) => { setFkEntrepot(e.target.value); setPage(1) }} className={inputCls + ' appearance-none min-w-32 max-w-44'}>
+          <option value="">All Warehouses</option>
+          {(warehouses ?? []).map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.ref}
+            </option>
+          ))}
+        </select>
+        <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className={inputCls} />
+        <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className={inputCls} />
+        <button type="button" onClick={() => { setPage(1); refetch() }} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-hover">
+          <Filter size={13} /> Filter
+        </button>
+        <button type="button" onClick={handleClear} className="flex items-center gap-1.5 rounded-lg border border-input-border px-3 py-2 text-xs font-medium text-text-muted hover:bg-surface-hover">
+          <RotateCcw size={13} /> Clear
+        </button>
       </div>
 
       {isError && (
@@ -559,30 +606,41 @@ function HistoryTable() {
             ) : (
               rows.map((r) => (
                 <>
-                  <tr key={r.id} className="border-b border-border hover:bg-surface-hover">
-                    <td className="px-3 py-2 text-text!">{r.ref}</td>
+                  <tr key={r.id} className={`border-b border-border hover:bg-surface-hover ${r.reversed ? 'opacity-60' : ''}`}>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`font-semibold ${r.reversed ? 'text-danger' : 'text-warning-fg'}`}>{r.ref}</span>
+                      {r.reversed && <span className="ml-1.5 inline-flex items-center rounded-full bg-danger-bg text-danger-fg px-1.5 py-0.5 text-[10px] font-medium">REVERSED</span>}
+                    </td>
                     <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2 text-text-muted">
                       {r.product_ref} <span className="text-text-faint">— {r.product_label}</span>
                     </td>
                     <td className="px-3 py-2 text-text-muted">{r.warehouse_ref}</td>
-                    <td className="px-3 py-2 text-text!">{r.qty_broken} {r.uom_from}</td>
-                    <td className="px-3 py-2 text-text!">{r.qty_produced} {r.uom_to}</td>
-                    <td className="px-3 py-2 text-text-muted">{r.lot_number ?? '-'}</td>
-                    <td className="px-3 py-2 text-text-muted">{r.author ?? '-'}</td>
                     <td className="px-3 py-2">
-                      {r.reversed ? (
-                        <span className="inline-flex items-center rounded-full bg-danger-bg text-danger-fg px-2 py-0.5 text-xs font-medium">Reversed</span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-success-bg text-success-fg px-2 py-0.5 text-xs font-medium">Done</span>
-                      )}
+                      <span className="inline-flex items-center rounded-full bg-danger-bg text-danger-fg px-2 py-0.5 text-xs font-medium">{r.uom_from}</span>
                     </td>
+                    <td className="px-3 py-2 text-right font-semibold text-text!">{r.qty_broken}</td>
                     <td className="px-3 py-2">
-                      {!r.reversed && (
-                        <button type="button" onClick={() => setReversingId(reversingId === r.id ? null : r.id)} className="flex items-center gap-1 text-xs font-medium text-danger-fg hover:underline">
-                          <Undo2 size={12} /> Reverse
-                        </button>
-                      )}
+                      <span className="inline-flex items-center rounded-full bg-success-bg text-success-fg px-2 py-0.5 text-xs font-medium">{r.uom_to}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-success">{r.qty_produced}</td>
+                    <td className="px-3 py-2 text-center text-xs text-text-muted">{r.qty_per > 0 ? r.qty_per : '—'}</td>
+                    <td className="px-3 py-2 text-text-muted">{r.lot_number ?? '—'}</td>
+                    <td className="px-3 py-2 text-center text-xs text-purple-600 dark:text-purple-400">{r.lot_eatby ?? '—'}</td>
+                    <td className="px-3 py-2 text-center text-xs text-info-fg">{r.lot_sellby ?? '—'}</td>
+                    <td className="px-3 py-2 text-text-muted">{r.author ?? '—'}</td>
+                    <td className="px-3 py-2 text-text-muted max-w-[140px] truncate" title={r.note ?? ''}>{r.note ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <a href={boxBreakLabelsUrl(r.id)} target="_blank" rel="noreferrer" title="Print labels" className="text-info-fg hover:opacity-70">
+                          <Tag size={13} />
+                        </a>
+                        {!r.reversed && (
+                          <button type="button" onClick={() => setReversingId(reversingId === r.id ? null : r.id)} title="Reverse" className="flex items-center gap-1 text-xs font-medium text-danger-fg hover:underline">
+                            <Undo2 size={12} /> Reverse
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {reversingId === r.id && (

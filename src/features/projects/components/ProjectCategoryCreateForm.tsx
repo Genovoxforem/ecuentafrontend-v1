@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Tag } from 'lucide-react'
+import { Tag, X, Check } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { useProjectCategoryCreateForm, useCreateProjectCategory } from '../projectCategories.queries'
 import { ROUTES } from '../../../routes'
 
@@ -37,18 +38,35 @@ export function ProjectCategoryCreateForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Tag size={20} className="text-brand" /> Create tag/category
-      </h2>
-
+    <StickyFormShell
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Tag size={20} className="text-brand" /> Create tag/category
+        </h2>
+      }
+      footerLeft={
+        <button type="button" onClick={() => navigate(ROUTES.projectCategoryList)} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+          <X size={14} /> Cancel
+        </button>
+      }
+      footerRight={
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={createCategory.isPending || isLoading}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Check size={14} /> {createCategory.isPending ? 'Creating…' : 'Create'}
+        </button>
+      }
+    >
       {isError && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">{error instanceof Error ? error.message : 'Failed to load this form.'}</Card>
       )}
       {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Category created.</Card>}
 
       <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-text-faint mb-1">Ref.*</label>
             <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
@@ -74,22 +92,8 @@ export function ProjectCategoryCreateForm() {
           </div>
         </div>
 
-        {formError && <p className="text-sm font-medium text-danger mb-3">{formError}</p>}
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => navigate(ROUTES.projectList)} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={createCategory.isPending || isLoading}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {createCategory.isPending ? 'Creating…' : 'Create'}
-          </button>
-        </div>
+        {formError && <p className="text-sm font-medium text-danger mt-3">{formError}</p>}
       </Card>
-    </div>
+    </StickyFormShell>
   )
 }
