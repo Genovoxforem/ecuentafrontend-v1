@@ -287,7 +287,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   return (
     <div className="relative flex h-full shrink-0 bg-rail-bg" onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
-        <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2">
+        <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
         {SECTIONS.map((section) => {
           const Icon = section.icon
           const isActive = section.key === activeKey
@@ -320,8 +320,8 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       </aside>
 
       <div
-        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-all duration-300 ease-in-out translate-x-0 z-[1] rounded-tl-2xl ${
-          open ? 'relative w-64 flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 z-30 shadow-xl ${expanded ? 'w-64' : 'w-0'}`
+        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scrollbar-none transition-all duration-300 ease-in-out translate-x-0 z-999 ${
+          open ? 'relative w-64 flex-1 rounded-tl-2xl' : `  ${RAIL_WIDTH_OFFSET_CLASS} border-r border-border top-0 shadow-xl ${expanded ? 'w-64 rounded-tl-2xl' : 'w-0 border-0'}`
         }`}
         onMouseEnter={() => !open && setHovering(true)}
         onMouseLeave={() => setHovering(false)}
