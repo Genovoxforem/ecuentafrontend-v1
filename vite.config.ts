@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -103,7 +103,7 @@ function htaccessPlugin(): Plugin {
 // endpoints (societe/api/list.php, etc.) get rejected with "Access refused
 // by CSRF protection". This spreads a configure() hook across every proxy
 // entry that overwrites those two headers with the backend's own origin.
-function proxyConfig(target: string) {
+function proxyConfig(target: string): ProxyOptions {
   return {
     target,
     changeOrigin: true,
@@ -115,8 +115,8 @@ function proxyConfig(target: string) {
       Referer: `${target}/`,
       Origin: target,
     },
-    configure(proxy: { on: (event: string, handler: (...args: unknown[]) => void) => void }) {
-      proxy.on('proxyReq', (proxyReq: { setHeader: (name: string, value: string) => void }, req: { headers: Record<string, string> }) => {
+    configure(proxy) {
+      proxy.on('proxyReq', (proxyReq) => {
         // Belt-and-suspenders: headers above should already cover this, but
         // some http-proxy versions only apply `headers` to the initial
         // request, not upgraded/websocket ones. This ensures every request
@@ -159,10 +159,15 @@ export default defineConfig({
         // (~250 KB) only on export pages, qrcode+jsbarcode only on
         // product/barcode pages. Without this, a user visiting /customers
         // could download exceljs bundled into a shared chunk they never use.
-        manualChunks: {
-          'vendor-charts': ['recharts'],
-          'vendor-excel': ['exceljs'],
-          'vendor-barcode': ['jsbarcode', 'qrcode'],
+        //
+        // Rolldown (this project's bundler as of Vite 8) dropped Rollup's
+        // object-form manualChunks — codeSplitting.groups is its replacement.
+        codeSplitting: {
+          groups: [
+            { name: 'vendor-charts', test: /node_modules\/recharts/ },
+            { name: 'vendor-excel', test: /node_modules\/exceljs/ },
+            { name: 'vendor-barcode', test: /node_modules\/(jsbarcode|qrcode)/ },
+          ],
         },
       },
     },

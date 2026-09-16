@@ -1,4 +1,17 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { parseLegacyJson, fetchLegacyText, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { parseBankAccountFormPage, type BankAccountFormContext } from './bankAccountFormParser'
+import {
+  parseBankEntryDetailPage,
+  parseBankEntryLogPage,
+  parseBankEntryLedgerPage,
+  splitMdy,
+  type BankEntryDetail,
+  type BankEntryLog,
+  type BankEntryLedger,
+} from './bankEntryDetailParser'
+import { parseBankBudgetPage, type BankBudget } from './bankBudgetParser'
+import { parseBankTransactionCategListPage, parseBankTransactionCategToken, type BankTransactionCategoryList } from './bankTransactionCategParser'
 
 // The 4 real JSON APIs found in the Banking module this session (confirmed
 // by reading each file's PHP directly) — everything else in this module is
@@ -47,7 +60,7 @@ export function useBankAccountsDropdown() {
     queryFn: async (): Promise<BankAccountDropdownRow[]> => {
       const res = await fetch('/api/bank_accounts.php', { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawBankAccountDropdownResponse = await res.json()
+      const data = await parseLegacyJson<RawBankAccountDropdownResponse>(res)
       if (!data.success) return []
       return data.results.map((r) => ({ id: r.id, label: r.label, ref: r.ref, bank: r.bank ?? '' }))
     },
@@ -81,7 +94,7 @@ export function useBankAccountsList() {
     queryFn: async (): Promise<BankAccountRow[]> => {
       const res = await fetch('/compta/bank/bank-sidebar-list-ajax.php?draw=1&start=0', { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawSidebarListResponse<RawBankAccountRow> = await res.json()
+      const data = await parseLegacyJson<RawSidebarListResponse<RawBankAccountRow>>(res)
       return data.data.map((r) => ({
         id: Number(r.rowid),
         label: r.label,
@@ -97,7 +110,14 @@ export function useBankAccountsList() {
 // ── List Entries (bankentries_list_ajax.php) — real DataTables, actively
 // wired into the live bankentries_list.php page, proper permission checks ──
 export interface BankEntryRow {
+  // Row position in the current page — stable enough for a React key, but
+  // NOT the real database id. Use rowid (below) for anything that needs to
+  // identify the actual bank line (a route, a lookup).
   id: number
+  // Real llx_bank.rowid, parsed off the Ref cell's own
+  // compta/bank/line.php?rowid= link (see parseRefCell) — this is what
+  // BankEntryDetail.tsx's route is keyed on.
+  rowid: number
   refLabel: string
   description: string
   dateOps: string
@@ -105,12 +125,71 @@ export interface BankEntryRow {
   paymentType: string
   checkNum: string
   thirdParty: string
+  // Real societe.rowid, parsed directly off the cell's own
+  // societe/card.php?socid= link (see parseThirdPartyCell) — undefined when
+  // the row has no third party or links to something other than a company
+  // (e.g. an internal user for a salary/social-charge line).
+  thirdPartySocid?: number
+  // The cell's own trailing <small> subtitle (confirmed live, e.g.
+  // "Voxforem Technologies" under a contact named "customer1") — the
+  // contact's parent company affiliation. Undefined when the cell has none.
+  thirdPartyCompany?: string
   bankAccount: string
+  // Real llx_bank_account.rowid, parsed off the Bank Account cell's own
+  // compta/bank/card.php?id= link (see parseAccountCell) — replaces the
+  // previous name-matching workaround in BankEntriesList.tsx's findAccountId.
+  bankAccountId?: number
   debit: string
   credit: string
   runningBalance: string
   accountStatement: string
   conciliated: boolean
+}
+
+// The Third-Party cell's real HTML (confirmed live) nests an avatar-initials
+// div and a company-affiliation <small> subtitle inside/around the actual
+// name, e.g.:
+//   <a href="/societe/card.php?socid=5" ...><div class="avatar-circle" ...>
+//   CU</div>customer1</a><br><small class="text-muted">Voxforem
+//   Technologies</small>
+// A blind stripTags() on this — the previous behavior — concatenates all of
+// that with no separators ("CUcustomer1Voxforem Technologies"), which is why
+// the name-matching link-up in BankEntriesList.tsx could never actually find
+// a match against a real customer name. This extracts the genuine socid from
+// the href (authoritative — no guessing) and the clean name from inside the
+// <a> tag alone, dropping the avatar div's own text and the trailing <small>.
+function parseThirdPartyCell(raw: string): { name: string; socid?: number; company?: string } {
+  if (!raw) return { name: '' }
+  const socidMatch = raw.match(/href="\/societe\/card\.php\?socid=(\d+)"/)
+  const socid = socidMatch ? Number(socidMatch[1]) : undefined
+  const withoutAvatar = raw.replace(/<div class="avatar-circle"[^>]*>[^<]*<\/div>/, '')
+  const anchorMatch = withoutAvatar.match(/<a[^>]*>([\s\S]*?)<\/a>/)
+  const name = stripTags(anchorMatch ? anchorMatch[1] : withoutAvatar).trim()
+  const companyMatch = raw.match(/<small class="text-muted">([\s\S]*?)<\/small>/)
+  const company = companyMatch ? stripTags(companyMatch[1]).trim() : undefined
+  return { name, socid, company: company || undefined }
+}
+
+// The Ref cell's real HTML links to the transaction's own detail page
+// (confirmed live: `<a href="/compta/bank/line.php?rowid=369&save_lastsearch_values=1"
+// ...><span ...></span>369</a>`) — this is where BankEntryDetail.tsx's route
+// gets its id from. A blind stripTags() (the previous behavior) kept the
+// visible "369" text but threw the real rowid away.
+function parseRefCell(raw: string): { label: string; rowid?: number } {
+  if (!raw) return { label: '' }
+  const rowidMatch = raw.match(/href="\/compta\/bank\/line\.php\?rowid=(\d+)/)
+  return { label: stripTags(raw), rowid: rowidMatch ? Number(rowidMatch[1]) : undefined }
+}
+
+// The Bank Account cell's real HTML links to the account's own card
+// (confirmed live: `<a href="/compta/bank/card.php?id=1" ...>PettyCash</a>`)
+// — same technique as parseThirdPartyCell, replacing the previous
+// name-matching workaround (findAccountId in BankEntriesList.tsx) with the
+// real id straight off the cell.
+function parseAccountCell(raw: string): { label: string; id?: number } {
+  if (!raw) return { label: '' }
+  const idMatch = raw.match(/href="\/compta\/bank\/card\.php\?id=(\d+)"/)
+  return { label: stripTags(raw), id: idMatch ? Number(idMatch[1]) : undefined }
 }
 interface RawBankEntriesResponse {
   draw: number
@@ -170,7 +249,7 @@ export function useBankEntriesList(accountId: number | undefined, page: number, 
       }
       const res = await fetch(`/compta/bank/bankentries_list_ajax.php?${params.toString()}`, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawBankEntriesResponse = await res.json()
+      const data = await parseLegacyJson<RawBankEntriesResponse>(res)
       if (data.error) throw new Error(data.error)
       const rows: BankEntryRow[] = data.data.map((cells, i) => {
         // cells[12] is `num_releve_html` when a statement number is linked, else it
@@ -178,16 +257,23 @@ export function useBankEntriesList(accountId: number | undefined, page: number, 
         // `!empty($num_releve_html) ? $num_releve_html : $conciliated`) — only keep it when
         // it's an actual statement number, not the redundant Yes/No fallback.
         const rawStatement = stripTags(cells[12] ?? '')
+        const thirdPartyCell = parseThirdPartyCell(cells[6] ?? '')
+        const refCell = parseRefCell(cells[0] ?? '')
+        const accountCell = parseAccountCell(cells[7] ?? '')
         return {
           id: i,
-          refLabel: stripTags(cells[0] ?? ''),
+          rowid: refCell.rowid ?? i,
+          refLabel: refCell.label,
           description: stripTags(cells[1] ?? ''),
           dateOps: cells[2] ?? '',
           dateValue: cells[3] ?? '',
           paymentType: cells[4] ?? '',
           checkNum: cells[5] ?? '',
-          thirdParty: stripTags(cells[6] ?? ''),
-          bankAccount: stripTags(cells[7] ?? ''),
+          thirdParty: thirdPartyCell.name,
+          thirdPartySocid: thirdPartyCell.socid,
+          thirdPartyCompany: thirdPartyCell.company,
+          bankAccount: accountCell.label,
+          bankAccountId: accountCell.id,
           debit: cells[8] ?? '',
           credit: cells[9] ?? '',
           runningBalance: cells[10] ?? '',
@@ -223,7 +309,7 @@ export function useReconcileCounts(accountIds: number[]) {
         const params = new URLSearchParams({ draw: '1', start: '0', length: '1', search_account: String(id), search_conciliated: '0' })
         const res = await fetch(`/compta/bank/bankentries_list_ajax.php?${params.toString()}`, { credentials: 'same-origin' })
         if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-        const data: { recordsFiltered: number; error?: string } = await res.json()
+        const data = await parseLegacyJson<{ recordsFiltered: number; error?: string }>(res)
         if (data.error) throw new Error(data.error)
         return data.recordsFiltered
       },
@@ -250,7 +336,7 @@ export function useBankAccountCategoriesList() {
     queryFn: async (): Promise<BankAccountCategoryRow[]> => {
       const res = await fetch('/categories/tag-sidebarlist-ajax.php?draw=1&start=0&type_id=5', { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawTagListResponse = await res.json()
+      const data = await parseLegacyJson<RawTagListResponse>(res)
       return data.data
         .map((r) => ({ id: Number(r.rowid), name: r.nom, color: r.code_client || '', createdAt: r.phone ?? '' }))
         .sort((a, b) => a.name.localeCompare(b.name))
@@ -280,7 +366,7 @@ export function useLoanList() {
     queryFn: async (): Promise<LoanRow[]> => {
       const res = await fetch('/loan/loan-sidebar-list-ajax.php?draw=1&start=0', { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawLoanListResponse = await res.json()
+      const data = await parseLegacyJson<RawLoanListResponse>(res)
       return data.data.map((r) => {
         const divs = r.applied_amount.split('</div>').map(stripTags)
         return {
@@ -326,5 +412,390 @@ export function useLinkBankDocument(accountId: number | undefined) {
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'accounts', 'detail', accountId, 'documents'] }),
+  })
+}
+
+// ── New Financial Account (compta/bank/card.php?action=create) — no JSON
+// API, but a genuine classic form-POST create, same category of action as
+// the various real card.php POSTs already wired for Sales Orders/Quotations
+// (confirm_validate, confirm_clone, etc.): fetch the real create page for its
+// CSRF token + dropdown options (see bankAccountFormParser.ts), then POST the
+// same field set that page's own form submits under action=add. Dolibarr
+// redirects (302, followed transparently by fetch) to card.php?id=<new id>
+// on success; on validation failure it re-renders the same ?action=create
+// page instead, which this treats as failure and surfaces via a best-effort
+// scrape of that page's own error banner — not confirmed against a live
+// failure case (doing so would require actually submitting bad data), so the
+// exact error text may need adjusting once this is used for real.
+export function useBankAccountFormOptions() {
+  return useQuery({
+    queryKey: ['banking', 'accounts', 'createFormOptions'],
+    queryFn: async (): Promise<BankAccountFormContext> => {
+      return parseBankAccountFormPage(await fetchLegacyText('/compta/bank/card.php?action=create'))
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+
+export interface NewBankAccountInput {
+  ref: string
+  label: string
+  type: string
+  currencyCode: string
+  closed: boolean
+  countryId: string
+  stateId: string
+  url: string
+  comment: string
+  initialBalance: string
+  date: string // yyyy-mm-dd, converted to Dolibarr's day/month/year triplet below
+  minAllowedBalance: string
+  minDesiredBalance: string
+  bankName: string
+  accountNumber: string
+  iban: string
+  bic: string
+  bankAddress: string
+  ownerName: string
+  ownerAddress: string
+  accountingAccount: string
+  accountingJournal: string
+}
+
+function extractLegacyErrorMessage(html: string, fallback: string): string {
+  if (looksLikeLegacyLoginPageText(html)) return NOT_SIGNED_IN_MESSAGE
+  const patterns = [/<div class="error"[^>]*>([\s\S]*?)<\/div>/, /<div class="wpeo-notification[^"]*error[^"]*"[^>]*>([\s\S]*?)<\/div>/]
+  for (const re of patterns) {
+    const m = html.match(re)
+    if (m) {
+      const text = stripTags(m[1]).trim()
+      if (text) return text
+    }
+  }
+  return fallback
+}
+
+export function useCreateBankAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: NewBankAccountInput): Promise<number> => {
+      const { token } = parseBankAccountFormPage(await fetchLegacyText('/compta/bank/card.php?action=create'))
+
+      const [year, month, day] = input.date.split('-')
+      const body = new URLSearchParams({
+        token,
+        action: 'add',
+        ref: input.ref,
+        label: input.label,
+        type: input.type,
+        account_currency_code: input.currencyCode,
+        clos: input.closed ? '1' : '0',
+        account_country_id: input.countryId,
+        account_state_id: input.stateId,
+        url: input.url,
+        account_comment: input.comment,
+        solde: input.initialBalance || '0',
+        re: `${month}/${day}/${year}`,
+        reday: day,
+        remonth: month,
+        reyear: year,
+        account_min_allowed: input.minAllowedBalance,
+        account_min_desired: input.minDesiredBalance,
+        bank: input.bankName,
+        number: input.accountNumber,
+        iban: input.iban,
+        bic: input.bic,
+        domiciliation: input.bankAddress,
+        proprio: input.ownerName,
+        owner_address: input.ownerAddress,
+        account_number: input.accountingAccount,
+        fk_accountancy_journal: input.accountingJournal,
+      })
+      const res = await fetch('/compta/bank/card.php', { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const idMatch = res.url.match(/[?&]id=(\d+)/)
+      if (!idMatch) {
+        throw new Error(
+          extractLegacyErrorMessage(
+            await res.text(),
+            'The backend rejected this account (a required field may be missing or invalid) — check Ref, Bank/cash label, Account type, Currency and Account country.',
+          ),
+        )
+      }
+      return Number(idMatch[1])
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['banking', 'accounts'] })
+    },
+  })
+}
+
+// ── Bank Entry Detail (compta/bank/line.php?rowid=N) — no JSON API either,
+// same category as card.php?action=create above: a genuine classic
+// form-POST page, not read-only. "Bank entry" (action=update) edits the
+// transaction's own fields; "Reconciliation" (action=setreconcile) is a
+// separate form further down the same page for the statement number /
+// reconciled flag — see bankEntryDetailParser.ts. Both POST back to this
+// same URL and Dolibarr redirects (302, followed transparently by fetch)
+// back to it on success, so the POST response is parsed the exact same way
+// as the initial GET rather than issuing a third round-trip.
+export function useBankEntryDetail(rowid: number | undefined) {
+  return useQuery({
+    queryKey: ['banking', 'entries', 'detail', rowid],
+    queryFn: async (): Promise<BankEntryDetail> => {
+      if (rowid === undefined) throw new Error('Missing bank entry id.')
+      return parseBankEntryDetailPage(await fetchLegacyText(`/compta/bank/line.php?rowid=${rowid}`), rowid)
+    },
+    enabled: rowid !== undefined,
+  })
+}
+
+export interface UpdateBankEntryInput {
+  accountId: string
+  paymentType: string
+  checkNum: string
+  transmitter: string
+  bankOfCheck: string
+  dateOps: string // MM/DD/YYYY, matching the real form's own text field
+  dateValue: string // MM/DD/YYYY
+  label: string
+  amount: string
+  categoryIds: string[]
+}
+
+export function useUpdateBankEntry(rowid: number | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UpdateBankEntryInput): Promise<BankEntryDetail> => {
+      if (rowid === undefined) throw new Error('Missing bank entry id.')
+      const { token } = parseBankEntryDetailPage(await fetchLegacyText(`/compta/bank/line.php?rowid=${rowid}`), rowid)
+
+      const dateo = splitMdy(input.dateOps)
+      const datev = splitMdy(input.dateValue)
+      const body = new URLSearchParams({
+        token,
+        action: 'update',
+        orig_account: '',
+        id: input.accountId,
+        accountid: input.accountId,
+        value: input.paymentType,
+        num_chq: input.checkNum,
+        emetteur: input.transmitter,
+        banque: input.bankOfCheck,
+        dateo: input.dateOps,
+        dateoday: dateo.day,
+        dateomonth: dateo.month,
+        dateoyear: dateo.year,
+        datev: input.dateValue,
+        datevday: datev.day,
+        datevmonth: datev.month,
+        datevyear: datev.year,
+        label: input.label,
+        amount: input.amount,
+      })
+      for (const catId of input.categoryIds) body.append('custcats[]', catId)
+
+      const res = await fetch(`/compta/bank/line.php?rowid=${rowid}`, { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      if (/<div class="error"/.test(html)) {
+        throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this update (a required field may be missing or invalid).'))
+      }
+      return parseBankEntryDetailPage(html, rowid)
+    },
+    onSuccess: (detail) => {
+      queryClient.setQueryData(['banking', 'entries', 'detail', rowid], detail)
+      queryClient.invalidateQueries({ queryKey: ['banking', 'entries'] })
+    },
+  })
+}
+
+// ── Log tab (compta/bank/info.php?rowid=N) and LedgerEntry tab
+// (compta/bank/ledgerentry.php?rowid=N) — the other two tabs BankEntryDetail.tsx
+// shows alongside "Bank entry" above. Both real, read-only, no JSON API.
+// Only fetched while their tab is actually open (enabled), not eagerly with
+// the main detail — neither is needed for the default "Bank entry" tab.
+export function useBankEntryLog(rowid: number | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['banking', 'entries', 'log', rowid],
+    queryFn: async (): Promise<BankEntryLog> => {
+      return parseBankEntryLogPage(await fetchLegacyText(`/compta/bank/info.php?rowid=${rowid}`))
+    },
+    enabled: enabled && rowid !== undefined,
+  })
+}
+
+export function useBankEntryLedger(rowid: number | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['banking', 'entries', 'ledger', rowid],
+    queryFn: async (): Promise<BankEntryLedger> => {
+      return parseBankEntryLedgerPage(await fetchLegacyText(`/compta/bank/ledgerentry.php?rowid=${rowid}`))
+    },
+    enabled: enabled && rowid !== undefined,
+  })
+}
+
+export interface ReconcileBankEntryInput {
+  statement: string
+  reconciled: boolean
+}
+
+export function useReconcileBankEntry(rowid: number | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: ReconcileBankEntryInput): Promise<BankEntryDetail> => {
+      if (rowid === undefined) throw new Error('Missing bank entry id.')
+      const { token } = parseBankEntryDetailPage(await fetchLegacyText(`/compta/bank/line.php?rowid=${rowid}`), rowid)
+
+      const body = new URLSearchParams({ token, action: 'setreconcile', orig_account: '', backtopage: '', num_rel: input.statement })
+      if (input.reconciled) body.set('reconciled', 'on')
+
+      const res = await fetch(`/compta/bank/line.php?rowid=${rowid}`, { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      if (/<div class="error"/.test(html)) {
+        throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this reconciliation update.'))
+      }
+      return parseBankEntryDetailPage(html, rowid)
+    },
+    onSuccess: (detail) => {
+      queryClient.setQueryData(['banking', 'entries', 'detail', rowid], detail)
+      queryClient.invalidateQueries({ queryKey: ['banking', 'entries'] })
+    },
+  })
+}
+
+// ── Bank entries by categories (compta/bank/budget.php) — no JSON API, a
+// plain read-only report, no filters/mutations needed.
+export function useBankBudget() {
+  return useQuery({
+    queryKey: ['banking', 'budget'],
+    queryFn: async (): Promise<BankBudget> => {
+      return parseBankBudgetPage(await fetchLegacyText('/compta/bank/budget.php'))
+    },
+  })
+}
+
+// ── Internal Transfer (compta/bank/transfer.php) — no JSON API, but a
+// genuine classic form-POST create, same category as useCreateBankAccount
+// above. The From/To account dropdowns reuse the already-confirmed-real
+// useBankAccountsList() data instead of re-scraping transfer.php's own
+// <select> (same account set, same real ids) — only the CSRF token is
+// scraped, fetched fresh at submit time.
+export interface NewInternalTransferInput {
+  accountFromId: string
+  accountToId: string
+  date: string // yyyy-mm-dd, converted to Dolibarr's day/month/year triplet below
+  label: string
+  amount: string
+  // Only meaningful (and only sent) when the two accounts have different
+  // currencies — the real form hides this field entirely otherwise.
+  amountTo?: string
+}
+
+function extractCsrfToken(html: string): string {
+  const tokenMatch = html.match(/name="token"\s+value="([a-f0-9]+)"/)
+  if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
+  return tokenMatch[1]
+}
+
+export function useCreateInternalTransfer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: NewInternalTransferInput): Promise<void> => {
+      const token = extractCsrfToken(await fetchLegacyText('/compta/bank/transfer.php'))
+
+      const [year, month, day] = input.date.split('-')
+      const body = new URLSearchParams({
+        token,
+        action: 'add',
+        account_from: input.accountFromId,
+        account_to: input.accountToId,
+        re: `${month}/${day}/${year}`,
+        reday: day,
+        remonth: month,
+        reyear: year,
+        label: input.label,
+        amount: input.amount,
+        amountto: input.amountTo ?? '',
+      })
+      const res = await fetch('/compta/bank/transfer.php', { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      if (/<div class="error"/.test(html)) {
+        throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this transfer (check the two accounts, date and amount).'))
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['banking', 'accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['banking', 'entries'] })
+    },
+  })
+}
+
+// ── Tags/Categories Of Transactions (compta/bank/categ.php) — manages
+// llx_bank_categ, distinct from the account-level Categories page
+// (categories/tag-sidebarlist-ajax.php?type_id=5, which already has a real
+// JSON API — see useBankAccountCategoriesList above). No JSON API here, but
+// a genuine classic form-POST list with real add/edit/delete — see
+// bankTransactionCategParser.ts.
+export function useBankTransactionCategories() {
+  return useQuery({
+    queryKey: ['banking', 'transactionCategories'],
+    queryFn: async (): Promise<BankTransactionCategoryList> => {
+      return parseBankTransactionCategListPage(await fetchLegacyText('/compta/bank/categ.php'))
+    },
+  })
+}
+
+export function useAddBankTransactionCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (label: string): Promise<void> => {
+      const token = extractCsrfToken(await fetchLegacyText('/compta/bank/categ.php'))
+      const body = new URLSearchParams({ token, formfilteraction: 'list', action: 'list', label, add: 'Add' })
+      const res = await fetch('/compta/bank/categ.php', { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      if (/<div class="error"/.test(html)) throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this tag (a label is required).'))
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'transactionCategories'] }),
+  })
+}
+
+export function useUpdateBankTransactionCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, label }: { id: number; label: string }): Promise<void> => {
+      const token = parseBankTransactionCategToken(await fetchLegacyText(`/compta/bank/categ.php?categid=${id}&action=edit`))
+      const body = new URLSearchParams({ token, formfilteraction: 'list', action: 'list', categid: String(id), label, update: 'Edit' })
+      const res = await fetch('/compta/bank/categ.php', { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      if (/<div class="error"/.test(html)) throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this rename.'))
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'transactionCategories'] }),
+  })
+}
+
+// The real page's own delete link is a plain GET (categ.php?categid=N&
+// action=delete&token=...) — no confirmation step server-side, so the UI
+// layer is what's responsible for confirming before calling this.
+export function useDeleteBankTransactionCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number): Promise<void> => {
+      const token = extractCsrfToken(await fetchLegacyText('/compta/bank/categ.php'))
+      const res = await fetch(`/compta/bank/categ.php?categid=${id}&action=delete&token=${token}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'transactionCategories'] }),
   })
 }

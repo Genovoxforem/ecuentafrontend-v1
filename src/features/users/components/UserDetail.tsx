@@ -2489,6 +2489,7 @@ export function UserDetail() {
   // data already on the page) rather than the disabled "Edit" pencil above,
   // which does need one that doesn't exist yet.
   function handleDownloadVCard() {
+    if (!user) return
     const name = user.name || user.login
     const lines = [
       'BEGIN:VCARD',

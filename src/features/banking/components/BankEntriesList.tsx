@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { List, Search, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Clock3, RefreshCcw } from 'lucide-react'
+import { List, Search, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Clock3, RefreshCcw, FileText, Landmark } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { useBankAccountsList, useBankAccountsDropdown, useBankEntriesList, useReconcileCounts, parseAmount, type BankEntryRow, type BankAccountRow, type BankAccountDropdownRow } from '../banking.queries'
+import { useCustomersSummary } from '../../customers/customers.queries'
+import { useVendorsSummary } from '../../vendors/vendors.queries'
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -74,6 +76,23 @@ function findAccountId(accounts: BankAccountRow[] | undefined, dropdownAccounts:
   return dropdownAccounts?.find((a) => a.ref === cellText)?.id ?? accounts?.find((a) => a.label === cellText)?.id
 }
 
+// bankentries_list_ajax.php's "Third Party" cell renders just the plain
+// company/contact name (stripped of the legacy page's own card.php?socid=
+// link — see banking.queries.ts's stripTags), so — same workaround as
+// findAccountId above — the id is recovered by matching that name against
+// the real, confirmed /api/customers/index.php rows (customers.queries.ts /
+// vendors.queries.ts) already used by CustomersList/VendorsList, rather than
+// parsing an id out of the raw cell HTML. Both customer and vendor rows link
+// to the same ROUTES.customerDetail page (see ThirdPartyList.tsx), so a
+// single combined name match is all that's needed. Falls back to plain text
+// when no exact name match is found (e.g. an internal user shown for a
+// salary/social-charge payment line, which this doesn't attempt to match).
+function findThirdPartyId(customers: { id: number | null; name: string }[] | undefined, vendors: { id: number | null; name: string }[] | undefined, name: string): number | undefined {
+  if (!name) return undefined
+  const match = customers?.find((c) => c.name === name) ?? vendors?.find((v) => v.name === name)
+  return match?.id ?? undefined
+}
+
 const STAT_CARD_STYLES = {
   debit: { badge: 'bg-danger-bg text-danger-fg', value: 'text-danger-fg' },
   credit: { badge: 'bg-success-bg text-success-fg', value: 'text-success-fg' },
@@ -102,24 +121,30 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: typeof TrendingDow
 // (banque->lire / banque->modifier). Filters (search, Operation/Value Date
 // ranges, unreconciled-only) all map to real, confirmed GET params read
 // directly from that file's PHP source — see BankEntriesFilters in
-// banking.queries.ts. Not reproduced: the real page's row-level Edit/Delete
-// actions (shown here as visibly present but disabled, to avoid an unwired
-// destructive write on live financial data) and its checkbox-based bulk
-// reconciliation submit flow (the "Reconcile" button here only applies the
-// same read-only search_conciliated=0 filter the real page's own Conciliate
-// link uses, without the write-back).
+// banking.queries.ts. Row-level Edit now links to the real BankEntryDetail.tsx
+// page (compta/bank/line.php); Delete stays disabled (no delete flow built,
+// to avoid an unwired destructive write on live financial data). The
+// "Reconcile" button here only applies the same read-only search_conciliated=0
+// filter the real page's own Conciliate link uses, without its checkbox-based
+// bulk reconciliation submit flow.
 export function BankEntriesList({ accountId: accountIdProp, embedded = false }: { accountId?: number; embedded?: boolean } = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: accounts } = useBankAccountsList()
   const { data: dropdownAccounts } = useBankAccountsDropdown()
+  const { data: customersSummary } = useCustomersSummary()
+  const { data: vendorsSummary } = useVendorsSummary()
   // 1-indexed to match ListPagination's convention; converted to the hook's
   // own 0-indexed `page` argument below.
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [dateOpsFrom, setDateOpsFrom] = useState('')
-  const [dateOpsTo, setDateOpsTo] = useState('')
+  // Seeded from ?dateOpsFrom=&dateOpsTo= once on mount (not re-read on every
+  // searchParams change) — this is how BankMonthlyReportingTab's per-month
+  // Debit/Credit links land here pre-filtered to that month, matching the
+  // real annuel.php page's own "click a month total to see its entries" link.
+  const [dateOpsFrom, setDateOpsFrom] = useState(() => searchParams.get('dateOpsFrom') ?? '')
+  const [dateOpsTo, setDateOpsTo] = useState(() => searchParams.get('dateOpsTo') ?? '')
   const [dateValueFrom, setDateValueFrom] = useState('')
   const [dateValueTo, setDateValueTo] = useState('')
   const [unreconciledOnly, setUnreconciledOnly] = useState(false)
@@ -354,24 +379,55 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
                     </tr>
                   ) : (
                     sortedEntries.map((r) => {
-                      const linkedAccountId = findAccountId(accounts, dropdownAccounts, r.bankAccount)
+                      // Prefer the real account id parsed straight off the cell's own
+                      // compta/bank/card.php link (authoritative) — only fall back to
+                      // name-matching for the rare row whose cell has no such link.
+                      const linkedAccountId = r.bankAccountId ?? findAccountId(accounts, dropdownAccounts, r.bankAccount)
+                      // Prefer the real socid parsed straight off the cell's own
+                      // societe/card.php link (authoritative) — only fall back to
+                      // name-matching against the customers/vendors list for the
+                      // rare row whose cell has no such link at all.
+                      const thirdPartyId = r.thirdPartySocid ?? findThirdPartyId(customersSummary?.customers, vendorsSummary?.vendors, r.thirdParty)
                       return (
                         <tr key={r.id} className="border-b border-border last:border-0">
-                          <td className="px-3 py-2 text-text!">{r.refLabel}</td>
+                          <td className="px-3 py-2 text-text!">
+                            <Link to={ROUTES.bankingEntryDetail.replace(':id', String(r.rowid))} className="flex items-center gap-1.5 text-brand hover:underline">
+                              <FileText size={13} className="text-text-faint shrink-0" />
+                              {r.refLabel}
+                            </Link>
+                          </td>
                           <td className="px-3 py-2 text-text-muted">{r.description}</td>
                           <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.dateOps}</td>
                           <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.dateValue}</td>
                           <td className="px-3 py-2 text-text-muted">{r.paymentType}</td>
                           <td className="px-3 py-2 text-text-muted">{r.checkNum || '—'}</td>
-                          <td className="px-3 py-2 text-text-muted">{r.thirdParty || '—'}</td>
                           <td className="px-3 py-2 text-text-muted">
-                            {linkedAccountId ? (
-                              <Link to={ROUTES.bankingAccountDetail.replace(':id', String(linkedAccountId))} className="text-brand hover:underline">
-                                {r.bankAccount}
-                              </Link>
+                            {r.thirdParty ? (
+                              <div>
+                                {thirdPartyId ? (
+                                  <Link to={ROUTES.customerDetail.replace(':id', String(thirdPartyId))} className="text-brand hover:underline">
+                                    {r.thirdParty}
+                                  </Link>
+                                ) : (
+                                  r.thirdParty
+                                )}
+                                {r.thirdPartyCompany && <p className="text-xs text-text-faint">{r.thirdPartyCompany}</p>}
+                              </div>
                             ) : (
-                              r.bankAccount
+                              '—'
                             )}
+                          </td>
+                          <td className="px-3 py-2 text-text-muted">
+                            <div className="flex items-center gap-1.5">
+                              <Landmark size={13} className="text-text-faint shrink-0" />
+                              {linkedAccountId ? (
+                                <Link to={ROUTES.bankingAccountDetail.replace(':id', String(linkedAccountId))} className="text-brand hover:underline">
+                                  {r.bankAccount}
+                                </Link>
+                              ) : (
+                                r.bankAccount
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-right text-danger">{r.debit}</td>
                           <td className="px-3 py-2 text-right text-success-fg">{r.credit}</td>
@@ -384,9 +440,9 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1.5 text-text-faint">
-                              <button type="button" disabled title="Editing bank entries isn't wired in this app — use the legacy system." className="p-1 rounded opacity-60 cursor-not-allowed">
+                              <Link to={ROUTES.bankingEntryDetail.replace(':id', String(r.rowid))} title="Edit" className="p-1 rounded hover:bg-surface-hover hover:text-text">
                                 <Pencil size={13} />
-                              </button>
+                              </Link>
                               <button type="button" disabled title="Deleting bank entries isn't wired in this app — use the legacy system." className="p-1 rounded opacity-60 cursor-not-allowed">
                                 <Trash2 size={13} />
                               </button>

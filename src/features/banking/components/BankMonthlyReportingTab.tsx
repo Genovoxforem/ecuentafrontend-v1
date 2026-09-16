@@ -1,9 +1,22 @@
 import { Fragment, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { parseAmount, type BankAccountRow, type BankEntryRow } from '../banking.queries'
 import { formatMoney } from '../../../utils/format'
+import { ROUTES } from '../../../routes'
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+// Same real Oper. Date range filter BankEntriesList already exposes
+// (dateOpsFrom/dateOpsTo, backed by bankentries_list_ajax.php's confirmed
+// search_start_dt*/search_end_dt* params) — this just derives the calendar-
+// month bounds so a click here pre-fills that filter to the clicked month,
+// same as the real annuel.php page linking a month's total to its entries.
+function monthRange(year: number, month: number): { from: string; to: string } {
+  const mm = String(month).padStart(2, '0')
+  const lastDay = new Date(year, month, 0).getDate()
+  return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${String(lastDay).padStart(2, '0')}` }
+}
 
 // dateOps/dateValue come from bankentries_list_ajax.php as dol_print_date(...,
 // 'day') strings — MM/DD/YYYY in this locale (matches todayMDY() in
@@ -76,10 +89,28 @@ export function BankMonthlyReportingTab({ entries, account }: { entries: BankEnt
                   <td className="px-4 py-2 text-text-muted sticky left-0 bg-surface">{name}</td>
                   {years.map((y) => {
                     const b = grid.get(y)?.get(month)
+                    const { from, to } = monthRange(y, month)
+                    const monthLink = `${ROUTES.bankingEntries}?account=${account.id}&dateOpsFrom=${from}&dateOpsTo=${to}`
                     return (
                       <Fragment key={y}>
-                        <td className="px-4 py-2 text-right text-danger border-l border-border">{b?.debit ? formatMoney(b.debit) : ''}</td>
-                        <td className="px-4 py-2 text-right text-success-fg">{b?.credit ? formatMoney(b.credit) : ''}</td>
+                        <td className="px-4 py-2 text-right text-danger border-l border-border">
+                          {b?.debit ? (
+                            <Link to={monthLink} className="hover:underline">
+                              {formatMoney(b.debit)}
+                            </Link>
+                          ) : (
+                            ''
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right text-success-fg">
+                          {b?.credit ? (
+                            <Link to={monthLink} className="hover:underline">
+                              {formatMoney(b.credit)}
+                            </Link>
+                          ) : (
+                            ''
+                          )}
+                        </td>
                       </Fragment>
                     )
                   })}

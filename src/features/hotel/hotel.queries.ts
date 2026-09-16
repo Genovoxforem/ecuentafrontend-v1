@@ -1,145 +1,338 @@
-import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
-import { useLogActivity } from '../agenda/agenda.queries'
-import { useAuth } from '../auth/AuthContext'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { hotelGet, hotelPost, useHotelToken } from './hotelApi'
 
-export interface BookingRow {
-  bookingRef: string
-  customer: string
-  checkIn: string
-  checkOut: string
-  status: string
-}
+// Real shapes confirmed live against custom/hotel/api.php?r=<resource> — see
+// hotelApi.ts's own top comment. Every field below was observed in an
+// actual response, not guessed.
 
-export interface HotelSummary {
-  totalRooms: number
-  availableRooms: number
-  bookedRooms: number
-  checkedInRooms: number
-  totalBookings: number
-  todaysBookings: number
-  todaysCheckIns: number
-  todaysCheckOuts: number
-  pendingBookings: number
-  recentBookings: BookingRow[]
-}
-
-export type RoomStatus = 'available' | 'booked' | 'checked-in'
-
-export interface Room {
+export interface HotelRackRoom {
   id: string
-  number: string
+  no: string
   type: string
-  status: RoomStatus
+  status: 'occupied' | 'ready' | 'dirty' | 'arriving' | 'ooo' | string
+  floor: string
+  floorname: string | null
 }
 
-interface Booking {
-  bookingRef: string
-  roomId: string
-  customer: string
-  checkIn: string
-  checkOut: string
-  status: 'Booked' | 'Checked-in' | 'Checked-out'
+export interface HotelDashboard {
+  occupancy: number
+  adr: number
+  revpar: number
+  total: number
+  counts: { occupied: number; ready: number; dirty: number; ooo: number; arriving: number }
+  arrivals: number
+  departures: number
+  inhouse: number
+  revenue: number
+  rack: HotelRackRoom[]
 }
 
-interface HotelState {
-  rooms: Room[]
-  bookings: Booking[]
+export interface HotelDashKpi {
+  alos: number
+  canrate: number
+  reprate: number
+  outstanding: number
+  monthrev: number
+  alerts: { cleaning: number; checkins: number; overdue: number; overdue_amt: number; maintenance: number }
 }
 
-// Fixed room inventory — no room-management endpoint exists to add/remove
-// rooms from, so this stands in for what would otherwise come from a
-// property setup step.
-const SEED_ROOMS: Room[] = [
-  { id: '1', number: '101', type: 'Standard', status: 'available' },
-  { id: '2', number: '102', type: 'Standard', status: 'available' },
-  { id: '3', number: '103', type: 'Standard', status: 'available' },
-  { id: '4', number: '201', type: 'Deluxe', status: 'available' },
-  { id: '5', number: '202', type: 'Deluxe', status: 'available' },
-  { id: '6', number: '203', type: 'Deluxe', status: 'available' },
-  { id: '7', number: '301', type: 'Suite', status: 'available' },
-  { id: '8', number: '302', type: 'Suite', status: 'available' },
-]
-
-const SEED: HotelState = { rooms: SEED_ROOMS, bookings: [] }
-const KEY = ['local', 'hotel'] as const
-
-// No backend endpoint exists for the hotel/booking module on this app's
-// server. Rooms + bookings are held in react-query's cache only — see
-// shared/localCollection.ts — so booking/check-in/check-out here feels
-// real in the browser but never persists anywhere.
-export function useHotelSummary() {
-  const [state] = useLocalCollection(KEY, SEED)
-  const today = todayIso()
-  const summary: HotelSummary = {
-    totalRooms: state.rooms.length,
-    availableRooms: state.rooms.filter((r) => r.status === 'available').length,
-    bookedRooms: state.rooms.filter((r) => r.status === 'booked').length,
-    checkedInRooms: state.rooms.filter((r) => r.status === 'checked-in').length,
-    totalBookings: state.bookings.length,
-    todaysBookings: state.bookings.filter((b) => b.checkIn === today).length,
-    todaysCheckIns: state.bookings.filter((b) => b.status === 'Checked-in' && b.checkIn === today).length,
-    todaysCheckOuts: state.bookings.filter((b) => b.status === 'Checked-out' && b.checkOut === today).length,
-    pendingBookings: state.bookings.filter((b) => b.status === 'Booked').length,
-    recentBookings: state.bookings.slice(0, 10).map(({ bookingRef, customer, checkIn, checkOut, status }) => ({ bookingRef, customer, checkIn, checkOut, status })),
-  }
-  return { data: summary, isError: false, isLoading: false }
+export interface HotelTrendPoint {
+  ym: string
+  label: string
+  bookings: number
+  revenue: number
 }
 
-export function useAvailableRooms(): Room[] {
-  const [state] = useLocalCollection(KEY, SEED)
-  return state.rooms.filter((r) => r.status === 'available')
+export interface HotelBookingRow {
+  num: string
+  guest: string
+  btype: string
+  ci: string
+  co: string
+  src: string
+  status: string
+  bal: number
 }
 
-export function useCreateBooking() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
-  return (input: { roomId: string; customer: string; checkIn: string; checkOut: string }) => {
-    update((current) => {
-      const room = current.rooms.find((r) => r.id === input.roomId)
-      if (!room) return current
-      const booking: Booking = {
-        bookingRef: nextLocalRef('BK'),
-        roomId: room.id,
-        customer: input.customer,
-        checkIn: input.checkIn,
-        checkOut: input.checkOut,
-        status: 'Booked',
-      }
-      return {
-        rooms: current.rooms.map((r) => (r.id === room.id ? { ...r, status: 'booked' as const } : r)),
-        bookings: [booking, ...current.bookings],
-      }
-    })
-    const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: `New booking for ${input.customer}`, category: 'other', authorName })
-  }
+export interface HotelArrival {
+  num: string
+  guest: string
+  btype: string
+  rooms: string
+  eta: string
+  bal: number
 }
 
-export function useCheckIn() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  return (bookingRef: string) => {
-    update((current) => {
-      const booking = current.bookings.find((b) => b.bookingRef === bookingRef)
-      if (!booking) return current
-      return {
-        rooms: current.rooms.map((r) => (r.id === booking.roomId ? { ...r, status: 'checked-in' as const } : r)),
-        bookings: current.bookings.map((b) => (b.bookingRef === bookingRef ? { ...b, status: 'Checked-in' as const } : b)),
-      }
-    })
-  }
+export interface HotelInhouseGuest {
+  num: string
+  guest: string
+  rooms: string
+  co: string
+  due: 0 | 1
+  bal: number
 }
 
-export function useCheckOut() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  return (bookingRef: string) => {
-    update((current) => {
-      const booking = current.bookings.find((b) => b.bookingRef === bookingRef)
-      if (!booking) return current
-      return {
-        rooms: current.rooms.map((r) => (r.id === booking.roomId ? { ...r, status: 'available' as const } : r)),
-        bookings: current.bookings.map((b) => (b.bookingRef === bookingRef ? { ...b, status: 'Checked-out' as const } : b)),
-      }
-    })
-  }
+export interface HotelCheckoutRow {
+  num: string
+  guest: string
+  rooms: string
+  ci: string
+  co: string
+  cout: string
+  inv: number
+  invref: string
+  total: number
 }
+
+export interface HotelAvailableRoom {
+  id: string
+  no: string
+  type: string
+  capacity: number
+  bed_charge: number
+  tlrate: number
+  lv1: number
+  lv2: number
+  lv3: number
+  lv4: number
+  lv5: number
+  rate_ttc: number
+  rate: number
+}
+
+export interface HotelGuest {
+  id: string
+  name: string
+  email: string
+  phone: string
+  stays: string
+  val: string
+  last: string | null
+  code: string
+  zraid: string
+  zrastatus: string
+  address: string
+  zip: string
+  town: string
+  country: string
+  tpin: string
+  idno: string
+}
+
+export interface HotelRoomType {
+  id: number
+  name: string
+}
+
+export interface HotelStaffOption {
+  id: string
+  name: string
+}
+
+export interface HotelCleanJob {
+  id: string
+  room: string
+  hk: string
+  assigned: string
+  status: 'assigned' | 'inprogress' | 'completed' | 'inspected' | string
+}
+
+export interface HotelBookingPlan {
+  name: string
+  level: number
+}
+
+export interface HotelMe {
+  admin: number
+  uid: number
+  m: Record<string, number>
+}
+
+// ── Reads ──────────────────────────────────────────────────────────────
+export function useHotelMe() {
+  return useQuery({ queryKey: ['hotel', 'me'], queryFn: () => hotelGet<HotelMe>('me') })
+}
+export function useHotelDashboard() {
+  return useQuery({ queryKey: ['hotel', 'dashboard'], queryFn: () => hotelGet<HotelDashboard>('dashboard') })
+}
+export function useHotelDashKpi() {
+  return useQuery({ queryKey: ['hotel', 'dashkpi'], queryFn: () => hotelGet<HotelDashKpi>('dashkpi') })
+}
+export function useHotelTrends() {
+  return useQuery({ queryKey: ['hotel', 'trends'], queryFn: () => hotelGet<HotelTrendPoint[]>('trends') })
+}
+export function useHotelRack() {
+  return useQuery({ queryKey: ['hotel', 'rack'], queryFn: () => hotelGet<HotelRackRoom[]>('rack') })
+}
+export function useHotelBookings() {
+  return useQuery({ queryKey: ['hotel', 'bookings'], queryFn: () => hotelGet<HotelBookingRow[]>('bookings') })
+}
+export function useHotelArrivals() {
+  return useQuery({ queryKey: ['hotel', 'arrivals'], queryFn: () => hotelGet<HotelArrival[]>('arrivals') })
+}
+export function useHotelInhouse() {
+  return useQuery({ queryKey: ['hotel', 'inhouse'], queryFn: () => hotelGet<HotelInhouseGuest[]>('inhouse') })
+}
+export function useHotelUpcoming() {
+  return useQuery({ queryKey: ['hotel', 'upcoming'], queryFn: () => hotelGet<HotelArrival[]>('upcoming') })
+}
+export function useHotelCheckouts() {
+  return useQuery({ queryKey: ['hotel', 'checkouts'], queryFn: () => hotelGet<HotelCheckoutRow[]>('checkouts') })
+}
+export function useHotelAvailable(checkIn: string, checkOut: string) {
+  return useQuery({
+    queryKey: ['hotel', 'available', checkIn, checkOut],
+    queryFn: () => hotelGet<HotelAvailableRoom[]>(`available&ci=${encodeURIComponent(checkIn)}&co=${encodeURIComponent(checkOut)}`),
+    enabled: !!checkIn && !!checkOut,
+  })
+}
+export function useHotelGuests() {
+  return useQuery({ queryKey: ['hotel', 'guests'], queryFn: () => hotelGet<HotelGuest[]>('guests') })
+}
+export function useHotelRoomTypes() {
+  return useQuery({ queryKey: ['hotel', 'roomtypes'], queryFn: () => hotelGet<HotelRoomType[]>('roomtypes'), staleTime: 1000 * 60 * 10 })
+}
+export function useHotelHousekeepers() {
+  return useQuery({ queryKey: ['hotel', 'housekeepers'], queryFn: () => hotelGet<HotelStaffOption[]>('housekeepers') })
+}
+export function useHotelMaintStaff() {
+  return useQuery({ queryKey: ['hotel', 'maintstaff'], queryFn: () => hotelGet<HotelStaffOption[]>('maintstaff') })
+}
+export function useHotelCleanJobs() {
+  return useQuery({ queryKey: ['hotel', 'cleanjobs'], queryFn: () => hotelGet<HotelCleanJob[]>('cleanjobs') })
+}
+export function useHotelBookingPlans() {
+  return useQuery({ queryKey: ['hotel', 'bookingplans'], queryFn: () => hotelGet<HotelBookingPlan[]>('bookingplans'), staleTime: 1000 * 60 * 10 })
+}
+export function useHotelCustomerSearch(q: string) {
+  return useQuery({
+    queryKey: ['hotel', 'customers', q],
+    queryFn: () => hotelGet<{ id: string; name: string; code: string; phone: string; stays: number }[]>(`customers&q=${encodeURIComponent(q)}`),
+    enabled: q.trim().length >= 2,
+  })
+}
+
+// ── Writes ─────────────────────────────────────────────────────────────
+// Every mutation below needs the real per-session TOKEN (useHotelToken) —
+// components call useHotelToken() once and pass token.data into these.
+function invalidateOperations(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['hotel', 'dashboard'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'dashkpi'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'rack'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'bookings'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'arrivals'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'inhouse'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'upcoming'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'checkouts'] })
+  qc.invalidateQueries({ queryKey: ['hotel', 'available'] })
+}
+
+export function useHotelCheckIn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ booking, room, token }: { booking: string; room?: string; token: string }) => hotelPost('checkin', { booking, room }, token),
+    onSuccess: () => invalidateOperations(qc),
+  })
+}
+export function useHotelCheckOut() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ booking, force, token }: { booking: string; force?: boolean; token: string }) => hotelPost('checkout', { booking, force: force ? 1 : undefined }, token),
+    onSuccess: () => invalidateOperations(qc),
+  })
+}
+export function useHotelCancelBooking() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ booking, token }: { booking: string; token: string }) => hotelPost('cancel', { booking }, token),
+    onSuccess: () => invalidateOperations(qc),
+  })
+}
+export function useHotelMoveRoom() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ booking, to, token }: { booking: string; to: string; token: string }) => hotelPost('move', { booking, to }, token),
+    onSuccess: () => invalidateOperations(qc),
+  })
+}
+export function useHotelEditDates() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ booking, ci, co, token }: { booking: string; ci: string; co: string; token: string }) => hotelPost('editdates', { booking, ci, co }, token),
+    onSuccess: () => invalidateOperations(qc),
+  })
+}
+export function useHotelCustSync() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, token }: { id: string; token: string }) => hotelPost('custsync', { id }, token),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'guests'] }),
+  })
+}
+export function useHotelSaveGuest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, name, email, phone, token }: { id: string; name: string; email: string; phone: string; token: string }) =>
+      hotelPost('saveguest', { id, name, email, phone }, token),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'guests'] }),
+  })
+}
+export interface CreateBookingInput {
+  guest: string
+  checkin: string
+  checkout: string
+  rooms: string
+  source: string
+  customer_id?: string
+  rmeta?: string
+  arrival_from?: string
+  purpose?: string
+  gemail?: string
+  gphone?: string
+  gaddr?: string
+  gzip?: string
+  gtown?: string
+  gcountry?: string
+  gtpin?: string
+  gidno?: string
+  disc?: number
+  advance?: number
+  rsvc?: string
+  token: string
+}
+export function useHotelCreateBooking() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ token, ...fields }: CreateBookingInput) => hotelPost('createbooking', fields, token),
+    onSuccess: () => invalidateOperations(qc),
+  })
+}
+export function useHotelCleanRoom() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ room, token }: { room: string; token: string }) => hotelPost('clean', { room }, token),
+    onSuccess: () => {
+      invalidateOperations(qc)
+      qc.invalidateQueries({ queryKey: ['hotel', 'cleanjobs'] })
+    },
+  })
+}
+export function useHotelCleanAdvance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, to, token }: { id: string; to: string; token: string }) => hotelPost('cleanadvance', { id, to }, token),
+    onSuccess: () => {
+      invalidateOperations(qc)
+      qc.invalidateQueries({ queryKey: ['hotel', 'cleanjobs'] })
+    },
+  })
+}
+export function useHotelAssignClean() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ hk, rooms, token }: { hk: string; rooms: string; token: string }) => hotelPost('assignclean', { hk, rooms }, token),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'cleanjobs'] }),
+  })
+}
+
+export { useHotelToken }

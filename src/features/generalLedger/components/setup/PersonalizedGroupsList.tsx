@@ -1,15 +1,18 @@
 import { Layers } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
+import { DictListPage } from './DictListPage'
 
-// accountancy/admin/categories_list.php?id=32 — generic dictionary table
-// (llx_c_accounting_category), classic form-POST add/modify/delete, no JSON.
+// accountancy/admin/categories_list.php?id=32 — real, scraped rows
+// (llx_c_accounting_category) — see dolibarrDictParser.ts's own top comment.
+// This page's own per-row "List of accounts" 4th action (drill into which
+// real accounts belong to that category) isn't reproduced — out of scope
+// for the shared generic list.
 export function PersonalizedGroupsList() {
   return (
-    <InertListPage
+    <DictListPage
       icon={Layers}
       title="Personalized Groups"
-      sourcePath="accountancy/admin/categories_list.php?id=32"
-      columns={['Code', 'Label', 'Comment', 'Calculated', 'Formula', 'Position', 'Country', 'Action']}
+      path="/accountancy/admin/categories_list.php?id=32"
+      columns={['Code', 'Label', 'Comment', 'Calculated', 'Formula', 'Position', 'Country']}
     />
   )
 }

@@ -160,7 +160,7 @@ function MissingStocksTab({ onViewOrdersFor }: { onViewOrdersFor: (productId: nu
             <label className="block text-xs text-text-faint mb-1">Supplier</label>
             <select value={supplierDraft} onChange={(e) => setSupplierDraft(e.target.value)} className={selectCls + ' w-56'}>
               <option value="">All vendors</option>
-              {vendors.data?.vendors.map((v) => (
+              {vendors.data?.vendors.filter((v): v is typeof v & { id: number } => v.id != null).map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
                 </option>

@@ -131,7 +131,32 @@ function itemContainsCurrent(item: NavItem, pathname: string): boolean {
   return item.path === pathname
 }
 
-function NavLeaf({ item, depth = 0, navigate, location }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location }) {
+// A group node can carry the exact same `path` as one of its own
+// descendants (e.g. Payroll's "Human Resource" and its child "All Leave
+// Request" — clicking the group header really does land on that same real
+// legacy page, see payroll.nav.ts's own comment on why). Without this, both
+// rows independently satisfy `currentUrl === item.path` and light up at
+// once, which reads as "two things got selected" from one click even
+// though there's only one real current page. Only the more specific
+// descendant should carry the "you are here" indicator.
+function hasDescendantWithPath(item: { items: NavItem[] }, path: string | undefined): boolean {
+  if (!path) return false
+  return item.items.some((sub) => sub.path === path || (isGroupItem(sub) && hasDescendantWithPath(sub, path)))
+}
+
+function NavLeaf({
+  item,
+  depth = 0,
+  navigate,
+  location,
+  suppressCurrent = false,
+}: {
+  item: NavLeafItem
+  depth?: number
+  navigate: NavigateFunction
+  location: Location
+  suppressCurrent?: boolean
+}) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -141,7 +166,12 @@ function NavLeaf({ item, depth = 0, navigate, location }: { item: NavLeafItem; d
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
   const currentUrl = location.pathname + location.search
-  const isCurrent = isLink && currentUrl === item.path
+  // suppressCurrent: see NavItemList's own comment — set when an earlier
+  // sibling in this same list already resolves to this identical path (a
+  // real, legitimate backend menu shape: a category heading whose own click
+  // target duplicates a more specific sibling below it), so only the later,
+  // more specific row lights up instead of both at once.
+  const isCurrent = isLink && currentUrl === item.path && !suppressCurrent
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -179,6 +209,7 @@ function NavGroup({
   location,
   isOpen,
   onToggle,
+  suppressCurrent = false,
 }: {
   item: { label: string; path?: string; items: NavItem[] }
   depth: number
@@ -186,6 +217,7 @@ function NavGroup({
   location: Location
   isOpen: boolean
   onToggle: () => void
+  suppressCurrent?: boolean
 }) {
   // A group can also be a real page (e.g. Payroll's "Human Resource" —
   // matches the legacy menu, where clicking that parent node lands on its
@@ -193,7 +225,7 @@ function NavGroup({
   // currentUrl comment: search string included since a group's path can
   // carry one too.
   const currentUrl = location.pathname + location.search
-  const isCurrent = Boolean(item.path) && currentUrl === item.path
+  const isCurrent = Boolean(item.path) && currentUrl === item.path && !suppressCurrent && !hasDescendantWithPath(item, item.path)
   return (
     <div>
       <button
@@ -238,6 +270,27 @@ function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; d
   const [openLabel, setOpenLabel] = useState<string | null>(
     () => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname))?.label ?? null,
   )
+  // A real backend menu can legitimately list the same real page twice at
+  // one level — a category heading whose own click target duplicates a
+  // more specific sibling below it (Payroll's flat "Human Resource"/
+  // "All Leave Request" pair is the confirmed live case: both resolve to
+  // the same path). Without this, every sibling sharing that path
+  // independently satisfies its own `currentUrl === item.path` check and
+  // all light up together on one click. Only the LAST item at a given path
+  // (the more specific one, listed after its heading) keeps the "you are
+  // here" indicator; earlier siblings at the same path are suppressed.
+  const suppressedIndices = useMemo(() => {
+    const lastIndexForPath = new Map<string, number>()
+    items.forEach((it, i) => {
+      if (it.path) lastIndexForPath.set(it.path, i)
+    })
+    const suppressed = new Set<number>()
+    items.forEach((it, i) => {
+      if (it.path && lastIndexForPath.get(it.path) !== i) suppressed.add(i)
+    })
+    return suppressed
+  }, [items])
+
   return (
     <>
       {items.map((item, i) =>
@@ -255,9 +308,10 @@ function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; d
             location={location}
             isOpen={openLabel === item.label}
             onToggle={() => setOpenLabel((cur) => (cur === item.label ? null : item.label))}
+            suppressCurrent={suppressedIndices.has(i)}
           />
         ) : (
-          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} />
+          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} suppressCurrent={suppressedIndices.has(i)} />
         ),
       )}
     </>

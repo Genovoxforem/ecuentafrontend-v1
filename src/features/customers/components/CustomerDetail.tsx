@@ -459,25 +459,21 @@ export function CustomerDetail() {
               </div>
             </div>
 
-            {/* societe/api/societes.php has a working create action but no
-                real update action (confirmed live: action="update" — and
-                every other verb tried, edit/save/modify/patch/set/
-                update_extra — returns {"ok":false,"error":"Unknown action
-                or method"}; the legacy card.php?action=edit page doesn't
-                expose the third party's own fields as an editable form
-                either). Save still attempts the real call rather than being
-                disabled outright — same "attempt the real action, surface
-                the real error" pattern as Duplicate elsewhere in this app —
-                so this starts working with no frontend change the moment
-                the backend adds the action, and until then shows the actual
-                rejection instead of a fake success. */}
+            {/* societe/api/societes.php?action=update is confirmed working
+                live (2026-09-11 re-test, customer id 1990: {"ok":true,
+                "message":"Third party updated",...}) — an earlier audit had
+                found every verb rejected and this banner used to assert that
+                as a blanket "editing isn't supported" claim, which would now
+                be actively wrong. Kept surfacing the real backend error
+                message on failure (same "attempt the real action, surface
+                the real error" pattern as Duplicate elsewhere in this app)
+                without that blanket claim, since a future failure here is
+                more likely a specific field rejection than the action itself
+                being unsupported. */}
             {updateCustomer.isError && (
               <div className="flex items-start gap-2 px-4 py-2.5 border-b border-border bg-danger-bg text-danger-fg text-xs">
                 <TriangleAlert size={14} className="shrink-0 mt-0.5" />
-                <span>
-                  Couldn't save: {updateCustomer.error instanceof Error ? updateCustomer.error.message : 'Unknown error.'}. This backend doesn't support editing third parties yet — the create
-                  action works, but no update action exists.
-                </span>
+                <span>Couldn't save: {updateCustomer.error instanceof Error ? updateCustomer.error.message : 'Unknown error.'}</span>
               </div>
             )}
 

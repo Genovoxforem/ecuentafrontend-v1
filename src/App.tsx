@@ -150,18 +150,29 @@ const MakePaymentModule = lazy(() => import('./modules/payroll/MakePaymentModule
 const GratuityPaymentModule = lazy(() => import('./modules/payroll/GratuityPaymentModule').then((m) => ({ default: m.GratuityPaymentModule })))
 const GeneratePayslipModule = lazy(() => import('./modules/payroll/GeneratePayslipModule').then((m) => ({ default: m.GeneratePayslipModule })))
 const YtdPayslipModule = lazy(() => import('./modules/payroll/YtdPayslipModule').then((m) => ({ default: m.YtdPayslipModule })))
+const YtdPayrollSummaryModule = lazy(() => import('./modules/payroll/YtdPayrollSummaryModule').then((m) => ({ default: m.YtdPayrollSummaryModule })))
+const YtdEarningsDeductionsModule = lazy(() => import('./modules/payroll/YtdEarningsDeductionsModule').then((m) => ({ default: m.YtdEarningsDeductionsModule })))
+const EmployeeMonthlyReportModule = lazy(() => import('./modules/payroll/EmployeeMonthlyReportModule').then((m) => ({ default: m.EmployeeMonthlyReportModule })))
+const PayrollSummaryModule = lazy(() => import('./modules/payroll/PayrollSummaryModule').then((m) => ({ default: m.PayrollSummaryModule })))
+const PayDeductionModule = lazy(() => import('./modules/payroll/PayDeductionModule').then((m) => ({ default: m.PayDeductionModule })))
 const OverallAttendanceReportModule = lazy(() => import('./modules/payroll/OverallAttendanceReportModule').then((m) => ({ default: m.OverallAttendanceReportModule })))
 const PayrollSetupModule = lazy(() => import('./modules/payroll/PayrollSetupModule').then((m) => ({ default: m.PayrollSetupModule })))
 const PayrollPlaceholderModule = lazy(() => import('./modules/payroll/PayrollPlaceholderModule').then((m) => ({ default: m.PayrollPlaceholderModule })))
 const BankAccountsListModule = lazy(() => import('./modules/banking/BankAccountsListModule').then((m) => ({ default: m.BankAccountsListModule })))
 const BankAccountDetailModule = lazy(() => import('./modules/banking/BankAccountDetailModule').then((m) => ({ default: m.BankAccountDetailModule })))
 const BankEntriesListModule = lazy(() => import('./modules/banking/BankEntriesListModule').then((m) => ({ default: m.BankEntriesListModule })))
+const BankEntryDetailModule = lazy(() => import('./modules/banking/BankEntryDetailModule').then((m) => ({ default: m.BankEntryDetailModule })))
 const BankAccountCategoriesListModule = lazy(() => import('./modules/banking/BankAccountCategoriesListModule').then((m) => ({ default: m.BankAccountCategoriesListModule })))
+const BankEntriesByCategoryModule = lazy(() => import('./modules/banking/BankEntriesByCategoryModule').then((m) => ({ default: m.BankEntriesByCategoryModule })))
+const InternalTransferModule = lazy(() => import('./modules/banking/InternalTransferModule').then((m) => ({ default: m.InternalTransferModule })))
+const BankTransactionTagsListModule = lazy(() => import('./modules/banking/BankTransactionTagsListModule').then((m) => ({ default: m.BankTransactionTagsListModule })))
 const LoanListModule = lazy(() => import('./modules/banking/LoanListModule').then((m) => ({ default: m.LoanListModule })))
 const BankAccountCreateModule = lazy(() => import('./modules/banking/BankAccountCreateModule').then((m) => ({ default: m.BankAccountCreateModule })))
 const LoanCreateModule = lazy(() => import('./modules/banking/LoanCreateModule').then((m) => ({ default: m.LoanCreateModule })))
 const CheckDepositCreateModule = lazy(() => import('./modules/banking/CheckDepositCreateModule').then((m) => ({ default: m.CheckDepositCreateModule })))
 const CheckDepositListModule = lazy(() => import('./modules/banking/CheckDepositListModule').then((m) => ({ default: m.CheckDepositListModule })))
+const CheckDepositsAreaModule = lazy(() => import('./modules/banking/CheckDepositsAreaModule').then((m) => ({ default: m.CheckDepositsAreaModule })))
+const RevolutModule = lazy(() => import('./modules/banking/RevolutModule').then((m) => ({ default: m.RevolutModule })))
 const BankingPlaceholderModule = lazy(() => import('./modules/banking/BankingPlaceholderModule').then((m) => ({ default: m.BankingPlaceholderModule })))
 const AllLoansListModule = lazy(() => import('./modules/loans/AllLoansListModule').then((m) => ({ default: m.AllLoansListModule })))
 const LoanCalculatorModule = lazy(() => import('./modules/loans/LoanCalculatorModule').then((m) => ({ default: m.LoanCalculatorModule })))
@@ -278,6 +289,11 @@ const KitchenDashboardModule = lazy(() => import('./modules/kitchen/KitchenDashb
 const BeverageOrdersModule = lazy(() => import('./modules/kitchen/BeverageOrdersModule').then((m) => ({ default: m.BeverageOrdersModule })))
 const CreateOrderModule = lazy(() => import('./modules/kitchen/CreateOrderModule').then((m) => ({ default: m.CreateOrderModule })))
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
+const HotelRoomsModule = lazy(() => import('./modules/hotel/HotelRoomsModule').then((m) => ({ default: m.HotelRoomsModule })))
+const HotelReservationsModule = lazy(() => import('./modules/hotel/HotelReservationsModule').then((m) => ({ default: m.HotelReservationsModule })))
+const HotelFrontDeskModule = lazy(() => import('./modules/hotel/HotelFrontDeskModule').then((m) => ({ default: m.HotelFrontDeskModule })))
+const HotelNewBookingModule = lazy(() => import('./modules/hotel/HotelNewBookingModule').then((m) => ({ default: m.HotelNewBookingModule })))
+const HotelGuestsModule = lazy(() => import('./modules/hotel/HotelGuestsModule').then((m) => ({ default: m.HotelGuestsModule })))
 const UsersDashboardModule = lazy(() => import('./modules/usersDashboard/UsersDashboardModule').then((m) => ({ default: m.UsersDashboardModule })))
 const UserCreateModule = lazy(() => import('./modules/usersDashboard/UserCreateModule').then((m) => ({ default: m.UserCreateModule })))
 const UserDetailModule = lazy(() => import('./modules/usersDashboard/UserDetailModule').then((m) => ({ default: m.UserDetailModule })))
@@ -542,7 +558,12 @@ function App() {
                   <Route path={ROUTES.payrollGratuityPayment} element={<RouteBoundary><GratuityPaymentModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollGeneratePayslip} element={<RouteBoundary><GeneratePayslipModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollYtdPayslip} element={<RouteBoundary><YtdPayslipModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollYtdSummary} element={<RouteBoundary><YtdPayrollSummaryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollYtdEarningsDeductions} element={<RouteBoundary><YtdEarningsDeductionsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollSummary} element={<RouteBoundary><PayrollSummaryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollMonthlyAllowanceDeduction} element={<RouteBoundary><PayDeductionModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollReportMonthlyOverallAttendance} element={<RouteBoundary><OverallAttendanceReportModule /></RouteBoundary>} />
+                  <Route path={ROUTES.payrollReportEmployeeWiseMonthlyAttendance} element={<RouteBoundary><EmployeeMonthlyReportModule /></RouteBoundary>} />
                   <Route path={ROUTES.payrollSetup} element={<RouteBoundary><PayrollSetupModule /></RouteBoundary>} />
                   {PAYROLL_PLACEHOLDERS.map((p) => (
                     <Route key={p.path} path={p.path} element={<RouteBoundary><PayrollPlaceholderModule /></RouteBoundary>} />
@@ -551,12 +572,18 @@ function App() {
                   <Route path={ROUTES.bankingAccountDetail} element={<RouteBoundary><BankAccountDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingList} element={<RouteBoundary><BankAccountsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingEntries} element={<RouteBoundary><BankEntriesListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingEntryDetail} element={<RouteBoundary><BankEntryDetailModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingEntriesByCategory} element={<RouteBoundary><BankEntriesByCategoryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingInternalTransfer} element={<RouteBoundary><InternalTransferModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingTransactionTags} element={<RouteBoundary><BankTransactionTagsListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingCategories} element={<RouteBoundary><BankAccountCategoriesListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingLoanList} element={<RouteBoundary><LoanListModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingNewAccount} element={<RouteBoundary><BankAccountCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingNewLoan} element={<RouteBoundary><LoanCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingNewDeposit} element={<RouteBoundary><CheckDepositCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.bankingDepositList} element={<RouteBoundary><CheckDepositListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingCheckDepositsArea} element={<RouteBoundary><CheckDepositsAreaModule /></RouteBoundary>} />
+                  <Route path={ROUTES.bankingRevolut} element={<RouteBoundary><RevolutModule /></RouteBoundary>} />
                   {BANKING_PLACEHOLDERS.map((p) => (
                     <Route key={p.path} path={p.path} element={<RouteBoundary><BankingPlaceholderModule /></RouteBoundary>} />
                   ))}
@@ -681,6 +708,11 @@ function App() {
                   <Route path={ROUTES.kitchenBeverageOrders} element={<RouteBoundary><BeverageOrdersModule /></RouteBoundary>} />
                   <Route path={ROUTES.kitchenCreateOrder} element={<RouteBoundary><CreateOrderModule /></RouteBoundary>} />
                   <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelRooms} element={<RouteBoundary><HotelRoomsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelReservations} element={<RouteBoundary><HotelReservationsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelFrontDesk} element={<RouteBoundary><HotelFrontDeskModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelNewBooking} element={<RouteBoundary><HotelNewBookingModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelGuests} element={<RouteBoundary><HotelGuestsModule /></RouteBoundary>} />
                   <Route path={ROUTES.usersDashboard} element={<RouteBoundary><UsersDashboardModule /></RouteBoundary>} />
                   <Route path={ROUTES.userCreate} element={<RouteBoundary><UserCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.userDetail} element={<RouteBoundary><UserDetailModule /></RouteBoundary>} />

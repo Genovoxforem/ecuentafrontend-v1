@@ -34,8 +34,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  BarChart,
-  Bar,
 } from 'recharts'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'

@@ -43,7 +43,7 @@ const MAINMENU_TO_INTERNAL_KEY: Record<string, string> = {
   expenses: 'expenses',
   commercial: 'sales',
   companies: 'sales',
-  hotel: 'kitchen',
+  hotel: 'hotel',
   booking: 'kitchen',
   budget: 'budget',
   members: 'members',

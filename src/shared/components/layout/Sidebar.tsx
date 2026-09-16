@@ -15,16 +15,39 @@ const RAIL_WIDTH_OFFSET_CLASS = 'left-[72px]'
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a
 // longer duration so the flyout feels calm rather than snappy.
+// A real backend menu can legitimately list the same real page twice at one
+// sibling level — a category heading whose own click target duplicates a
+// more specific sibling below it (Payroll's flat "Human Resource"/"All
+// Leave Request" pair is the confirmed live case: both resolve to the same
+// path). Without this, every sibling sharing that path independently
+// satisfies its own `currentUrl === item.path` check and all light up
+// together on one click. Only the LAST item at a given path (the more
+// specific one, listed after its heading) keeps the "you are here"
+// indicator; earlier siblings at the same path are suppressed.
+function computeSuppressedIndices(items: NavItem[]): Set<number> {
+  const lastIndexForPath = new Map<string, number>()
+  items.forEach((it, i) => {
+    if (it.path) lastIndexForPath.set(it.path, i)
+  })
+  const suppressed = new Set<number>()
+  items.forEach((it, i) => {
+    if (it.path && lastIndexForPath.get(it.path) !== i) suppressed.add(i)
+  })
+  return suppressed
+}
+
 function SidebarLeaf({
   item,
   depth,
   navigate,
   location,
+  suppressCurrent = false,
 }: {
   item: NavLeafItem
   depth: number
   navigate: NavigateFunction
   location: Location
+  suppressCurrent?: boolean
 }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
@@ -35,7 +58,7 @@ function SidebarLeaf({
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
   const currentUrl = location.pathname + location.search
-  const isCurrent = isLink && currentUrl === item.path
+  const isCurrent = isLink && currentUrl === item.path && !suppressCurrent
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -83,6 +106,7 @@ function SidebarNavItem({
   toggleGroup,
   hoverGroup,
   setHoverGroup,
+  suppressCurrent = false,
 }: {
   item: NavItem
   depth: number
@@ -93,9 +117,10 @@ function SidebarNavItem({
   toggleGroup: (groupKey: string, parentKey: string) => void
   hoverGroup: ReadonlySet<string>
   setHoverGroup: (updater: (prev: Set<string>) => Set<string>) => void
+  suppressCurrent?: boolean
 }) {
   if (!('items' in item) || !item.items) {
-    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} />
+    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} suppressCurrent={suppressCurrent} />
   }
   // Full ancestor path, not just depth — depth alone can't tell two
   // same-depth groups under different parents apart, which would make the
@@ -109,7 +134,11 @@ function SidebarNavItem({
   // SidebarLeaf's own comment: compared with the search string included
   // since a group's path can carry one too.
   const currentUrl = location.pathname + location.search
-  const isCurrent = Boolean(item.path) && currentUrl === item.path
+  const isCurrent = Boolean(item.path) && currentUrl === item.path && !suppressCurrent
+  // Not memoized: item.items is small (a handful of sidebar rows) and this
+  // component is already an early-return above hooks, so a useMemo here
+  // would run conditionally and violate the Rules of Hooks.
+  const childSuppressed = computeSuppressedIndices(item.items)
   return (
     <div
       className="pt-0.5 first:pt-0"
@@ -181,6 +210,7 @@ function SidebarNavItem({
               toggleGroup={toggleGroup}
               hoverGroup={hoverGroup}
               setHoverGroup={setHoverGroup}
+              suppressCurrent={childSuppressed.has(i)}
             />
           ))}
         </div>
@@ -220,6 +250,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [hoverGroup, setHoverGroup] = useState<Set<string>>(() => new Set())
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
+  const activeSuppressed = useMemo(() => computeSuppressedIndices(active.items), [active.items])
 
   // Sync activeKey to the current route's section — but ONLY when the route
   // changes (location.pathname) or the menu data loads (SECTIONS), never when
@@ -347,6 +378,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
                 toggleGroup={toggleGroup}
                 hoverGroup={hoverGroup}
                 setHoverGroup={setHoverGroup}
+                suppressCurrent={activeSuppressed.has(i)}
               />
             ))}
           </div>

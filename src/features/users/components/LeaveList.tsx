@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CalendarDays, CalendarCheck2, CalendarX2, Plus, Search, Users } from 'lucide-react'
-import { ROUTES } from '../../../routes'
+import { CalendarDays, CalendarCheck2, CalendarX2, Plus, Search, Users, MoreVertical, ExternalLink } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { formatDate } from '../../../utils/format'
-import { useLeaveSummary, type LeaveRequest } from '../leave.queries'
+import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import { useHolidayStats, useHolidayRequests, type HolidaySearchStatus } from '../leave.queries'
+import type { HolidayRequestRow } from '../holidayParser'
 
 type SortKey = 'ref' | 'employee' | 'validator' | 'type' | 'duration' | 'start' | 'end' | 'created' | 'updated' | 'status'
 
@@ -26,7 +25,29 @@ const COLUMNS: { label: string; key: SortKey }[] = [
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-function sortValue(r: LeaveRequest, key: SortKey): string | number {
+// Real: the "⋮" dropdown on holiday/list.php's own title bar — 5 links
+// (?search_status=1..5), confirmed live. "All Statuses" isn't one of the
+// real options (the real page's own unfiltered default is reached by
+// dropping the query param entirely, not a menu entry) but is added here
+// as an obvious, honest way back to that same default from inside the menu.
+const STATUS_OPTIONS: { value: HolidaySearchStatus; label: string }[] = [
+  { value: '', label: 'All Statuses' },
+  { value: '1', label: 'Draft' },
+  { value: '2', label: 'Awaiting Approval' },
+  { value: '3', label: 'Approved Leave' },
+  { value: '4', label: 'Canceled Leave' },
+  { value: '5', label: 'Refused Leave' },
+]
+
+// Real: the real page's own "New Leave Request" button links to
+// holiday/card.php?action=create — this app has no confirmed real POST
+// endpoint for creating a holiday request yet (unlike the read side here,
+// which is genuine DataTables JSON), so this opens the real legacy form
+// instead of a local-only mock create flow that would silently vanish from
+// this now-real list.
+const LEGACY_NEW_LEAVE_REQUEST_URL = '/holiday/card.php?action=create'
+
+function sortValue(r: HolidayRequestRow, key: SortKey): string | number {
   switch (key) {
     case 'ref':
       return r.ref
@@ -37,7 +58,7 @@ function sortValue(r: LeaveRequest, key: SortKey): string | number {
     case 'type':
       return r.typeLabel
     case 'duration':
-      return r.days
+      return Number.parseInt(r.duration, 10) || 0
     case 'start':
       return r.startDate ? new Date(r.startDate).getTime() : 0
     case 'end':
@@ -66,34 +87,38 @@ function StatTile({ label, value, caption, icon: Icon, color }: { label: string;
   )
 }
 
-function statusBadge(status: LeaveRequest['status']) {
-  const styles: Record<LeaveRequest['status'], string> = {
-    Draft: 'bg-neutral-bg text-neutral-fg',
-    Validated: 'bg-info-bg text-info-fg',
-    Approved: 'bg-success-bg text-success-fg',
-    Cancelled: 'bg-danger-bg text-danger-fg',
-  }
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${styles[status]}`}>{status}</span>
+// Status is real, scraped badge text (e.g. "Approved", "ToReview", "Draft")
+// rather than a closed enum — Cancelled/Refused text wasn't available to
+// confirm verbatim live (no sample records in either state on this
+// backend), so this matches by keyword instead of an exact lookup table.
+function statusBadgeClass(status: string): string {
+  const s = status.toLowerCase()
+  if (s.includes('approve')) return 'bg-success-bg text-success-fg'
+  if (s.includes('review') || s.includes('await')) return 'bg-info-bg text-info-fg'
+  if (s.includes('cancel') || s.includes('refuse')) return 'bg-danger-bg text-danger-fg'
+  return 'bg-neutral-bg text-neutral-fg'
 }
 
-function matchesSearch(row: LeaveRequest, query: string) {
+function matchesSearch(row: HolidayRequestRow, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
   return [row.ref, row.employeeName, row.validatorName, row.typeLabel, row.status].some((f) => f.toLowerCase().includes(q))
 }
 
 export function LeaveList() {
-  const summary = useLeaveSummary()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const [from, setFrom] = useState(`${new Date().getFullYear()}-01-01`)
   const [to, setTo] = useState(`${new Date().getFullYear()}-12-31`)
+  const [status, setStatus] = useState<HolidaySearchStatus>('')
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
 
-  const filteredRows = useMemo(() => {
-    return summary.requests.filter((r) => matchesSearch(r, search) && r.startDate >= from && r.startDate <= to)
-  }, [summary.requests, search, from, to])
-  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<LeaveRequest, SortKey>(filteredRows, sortValue)
+  const { data: stats } = useHolidayStats()
+  const { data: rows, isLoading, isError, error } = useHolidayRequests({ from, to, status })
+
+  const filteredRows = useMemo(() => (rows ?? []).filter((r) => matchesSearch(r, search)), [rows, search])
+  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<HolidayRequestRow, SortKey>(filteredRows, sortValue)
   const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
@@ -116,20 +141,15 @@ export function LeaveList() {
     setPage(1)
   }
 
+  function handleStatusChange(value: HolidaySearchStatus) {
+    setStatus(value)
+    setPage(1)
+    setStatusMenuOpen(false)
+  }
+
   function getExportData() {
-    const rows = sortedRows.map((r) => [
-      r.ref,
-      r.employeeName,
-      r.validatorName,
-      r.typeLabel,
-      `${r.days} day(s)`,
-      formatDate(r.startDate),
-      formatDate(r.endDate),
-      formatDate(r.createDate),
-      formatDate(r.updateDate),
-      r.status,
-    ])
-    return { headers: COLUMN_LABELS, rows }
+    const exportRows = sortedRows.map((r) => [r.ref, r.employeeName, r.validatorName, r.typeLabel, r.duration, r.startDate, r.endDate, r.createDate, r.updateDate, r.status])
+    return { headers: COLUMN_LABELS, rows: exportRows }
   }
 
   return (
@@ -145,19 +165,57 @@ export function LeaveList() {
             <span>–</span>
             <input type="date" value={to} onChange={(e) => handleToChange(e.target.value)} className="bg-transparent outline-none" />
           </div>
-          <Link to={ROUTES.leaveRequest} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          <a
+            href={stripBackendPrefix(LEGACY_NEW_LEAVE_REQUEST_URL)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+          >
             <Plus size={14} /> New Leave Request
-          </Link>
+          </a>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setStatusMenuOpen((o) => !o)}
+              title="Filter by status"
+              className="flex items-center justify-center rounded-lg border border-input-border bg-input-bg p-2 text-text-muted hover:bg-surface-hover"
+            >
+              <MoreVertical size={16} />
+            </button>
+            {statusMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setStatusMenuOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-border bg-surface shadow-lg py-1">
+                  {STATUS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleStatusChange(opt.value)}
+                      className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-surface-hover ${status === opt.value ? 'text-brand font-semibold' : 'text-text'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {isError && (
+          <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
+            {error instanceof Error ? error.message : "Couldn't load Holiday Management data."}
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-          <StatTile label="Employees" value={summary.employeesWithRecords} caption="With leave records" icon={Users} color="blue" />
-          <StatTile label="Leave Records" value={summary.totalRequests} caption="Total requests" icon={CalendarDays} color="cyan" />
-          <StatTile label="This Month" value={summary.thisMonth} caption="Leave requests" icon={CalendarDays} color="violet" />
-          <StatTile label="Approved" value={summary.approved} caption="Approved leave" icon={CalendarCheck2} color="green" />
-          <StatTile label="Cancelled" value={summary.cancelled} caption="Cancelled/Refused" icon={CalendarX2} color="rose" />
+          <StatTile label="Employees" value={stats?.employees ?? 0} caption="With leave records" icon={Users} color="blue" />
+          <StatTile label="Leave Records" value={stats?.leaveRecords ?? 0} caption="Total requests" icon={CalendarDays} color="cyan" />
+          <StatTile label="This Month" value={stats?.thisMonth ?? 0} caption="Leave requests" icon={CalendarDays} color="violet" />
+          <StatTile label="Approved" value={stats?.approved ?? 0} caption="Approved leave" icon={CalendarCheck2} color="green" />
+          <StatTile label="Cancelled" value={stats?.cancelled ?? 0} caption="Cancelled/Refused" icon={CalendarX2} color="rose" />
         </div>
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
@@ -184,6 +242,11 @@ export function LeaveList() {
               />
             </div>
             <TableExportButtons title="Holiday Management" getExportData={getExportData} />
+            {status && (
+              <span className="ml-auto text-xs text-text-faint">
+                Filtered: <span className="font-medium text-text-muted">{STATUS_OPTIONS.find((o) => o.value === status)?.label}</span>
+              </span>
+            )}
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
@@ -197,7 +260,13 @@ export function LeaveList() {
                 </TheadRow>
               </thead>
               <tbody>
-                {summary.requests.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                      Loading…
+                    </td>
+                  </tr>
+                ) : !rows || rows.length === 0 ? (
                   <tr>
                     <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
                       No Data Available In Table
@@ -211,17 +280,23 @@ export function LeaveList() {
                   </tr>
                 ) : (
                   pageRows.map((r) => (
-                    <tr key={r.ref} className="border-b border-border hover:bg-surface-hover/60">
-                      <td className="px-4 py-3 text-brand">{r.ref}</td>
-                      <td className="px-4 py-3 text-text!">{r.employeeName}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.validatorName}</td>
+                    <tr key={r.id} className="border-b border-border hover:bg-surface-hover/60">
+                      <td className="px-4 py-3 text-brand">
+                        <a href={stripBackendPrefix(`/holiday/card.php?id=${r.id}`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                          {r.ref} <ExternalLink size={11} className="text-text-faint" />
+                        </a>
+                      </td>
+                      <td className="px-4 py-3 text-text!">{r.employeeName || '—'}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.validatorName || '—'}</td>
                       <td className="px-4 py-3 text-text-muted">{r.typeLabel}</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.days} day(s)</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.startDate)}</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.endDate)}</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.createDate)}</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.updateDate)}</td>
-                      <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.duration}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.startDate}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.endDate}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.createDate}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.updateDate}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClass(r.status)}`}>{r.status}</span>
+                      </td>
                     </tr>
                   ))
                 )}
