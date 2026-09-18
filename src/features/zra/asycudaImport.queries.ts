@@ -105,6 +105,57 @@ export function useAsycudaImportCount(declRefNum?: string) {
   })
 }
 
+// custom/zra/product_search_api.php?q=X — the real debounced-search endpoint
+// behind each row's own "Search product..." box (read directly from
+// zra-import.php's own product-search-input-main handler, not guessed).
+// Confirmed live: real product matches, e.g. q=biscuit -> id 157 "ASSORTED
+// BISCUITS". Response field is `text` (the real page falls back to `label`
+// if `text` is missing, so this does too).
+export interface AsycudaProductSearchResult {
+  id: string
+  text: string
+  ref: string | null
+}
+export function useAsycudaProductSearch(query: string) {
+  return useQuery({
+    queryKey: ['zra', 'asycuda-product-search', query],
+    queryFn: async (): Promise<AsycudaProductSearchResult[]> => {
+      const res = await fetch(`/custom/zra/product_search_api.php?q=${encodeURIComponent(query)}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const text = (await res.text()).trim()
+      if (text.startsWith('<')) throw new Error(`${LEGACY_SESSION_EXPIRED_PREFIX}custom/zra/product_search_api.php returned a login page instead of JSON.`)
+      const data = JSON.parse(text) as { items?: { id: string | number; text?: string; label?: string; ref?: string | null }[] }
+      return (data.items ?? []).map((it) => ({ id: String(it.id), text: it.text ?? it.label ?? '', ref: it.ref ?? null }))
+    },
+    enabled: query.trim().length > 0,
+    staleTime: 1000 * 10,
+  })
+}
+
+// custom/zra/save_import_products.php — the real endpoint each row's search
+// result / remove-product badge calls (selectMainProduct/fnRemoveMainProduct
+// in zra-import.php's own JS, read directly). isSplit is always '0' here —
+// the split-offcanvas' own multi-row save is a separate concern already
+// handled by SplitDetailsModal. Passing productId null reproduces the real
+// "remove" call (jQuery serializes an empty `products` array as no entries
+// at all, same as sending none here).
+export function useAsycudaSaveImportProduct() {
+  return useMutation({
+    mutationFn: async (params: { taskCd: string; itemSeq: string; productId: string | null }): Promise<{ success: boolean; error?: string }> => {
+      const body = new URLSearchParams({ taskCd: params.taskCd, itemSeq: params.itemSeq, isSplit: '0' })
+      if (params.productId) {
+        body.set('products[0][seq]', params.itemSeq)
+        body.set('products[0][product_id]', params.productId)
+      }
+      const res = await fetch('/custom/zra/save_import_products.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const text = (await res.text()).trim()
+      if (text.startsWith('<')) throw new Error(`${LEGACY_SESSION_EXPIRED_PREFIX}custom/zra/save_import_products.php returned a login page instead of JSON.`)
+      return JSON.parse(text)
+    },
+  })
+}
+
 // The item shape passed to fnapproveasycuda/fnacancelasy by the legacy
 // row HTML's onclick attributes (see zra-import_ajax.php's $btnData), and
 // the same shape zraupdateimport.php's single-item path expects back.

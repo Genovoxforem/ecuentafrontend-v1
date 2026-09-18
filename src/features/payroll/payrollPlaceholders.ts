@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react'
 import {
   BarChart,
-  Plus,
   BookUser,
   Briefcase,
 } from 'lucide-react'
@@ -46,18 +45,20 @@ export const PAYROLL_PLACEHOLDERS: PayrollPlaceholder[] = [
   // server-rendered report with no API at all) — see each component's own
   // comment for specifics.
   // Salary Payments: Generate And Make Payment, Gratuity Payment, Generate
-  // Payslip, and YTD Payslip now have their own layout-matched components
-  // (MakePaymentForm.tsx, GratuityPaymentForm.tsx, GeneratePayslipForm.tsx,
-  // YtdPayslipForm.tsx) instead of this generic placeholder — see each
-  // one's own comment for why their write/detail actions stay disabled.
-  { path: ROUTES.payrollYtdSummary, icon: BarChart, title: 'YTD Payroll Summary', description: 'Real page: payroll/ytd_summary.php — classic report page, no JSON API.' },
-  { path: ROUTES.payrollYtdEarningsDeductions, icon: BarChart, title: 'YTD Earnings & Deductions', description: 'Real page: payroll/earn_dedu.php — classic report page, no JSON API.' },
-  { path: ROUTES.payrollSummary, icon: BarChart, title: 'Payroll Summary', description: 'Real page: payroll/payroll_summary.php — classic report page, no JSON API.' },
-  { path: ROUTES.payrollMonthlyAllowanceDeduction, icon: Plus, title: 'Create Monthly Allowance/Deduction', description: 'Real page: payroll/pay_deduction.php — classic form-POST, no JSON API.' },
-  // Reports: Monthly Over All Attendance Report now has its own inert,
-  // layout-matched component (OverallAttendanceReportForm.tsx) instead of
-  // this generic placeholder.
-  { path: ROUTES.payrollReportEmployeeWiseMonthlyAttendance, icon: BarChart, title: 'Employee Wise Monthly Attendance Report', description: 'Real page: payroll/atten_emp_rip.php — classic report page, no JSON API.' },
+  // Payslip, YTD Payslip, YTD Payroll Summary, YTD Earnings & Deductions,
+  // Payroll Summary, and Create Monthly Allowance/Deduction now have their
+  // own layout-matched components (MakePaymentForm.tsx, GratuityPaymentForm.tsx,
+  // GeneratePayslipForm.tsx, YtdPayslipForm.tsx, YtdPayrollSummaryForm.tsx,
+  // YtdEarningsDeductionsForm.tsx, PayrollSummaryForm.tsx, PayDeductionForm.tsx)
+  // instead of this generic placeholder — see each one's own comment for why
+  // their write/detail actions stay disabled (or, for Payroll Summary/Pay
+  // Deduction, why their rows/writes are real instead).
+  // Reports: Monthly Over All Attendance Report and Employee Wise Monthly
+  // Attendance Report now have their own layout-matched components
+  // (OverallAttendanceReportForm.tsx, EmployeeMonthlyReportForm.tsx)
+  // instead of this generic placeholder — the latter's rows are real,
+  // fetched live via a GET (its own <form> POST is CSRF-blocked, same gap
+  // as YTD Earnings & Deductions — see its own comment).
   { path: ROUTES.payrollReportAttendancePeriodWise, icon: BarChart, title: 'Attendance Period Wise Date Report', description: 'Real page: payroll/atten_period_rip.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollReportEmployeeAbsenties, icon: BarChart, title: 'Employee Date Wise Absenties Report', description: 'Real page: payroll/absent_list.php — classic report page, no JSON API.' },
   { path: ROUTES.payrollReportOvertimeDaily, icon: BarChart, title: 'Employee Over Time Daily Report', description: 'Real page: payroll/over_time.php — classic report page, no JSON API.' },

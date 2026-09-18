@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.env.local
+.claude
+deploy
 
 # Its own separate git repo (its own remotes/history) — must never be
 # git-added from here, or it becomes a broken gitlink instead of real

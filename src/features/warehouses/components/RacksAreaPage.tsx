@@ -1,90 +1,104 @@
 import { useMemo, useState } from 'react'
-import { Boxes, Plus, X as XIcon, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Boxes, Plus, X as XIcon, Search, PackagePlus, LoaderCircle, AlertTriangle, Pencil } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useRacks, useCreateRack, useWarehouses, type RackRecord } from '../warehouseExtras.queries'
+import { ROUTES } from '../../../routes'
+import { useWarehouses } from '../warehouseExtras.queries'
+import { useRacksReal, useCreateRackReal, useUpdateRackReal, type RackRow, type RackFormInput } from '../racks.queries'
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
 
-type SortKey = 'name' | 'shortName' | 'warehouse' | 'status'
+type SortKey = 'label' | 'ref' | 'warehouse' | 'status'
 
 const COLUMNS: { label: string; key: SortKey }[] = [
-  { label: 'Label', key: 'name' },
-  { label: 'Ref', key: 'shortName' },
+  { label: 'Label', key: 'label' },
+  { label: 'Ref', key: 'ref' },
   { label: 'Warehouse', key: 'warehouse' },
   { label: 'Status', key: 'status' },
 ]
-const COLUMN_LABELS = ['No', ...COLUMNS.map((c) => c.label)]
+const COLUMN_LABELS = ['No', ...COLUMNS.map((c) => c.label), 'Action']
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+const emptyForm: RackFormInput = { label: '', ref: '', warehouseId: '', active: true }
 
-// No REST/scrape source for racks (see warehouseExtras.queries.ts — the
-// real llx_rack table exists but its Dolibarr module isn't activated
-// server-side) — local-only, same convention as Warehouses/Inventory.
+function sortValue(r: RackRow, key: SortKey): string | number {
+  switch (key) {
+    case 'label':
+      return r.label
+    case 'ref':
+      return r.ref
+    case 'warehouse':
+      return r.warehouseName
+    case 'status':
+      return r.active ? 1 : 0
+  }
+}
+
+// Real reference module: custom/racks/racksindex.php?action=rack — a genuine
+// custom Ecuenta module (llx_rack), not the unactivated Dolibarr core
+// feature an earlier pass on this codebase assumed. See racks.queries.ts's
+// header comment for the full write-up, including the real backend's own
+// "New Rack" status bug (both options submit value=1) that this form avoids
+// by sending 1/0 correctly rather than reusing that broken control.
 export function RacksAreaPage() {
-  const racks = useRacks()
+  const { data: racks, isLoading, isError, error } = useRacksReal()
   const warehouses = useWarehouses()
-  const createRack = useCreateRack()
+  const createRack = useCreateRackReal()
+  const updateRack = useUpdateRackReal()
+
   const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [shortName, setShortName] = useState('')
-  const [warehouseRef, setWarehouseRef] = useState('')
-  const [error, setError] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [form, setForm] = useState<RackFormInput>(emptyForm)
+  const [formError, setFormError] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
 
-  const warehouseLabel = (ref: string) => warehouses.find((w) => w.ref === ref)?.shortName || ref || '-'
+  const rows = racks ?? []
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const list = racks ?? []
+    if (!q) return list
+    return list.filter((r) => [r.label, r.ref, r.warehouseName].some((f) => f.toLowerCase().includes(q)))
+  }, [racks, search])
+  const { sorted, sort, toggleSort } = useSortableRows<RackRow, SortKey>(filtered, sortValue)
+  const pageRows = sorted.slice((page - 1) * perPage, page * perPage)
 
-  function matchesSearch(r: RackRecord, query: string) {
-    const q = query.trim().toLowerCase()
-    if (!q) return true
-    return [r.name, r.shortName, warehouseLabel(r.warehouseRef), r.status].some((field) => field.toLowerCase().includes(q))
-  }
-
-  function sortValue(r: RackRecord, key: SortKey): string | number {
-    switch (key) {
-      case 'name':
-        return r.name
-      case 'shortName':
-        return r.shortName
-      case 'warehouse':
-        return warehouseLabel(r.warehouseRef)
-      case 'status':
-        return r.status
+  function getExportData() {
+    return {
+      headers: COLUMN_LABELS.slice(1, -1),
+      rows: sorted.map((r) => [r.label, r.ref, r.warehouseName, r.active ? 'Active' : 'Close']),
     }
   }
 
-  const filteredRacks = useMemo(() => racks.filter((r) => matchesSearch(r, search)), [racks, search, warehouses])
-  const { sorted: sortedRacks, sort, toggleSort } = useSortableRows<RackRecord, SortKey>(filteredRacks, sortValue)
-  const pageRacks = sortedRacks.slice((page - 1) * perPage, page * perPage)
-
-  function handleSearchChange(value: string) {
-    setSearch(value)
-    setPage(1)
+  function openCreate() {
+    setEditingId(null)
+    setForm(emptyForm)
+    setFormError('')
+    setShowForm(true)
+  }
+  function openEdit(r: RackRow) {
+    const warehouse = warehouses.find((w) => w.ref === r.warehouseName || w.shortName === r.warehouseName)
+    setEditingId(r.id)
+    setForm({ label: r.label, ref: r.ref, warehouseId: warehouse ? String(warehouse.id) : '', active: r.active })
+    setFormError('')
+    setShowForm(true)
   }
 
-  function handlePerPageChange(value: number) {
-    setPerPage(value)
-    setPage(1)
-  }
-
-  function getExportData() {
-    const rows = sortedRacks.map((r) => [r.name, r.shortName, warehouseLabel(r.warehouseRef), r.status])
-    return { headers: COLUMN_LABELS.slice(1), rows }
-  }
-
-  function handleCreate() {
-    if (!name.trim()) return setError('Label is required.')
-    createRack({ name, shortName: shortName || name, warehouseRef, status: 'Active' })
-    setName('')
-    setShortName('')
-    setWarehouseRef('')
-    setError('')
+  function handleSave() {
+    if (!form.label.trim()) return setFormError('Label is required.')
+    if (!form.warehouseId) return setFormError('Warehouse is required.')
+    setFormError('')
+    const mutation = editingId ? updateRack.mutate({ id: editingId, ...form }) : createRack.mutate(form)
+    void mutation
     setShowForm(false)
   }
+
+  const saving = createRack.isPending || updateRack.isPending
+  const mutationError = createRack.error ?? updateRack.error
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
@@ -92,40 +106,60 @@ export function RacksAreaPage() {
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Boxes size={20} className="text-brand" /> Racks
         </h2>
-        <button type="button" onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          {showForm ? <XIcon size={14} /> : <Plus size={14} />}
-          {showForm ? 'Cancel' : 'New Rack'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link to={ROUTES.productRackAssign} className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
+            <PackagePlus size={14} /> Assign Products
+          </Link>
+          <button type="button" onClick={() => (showForm ? setShowForm(false) : openCreate())} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+            {showForm ? <XIcon size={14} /> : <Plus size={14} />}
+            {showForm ? 'Cancel' : 'New Rack'}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {isError && (
+          <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />
+            <p className="text-sm text-danger-fg">{error instanceof Error ? error.message : 'Failed to load racks.'}</p>
+          </Card>
+        )}
         {showForm && (
           <Card className="!h-auto">
-            {error && <p className="text-sm font-medium text-danger mb-3">{error}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <h3 className="text-sm font-semibold text-text! mb-3">{editingId ? 'Edit Rack' : 'New Rack'}</h3>
+            {formError && <p className="text-sm font-medium text-danger mb-3">{formError}</p>}
+            {mutationError && <p className="text-sm font-medium text-danger mb-3">{(mutationError as Error).message}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs text-text-faint mb-1">Label</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+                <input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} className={inputCls} />
               </div>
               <div>
                 <label className="block text-xs text-text-faint mb-1">Ref (short name)</label>
-                <input value={shortName} onChange={(e) => setShortName(e.target.value)} className={inputCls} />
+                <input value={form.ref} onChange={(e) => setForm((f) => ({ ...f, ref: e.target.value }))} className={inputCls} />
               </div>
               <div>
                 <label className="block text-xs text-text-faint mb-1">Warehouse</label>
-                <select value={warehouseRef} onChange={(e) => setWarehouseRef(e.target.value)} className={selectCls}>
+                <select value={form.warehouseId} onChange={(e) => setForm((f) => ({ ...f, warehouseId: e.target.value }))} className={selectCls}>
                   <option value="">Select…</option>
                   {warehouses.map((w) => (
-                    <option key={w.ref} value={w.ref}>
-                      {w.shortName || w.ref}
+                    <option key={w.id} value={w.id}>
+                      {w.ref}
                     </option>
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs text-text-faint mb-1">Status</label>
+                <select value={form.active ? '1' : '0'} onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === '1' }))} className={selectCls}>
+                  <option value="1">Open</option>
+                  <option value="0">Close</option>
+                </select>
+              </div>
             </div>
             <div className="flex justify-end mt-3">
-              <button type="button" onClick={handleCreate} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-                Save
+              <button type="button" disabled={saving} onClick={handleSave} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
+                {saving && <LoaderCircle size={14} className="animate-spin" />} Save
               </button>
             </div>
           </Card>
@@ -133,11 +167,7 @@ export function RacksAreaPage() {
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-            <select
-              value={perPage}
-              onChange={(e) => handlePerPageChange(Number(e.target.value))}
-              className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-            >
+            <select value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1) }} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
               {PAGE_SIZE_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {n}
@@ -149,7 +179,7 @@ export function RacksAreaPage() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Search"
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
@@ -166,30 +196,36 @@ export function RacksAreaPage() {
                       {col.label}
                     </Th>
                   ))}
+                  <Th>Action</Th>
                 </TheadRow>
               </thead>
               <tbody>
-                {racks.length === 0 ? (
+                {isLoading ? (
                   <tr>
-                    <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
-                      No Data Available In Table
+                    <td colSpan={COLUMN_LABELS.length} className="px-4 py-6 text-center text-text-faint">
+                      <LoaderCircle size={16} className="inline animate-spin mr-2" /> Loading…
                     </td>
                   </tr>
-                ) : filteredRacks.length === 0 ? (
+                ) : pageRows.length === 0 ? (
                   <tr>
                     <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
-                      No racks match "{search}".
+                      {rows.length === 0 ? 'No Data Available In Table' : `No racks match "${search}".`}
                     </td>
                   </tr>
                 ) : (
-                  pageRacks.map((r, i) => (
-                    <tr key={r.ref} className="border-b border-border last:border-0 hover:bg-surface-hover">
+                  pageRows.map((r, i) => (
+                    <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
                       <td className="px-4 py-3 text-text-faint">{(page - 1) * perPage + i + 1}</td>
-                      <td className="px-4 py-3 text-brand font-medium">{r.name}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.shortName}</td>
-                      <td className="px-4 py-3 text-text-muted">{warehouseLabel(r.warehouseRef)}</td>
+                      <td className="px-4 py-3 text-brand font-medium">{r.label}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.ref}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.warehouseName}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.status === 'Active' ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>{r.status}</span>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.active ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>{r.active ? 'Active' : 'Close'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button type="button" onClick={() => openEdit(r)} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+                          <Pencil size={12} /> Edit
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -199,7 +235,7 @@ export function RacksAreaPage() {
           </div>
         </Card>
       </div>
-      <ListPagination page={page} perPage={perPage} total={filteredRacks.length} onPageChange={setPage} edgeToEdge />
+      <ListPagination page={page} perPage={perPage} total={filtered.length} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }

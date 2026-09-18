@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Zap, Check, X, LoaderCircle, Plus, Trash2, ChevronDown, ChevronRight,
-  FileText, ShoppingCart, Package, Truck, Wallet, Calculator,
-  User, Building2, Banknote, Calendar, Receipt, Mail, Printer,
+  FileText, ShoppingCart, Truck, Calculator,
+  User, Building2, Banknote, Printer, PlusCircle, Mail, CreditCard,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -95,6 +95,7 @@ export function QuickInvoiceCreateForm() {
   const [notePublic, setNotePublic] = useState('')
   const [notePrivate, setNotePrivate] = useState('')
   const [formError, setFormError] = useState('')
+  const [actionNotice, setActionNotice] = useState('')
   const [showShipment, setShowShipment] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
 
@@ -240,6 +241,50 @@ export function QuickInvoiceCreateForm() {
     })
   }
 
+  // Real: the title bar's own "+ New Sale" link just reloads a blank
+  // invoice.php?action=create — this resets the same in-place form instead
+  // of a full navigation, since we're already on that route.
+  function handleNewSale() {
+    setCustomerId('')
+    setDate(today)
+    setRefClient('')
+    setInvoiceType('0')
+    setCurrency(generalSettings?.currency ?? '')
+    setCurrencyRate(1)
+    setLines([createEmptyLine()])
+    setBankAccountId('')
+    setPaymentModeCode('')
+    setPaymentTermId('')
+    setPaymentDate(today)
+    setPaymentNote('')
+    setShippingCharges(0)
+    setPaymentAmount(0)
+    setUseAdvance(false)
+    setNotePublic('')
+    setNotePrivate('')
+    setRefNo('')
+    setLpoNo('')
+    setShipment({ gdnNo: '', grnNo: '', month: '', shippingVia: '', shippingDate: '', trackingId: '', transporter: '', truckDetails: '', shippingAddress: '' })
+    setFormError('')
+    setActionNotice('')
+  }
+
+  // Real: "Mail Invoice" and "Online Payment" both POST the full invoice
+  // form to api/unified_invoice_api.php (action=send_email / a Lenco
+  // payment-gateway modal) — an undocumented legacy AJAX endpoint this app
+  // has no confirmed, safe JSON equivalent for yet (unlike Save Draft/Save &
+  // Print, which go through the app's own verified /api/invoices/ REST
+  // endpoint). Rather than guess at that endpoint's full field list, this
+  // surfaces the same honest "not available yet" state the rest of the app
+  // uses for backend gaps instead of a silent no-op or a fabricated success.
+  function handleMailInvoice() {
+    setActionNotice("Mailing invoices directly from this form isn't available yet — save the invoice, then send it from the invoice list.")
+  }
+
+  function handleOnlinePayment() {
+    setActionNotice("Collecting online payment from this form isn't available yet — save the invoice first, then take payment separately.")
+  }
+
   const isSubmitting = createInvoice.isPending || createAndValidate.isPending
   const selectedCustomer = customers?.find((c) => c.id === customerId)
 
@@ -270,13 +315,22 @@ export function QuickInvoiceCreateForm() {
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
             <Zap size={20} className="text-brand" /> New Quick Invoice
           </h2>
-          {selectedCustomer && (
-            <div className="flex items-center gap-2 text-sm text-text-muted">
-              <User size={14} />
-              <span className="font-medium text-text">{selectedCustomer.name}</span>
-              {selectedCustomer.tpin && <span className="text-text-faint">TPIN: {selectedCustomer.tpin}</span>}
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {selectedCustomer && (
+              <div className="flex items-center gap-2 text-sm text-text-muted">
+                <User size={14} />
+                <span className="font-medium text-text">{selectedCustomer.name}</span>
+                {selectedCustomer.tpin && <span className="text-text-faint">TPIN: {selectedCustomer.tpin}</span>}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleNewSale}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+            >
+              <PlusCircle size={14} /> New Sale
+            </button>
+          </div>
         </div>
       }
       footerLeft={
@@ -293,6 +347,20 @@ export function QuickInvoiceCreateForm() {
             className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover disabled:opacity-60"
           >
             {createInvoice.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Save Draft
+          </button>
+          <button
+            type="button"
+            onClick={handleOnlinePayment}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+          >
+            <CreditCard size={14} /> Online Payment
+          </button>
+          <button
+            type="button"
+            onClick={handleMailInvoice}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+          >
+            <Mail size={14} /> Mail Invoice
           </button>
           <button
             type="button"
@@ -688,6 +756,11 @@ export function QuickInvoiceCreateForm() {
       {formError && (
         <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {formError}
+        </div>
+      )}
+      {actionNotice && (
+        <div className="rounded-lg border border-info-bg bg-info-bg/40 px-4 py-3 text-sm text-info-fg">
+          {actionNotice}
         </div>
       )}
     </StickyFormShell>

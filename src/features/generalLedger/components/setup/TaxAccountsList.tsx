@@ -1,8 +1,8 @@
 import { Receipt } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
+import { DictListPage } from './DictListPage'
 
-// admin/dict.php?id=7 — social/tax contributions dictionary (llx_c_chargesociales).
-// Same generic dict.php engine as Vat/Expense-report accounts, no JSON.
+// admin/dict.php?id=7 — real, scraped rows (llx_c_chargesociales, social/tax
+// contributions) — see dolibarrDictParser.ts's own top comment.
 export function TaxAccountsList() {
-  return <InertListPage icon={Receipt} title="Tax Accounts" sourcePath="admin/dict.php?id=7" columns={['Code', 'Label', 'Country', 'Accountancy Code', 'Deductible', 'Action']} />
+  return <DictListPage icon={Receipt} title="Tax Accounts" path="/admin/dict.php?id=7" columns={['Code', 'Label', 'Country', 'Accountancy Code', 'Deductible']} />
 }

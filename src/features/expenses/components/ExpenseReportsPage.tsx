@@ -55,78 +55,84 @@ export function ExpenseReportsPage() {
   }, [filtered])
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <BarChart3 size={20} className="text-brand" /> Expense Reports
-      </h2>
+    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <BarChart3 size={20} className="text-brand" /> Expense Reports
+        </h2>
+      </div>
 
-      <Card className="!h-auto">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Year From</label>
-            <input value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} className={`${inputCls} w-28`} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Year To</label>
-            <input value={yearTo} onChange={(e) => setYearTo(e.target.value)} className={`${inputCls} w-28`} />
-          </div>
-        </div>
-      </Card>
-
-      {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
-      {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-
-      {data && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-          <Card className="!h-auto !p-0 overflow-x-auto">
-            <h3 className="flex items-center gap-2 font-semibold text-text! p-4 pb-0">
-              <Users size={16} className="text-brand" /> By Employee
-            </h3>
-            <table className="w-full text-sm mt-3">
-              <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                  <th className="font-medium px-4 py-2">Employee</th>
-                  <th className="font-medium px-4 py-2 text-right">Count</th>
-                  <th className="font-medium px-4 py-2 text-right">Total HT</th>
-                  <th className="font-medium px-4 py-2 text-right">VAT</th>
-                  <th className="font-medium px-4 py-2 text-right">Total TTC</th>
-                  <th className="font-medium px-4 py-2 text-right">Paid TTC</th>
-                </tr>
-              </thead>
-              <tbody>
-                {byEmployee.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-4 text-text-faint italic">
-                      No expense reports in this range.
-                    </td>
-                  </tr>
-                ) : (
-                  byEmployee.map((row) => (
-                    <tr key={row.employee} className="border-b border-border last:border-0">
-                      <td className="px-4 py-2 text-text!">{row.employee}</td>
-                      <td className="px-4 py-2 text-right text-text-muted">{row.count}</td>
-                      <td className="px-4 py-2 text-right text-text-muted">{formatMoney(row.ht)}</td>
-                      <td className="px-4 py-2 text-right text-text-muted">{formatMoney(row.tva)}</td>
-                      <td className="px-4 py-2 text-right text-text! font-medium">{formatMoney(row.ttc)}</td>
-                      <td className="px-4 py-2 text-right text-success-fg">{formatMoney(row.paidTtc)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </Card>
-
-          <Card className="!h-auto">
-            <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
-              <Tags size={16} className="text-brand" /> By Expense Type
-            </h3>
-            <div className="min-h-40 flex flex-col items-center justify-center text-center gap-1 py-6">
-              <p className="text-sm text-text-muted">Not available</p>
-              <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API for per-line expense-type amounts — only server-rendered HTML.</p>
+      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
+        <Card className="!h-auto">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Year From</label>
+              <input value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} className={`${inputCls} w-28`} />
             </div>
-          </Card>
-        </div>
-      )}
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Year To</label>
+              <input value={yearTo} onChange={(e) => setYearTo(e.target.value)} className={`${inputCls} w-28`} />
+            </div>
+          </div>
+        </Card>
+
+        {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
+        {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+        {data && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
+            <Card className="!p-0 overflow-hidden">
+              <h3 className="flex items-center gap-2 font-semibold text-text! p-4 pb-3 shrink-0">
+                <Users size={16} className="text-brand" /> By Employee
+              </h3>
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-surface-alt">
+                    <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                      <th className="font-medium px-4 py-2">Employee</th>
+                      <th className="font-medium px-4 py-2 text-right">Count</th>
+                      <th className="font-medium px-4 py-2 text-right">Total HT</th>
+                      <th className="font-medium px-4 py-2 text-right">VAT</th>
+                      <th className="font-medium px-4 py-2 text-right">Total TTC</th>
+                      <th className="font-medium px-4 py-2 text-right">Paid TTC</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byEmployee.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-4 text-text-faint italic">
+                          No expense reports in this range.
+                        </td>
+                      </tr>
+                    ) : (
+                      byEmployee.map((row) => (
+                        <tr key={row.employee} className="border-b border-border last:border-0">
+                          <td className="px-4 py-2 text-text!">{row.employee}</td>
+                          <td className="px-4 py-2 text-right text-text-muted">{row.count}</td>
+                          <td className="px-4 py-2 text-right text-text-muted">{formatMoney(row.ht)}</td>
+                          <td className="px-4 py-2 text-right text-text-muted">{formatMoney(row.tva)}</td>
+                          <td className="px-4 py-2 text-right text-text! font-medium">{formatMoney(row.ttc)}</td>
+                          <td className="px-4 py-2 text-right text-success-fg">{formatMoney(row.paidTtc)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card>
+              <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
+                <Tags size={16} className="text-brand" /> By Expense Type
+              </h3>
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
+                <p className="text-sm text-text-muted">Not available</p>
+                <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API for per-line expense-type amounts — only server-rendered HTML.</p>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

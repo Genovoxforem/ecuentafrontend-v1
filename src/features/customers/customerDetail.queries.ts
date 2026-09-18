@@ -307,19 +307,17 @@ export type CustomerEditableFields = Partial<
   >
 >
 
-// No real update action exists on societe/api/societes.php — every action
-// verb tried live (update, edit, save, update_extra, modify, patch, set)
-// returns {"ok":false,"error":"Unknown action or method"}, and the legacy
-// card.php?action=edit page doesn't render the third party's own main
-// fields as an editable form either (checked directly: none of its forms
-// contain a name/lastname input, only sub-feature forms like bank account
-// and payment-term config). This mutation still attempts the real call
-// (action: 'update', the REST-conventional verb, matching action: 'create'
-// on the working create endpoint) rather than being disabled outright —
-// same "attempt the real action, surface the real error" pattern already
-// used for Duplicate elsewhere in this app — so if the backend ever adds
-// this action, it starts working with no frontend change needed, and until
-// then the user sees the actual backend rejection, not a fake success.
+// societe/api/societes.php?action=update — confirmed working live (2026-09-11
+// re-test against customer id 1990): returns {"ok":true,"message":"Third
+// party updated",...}. An earlier session's audit found every action verb
+// (update/edit/save/update_extra/modify/patch/set) rejected with
+// {"ok":false,"error":"Unknown action or method"} and left this comment
+// documenting that as a known gap — the backend has since gained real
+// support for this action, so that note no longer applies. Kept using the
+// same "attempt the real action, surface the real error" pattern (rather
+// than a hardcoded success) regardless, since validateStatus below still
+// needs to read a genuine {ok:false,error} rejection body if this ever
+// regresses or a specific field update is rejected server-side.
 export function useUpdateCustomer(id: number) {
   const queryClient = useQueryClient()
   return useMutation({

@@ -28,7 +28,7 @@ async function boxBreakGet<T>(route: string, params?: Record<string, string | nu
   return json.data as T
 }
 
-async function boxBreakPost<T>(route: string, body: Record<string, unknown>): Promise<T> {
+async function boxBreakPost<T>(route: string, body: object): Promise<T> {
   const res = await fetch(`${BASE}?route=${route}`, {
     method: 'POST',
     credentials: 'same-origin',

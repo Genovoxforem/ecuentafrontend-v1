@@ -123,6 +123,11 @@ export interface TicketListFilters {
   assignedToUserId?: string
   createdByUserId?: string
   search?: string
+  // Real `projectid` param too (confirmed in the same source read: both
+  // ticket_list_ajax.php and ticket_stats_ajax.php read $_POST['projectid']
+  // and add "AND t.fk_project = X" server-side) — used to scope this list
+  // to one project's tickets from ProjectDetail.tsx.
+  projectId?: number
 }
 
 function toMDY(iso: string): string {
@@ -141,6 +146,7 @@ export function useTicketsList(filters: TicketListFilters, page: number, length:
       if (filters.assignedToUserId) body.set('search_fk_user_assign', filters.assignedToUserId)
       if (filters.createdByUserId) body.set('search_fk_user_create', filters.createdByUserId)
       if (filters.search) body.set('search[value]', filters.search)
+      if (filters.projectId) body.set('projectid', String(filters.projectId))
       const res = await fetch('/ticket/ticket_list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data: RawTicketListResponse = await res.json()
@@ -210,11 +216,12 @@ interface RawTicketStatsResponse {
   by_status: Array<{ code: string | number; label: string; color: string; icon: string; count: number }>
   error?: string
 }
-export function useTicketStats() {
+export function useTicketStats(projectId?: number) {
   return useQuery({
-    queryKey: ['tickets', 'stats'],
+    queryKey: ['tickets', 'stats', projectId ?? 'all'],
     queryFn: async (): Promise<TicketStats> => {
-      const res = await fetch('/ticket/ticket_stats_ajax.php', { method: 'POST', credentials: 'same-origin' })
+      const body = projectId ? new URLSearchParams({ projectid: String(projectId) }) : undefined
+      const res = await fetch('/ticket/ticket_stats_ajax.php', { method: 'POST', credentials: 'same-origin', body })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data: RawTicketStatsResponse = await res.json()
       if (data.error) throw new Error(data.error)

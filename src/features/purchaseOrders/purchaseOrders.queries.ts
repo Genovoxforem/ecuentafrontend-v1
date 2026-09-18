@@ -15,6 +15,7 @@ export interface PurchaseOrderRow {
   plannedDelivery: string
   amountExclTax: number
   status: string
+  statusCode: number | null
   billed: boolean
 }
 
@@ -41,6 +42,7 @@ function toRow(r: PurchaseOrderListRow): PurchaseOrderRow {
     plannedDelivery: r.plannedDelivery,
     amountExclTax: r.amountExclTax,
     status: r.statusLabel,
+    statusCode: r.statusCode,
     billed: r.billed,
   }
 }

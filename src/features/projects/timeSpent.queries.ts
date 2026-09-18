@@ -1,26 +1,38 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 
-// Time Spent (Input per week) — projet/activity/perweek.php. No REST API
-// exists for this. Read-only for now: the grid table itself (id="tablelines3")
-// is real server-rendered HTML with real headers (Task, Planned workload,
-// Declared real progress, Time spent Everybody/mine, one column per
-// weekday, Total), but wiring Save needs a real assigned-task row on this
-// backend to verify the per-cell save field naming against (Dolibarr names
-// those dynamically per task id/day) — tracked as a known gap, not guessed.
+// Time Spent — projet/activity/per{month,week,day}.php. No REST API exists
+// for any of the three; all three share the exact same real structure
+// (confirmed by reading all three files directly): the same id="tablelines3"
+// grid, the same 5 fixed leading columns (Task, Planned workload, Declared
+// real progress, Time spent Everybody, Time spent <me>) before the
+// mode-specific columns (weekdays / days-of-month / Start Hour+Duration+Note),
+// and the same day/month/year GET params for navigation (perweek.php
+// L56-58, permonth.php L53-54, perday.php L58) — so one generic reader
+// covers all three instead of three near-duplicate scrapers. Read-only for
+// now: wiring Save needs a real assigned-task row on this backend to verify
+// the per-cell save field naming against (Dolibarr names those dynamically
+// per task id/day) — tracked as a known gap, not guessed.
 
 const NOT_SIGNED_IN_MESSAGE =
   'Not signed into the legacy backend. Time Spent has no usable REST API and reads the real Dolibarr page directly — log out and back in to refresh that session, then retry.'
+
+export type TimeSpentMode = 'month' | 'week' | 'day'
+
+const MODE_PATH: Record<TimeSpentMode, string> = {
+  month: '/projet/activity/permonth.php',
+  week: '/projet/activity/perweek.php',
+  day: '/projet/activity/perday.php',
+}
 
 export interface TimeSpentRow {
   cells: string[]
 }
 
-export interface TimeSpentWeek {
-  weekLabel: string
-  dayHeaders: string[]
+export interface TimeSpentGrid {
+  extraHeaders: string[]
   rows: TimeSpentRow[]
-  expectedHoursPerWeek: string
+  totalRowText: string
   noticeText: string
   emptyMessage: string | null
 }
@@ -33,24 +45,30 @@ function looksLikeLegacyLoginPage(doc: Document): boolean {
   return !doc.getElementById('tablelines3') && !!doc.querySelector('input[name="password"]')
 }
 
-export function useTimeSpentWeek(dateParam?: string) {
+// `date` picks which month/week/day to view.
+export function useTimeSpentGrid(mode: TimeSpentMode, date?: Date) {
+  const dateKey = date ? `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}` : ''
   return useQuery({
-    queryKey: ['projects', 'timeSpent', dateParam ?? ''],
-    queryFn: async (): Promise<TimeSpentWeek> => {
+    queryKey: ['projects', 'timeSpent', mode, dateKey],
+    queryFn: async (): Promise<TimeSpentGrid> => {
       const params = new URLSearchParams({ mainmenu: 'projectmanagement', leftmenu: '' })
-      if (dateParam) params.set('re', dateParam)
-      const doc = await fetchLegacyDocument('/projet/activity/perweek.php', params)
+      if (date) {
+        params.set('day', String(date.getDate()))
+        params.set('month', String(date.getMonth() + 1))
+        params.set('year', String(date.getFullYear()))
+      }
+      const doc = await fetchLegacyDocument(MODE_PATH[mode], params)
       if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
 
       const table = doc.getElementById('tablelines3') as HTMLTableElement | null
       const headerRow = table?.rows[1] ?? null
-      // Header cells, in order: Task, Planned workload, Declared real
-      // progress, Time spent Everybody, Time spent <me>, Mon..Sun (7), then
-      // a hidden column-selector <th> whose own <script> tag leaks into
-      // textContent — day headers are exactly indices 5-11, never "the
-      // rest" (that selector cell isn't a day and must be excluded).
+      // First 5 <th>s are always the fixed columns; the last <th> is always
+      // a hidden column-selector whose own <script> tag leaks into
+      // textContent (not a real data column) — everything between those is
+      // the mode-specific header set (weekdays / days-of-month / Start
+      // Hour+Duration+Note), whatever its length.
       const headerCells = headerRow ? Array.from(headerRow.querySelectorAll('th')).map(cellText) : []
-      const dayHeaders = headerCells.slice(5, 12)
+      const extraHeaders = headerCells.slice(5, headerCells.length - 1)
 
       const rows: TimeSpentRow[] = []
       let emptyMessage: string | null = null
@@ -66,15 +84,18 @@ export function useTimeSpentWeek(dateParam?: string) {
         }
       }
 
+      // The total row's first <td> holds the label+value ("Total - Expected
+      // Worked Hours Per Week: 0"); textContent on the whole <tr> also pulls
+      // in every per-day/per-hour cell after it, so this reads just that
+      // first cell rather than hardcoding "per week" wording that doesn't
+      // match the month/day pages' own text.
       const totalRow = Array.from(table?.rows ?? []).find((tr) => tr.className.includes('totalRow'))
-      const expectedMatch = /expected worked hours per week:\s*(\S+)/i.exec(cellText(totalRow ?? undefined))
-      const monthName = doc.getElementById('month_name')
+      const totalRowText = cellText(totalRow?.querySelector('td'))
 
       return {
-        weekLabel: cellText(monthName),
-        dayHeaders,
+        extraHeaders,
         rows,
-        expectedHoursPerWeek: expectedMatch?.[1] ?? '0',
+        totalRowText,
         noticeText: cellText(doc.querySelector('.hideonsmartphone.opacitymedium')),
         emptyMessage,
       }

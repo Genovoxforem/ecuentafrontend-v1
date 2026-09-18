@@ -48,67 +48,73 @@ export function ExpenseReimbursementsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <HandCoins size={20} className="text-brand" /> Expense Reimbursements
-      </h2>
+    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <HandCoins size={20} className="text-brand" /> Expense Reimbursements
+        </h2>
+      </div>
 
-      <Card className="!h-auto">
-        <h3 className="font-semibold text-text! mb-3">Create Reimbursement</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Expense Report (Approved)</label>
-            <select value={reportId} onChange={(e) => onSelectReport(e.target.value)} className={`${inputCls} w-full`}>
-              <option value="">Select expense report…</option>
-              {approvedRows.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.ref} — {r.user}
-                </option>
-              ))}
-            </select>
+      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
+        <Card className="!h-auto">
+          <h3 className="font-semibold text-text! mb-3">Create Reimbursement</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Expense Report (Approved)</label>
+              <select value={reportId} onChange={(e) => onSelectReport(e.target.value)} className={`${inputCls} w-full`}>
+                <option value="">Select expense report…</option>
+                {approvedRows.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.ref} — {r.user}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Employee</label>
+              <input value={selected?.user ?? ''} disabled className="h-9 w-full px-3 rounded-lg border border-input-border bg-surface-alt text-text-faint text-sm outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Claim Amount</label>
+              <input type="number" step="0.01" value={claimAmount} onChange={(e) => setClaimAmount(e.target.value)} className={`${inputCls} w-full`} />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Employee</label>
-            <input value={selected?.user ?? ''} disabled className="h-9 w-full px-3 rounded-lg border border-input-border bg-surface-alt text-text-faint text-sm outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Claim Amount</label>
-            <input type="number" step="0.01" value={claimAmount} onChange={(e) => setClaimAmount(e.target.value)} className={`${inputCls} w-full`} />
-          </div>
-        </div>
-        {result === 'error' && <p className="text-sm text-danger-fg mt-2">{createReimburse.error instanceof Error ? createReimburse.error.message : 'Could not create the reimbursement.'}</p>}
-        {result === 'success' && <p className="text-sm text-success-fg mt-2">Reimbursement created.</p>}
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!selected || !claimAmount || createReimburse.isPending}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-        >
-          Create Reimbursement
-        </button>
-      </Card>
+          {result === 'error' && <p className="text-sm text-danger-fg mt-2">{createReimburse.error instanceof Error ? createReimburse.error.message : 'Could not create the reimbursement.'}</p>}
+          {result === 'success' && <p className="text-sm text-success-fg mt-2">Reimbursement created.</p>}
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!selected || !claimAmount || createReimburse.isPending}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            Create Reimbursement
+          </button>
+        </Card>
 
-      <Card className="!h-auto !p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-4 py-2.5">Expense Ref</th>
-              <th className="font-medium px-4 py-2.5">Employee</th>
-              <th className="font-medium px-4 py-2.5">Claim</th>
-              <th className="font-medium px-4 py-2.5">Paid</th>
-              <th className="font-medium px-4 py-2.5">Balance</th>
-              <th className="font-medium px-4 py-2.5">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
-                No live listing API on this backend for existing reimbursements — reimbursements.php renders its history table as server-side HTML with no JSON source.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
+        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                  <th className="font-medium px-4 py-2.5">Expense Ref</th>
+                  <th className="font-medium px-4 py-2.5">Employee</th>
+                  <th className="font-medium px-4 py-2.5">Claim</th>
+                  <th className="font-medium px-4 py-2.5">Paid</th>
+                  <th className="font-medium px-4 py-2.5">Balance</th>
+                  <th className="font-medium px-4 py-2.5">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
+                    No live listing API on this backend for existing reimbursements — reimbursements.php renders its history table as server-side HTML with no JSON source.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
     </div>
   )
 }

@@ -1,8 +1,8 @@
 import { FileSpreadsheet } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
+import { DictListPage } from './DictListPage'
 
-// admin/dict.php?id=17 — expense-report fee-type dictionary (llx_c_type_fees).
-// Same generic dict.php engine, no JSON.
+// admin/dict.php?id=17 — real, scraped rows (llx_c_type_fees, expense-report
+// fee types) — see dolibarrDictParser.ts's own top comment.
 export function ExpenseReportAccountsList() {
-  return <InertListPage icon={FileSpreadsheet} title="Expense Report Accounts" sourcePath="admin/dict.php?id=17" columns={['Code', 'Label', 'Accountancy Code', 'Action']} />
+  return <DictListPage icon={FileSpreadsheet} title="Expense Report Accounts" path="/admin/dict.php?id=17" columns={['Code', 'Label', 'Accountancy Code']} />
 }

@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
-import { Tags, Search, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Tags, Search, Plus, X, Check, LoaderCircle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { DisabledFormModal } from '../../../shared/components/forms/DisabledFormModal'
-import { useLoanTypesList, type LoanTypeRow } from '../loans.queries'
+import { Field, inputClasses } from '../../../shared/components/forms/FormField'
+import { useLoanTypesList, useLoanTypeCreateForm, useCreateLoanType, type LoanTypeRow } from '../loans.queries'
 import { formatDate } from '../../../utils/format'
 
 type SortKey = 'name' | 'color' | 'created'
@@ -79,20 +79,7 @@ export function LoanTypeListPage() {
         </button>
       </div>
 
-      {showAddType && (
-        <DisabledFormModal
-          icon={Tags}
-          title="Add Tag"
-          sourcePath="categories/card.php?action=create&type=23"
-          fields={[
-            { label: 'Label', required: true },
-            { label: 'Color', type: 'text' },
-            { label: 'Parent Category', type: 'select' },
-            { label: 'Description', type: 'textarea' },
-          ]}
-          onClose={() => setShowAddType(false)}
-        />
-      )}
+      {showAddType && <AddLoanTypeModal onClose={() => setShowAddType(false)} />}
 
       {isError && <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">{error instanceof Error ? error.message : "Couldn't load loan types."}</Card>}
 
@@ -166,6 +153,105 @@ export function LoanTypeListPage() {
         </div>
       </Card>
       <ListPagination page={page} perPage={perPage} total={filteredRows.length} onPageChange={setPage} />
+    </div>
+  )
+}
+
+// categories/card.php?action=create&type=23 — real, working create form now
+// (see useLoanTypeCreateForm/useCreateLoanType in loans.queries.ts), not the
+// old inert DisabledFormModal — sized wider (max-w-xl vs. that shared
+// component's max-w-md) to give Description room to breathe.
+function AddLoanTypeModal({ onClose }: { onClose: () => void }) {
+  const { data: form, isLoading, isError, error } = useLoanTypeCreateForm()
+  const createType = useCreateLoanType()
+
+  const [label, setLabel] = useState('')
+  const [color, setColor] = useState('')
+  const [parent, setParent] = useState('-1')
+  const [description, setDescription] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isError) setSubmitError(error instanceof Error ? error.message : "Couldn't load this form.")
+  }, [isError, error])
+
+  async function handleSubmit() {
+    if (!label.trim()) {
+      setSubmitError('Label is required.')
+      return
+    }
+    setSubmitError(null)
+    try {
+      await createType.mutateAsync({ label: label.trim(), description, color: color.replace(/^#/, ''), parent })
+      onClose()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Could not create this tag.')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-xl rounded-lg bg-surface border border-border shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-text!">
+            <Tags size={18} className="text-brand" /> Add Tag
+          </h3>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {isLoading && <p className="text-sm text-text-faint italic">Loading…</p>}
+          {submitError && <p className="text-sm text-danger">{submitError}</p>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Label" required>
+              <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputClasses} autoFocus />
+            </Field>
+            <Field label="Color">
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={color ? `#${color.replace(/^#/, '')}` : '#397db9'}
+                  onChange={(e) => setColor(e.target.value.replace(/^#/, ''))}
+                  className="h-9 w-10 rounded-md border border-input-border bg-input-bg cursor-pointer"
+                />
+                <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="397db9" className={inputClasses} />
+              </div>
+            </Field>
+            <Field label="Parent Category">
+              <select value={parent} onChange={(e) => setParent(e.target.value)} className={inputClasses}>
+                <option value="-1">None</option>
+                {(form?.parentOptions ?? []).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Description">
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className={inputClasses} />
+              </Field>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 p-4 border-t border-border bg-surface-alt rounded-b-lg">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={createType.isPending || isLoading}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          >
+            {createType.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Add Tag
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

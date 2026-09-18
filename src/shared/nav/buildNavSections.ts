@@ -43,7 +43,7 @@ const MAINMENU_TO_INTERNAL_KEY: Record<string, string> = {
   expenses: 'expenses',
   commercial: 'sales',
   companies: 'sales',
-  hotel: 'kitchen',
+  hotel: 'hotel',
   booking: 'kitchen',
   budget: 'budget',
   members: 'members',
@@ -66,6 +66,23 @@ for (const [k, v] of Object.entries(MAINMENU_TO_INTERNAL_KEY)) {
 // Members/Reports are deliberately NOT in this set: their empty tree really
 // does mean no pages exist yet for them.
 const FALLBACK_TO_LOCAL_NAV_KEYS = new Set(['expenses'])
+
+// A second, distinct exception — this one for a NON-empty but flat live
+// tree, so it can't reuse the guard above. Confirmed live: every one of
+// Hotel's 27 real llx_menu rows has fk_menu=-1 (no parent reference at
+// all), so mapNode's real fk_menu-chain reconstruction (which correctly
+// rebuilds multi-level groups for other modules, e.g. Sales > Invoices >
+// List/Abandoned/Template) has nothing to reconstruct here — the backend
+// genuinely has no grouping data for Hotel. The section headers on the real
+// classic Hotel sidebar (Room Settings, Room Management, Tenants, Booking
+// Management, Front Desk Services, Invoice, Reports) come from that
+// module's own hand-coded left-menu template, entirely outside llx_menu —
+// there's no live data source to derive them from. hotel.nav.ts's own
+// manual nesting (confirmed against a live screenshot of that real
+// sidebar) is used as the section tree here instead. Same tradeoff as the
+// Expenses exception above: this always shows the same static grouped
+// list, not a live per-user-permission-filtered one.
+const ALWAYS_PREFER_LOCAL_NAV_KEYS = new Set(['hotel'])
 
 function normalizeLabel(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -145,9 +162,11 @@ export function buildNavSections(menu: AppMenuResponse, existingSections: NavSec
     // FALLBACK_TO_LOCAL_NAV_KEYS above) — without this, every one of its 12
     // real pages was reachable only by typing the URL directly; the sidebar
     // section itself rendered as "Nothing here yet." with no way to click
-    // into any of them.
+    // into any of them. Hotel (ALWAYS_PREFER_LOCAL_NAV_KEYS) is a second,
+    // separate exception — see that set's own comment for why it can't
+    // reuse the tree.length===0 gate below.
     const items =
-      tree.length === 0 && FALLBACK_TO_LOCAL_NAV_KEYS.has(internalKey) && existing
+      ((tree.length === 0 && FALLBACK_TO_LOCAL_NAV_KEYS.has(internalKey)) || ALWAYS_PREFER_LOCAL_NAV_KEYS.has(internalKey)) && existing
         ? existing.items
         : tree.map((node) => mapNode(internalKey, node, pathIndex))
     return {

@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckSquare, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ListPagination } from '../../../shared/components/ListPagination'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAllExpenseReports, useChangeExpenseStatus, type ExpenseReportRow } from '../expenses.queries'
 import { ROUTES } from '../../../routes'
+
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function ReviewModal({ row, onClose }: { row: ExpenseReportRow; onClose: () => void }) {
   const [comment, setComment] = useState('')
@@ -71,68 +74,92 @@ export function ExpenseApprovalsList() {
   const { data, isLoading, isError, error, refetch } = useAllExpenseReports('2')
   const rows = data?.rows ?? []
   const [reviewing, setReviewing] = useState<ExpenseReportRow | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0])
+
+  const pageRows = rows.slice((page - 1) * perPage, page * perPage)
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <CheckSquare size={20} className="text-brand" /> Expense Approvals
-      </h2>
+    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+            <CheckSquare size={20} className="text-brand" /> Expense Approvals
+          </h2>
+          <select
+            value={perPage}
+            onChange={(e) => {
+              setPerPage(Number(e.target.value))
+              setPage(1)
+            }}
+            className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n} per page
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-      {isLoading && <LegacyLoadingCard label="Loading approvals…" />}
-      {isError && <LegacyErrorCard title="Couldn't load approvals" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
+        {isLoading && <LegacyLoadingCard label="Loading approvals…" />}
+        {isError && <LegacyErrorCard title="Couldn't load approvals" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-      {data && (
-        <Card className="!h-auto !p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                <th className="font-medium px-4 py-2.5">#</th>
-                <th className="font-medium px-4 py-2.5">Ref</th>
-                <th className="font-medium px-4 py-2.5">Employee</th>
-                <th className="font-medium px-4 py-2.5">Period</th>
-                <th className="font-medium px-4 py-2.5">Linked To</th>
-                <th className="font-medium px-4 py-2.5 text-right">Total TTC</th>
-                <th className="font-medium px-4 py-2.5">Status</th>
-                <th className="font-medium px-4 py-2.5">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-6 text-text-faint italic text-center">
-                    No expense reports awaiting approval.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => (
-                  <tr key={r.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5 text-text-faint">{i + 1}</td>
-                    <td className="px-4 py-2.5">
-                      <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
-                        {r.ref}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5 text-text-muted">{r.user}</td>
-                    <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">
-                      {r.dateStart} – {r.dateEnd}
-                    </td>
-                    <td className="px-4 py-2.5 text-text-muted">{r.linkedTo}</td>
-                    <td className="px-4 py-2.5 text-right text-text!">{r.totalTtc}</td>
-                    <td className="px-4 py-2.5">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-info-bg text-info-fg">{r.status}</span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <button type="button" onClick={() => setReviewing(r)} className="rounded-md border border-input-border px-3 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover">
-                        Review
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Card>
-      )}
+        {data && (
+          <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+            {rows.length === 0 ? (
+              <p className="text-sm text-text-faint italic py-6 text-center">No expense reports awaiting approval.</p>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                      <th className="font-medium px-4 py-2.5">#</th>
+                      <th className="font-medium px-4 py-2.5">Ref</th>
+                      <th className="font-medium px-4 py-2.5">Employee</th>
+                      <th className="font-medium px-4 py-2.5">Period</th>
+                      <th className="font-medium px-4 py-2.5">Linked To</th>
+                      <th className="font-medium px-4 py-2.5 text-right">Total TTC</th>
+                      <th className="font-medium px-4 py-2.5">Status</th>
+                      <th className="font-medium px-4 py-2.5">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((r, i) => (
+                      <tr key={r.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-2.5 text-text-faint">{(page - 1) * perPage + i + 1}</td>
+                        <td className="px-4 py-2.5">
+                          <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
+                            {r.ref}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2.5 text-text-muted">{r.user}</td>
+                        <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">
+                          {r.dateStart} – {r.dateEnd}
+                        </td>
+                        <td className="px-4 py-2.5 text-text-muted">{r.linkedTo}</td>
+                        <td className="px-4 py-2.5 text-right text-text!">{r.totalTtc}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-info-bg text-info-fg">{r.status}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <button type="button" onClick={() => setReviewing(r)} className="rounded-md border border-input-border px-3 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover">
+                            Review
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {data && <ListPagination page={page} perPage={perPage} total={rows.length} onPageChange={setPage} edgeToEdge />}
 
       {reviewing && <ReviewModal row={reviewing} onClose={() => setReviewing(null)} />}
     </div>

@@ -1,5 +1,5 @@
 ﻿import { lazy, Suspense, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   X,
@@ -26,6 +26,7 @@ import {
   LoaderCircle,
   Eye,
   Plus,
+  ExternalLink,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
@@ -82,12 +83,10 @@ function StatusBadge({ label }: { label: string }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${key ? STATUS_STYLES[key] : 'bg-neutral-bg text-neutral-fg'}`}>{label}</span>
 }
 
-// Header icon links (Edit/Clone/Delete) and the bottom action-button row
-// share this same "open the real backend URL in a new tab" treatment — see
-// orderCardParser.ts's parseActionButtons() comment for why mutating,
-// modal-confirm-only actions fall back to the base order page instead of a
-// fabricated POST.
-function HeaderIconLink({ url, title, tone, children }: { url: string; title: string; tone?: 'danger'; children: ReactNode }) {
+// Header icon buttons (Edit/Clone/Delete) — each wired to a real mutation
+// via a window.confirm + .mutate() handler (see handleModify/handleClone/
+// handleDelete below), not a link out to the legacy backend.
+function HeaderIconButton({ onClick, title, tone, disabled, children }: { onClick: () => void; title: string; tone?: 'danger'; disabled?: boolean; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -121,7 +120,12 @@ function nativeRouteForRelatedObjectType(type: string): string | null {
 export function OrderDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<TabKey>('details')
+  const [searchParams] = useSearchParams()
+  // Deep-link support (e.g. ?tab=shipments from the "Yet To Create Shipment"
+  // list's own Create Shipment button) — same convention as ExportAssistant's
+  // ?step=new. Falls back to the default tab for any unrecognized value.
+  const initialTab = searchParams.get('tab')
+  const [tab, setTab] = useState<TabKey>(TABS.some((t) => t.key === initialTab) ? (initialTab as TabKey) : 'details')
   const [showQuickSearch, setShowQuickSearch] = useState(false)
   const { data, isLoading, isError, error, refetch } = useOrderDetail(id)
   const restoreToDraft = useRestoreOrderToDraft(id)

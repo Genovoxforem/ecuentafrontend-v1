@@ -36,10 +36,16 @@ export function LoanCreateForm() {
           ],
         },
         {
-          fields: [{ label: 'Receipt' }, { label: 'Project', type: 'select' }, { label: 'Note (private)', type: 'textarea' }],
+          fields: [{ label: 'Note (private)', type: 'textarea' }],
         },
         {
-          fields: [{ label: 'Note (public)', type: 'textarea' }, { label: 'Insurance/Additional Charges' }],
+          fields: [{ label: 'Receipt' }, { label: 'Project', type: 'select' }],
+        },
+        {
+          fields: [{ label: 'Note (public)', type: 'textarea' }],
+        },
+        {
+          fields: [{ label: 'Insurance/Additional Charges' }],
         },
         {
           heading: 'Accounting',

@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
-import { Info } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Info, X } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
+import { StickyFormShell } from '../layout/StickyFormShell'
 
 export interface PreviewField {
   label: string
@@ -61,12 +63,26 @@ export function DisabledFormPage({
   sourcePath: string
   sections: PreviewFormSection[]
 }) {
+  const navigate = useNavigate()
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Icon size={20} className="text-brand" /> {title}
-      </h2>
-
+    <StickyFormShell
+      scrollsInternally={false}
+      header={
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Icon size={20} className="text-brand" /> {title}
+        </h2>
+      }
+      footerLeft={
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+        >
+          <X size={14} /> Cancel
+        </button>
+      }
+      footerRight={null}
+    >
       <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
         <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
         <p className="text-xs text-info-fg">
@@ -87,6 +103,6 @@ export function DisabledFormPage({
           </div>
         </Card>
       ))}
-    </div>
+    </StickyFormShell>
   )
 }

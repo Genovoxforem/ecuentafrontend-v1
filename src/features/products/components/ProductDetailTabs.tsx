@@ -3,9 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
-  X,
   FileText,
-  Paperclip,
   CalendarClock,
   Save,
   Info,
@@ -13,22 +11,14 @@ import {
   History,
   ChartPie,
   StickyNote,
-  Percent,
-  Eye,
   Pencil,
-  Copy,
   Trash2,
-  Users,
   Truck,
-  MapPin,
-  Factory,
-  Calendar,
   Ruler,
   ShoppingCart,
   Link2,
   Shapes,
   Warehouse,
-  Landmark,
   CheckCircle2,
   Circle,
   Barcode,
@@ -48,12 +38,10 @@ import {
   UserRound,
   DollarSign,
 } from 'lucide-react'
-import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
-import { Avatar } from '../../../shared/components/Avatar'
+import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
-import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
 import { isBackendUnavailable, isBackendActionUnavailable, BackendUnavailableCard } from '../../../shared/components/BackendUnavailable'
 import {
@@ -61,7 +49,6 @@ import {
   useUploadProductDocument,
   useDeleteProductDocument,
   useProductMargins,
-  useProductDashboard,
   useProductStockOverview,
   useSetStockField,
   useProductUomOverview,
@@ -2052,8 +2039,6 @@ function MarginsTab({ id }: { id: string | undefined }) {
 type LazyTabRendererProps = {
   tab: Tab
   id: string | undefined
-  product: NonNullable<ReturnType<typeof useProductDashboard>['data']>
-  onViewAllActivity: () => void
 }
 
 export function LazyTabRenderer({ tab, id }: LazyTabRendererProps) {

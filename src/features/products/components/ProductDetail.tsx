@@ -17,21 +17,18 @@ import {
   MapPin,
   Factory,
   Calendar,
-  Warehouse,
   Landmark,
   CheckCircle2,
   Circle,
-  Barcode,
 } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
-import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
+import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
 import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
-import { isBackendUnavailable, isBackendActionUnavailable, BackendUnavailableCard } from '../../../shared/components/BackendUnavailable'
 import {
   useProductDetail,
   useProductDocuments,
@@ -40,13 +37,8 @@ import {
   useDuplicateProduct,
 } from '../products.queries'
 import {
-  Th,
-  Td,
-  EmptyRow,
-  TabTable,
   Field,
   FieldRow,
-  SectionIcon,
   SectionHeader,
   StatusPill,
   TABS,
@@ -351,7 +343,7 @@ export function ProductDetail() {
         {tab === 'Product Card' && <ProductTab product={product} id={id} onViewAllActivity={() => setTab('Invoice Stats')} />}
         {tab !== 'Product Card' && (
           <Suspense fallback={<LegacyLoadingCard label='Loading…' />}>
-            <LazyTabRenderer tab={tab} id={id} product={product} onViewAllActivity={() => setTab('Invoice Stats')} />
+            <LazyTabRenderer tab={tab} id={id} />
           </Suspense>
         )}
       </div>

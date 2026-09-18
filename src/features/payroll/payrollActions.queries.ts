@@ -1,4 +1,6 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { parseManageSalaryRows, type ManageSalaryRow } from './manageSalaryParser'
 
 // Real, live write endpoint for 8 of the Payroll module's Human Resource
 // pages — payroll/ajax.php (confirmed by reading it directly, not guessed).
@@ -359,51 +361,79 @@ export function useCreateShift() {
   })
 }
 
+// Real via payroll/ajax_search.php?entityEmp=<entityId> (payroll/
+// manage_salary.php's own "Go" button, POST, confirmed live). Returns every
+// employee in the entity with their current Assigned Salary Grade/Shift
+// display text plus a full "Assign Details" modal per row, options and
+// pre-selected values included — see manageSalaryParser.ts's own top
+// comment for the exact shape and the one markup quirk (duplicate
+// `selected` attributes) it works around.
+export function useManageSalaryEmployees(entityId: string) {
+  return useQuery({
+    queryKey: ['payroll', 'manage-salary', 'employees', entityId],
+    queryFn: async (): Promise<ManageSalaryRow[]> => {
+      const res = await fetch(`/payroll/ajax_search.php?entityEmp=${encodeURIComponent(entityId)}`, { method: 'POST', credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      return parseManageSalaryRows(html)
+    },
+    enabled: !!entityId,
+  })
+}
+
 // Real via payroll/ajax.php?saveSalaryList=1&user_id=... (payroll/
-// manage_salary.php's per-employee "Assign Details" panel). That panel
-// itself only exists as an HTML fragment rendered by
-// payroll/ajax_search.php per employee — not scraped here — but its own
-// saveList() JS (read directly) gives the exact real POST contract used
-// below. gradeTyy must be the real llx_payroll_hourly_template /
-// llx_payroll_monthly_template row id — there's no JSON lookup for that,
-// so it's a plain manual numeric field on the form, same honesty pattern as
-// MarkAttendance's Shift ID. Shift assignment (shiftA/shiftB/dates) is left
-// at its real "no shift" default (0) — Assign Shifts already covers
-// creating shifts themselves; wiring the alternating-shift-with-dates flow
-// here too would be scope far beyond what a salary assignment needs.
+// manage_salary.php's per-employee "Assign Details" modal — its own
+// saveList() JS, read directly, gives the exact real POST contract below,
+// field for field). gradeTyy is the real llx_payroll_hourly_template /
+// llx_payroll_monthly_template row id, and shiftA/shiftB/alternate_mode/
+// stdate/enddate/leavetype are the real Assign Shift + Assign Leave Type
+// section values — all now backed by real option lists scraped per-row by
+// useManageSalaryEmployees above (no manual-id honesty workaround needed
+// anymore, unlike MarkAttendance's Shift ID). assId is always sent blank:
+// confirmed live, the real page's own hidden #assId field is never
+// populated by the backend either (its one non-blank use is commented out
+// in the source).
 export interface NewSalaryAssignmentInput {
   employeeId: number
   userRole: string
-  gradeType: 'llx_payroll_hourly_template' | 'llx_payroll_monthly_template'
-  templateId: number
+  insertedId: string
+  gradeType: '' | 'llx_payroll_hourly_template' | 'llx_payroll_monthly_template'
+  templateId: string
   bankName: string
   ifsc: string
   micr: string
   accountNo: string
-  leaveType: string
   comments: string
+  primaryShift: string
+  secondaryShift: string
+  alternateMode: 'none' | 'week' | 'month'
+  startDate: string
+  endDate: string
+  leaveTypeIds: string[]
 }
 export function useCreateSalaryAssignment() {
   return useMutation({
     mutationFn: async (input: NewSalaryAssignmentInput) => {
+      const hasShift = input.primaryShift !== '0'
       const params = new URLSearchParams({
         saveSalaryList: '1',
         user_id: String(input.employeeId),
         user_role: input.userRole,
         grade: input.gradeType,
-        gradeTyy: String(input.templateId),
+        gradeTyy: input.templateId,
         b_name: input.bankName,
         ifsc: input.ifsc,
         micr: input.micr,
         comments: input.comments,
-        shiftA: '0',
-        shiftB: '0',
-        alternate_mode: 'none',
-        inserted_id: '',
-        stdate: '',
-        enddate: '',
+        shiftA: input.primaryShift,
+        shiftB: input.secondaryShift,
+        alternate_mode: input.alternateMode,
+        inserted_id: input.insertedId,
+        stdate: hasShift ? input.startDate : '',
+        enddate: hasShift ? input.endDate : '',
         assId: '',
-        leavetype: input.leaveType,
+        leavetype: input.leaveTypeIds.join(','),
         acc_no: input.accountNo,
       })
       const res = await fetch(`/payroll/ajax.php?${params.toString()}`, { method: 'POST', credentials: 'same-origin' })

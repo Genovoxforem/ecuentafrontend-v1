@@ -1,5 +1,4 @@
 import { Trash2, Users } from 'lucide-react'
-import { ROUTES } from '../../../routes'
 import { PayrollRecordList, type PayrollListColumn } from '../../../shared/components/payroll/PayrollRecordList'
 import { useSalaryAssignmentRecords, useRecordSalaryAssignment, type SalaryAssignmentRecord } from '../payrollLists.queries'
 
@@ -51,8 +50,6 @@ export function ManageSalaryListView() {
     <PayrollRecordList
       icon={Users}
       title="Employee Salary List"
-      addLabel="Assign Salary"
-      addPath={ROUTES.payrollManageSalary}
       columns={columns}
       rows={rows}
       getRowKey={(r) => r.ref}

@@ -4,6 +4,8 @@ import { api } from '../../api/axios'
 import { useLogActivity } from '../agenda/agenda.queries'
 import { useAuth } from '../auth/AuthContext'
 import { formatDate } from '../../utils/format'
+import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { parseHolidayStats, parseHolidayRows, type HolidayStats, type HolidayRequestRow, type HolidayAjaxResponse } from './holidayParser'
 
 // Reused by the Payroll module (see modules/payroll/PayrollLeaveListModule.tsx
 // / PayrollLeaveRequestModule.tsx) rather than duplicated — this same data
@@ -65,34 +67,56 @@ export interface LeaveRequest {
 const KEY = ['local', 'leave-requests'] as const
 const SEED: LeaveRequest[] = []
 
-export function useLeaveRequests() {
-  const [requests] = useLocalCollection(KEY, SEED)
-  return requests
+// ── Holiday Management (holiday/list.php) — real data ───────────────────
+// Real: the 5 stat cards render server-side into list.php's own initial
+// HTML (not through the AJAX endpoint below), and the request table itself
+// is genuine server-side DataTables JSON from holiday/ajax_holiday_list.php
+// — both confirmed live (recordsTotal matched the "Leave Records" stat
+// card exactly, and search_status/datefilter both changed the returned
+// row set). See holidayParser.ts's own top comment for the exact shapes.
+
+export function useHolidayStats() {
+  return useQuery({
+    queryKey: ['users', 'holiday', 'stats'],
+    queryFn: async (): Promise<HolidayStats> => {
+      const doc = await fetchLegacyDocument('/holiday/list.php')
+      return parseHolidayStats(doc)
+    },
+  })
 }
 
-export interface LeaveSummary {
-  employeesWithRecords: number
-  totalRequests: number
-  thisMonth: number
-  approved: number
-  cancelled: number
-  requests: LeaveRequest[]
+// '' = no status filter (the real page's own default, unfiltered view).
+export type HolidaySearchStatus = '' | '1' | '2' | '3' | '4' | '5'
+
+export interface HolidayListInput {
+  from: string // yyyy-mm-dd
+  to: string // yyyy-mm-dd
+  status: HolidaySearchStatus
 }
 
-export function useLeaveSummary(): LeaveSummary {
-  const requests = useLeaveRequests()
-  const now = new Date()
-  return {
-    employeesWithRecords: new Set(requests.map((r) => r.employeeId)).size,
-    totalRequests: requests.length,
-    thisMonth: requests.filter((r) => {
-      const d = new Date(r.createDate)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    }).length,
-    approved: requests.filter((r) => r.status === 'Approved').length,
-    cancelled: requests.filter((r) => r.status === 'Cancelled').length,
-    requests,
-  }
+// yyyy-mm-dd -> MM/DD/YYYY, the real page's own daterangepicker format for
+// its combined `datefilter` field (confirmed live: "01/01/2026 - 12/31/2026").
+function toLegacyDateSlash(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${m}/${d}/${y}`
+}
+
+export function useHolidayRequests(input: HolidayListInput) {
+  return useQuery({
+    queryKey: ['users', 'holiday', 'list', input],
+    queryFn: async (): Promise<HolidayRequestRow[]> => {
+      const body = new URLSearchParams({
+        draw: '1',
+        start: '0',
+        length: '-1',
+        datefilter: `${toLegacyDateSlash(input.from)} - ${toLegacyDateSlash(input.to)}`,
+      })
+      if (input.status) body.set('search_status', input.status)
+      const text = await fetchLegacyText('/holiday/ajax_holiday_list.php', { method: 'POST', body })
+      const json = JSON.parse(text) as HolidayAjaxResponse
+      return parseHolidayRows(json)
+    },
+  })
 }
 
 export interface NewLeaveRequestInput {

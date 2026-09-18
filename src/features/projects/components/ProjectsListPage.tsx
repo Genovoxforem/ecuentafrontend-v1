@@ -15,16 +15,27 @@ const STATUS_BADGE: Record<string, string> = {
   Unknown: 'bg-surface-hover text-text-muted',
 }
 
-type SortKey = 'ref' | 'title' | 'thirdParty' | 'status'
+type SortKey = 'ref' | 'title' | 'thirdParty' | 'startDate' | 'endDate' | 'visibility' | 'budget' | 'creationDate' | 'status'
 
-const COLUMNS: { label: string; key: SortKey }[] = [
+const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
   { label: 'Ref.', key: 'ref' },
   { label: 'Project Label', key: 'title' },
   { label: 'Third-Party', key: 'thirdParty' },
+  { label: 'Start Date', key: 'startDate' },
+  { label: 'End Date', key: 'endDate' },
+  { label: 'Visibility', key: 'visibility' },
+  { label: 'Budget', key: 'budget', align: 'right' },
+  { label: 'Creat. Date', key: 'creationDate' },
   { label: 'Status', key: 'status' },
 ]
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+function parseAmount(text: string | null): number {
+  if (!text) return 0
+  const n = Number(text.replace(/,/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
 
 function sortValue(p: ProjectRow, key: SortKey): string | number {
   switch (key) {
@@ -34,6 +45,16 @@ function sortValue(p: ProjectRow, key: SortKey): string | number {
       return p.title
     case 'thirdParty':
       return p.thirdPartyName || ''
+    case 'startDate':
+      return p.startDate || ''
+    case 'endDate':
+      return p.endDate || ''
+    case 'visibility':
+      return p.visibility || ''
+    case 'budget':
+      return parseAmount(p.budgetAmount)
+    case 'creationDate':
+      return p.creationDate || ''
     case 'status':
       return p.statusLabel
   }
@@ -45,12 +66,15 @@ function matchesSearch(p: ProjectRow, query: string) {
   return [p.ref, p.title, p.thirdPartyName || '', p.statusLabel].some((f) => f.toLowerCase().includes(q))
 }
 
-// Real POST projet/projects-list-ajax.php data (see projects.queries.ts).
-// Validate/Clone/Delete row actions from the old dead /api/projects/ are
-// gone — no real API exists for any of them any more (that module has no
-// JSON create/update/delete surface at all, only this thin read-only
-// list) — so this table is read-only, honestly, rather than pretending
-// buttons still work.
+// Real data merged from two sources (see projects.queries.ts): POST
+// projet/projects-list-ajax.php (id/ref/title/company/status code) plus a
+// scrape of the genuinely-classic projet/list.php for Start Date/End Date/
+// Visibility/Budget/Creat. Date — exactly the columns this install's own
+// Projects list page renders, confirmed live. Validate/Clone/Delete row
+// actions from the old dead /api/projects/ are gone — no real API exists
+// for any of them any more (that module has no JSON create/update/delete
+// surface at all) — so this table is read-only, honestly, rather than
+// pretending buttons still work.
 export function ProjectsListPage({ filter, title }: { filter: ProjectListFilter; title: string }) {
   const { data, isLoading, isError, error } = useProjectsList(filter)
   const [page, setPage] = useState(1)
@@ -58,6 +82,7 @@ export function ProjectsListPage({ filter, title }: { filter: ProjectListFilter;
   const [search, setSearch] = useState('')
 
   const filteredRows = useMemo(() => (data?.items ?? []).filter((p) => matchesSearch(p, search)), [data, search])
+  const totalBudget = filteredRows.reduce((sum, p) => sum + parseAmount(p.budgetAmount), 0)
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<ProjectRow, SortKey>(filteredRows, sortValue)
   const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
 
@@ -72,7 +97,17 @@ export function ProjectsListPage({ filter, title }: { filter: ProjectListFilter;
   }
 
   function getExportData() {
-    const rows = sortedRows.map((p) => [p.ref, p.title, p.thirdPartyName || '—', p.statusLabel])
+    const rows = sortedRows.map((p) => [
+      p.ref,
+      p.title,
+      p.thirdPartyName || '—',
+      p.startDate || '—',
+      p.endDate || '—',
+      p.visibility || '—',
+      p.budgetAmount || '—',
+      p.creationDate || '—',
+      p.statusLabel,
+    ])
     return { headers: COLUMN_LABELS, rows }
   }
 
@@ -158,6 +193,11 @@ export function ProjectsListPage({ filter, title }: { filter: ProjectListFilter;
                       </td>
                       <td className="py-2.5 px-4 text-text!">{p.title}</td>
                       <td className="py-2.5 px-4 text-text-muted">{p.thirdPartyName || '—'}</td>
+                      <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{p.startDate || '—'}</td>
+                      <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{p.endDate || '—'}</td>
+                      <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{p.visibility || '—'}</td>
+                      <td className="py-2.5 px-4 text-right tabular-nums text-text!">{p.budgetAmount || '—'}</td>
+                      <td className="py-2.5 px-4 text-text-muted whitespace-nowrap">{p.creationDate || '—'}</td>
                       <td className="py-2.5 px-4">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[p.statusLabel]}`}>{p.statusLabel}</span>
                       </td>
@@ -165,10 +205,24 @@ export function ProjectsListPage({ filter, title }: { filter: ProjectListFilter;
                   ))
                 )}
               </tbody>
+              {!isLoading && filteredRows.length > 0 && (
+                <tfoot>
+                  <tr className="border-t border-border font-semibold">
+                    <td className="py-2.5 px-4 text-text!">Total</td>
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4 text-right tabular-nums text-text!">{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4" />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </Card>
-        <p className="text-xs text-text-faint italic">Start Date, End Date, Visibility and Budget aren't returned by the real Projects list endpoint on this backend — not shown to avoid guessing.</p>
       </div>
       <ListPagination page={page} perPage={perPage} total={filteredRows.length} onPageChange={setPage} edgeToEdge />
     </div>

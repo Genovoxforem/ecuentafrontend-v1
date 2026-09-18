@@ -37,8 +37,8 @@ export function PayrollRecordList<T, K extends string>({
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
-  addLabel: string
-  addPath: string
+  addLabel?: string
+  addPath?: string
   columns: PayrollListColumn<T, K>[]
   rows: T[]
   getRowKey: (row: T) => string
@@ -92,9 +92,11 @@ export function PayrollRecordList<T, K extends string>({
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Icon size={20} className="text-brand" /> {title}
         </h2>
-        <Link to={addPath} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          <Plus size={14} /> {addLabel}
-        </Link>
+        {addPath && addLabel && (
+          <Link to={addPath} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+            <Plus size={14} /> {addLabel}
+          </Link>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">

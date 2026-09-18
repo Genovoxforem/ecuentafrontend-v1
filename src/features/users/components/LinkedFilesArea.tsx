@@ -1,30 +1,31 @@
 import { useState } from 'react'
-import { Link2, Folder, FolderTree, ExternalLink } from 'lucide-react'
+import { Link2, FolderPlus, RefreshCw, ExternalLink } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 
 // Automatic Tree mirrors the real backend's own fixed list — one directory
-// per Dolibarr module that accepts attachments (ecm/index_auto.php's own
-// array of enabled modules, read directly), so this list is real reference
-// data, not a guess.
+// (and real ecm/index_auto.php?module=<slug> link) per Dolibarr module that
+// accepts attachments, confirmed live against the real page's own tree
+// markup (`<a class="fmdirlia" href="/ecm/index_auto.php?module=...">`),
+// not guessed from screenshots — labels/casing match that markup exactly.
 const AUTOMATIC_DIRECTORIES = [
-  'Bank Account',
-  'Candidatures',
-  'Contracts',
-  'Customers Invoices',
-  'Expense Reports',
-  'Interventions',
-  'Leave',
-  'Products And Services',
-  'Projects',
-  'Purchase Orders',
-  'Quotations',
-  'Sales Orders',
-  'Social Or Fiscal Taxes',
-  'Third-Parties',
-  'Users',  
-  'Vendor Quotation',
-  'Vendors Invoices',
+  { module: 'banque', label: 'Bank account' },
+  { module: 'recruitment-recruitmentcandidature', label: 'Candidatures' },
+  { module: 'contract', label: 'Contracts' },
+  { module: 'invoice', label: 'Customers invoices' },
+  { module: 'expensereport', label: 'Expense reports' },
+  { module: 'fichinter', label: 'Interventions' },
+  { module: 'holiday', label: 'Leave' },
+  { module: 'product', label: 'Products and Services' },
+  { module: 'project', label: 'Projects' },
+  { module: 'order_supplier', label: 'Purchase orders' },
+  { module: 'propal', label: 'Quotations' },
+  { module: 'order', label: 'Sales Orders' },
+  { module: 'tax', label: 'Social or fiscal taxes' },
+  { module: 'company', label: 'Third-parties' },
+  { module: 'user', label: 'Users' },
+  { module: 'supplier_proposal', label: 'Vendor Quotation' },
+  { module: 'invoice_supplier', label: 'Vendors invoices' },
 ]
 
 // Neither tab has a JSON API on this backend: ecm/index.php (Manual Tree)
@@ -37,10 +38,14 @@ const AUTOMATIC_DIRECTORIES = [
 // just has no way to browse, create, or upload into it yet. An earlier
 // version of this page worked around that by faking "Manual Tree" folder
 // creation into localStorage — folders that only ever existed in one
-// browser and were never real. Replaced with an honest link out to the
-// real legacy area instead of pretending to manage them here.
+// browser and were never real. Replaced with honest links out to the real
+// legacy area (the whole tab, and — for Automatic Tree — each real
+// directory link individually) instead of pretending to manage them here.
 const LEGACY_MANUAL_URL = '/ecm/index.php'
 const LEGACY_AUTOMATIC_URL = '/ecm/index_auto.php'
+// Real: the Manual Tree toolbar's own "Add directory" button — confirmed
+// live (`href="/ecm/dir_add_card.php?action=create&module=ecm&backtopage=..."`).
+const LEGACY_ADD_DIRECTORY_URL = '/ecm/dir_add_card.php?action=create&module=ecm&backtopage=%2Fecm%2Findex.php'
 
 export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manual' | 'automatic' }) {
   const [tab, setTab] = useState<'manual' | 'automatic'>(defaultTab)
@@ -69,7 +74,27 @@ export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manua
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2 p-3 border-b border-border">
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-faint">{tab === 'manual' ? 'Manual Tree' : 'Automatic Tree'}</p>
+          <div className="flex items-center gap-1.5">
+            {tab === 'manual' && (
+              <a
+                href={stripBackendPrefix(LEGACY_ADD_DIRECTORY_URL)}
+                target="_blank"
+                rel="noreferrer"
+                title="Add directory"
+                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover"
+              >
+                <FolderPlus size={13} /> Add Directory
+              </a>
+            )}
+            <button
+              type="button"
+              title="Refresh"
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover"
+            >
+              <RefreshCw size={13} />
+            </button>
+          </div>
           <a
             href={stripBackendPrefix(legacyUrl)}
             target="_blank"
@@ -80,31 +105,49 @@ export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manua
           </a>
         </div>
 
-        {tab === 'automatic' ? (
-          <div className="p-4 space-y-3">
-            <p className="text-xs text-text-faint">One folder per module that accepts attachments. This backend has no JSON API to list files inside them — browse those in Linked Files.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+        <div className="border-b border-border">
+          <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-faint bg-surface-alt">Directories</p>
+          {tab === 'automatic' ? (
+            <div className="p-2">
               {AUTOMATIC_DIRECTORIES.map((dir) => (
-                <div key={dir} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-text-muted">
-                  <Folder size={14} className="text-text-faint shrink-0" /> {dir}
-                </div>
+                <a
+                  key={dir.module}
+                  href={stripBackendPrefix(`${LEGACY_AUTOMATIC_URL}?module=${dir.module}`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block px-2 py-1 text-sm text-brand hover:underline"
+                >
+                  {dir.label}
+                </a>
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 py-10 px-4 text-center">
-            <FolderTree size={28} className="text-text-faint" />
-            <p className="max-w-sm text-sm text-text-faint">This backend has no JSON API for browsing or creating folders here — Manual Tree is managed entirely server-side in the legacy app.</p>
-            <a
-              href={stripBackendPrefix(LEGACY_MANUAL_URL)}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
-            >
-              Manage in Linked Files <ExternalLink size={12} />
-            </a>
-          </div>
-        )}
+          ) : (
+            <p className="px-3 py-3 text-xs text-text-faint">
+              No manual directories are shown here — this SPA has no JSON API to list them.{' '}
+              <a href={stripBackendPrefix(LEGACY_MANUAL_URL)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                Manage them in Linked Files
+              </a>
+              .
+            </p>
+          )}
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <th className="font-medium px-4 py-2.5">Documents</th>
+              <th className="font-medium px-4 py-2.5">Size</th>
+              <th className="font-medium px-4 py-2.5">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="px-4 py-4 text-text-faint italic" colSpan={3}>
+                Select a directory in the tree…
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </Card>
     </div>
   )
