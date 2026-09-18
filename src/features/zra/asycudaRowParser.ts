@@ -79,10 +79,15 @@ export interface SimilarProduct {
   proid: string
 }
 
+export interface LinkedProduct {
+  id: string
+  name: string
+}
+
 export type AsycudaActionState =
   | { kind: 'exact-match'; updateItem: AsycudaUpdateItem }
   | { kind: 'similar-matches'; updateItem: AsycudaUpdateItem; similarProducts: SimilarProduct[] }
-  | { kind: 'needs-create'; updateItem: AsycudaUpdateItem }
+  | { kind: 'needs-create'; updateItem: AsycudaUpdateItem; linkedProduct: LinkedProduct | null }
 
 // actionsHtml carries one of three fixed shapes depending on real backend
 // product-matching (hasExactMatch / hasSimilarMatches / else) — detected via
@@ -117,6 +122,17 @@ export function parseActionsState(actionsHtml: string): AsycudaActionState {
     return { kind: 'similar-matches', updateItem: baseItem, similarProducts }
   }
 
+  // The real page's own "Search product..." / manually-linked-chip widget
+  // (main_product_container_N — see product_search_api.php/
+  // save_import_products.php in asycudaImport.queries.ts) always lives
+  // here for rows that don't hit the exact/similar-match branches above.
+  // When a product has already been linked, that container holds a real
+  // <a href="/product/card.php?id=X">Name</a> instead of the search input —
+  // approve-btn's own data-proid agrees with that link's id when present.
+  const linkAnchor = doc.querySelector('a[href*="/product/card.php"]')
+  const linkedProductId = linkAnchor ? new URL(linkAnchor.getAttribute('href') ?? '', 'http://x').searchParams.get('id') : null
+  const linkedProduct: LinkedProduct | null = linkAnchor && linkedProductId ? { id: linkedProductId, name: (linkAnchor.textContent ?? '').trim() } : null
+
   const approveBtn = doc.querySelector('.approve-btn')
-  return { kind: 'needs-create', updateItem: { ...baseItem, proid: approveBtn?.getAttribute('data-proid') ?? undefined } }
+  return { kind: 'needs-create', updateItem: { ...baseItem, proid: approveBtn?.getAttribute('data-proid') ?? undefined }, linkedProduct }
 }

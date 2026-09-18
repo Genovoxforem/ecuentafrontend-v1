@@ -72,8 +72,8 @@ export function ExpenseAnalyticsPage() {
 
       {data && (
         <>
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-            <Card className="!h-auto">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <Card>
               <h3 className="font-semibold text-text! mb-3">Monthly Expense Trend {year}</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={monthlyTrend}>
@@ -86,24 +86,24 @@ export function ExpenseAnalyticsPage() {
               </ResponsiveContainer>
             </Card>
 
-            <Card className="!h-auto">
+            <Card>
               <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
                 <Tags size={16} className="text-brand" /> By Expense Type
               </h3>
-              <div className="min-h-40 flex flex-col items-center justify-center text-center gap-1 py-6">
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
                 <p className="text-sm text-text-muted">Not available</p>
                 <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API for per-line expense-type amounts.</p>
               </div>
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-            <Card className="!h-auto">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <Card>
               <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
                 <Users size={16} className="text-brand" /> Top Employees by Spend
               </h3>
               {topEmployees.length === 0 ? (
-                <p className="text-sm text-text-faint italic py-6 text-center">No expenses in {year}.</p>
+                <p className="flex-1 flex items-center justify-center text-sm text-text-faint italic text-center">No expenses in {year}.</p>
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={topEmployees} layout="vertical" margin={{ left: 24 }}>
@@ -117,11 +117,11 @@ export function ExpenseAnalyticsPage() {
               )}
             </Card>
 
-            <Card className="!h-auto">
+            <Card>
               <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
                 <Building2 size={16} className="text-brand" /> By Department
               </h3>
-              <div className="min-h-40 flex flex-col items-center justify-center text-center gap-1 py-6">
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
                 <p className="text-sm text-text-muted">Not available</p>
                 <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API exposing department data.</p>
               </div>

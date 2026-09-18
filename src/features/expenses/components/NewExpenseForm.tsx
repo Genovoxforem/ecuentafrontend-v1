@@ -196,7 +196,7 @@ export function NewExpenseForm() {
         <CheckSquare size={20} className="text-brand" /> New Expense
       </h2>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-stretch">
         <div className="space-y-4 min-w-0">
           <Card className="!h-auto">
             <h3 className="font-semibold text-text! mb-3">Expense Report Details</h3>
@@ -334,7 +334,7 @@ export function NewExpenseForm() {
           </Card>
         </div>
 
-        <Card className="!h-auto space-y-3">
+        <Card className="space-y-3">
           <h3 className="font-semibold text-text!">Summary</h3>
           <EntityPicker label="User responsible for approval" value={validator} onChange={setValidator} type="user" />
           <label className="block">

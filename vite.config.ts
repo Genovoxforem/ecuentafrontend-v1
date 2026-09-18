@@ -359,6 +359,15 @@ export default defineConfig({
       // — no React route starts with /reception, so a plain prefix is
       // safe, but anchored anyway to match the rest of this list.
       '^/reception(/|$)': proxyConfig(BACKEND_URL),
+      // Hotel module's classic per-page AJAX handlers (booking/settings/
+      // booking_master.ajax.php — the real Room Features "Add Feature"
+      // write, richer than the Hotel Suite API's own a=savefeature; confirmed
+      // live it writes the exact same custom/hotel/api.php?r=features data)
+      // — see hotel.queries.ts's own useHotelSaveFeatureFull. No React route
+      // starts with bare /booking (this app's own routes all use
+      // /hotel/..., plus bookingDashboard at /hotel-dashboard), so a plain
+      // prefix is safe, but anchored anyway to match the rest of this list.
+      '^/booking(/|$)': proxyConfig(BACKEND_URL),
     },
   },
 })

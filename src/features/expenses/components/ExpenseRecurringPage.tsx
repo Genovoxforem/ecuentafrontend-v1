@@ -47,84 +47,90 @@ export function ExpenseRecurringPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Repeat size={20} className="text-brand" /> Recurring Expenses
-      </h2>
+    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Repeat size={20} className="text-brand" /> Recurring Expenses
+        </h2>
+      </div>
 
-      <Card className="!h-auto">
-        <h3 className="font-semibold text-text! mb-3">Create Recurring Expense</h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Template Expense Report</label>
-            <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={`${inputCls} w-full`}>
-              <option value="">Select template…</option>
-              {rows.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.ref} — {r.user}
-                </option>
-              ))}
-            </select>
+      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
+        <Card className="!h-auto">
+          <h3 className="font-semibold text-text! mb-3">Create Recurring Expense</h3>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Template Expense Report</label>
+              <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={`${inputCls} w-full`}>
+                <option value="">Select template…</option>
+                {rows.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.ref} — {r.user}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Frequency</label>
+              <select value={frequency} onChange={(e) => setFrequency(e.target.value as typeof frequency)} className={`${inputCls} w-full`}>
+                {FREQUENCIES.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Start Date</label>
+              <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className={`${inputCls} w-full`} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">End Date</label>
+              <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className={`${inputCls} w-full`} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-muted mb-1">Auto Create</label>
+              <select value={autoCreate ? '1' : '0'} onChange={(e) => setAutoCreate(e.target.value === '1')} className={`${inputCls} w-full`}>
+                <option value="0">No</option>
+                <option value="1">Yes</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Frequency</label>
-            <select value={frequency} onChange={(e) => setFrequency(e.target.value as typeof frequency)} className={`${inputCls} w-full`}>
-              {FREQUENCIES.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Start Date</label>
-            <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className={`${inputCls} w-full`} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">End Date</label>
-            <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className={`${inputCls} w-full`} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1">Auto Create</label>
-            <select value={autoCreate ? '1' : '0'} onChange={(e) => setAutoCreate(e.target.value === '1')} className={`${inputCls} w-full`}>
-              <option value="0">No</option>
-              <option value="1">Yes</option>
-            </select>
-          </div>
-        </div>
-        {result === 'error' && <p className="text-sm text-danger-fg mt-2">{createRecurring.error instanceof Error ? createRecurring.error.message : 'Could not create the recurring template.'}</p>}
-        {result === 'success' && <p className="text-sm text-success-fg mt-2">Recurring template created. Note: this backend has no scheduler that actually acts on it.</p>}
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!templateId || !dateStart || createRecurring.isPending}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-        >
-          Create Recurring Expense
-        </button>
-      </Card>
+          {result === 'error' && <p className="text-sm text-danger-fg mt-2">{createRecurring.error instanceof Error ? createRecurring.error.message : 'Could not create the recurring template.'}</p>}
+          {result === 'success' && <p className="text-sm text-success-fg mt-2">Recurring template created. Note: this backend has no scheduler that actually acts on it.</p>}
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!templateId || !dateStart || createRecurring.isPending}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            Create Recurring Expense
+          </button>
+        </Card>
 
-      <Card className="!h-auto !p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-4 py-2.5">Template Ref</th>
-              <th className="font-medium px-4 py-2.5">Frequency</th>
-              <th className="font-medium px-4 py-2.5">Start</th>
-              <th className="font-medium px-4 py-2.5">End</th>
-              <th className="font-medium px-4 py-2.5">Next Run</th>
-              <th className="font-medium px-4 py-2.5">Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
-                No live listing API on this backend for existing recurring templates — recurring.php renders its table as server-side HTML with no JSON source.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
+        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                  <th className="font-medium px-4 py-2.5">Template Ref</th>
+                  <th className="font-medium px-4 py-2.5">Frequency</th>
+                  <th className="font-medium px-4 py-2.5">Start</th>
+                  <th className="font-medium px-4 py-2.5">End</th>
+                  <th className="font-medium px-4 py-2.5">Next Run</th>
+                  <th className="font-medium px-4 py-2.5">Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
+                    No live listing API on this backend for existing recurring templates — recurring.php renders its table as server-side HTML with no JSON source.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
     </div>
   )
 }

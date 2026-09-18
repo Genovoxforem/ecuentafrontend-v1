@@ -66,3 +66,24 @@ export async function hotelPost(action: string, fields: Record<string, string | 
   if (!data.ok) throw new Error(('error' in data && data.error) || 'The legacy backend rejected the request.')
   return data as HotelApiOk
 }
+
+// Same real a=uploaddoc contract as hotelPost, except the real page sends an
+// actual File in the FormData (fd.append('file', f)) rather than a string —
+// FormData.append(name, Blob) is a distinct overload hotelPost's own
+// string-only fields type can't express, hence this separate helper.
+export async function hotelPostFile(action: string, fields: Record<string, string | number | undefined>, file: File, fileFieldName: string, token: string): Promise<HotelApiOk> {
+  const fd = new FormData()
+  fd.append('a', action)
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) fd.append(k, String(v))
+  }
+  fd.append(fileFieldName, file)
+  fd.append('token', token)
+  const res = await fetch('/custom/hotel/api.php', { method: 'POST', credentials: 'same-origin', body: fd })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const text = await res.text()
+  if (looksLikeLegacyLoginPageText(text)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+  const data = JSON.parse(text) as HotelApiOk | HotelApiErr
+  if (!data.ok) throw new Error(('error' in data && data.error) || 'The legacy backend rejected the request.')
+  return data as HotelApiOk
+}

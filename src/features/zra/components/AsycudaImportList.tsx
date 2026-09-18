@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { FileInput, RefreshCw, Info, ChevronDown, PackagePlus, SplitSquareHorizontal, CircleCheck, XCircle, Search as SearchIcon } from 'lucide-react'
+import { FileInput, RefreshCw, Info, PackagePlus, SplitSquareHorizontal, CircleCheck, XCircle, Search as SearchIcon } from 'lucide-react'
 import { useAsycudaImportList, useAsycudaImportCount, useZraUpdateImport, type AsycudaImportRow, type AsycudaUpdateItem } from '../asycudaImport.queries'
 import { parseRowFields, parseActionsState } from '../asycudaRowParser'
 import { CreateProductModal } from './CreateProductModal'
 import { SplitDetailsModal } from './SplitDetailsModal'
 import { CancelReasonModal } from './CancelReasonModal'
 import { SuggestionsModal } from './SuggestionsModal'
+import { AsycudaProductLink } from './AsycudaProductLink'
 import { ListPagination, PER_PAGE, SearchBox } from './ZraListChrome'
 import { isLegacySessionExpired } from '../../../shared/components/BackendUnavailable'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -23,13 +24,24 @@ function describeUpdateError(err: unknown): string {
   return err instanceof Error ? err.message : 'Update failed — please try again.'
 }
 
+// The **word** markers match the real page's own bolded key terms per
+// bullet (Supplier/Product/Approve/Purchase Invoice) — see NoteLine below.
 const NOTES = [
-  'Create Supplier by Selecting Imported Country (expect ZAMBIA) To Make Purchase as ASYCUDA Import',
-  'Create Product by the Same Name of Imported Item Name In the ASYCUDA Import List',
-  'Click Approve Button To Import Product To Zra Smart Invoice',
+  'Create **Supplier** by Selecting Imported Country (expect ZAMBIA) To Make Purchase as ASYCUDA Import',
+  'Create **Product** by the Same Name of Imported Item Name In the ASYCUDA Import List',
+  'Click **Approve** Button To Import Product To Zra Smart Invoice',
   'Once Succeeded You Get An Alert',
-  'Create Purchase Invoice For the Approved Item To Update The Stock In Smart Invoice and in ECUENTA',
+  'Create **Purchase Invoice** For the Approved Item To Update The Stock In Smart Invoice and in ECUENTA',
 ]
+
+function NoteLine({ text }: { text: string }) {
+  const parts = text.split('**')
+  return (
+    <>
+      {parts.map((part, i) => (i % 2 === 1 ? <b key={i}>{part}</b> : part))}
+    </>
+  )
+}
 
 const PAGE_SIZE_OPTIONS = [10, 15, 25, 50, 100]
 
@@ -216,6 +228,30 @@ export function AsycudaImportList() {
             <FileInput size={20} className="text-brand" />
             ZRA ASYCUDA Import Items
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-surface-alt text-text-muted">{totalCount ?? '…'}</span>
+            <span className="relative">
+              <button
+                type="button"
+                onClick={() => setNotesOpen((v) => !v)}
+                title="Notes"
+                className="w-7 h-7 rounded-full grid place-items-center text-brand bg-brand/10 hover:bg-brand/20"
+              >
+                <Info size={15} />
+              </button>
+              {notesOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setNotesOpen(false)} />
+                  <div className="absolute left-0 top-full mt-2 z-40 w-80 sm:w-[26rem] rounded-lg bg-gray-900 dark:bg-black/90 text-sm text-gray-100 shadow-xl p-3">
+                    <ul className="space-y-1.5 list-disc list-inside font-normal">
+                      {NOTES.map((note) => (
+                        <li key={note}>
+                          <NoteLine text={note} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              )}
+            </span>
           </h2>
           <button
             type="button"
@@ -228,24 +264,39 @@ export function AsycudaImportList() {
           </button>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface-alt text-sm text-text-muted">
-          <button
-            type="button"
-            onClick={() => setNotesOpen((v) => !v)}
-            className="w-full flex items-center gap-1.5 px-3 py-2 font-medium text-text!"
-          >
-            <Info size={14} className="text-brand shrink-0" />
-            <span>Note</span>
-            {!notesOpen && <span className="text-text-faint font-normal truncate">— {NOTES[0]}</span>}
-            <ChevronDown size={14} className={`ml-auto shrink-0 text-text-faint transition-transform ${notesOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {notesOpen && (
-            <ul className="space-y-1 list-disc list-inside px-3 pb-2.5 -mt-0.5">
-              {NOTES.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
-          )}
+        <div>
+          <label className="block text-xs font-medium text-text-muted mb-1">Declaration reference number</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={declRefInput}
+              onChange={(e) => setDeclRefInput(e.target.value)}
+              className="h-9 w-56 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setPage(1)
+                setDeclRefFilter(declRefInput.trim())
+              }}
+              className="px-4 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+            >
+              Filter
+            </button>
+            {declRefFilter && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDeclRefInput('')
+                  setDeclRefFilter('')
+                  setPage(1)
+                }}
+                className="px-3 h-9 rounded-md text-sm font-medium bg-surface-alt text-text-muted hover:bg-surface-hover"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -268,39 +319,6 @@ export function AsycudaImportList() {
           </label>
 
           <TableExportButtons title="ZRA ASYCUDA Import Items" getExportData={getExportData} />
-
-          <span className="hidden sm:block w-px h-6 bg-border mx-1" />
-
-          <label className="text-xs font-medium text-text-muted whitespace-nowrap">Declaration reference number</label>
-          <input
-            type="text"
-            value={declRefInput}
-            onChange={(e) => setDeclRefInput(e.target.value)}
-            className="h-9 w-48 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setPage(1)
-              setDeclRefFilter(declRefInput.trim())
-            }}
-            className="px-3 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
-          >
-            Filter
-          </button>
-          {declRefFilter && (
-            <button
-              type="button"
-              onClick={() => {
-                setDeclRefInput('')
-                setDeclRefFilter('')
-                setPage(1)
-              }}
-              className="px-3 h-9 rounded-md text-sm font-medium bg-surface-alt text-text-muted hover:bg-surface-hover"
-            >
-              Clear
-            </button>
-          )}
 
           <div className="flex-1 min-w-[220px] sm:max-w-80 sm:ml-auto">
             <SearchBox
@@ -373,13 +391,21 @@ export function AsycudaImportList() {
                         </button>
                       )}
                       {actions.kind === 'needs-create' && (
-                        <button
-                          type="button"
-                          onClick={() => setCreateProductTaskCode(parseRowFields(row).taskCode)}
-                          className={btnCls.primary}
-                        >
-                          <PackagePlus size={12} /> Create product
-                        </button>
+                        <>
+                          <AsycudaProductLink
+                            key={`${actions.updateItem.taskCd}-${actions.updateItem.itemSeq}`}
+                            taskCd={actions.updateItem.taskCd}
+                            itemSeq={actions.updateItem.itemSeq}
+                            initial={actions.linkedProduct}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setCreateProductTaskCode(parseRowFields(row).taskCode)}
+                            className={btnCls.primary}
+                          >
+                            <PackagePlus size={12} /> Create product
+                          </button>
+                        </>
                       )}
                       {actions.kind !== 'exact-match' && (
                         <button type="button" onClick={() => setSplitRow(row)} className={btnCls.warning}>

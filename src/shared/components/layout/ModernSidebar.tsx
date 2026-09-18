@@ -22,6 +22,7 @@ import {
   UsersThree,
   FileText,
   ChatCircle,
+  Bed,
   CaretDown,
   CaretRight,
   SignOut,
@@ -38,6 +39,7 @@ import { nav as bankingNav } from '../../../features/banking/banking.nav'
 import { nav as loansNav } from '../../../features/loans/loans.nav'
 import { nav as usersNav } from '../../../features/users/users.nav'
 import { nav as payrollNav } from '../../../features/payroll/payroll.nav'
+import { nav as hotelNav } from '../../../features/hotel/hotel.nav'
 import { nav as expensesNav } from '../../../features/expenses/expenses.nav'
 import { nav as specialExpensesNav } from '../../../features/expenses/specialExpenses.nav'
 import { nav as budgetNav } from '../../../features/budget/budget.nav'
@@ -73,6 +75,7 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
   loansNav,
   usersNav,
   payrollNav,
+  hotelNav,
   expensesNav,
   specialExpensesNav,
   budgetNav,
@@ -97,7 +100,8 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
 // lucide fallback (no real duotone-lookup mismatch risk for these two
 // inline-only sections), ForkKnife<->Utensils, Buildings<->BriefcaseBusiness
 // (fixed asset), BookOpenText<->BookText, Ticket<->Ticket, Gear<->Settings,
-// UsersThree<->UsersRound (members), FileText<->FileText, ChatCircle<->MessageCircle.
+// UsersThree<->UsersRound (members), FileText<->FileText, ChatCircle<->MessageCircle,
+// Bed<->BedDouble (hotel).
 const PHOSPHOR_ICON: Record<string, PhosphorIcon> = {
   home: House,
   zra: Shield,
@@ -110,6 +114,7 @@ const PHOSPHOR_ICON: Record<string, PhosphorIcon> = {
   loans: CurrencyCircleDollar,
   users: Users,
   payroll: Wallet,
+  hotel: Bed,
   kitchen: ForkKnife,
   'fixed-asset': Buildings,
   'general-ledger': BookOpenText,

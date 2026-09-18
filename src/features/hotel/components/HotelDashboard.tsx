@@ -73,7 +73,12 @@ function RackPreview({ rack }: { rack: HotelRackRoom[] }) {
 // Hotel Suite app's own Dashboard view, ported to this app's design system
 // (Card/ICON_STYLES instead of its bespoke gold/emerald theme) rather than
 // visually cloned — see hotelApi.ts's own top comment for how this real API
-// was found and confirmed.
+// was found and confirmed. Matches the real page's own section layout:
+// Bookings and Revenue collected are two separate 6-month charts (not one
+// combined chart — both real fields already come from r=trends), and
+// Occupancy (today's Occupied/Ready/To service/Arriving/Out of service
+// breakdown, from dashboard.counts) sits beside Suite Rack, same as the
+// real Dashboard's own two-panel row.
 export function HotelDashboard() {
   const { data: dashboard, isLoading, isError, error, refetch } = useHotelDashboard()
   const { data: kpi } = useHotelDashKpi()
@@ -93,10 +98,10 @@ export function HotelDashboard() {
           </span>
           <div>
             <h2 className="text-lg font-bold text-text!">Hotel Dashboard</h2>
-            <p className="text-xs text-text-faint mt-0.5">Live operational overview — custom/hotel/api.php</p>
+            <p className="text-xs text-text-faint mt-0.5">Live operational overview</p>
           </div>
         </div>
-        <Link to={ROUTES.hotelNewBooking} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+        <Link to={ROUTES.hotelSuiteNewBooking} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
           <CalendarPlus size={14} /> New Booking
         </Link>
       </div>
@@ -120,12 +125,7 @@ export function HotelDashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card className="!h-auto">
-          <h3 className="font-semibold text-text! mb-3">Suite Rack — {dashboard.total} keys</h3>
-          <RackPreview rack={dashboard.rack} />
-        </Card>
-
-        <Card className="!h-auto">
-          <h3 className="font-semibold text-text! mb-3">Bookings &amp; Revenue — last 6 months</h3>
+          <h3 className="font-semibold text-text! mb-3">Bookings — last 6 months</h3>
           {trends && trends.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={trends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -139,6 +139,64 @@ export function HotelDashboard() {
           ) : (
             <p className="text-sm text-text-faint italic py-8 text-center">No booking history yet.</p>
           )}
+        </Card>
+
+        <Card className="!h-auto">
+          <h3 className="font-semibold text-text! mb-3">Revenue collected — last 6 months</h3>
+          {trends && trends.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={trends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
+                <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `K${v}`} />
+                <Tooltip formatter={(v) => [`K${Number(v).toLocaleString()}`, 'Revenue']} />
+                <Bar dataKey="revenue" name="Revenue" fill="var(--color-chart-2)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-text-faint italic py-8 text-center">No revenue history yet.</p>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="!h-auto">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-text!">Occupancy</h3>
+            <span className="text-xs font-medium text-text-faint uppercase tracking-wide">Today</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div
+              className="shrink-0 w-32 h-32 rounded-full grid place-items-center"
+              style={{ background: `conic-gradient(var(--color-chart-1) ${dashboard.occupancy * 3.6}deg, var(--color-border) 0deg)` }}
+            >
+              <div className="w-24 h-24 rounded-full bg-surface-alt grid place-items-center flex-col">
+                <span className="text-xl font-bold text-text!">{dashboard.occupancy}%</span>
+                <span className="text-[10px] text-text-faint uppercase tracking-wide">Occupied</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-2">
+              {[
+                { label: 'Occupied', n: dashboard.counts.occupied, dot: 'bg-emerald-500' },
+                { label: 'Ready', n: dashboard.counts.ready, dot: 'bg-sky-400' },
+                { label: 'To service', n: dashboard.counts.dirty, dot: 'bg-amber-500' },
+                { label: 'Arriving', n: dashboard.counts.arriving, dot: 'bg-violet-500' },
+                { label: 'Out of service', n: dashboard.counts.ooo, dot: 'bg-rose-500' },
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-text-muted">
+                    <span className={`w-2.5 h-2.5 rounded-full ${row.dot}`} /> {row.label}
+                  </span>
+                  <span className="font-medium text-text!">{row.n}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="!h-auto">
+          <h3 className="font-semibold text-text! mb-3">Suite Rack — {dashboard.total} keys</h3>
+          <RackPreview rack={dashboard.rack} />
         </Card>
       </div>
 

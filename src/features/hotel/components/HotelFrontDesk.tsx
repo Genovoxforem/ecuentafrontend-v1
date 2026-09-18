@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { BellRing, LoaderCircle, LogIn, LogOut } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { BellRing, LoaderCircle, LogIn, LogOut, Search } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
+import { HotelCheckoutWizard } from './HotelCheckoutWizard'
 import {
   useHotelArrivals,
   useHotelInhouse,
@@ -10,12 +11,19 @@ import {
   useHotelCheckouts,
   useHotelAvailable,
   useHotelCheckIn,
-  useHotelCheckOut,
   useHotelToken,
+  useHotelDashboard,
   type HotelArrival,
 } from '../hotel.queries'
 
 type Tab = 'arr' | 'inh' | 'upc' | 'out'
+const TAB_TITLE: Record<Tab, string> = {
+  arr: "Today's arrivals",
+  inh: 'In-house guests',
+  upc: 'Upcoming arrivals',
+  out: 'Checked-out guests',
+}
+const TAB_COUNT_LABEL: Record<Tab, string> = { arr: 'Arrivals', inh: 'In-house', upc: 'Upcoming', out: 'Checkouts' }
 
 function AssignAndCheckIn({ guest, onDone }: { guest: HotelArrival; onDone: () => void }) {
   const { data: token } = useHotelToken()
@@ -72,41 +80,38 @@ function GuestRow({ children, guest, meta }: { children?: React.ReactNode; guest
   )
 }
 
-// Real via custom/hotel/api.php?r=arrivals|inhouse|upcoming|checkouts, plus
-// a=checkin / a=checkout writes — the Hotel Suite app's own Front Desk.
-// Check-out here uses the real simple contract (a=checkout, booking, force)
-// rather than the full multi-step invoice/ZRA-finalize modal the original
-// SPA offers — a real backend "outstanding balance" warning still surfaces
-// via the confirm-to-force-checkout flow below.
+// Real via custom/hotel/api.php?r=arrivals|inhouse|upcoming|checkouts|
+// dashboard, plus a=checkin — the Hotel Suite app's own Front Desk. The 4
+// top stat cards (Arrivals/Departures/In Residence/Vacant Ready) reuse
+// r=dashboard's own real fields (arrivals/departures/inhouse/counts.ready —
+// confirmed live: the real Front Desk tab shows exactly these 4). Each
+// tab's own search box is a client-side filter over data already fetched
+// (guest/booking/suite), matching the real page's own per-tab search —
+// no separate search endpoint exists or is needed. Check-out now opens the
+// real multi-step wizard (HotelCheckoutWizard.tsx: folio → generate invoice
+// → finalize/ZRA → collect & apply payment → check out), reproducing the
+// original SPA's own checkoutModal() instead of the earlier simplified
+// direct a=checkout call — that simple contract is still there as the
+// wizard's own "Force check out anyway" escape hatch.
 export function HotelFrontDesk() {
   const [tab, setTab] = useState<Tab>('arr')
+  const [search, setSearch] = useState('')
   const { data: token } = useHotelToken()
+  const { data: dashboard } = useHotelDashboard()
   const arrivals = useHotelArrivals()
   const inhouse = useHotelInhouse()
   const upcoming = useHotelUpcoming()
   const checkouts = useHotelCheckouts()
-  const checkOut = useHotelCheckOut()
-  const [checkingOut, setCheckingOut] = useState<string | null>(null)
-
-  function handleCheckOut(num: string) {
-    if (!token) return
-    setCheckingOut(num)
-    checkOut.mutate(
-      { booking: num, token },
-      {
-        onSettled: () => setCheckingOut(null),
-        onError: (e) => {
-          const msg = e instanceof Error ? e.message : 'Failed'
-          if (confirm(`${msg}\n\nCheck out anyway?`)) {
-            setCheckingOut(num)
-            checkOut.mutate({ booking: num, force: true, token }, { onSettled: () => setCheckingOut(null) })
-          }
-        },
-      },
-    )
-  }
+  const [checkingOut, setCheckingOut] = useState<{ num: string; guest: string } | null>(null)
 
   const active = tab === 'arr' ? arrivals : tab === 'inh' ? inhouse : tab === 'upc' ? upcoming : checkouts
+
+  const q = search.trim().toLowerCase()
+  const filteredArrivals = useMemo(() => (arrivals.data ?? []).filter((g) => !q || `${g.num} ${g.guest} ${g.rooms}`.toLowerCase().includes(q)), [arrivals.data, q])
+  const filteredInhouse = useMemo(() => (inhouse.data ?? []).filter((g) => !q || `${g.num} ${g.guest} ${g.rooms}`.toLowerCase().includes(q)), [inhouse.data, q])
+  const filteredUpcoming = useMemo(() => (upcoming.data ?? []).filter((g) => !q || `${g.num} ${g.guest} ${g.rooms}`.toLowerCase().includes(q)), [upcoming.data, q])
+  const filteredCheckouts = useMemo(() => (checkouts.data ?? []).filter((c) => !q || `${c.num} ${c.guest} ${c.rooms}`.toLowerCase().includes(q)), [checkouts.data, q])
+  const activeCount = tab === 'arr' ? filteredArrivals.length : tab === 'inh' ? filteredInhouse.length : tab === 'upc' ? filteredUpcoming.length : filteredCheckouts.length
 
   return (
     <div className="space-y-4">
@@ -119,6 +124,27 @@ export function HotelFrontDesk() {
           <p className="text-xs text-text-faint mt-0.5">Arrivals, in-house guests and checkouts</p>
         </div>
       </div>
+
+      {dashboard && (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <Card className="!p-4">
+            <p className="text-2xl font-bold text-text!">{dashboard.arrivals}</p>
+            <p className="text-xs font-semibold text-text-faint uppercase tracking-wide mt-1">Arrivals</p>
+          </Card>
+          <Card className="!p-4">
+            <p className="text-2xl font-bold text-text!">{dashboard.departures}</p>
+            <p className="text-xs font-semibold text-text-faint uppercase tracking-wide mt-1">Departures</p>
+          </Card>
+          <Card className="!p-4">
+            <p className="text-2xl font-bold text-text!">{dashboard.inhouse}</p>
+            <p className="text-xs font-semibold text-text-faint uppercase tracking-wide mt-1">In residence</p>
+          </Card>
+          <Card className="!p-4">
+            <p className="text-2xl font-bold text-text!">{dashboard.counts.ready}</p>
+            <p className="text-xs font-semibold text-text-faint uppercase tracking-wide mt-1">Vacant ready</p>
+          </Card>
+        </div>
+      )}
 
       <div className="flex gap-5 border-b border-border">
         {(
@@ -144,12 +170,30 @@ export function HotelFrontDesk() {
       {active.isError && <LegacyErrorCard title="Couldn't load" message={active.error instanceof Error ? active.error.message : 'Unknown error.'} onRetry={() => active.refetch()} />}
 
       <Card className="!h-auto">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-text!">{TAB_TITLE[tab]}</h3>
+            <span className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">
+              {activeCount} {TAB_COUNT_LABEL[tab]}
+            </span>
+          </div>
+          <label className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by guest, booking, suite or date"
+              className="w-72 h-9 pl-9 pr-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            />
+          </label>
+        </div>
+
         {tab === 'arr' && (
           <>
-            {(arrivals.data ?? []).length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">No arrivals today.</p>
+            {filteredArrivals.length === 0 ? (
+              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No arrivals match this search.' : 'No arrivals today.'}</p>
             ) : (
-              (arrivals.data ?? []).map((g) => (
+              filteredArrivals.map((g) => (
                 <GuestRow key={g.num} guest={g.guest} meta={`${g.btype || ''} · ETA ${g.eta}`}>
                   <AssignAndCheckIn guest={g} onDone={() => arrivals.refetch()} />
                 </GuestRow>
@@ -160,20 +204,20 @@ export function HotelFrontDesk() {
 
         {tab === 'inh' && (
           <>
-            {(inhouse.data ?? []).length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">No in-house guests.</p>
+            {filteredInhouse.length === 0 ? (
+              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No in-house guests match this search.' : 'No in-house guests.'}</p>
             ) : (
-              (inhouse.data ?? []).map((g) => (
+              filteredInhouse.map((g) => (
                 <GuestRow key={g.num} guest={g.guest} meta={`Suite ${g.rooms || '—'} · out ${g.co}`}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-text-muted">K{Number(g.bal).toLocaleString()}</span>
                     <button
                       type="button"
-                      disabled={!token || checkingOut === g.num}
-                      onClick={() => handleCheckOut(g.num)}
+                      disabled={!token}
+                      onClick={() => setCheckingOut({ num: g.num, guest: g.guest })}
                       className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-md px-2.5 py-1.5 hover:bg-brand-hover disabled:opacity-50"
                     >
-                      {checkingOut === g.num ? <LoaderCircle size={12} className="animate-spin" /> : <LogOut size={12} />} Check out
+                      <LogOut size={12} /> Check out
                     </button>
                   </div>
                 </GuestRow>
@@ -184,18 +228,24 @@ export function HotelFrontDesk() {
 
         {tab === 'upc' && (
           <>
-            {(upcoming.data ?? []).length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">No upcoming arrivals.</p>
+            {filteredUpcoming.length === 0 ? (
+              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No upcoming arrivals match this search.' : 'No upcoming arrivals.'}</p>
             ) : (
-              (upcoming.data ?? []).map((g) => <GuestRow key={g.num} guest={g.guest} meta={`${g.btype || ''} · ETA ${g.eta}`} />)
+              filteredUpcoming.map((g) => (
+                <GuestRow
+                  key={g.num}
+                  guest={g.guest}
+                  meta={`${g.btype || ''} · ${g.cidate}${g.rooms ? ` · Suite ${g.rooms}` : ''} · ${g.din <= 1 ? 'tomorrow' : `in ${g.din} days`}`}
+                />
+              ))
             )}
           </>
         )}
 
         {tab === 'out' && (
           <>
-            {(checkouts.data ?? []).length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">No checkouts yet.</p>
+            {filteredCheckouts.length === 0 ? (
+              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No checkouts match this search.' : 'No checkouts yet.'}</p>
             ) : (
               <div className="overflow-auto">
                 <table className="w-full text-sm">
@@ -210,7 +260,7 @@ export function HotelFrontDesk() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(checkouts.data ?? []).map((c) => (
+                    {filteredCheckouts.map((c) => (
                       <tr key={c.num} className="border-b border-border last:border-0">
                         <td className="px-2 py-2 text-text! font-medium">{c.num}</td>
                         <td className="px-2 py-2 text-text-muted">{c.guest || '—'}</td>
@@ -229,6 +279,19 @@ export function HotelFrontDesk() {
           </>
         )}
       </Card>
+
+      {checkingOut && (
+        <HotelCheckoutWizard
+          booking={checkingOut.num}
+          guest={checkingOut.guest}
+          onClose={() => setCheckingOut(null)}
+          onDone={() => {
+            setCheckingOut(null)
+            inhouse.refetch()
+            checkouts.refetch()
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -81,86 +81,89 @@ export function ExpenseReportsList() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Receipt size={20} className="text-brand" /> Expense Reports
-      </h2>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={selectCls}>
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <input type="date" value={filters.dateFrom} onChange={(e) => setFilter('dateFrom', e.target.value)} className={inputCls} title="From" />
-        <input type="date" value={filters.dateTo} onChange={(e) => setFilter('dateTo', e.target.value)} className={inputCls} title="To" />
+    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Receipt size={20} className="text-brand" /> Expense Reports
+        </h2>
       </div>
 
-      {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
-      {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-
-      {data && (
-        <>
-          <div className="flex justify-end">
-            <TableExportButtons title="Expense Reports" getExportData={getExportData} />
+      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={selectCls}>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <input type="date" value={filters.dateFrom} onChange={(e) => setFilter('dateFrom', e.target.value)} className={inputCls} title="From" />
+            <input type="date" value={filters.dateTo} onChange={(e) => setFilter('dateTo', e.target.value)} className={inputCls} title="To" />
           </div>
+          {data && <TableExportButtons title="Expense Reports" getExportData={getExportData} />}
+        </div>
 
-          <Card className="!h-auto !p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <TheadRow>
-                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
-                  <Th sortKey="user" sort={sort} onSort={toggleSort}>Employee</Th>
-                  <Th sortKey="linkedTo" sort={sort} onSort={toggleSort}>Linked To</Th>
-                  <Th sortKey="dateStart" sort={sort} onSort={toggleSort}>Period</Th>
-                  <Th sortKey="totalHt" sort={sort} onSort={toggleSort} align="right">Total HT</Th>
-                  <Th sortKey="totalTtc" sort={sort} onSort={toggleSort} align="right">Total TTC</Th>
-                  <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
-                  <Th sortKey="paid" sort={sort} onSort={toggleSort}>Paid</Th>
-                </TheadRow>
-              </thead>
-              <tbody>
-                {sortedRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-3 py-4 text-text-faint italic">
-                      No expense reports found.
-                    </td>
-                  </tr>
-                ) : (
-                  sortedRows.map((r) => (
-                    <tr key={r.id} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-text!">
-                        <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
-                          {r.ref}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 text-text-muted">{r.user}</td>
-                      <td className="px-3 py-2 text-text-muted">{r.linkedTo}</td>
-                      <td className="px-3 py-2 text-text-muted whitespace-nowrap">
-                        {r.dateStart} – {r.dateEnd}
-                      </td>
-                      <td className="px-3 py-2 text-right text-text-muted">{r.totalHt}</td>
-                      <td className="px-3 py-2 text-right text-text!">{r.totalTtc}</td>
-                      <td className="px-3 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE_CLS[r.status] ?? 'bg-neutral-bg text-neutral-fg'}`}>{r.status}</span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.paid ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'}`}>
-                          {r.paid ? 'Paid' : 'Unpaid'}
-                        </span>
+        {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
+        {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+        {data && (
+          <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <TheadRow>
+                    <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                    <Th sortKey="user" sort={sort} onSort={toggleSort}>Employee</Th>
+                    <Th sortKey="linkedTo" sort={sort} onSort={toggleSort}>Linked To</Th>
+                    <Th sortKey="dateStart" sort={sort} onSort={toggleSort}>Period</Th>
+                    <Th sortKey="totalHt" sort={sort} onSort={toggleSort} align="right">Total HT</Th>
+                    <Th sortKey="totalTtc" sort={sort} onSort={toggleSort} align="right">Total TTC</Th>
+                    <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
+                    <Th sortKey="paid" sort={sort} onSort={toggleSort}>Paid</Th>
+                  </TheadRow>
+                </thead>
+                <tbody>
+                  {sortedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-3 py-4 text-text-faint italic">
+                        No expense reports found.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    sortedRows.map((r) => (
+                      <tr key={r.id} className="border-b border-border last:border-0">
+                        <td className="px-3 py-2 text-text!">
+                          <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
+                            {r.ref}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 text-text-muted">{r.user}</td>
+                        <td className="px-3 py-2 text-text-muted">{r.linkedTo}</td>
+                        <td className="px-3 py-2 text-text-muted whitespace-nowrap">
+                          {r.dateStart} – {r.dateEnd}
+                        </td>
+                        <td className="px-3 py-2 text-right text-text-muted">{r.totalHt}</td>
+                        <td className="px-3 py-2 text-right text-text!">{r.totalTtc}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE_CLS[r.status] ?? 'bg-neutral-bg text-neutral-fg'}`}>{r.status}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.paid ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'}`}>
+                            {r.paid ? 'Paid' : 'Unpaid'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </Card>
+        )}
+      </div>
 
-          <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} />
-        </>
-      )}
+      {data && <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} edgeToEdge />}
     </div>
   )
 }

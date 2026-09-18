@@ -1,11 +1,62 @@
 import { useMemo, useState } from 'react'
-import { UserRoundCheck, LoaderCircle } from 'lucide-react'
+import { UserRoundCheck, LoaderCircle, Check, X } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
-import { useHotelGuests, useHotelCustSync, useHotelToken } from '../hotel.queries'
+import { useHotelGuests, useHotelCustSync, useHotelSaveGuest, useHotelToken } from '../hotel.queries'
+import { HotelGuestDetailModal } from './HotelGuestDetailModal'
+
+const inputFieldCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+
+function AddGuestModal({ onClose }: { onClose: () => void }) {
+  const { data: token } = useHotelToken()
+  const save = useHotelSaveGuest()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [error, setError] = useState('')
+
+  function handleSave() {
+    setError('')
+    if (!name.trim()) return setError('Full name is required.')
+    if (!token) return setError('Not ready yet — try again in a moment.')
+    save.mutate({ id: '', name: name.trim(), email, phone, token }, { onSuccess: () => onClose(), onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.') })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface rounded-2xl max-w-md w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="font-semibold text-text!">Add guest</h3>
+          <button type="button" onClick={onClose} className="text-text-faint hover:text-text">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name *" className={inputFieldCls} />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={inputFieldCls} />
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" className={inputFieldCls} />
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={save.isPending}
+            onClick={handleSave}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          >
+            {save.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -20,22 +71,21 @@ function ZraCell({ id, zraid, zrastatus }: { id: string; zraid: string; zrastatu
   const { data: token } = useHotelToken()
   const sync = useHotelCustSync()
   const synced = !!zraid && /succe/i.test(zrastatus || '')
+  if (synced) {
+    return <span className="text-xs px-2 py-0.5 rounded-full bg-success-bg text-success-fg">{zrastatus || 'It is succeeded'}</span>
+  }
   return (
     <div className="flex items-center gap-1.5">
-      {synced ? (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-success-bg text-success-fg">{zrastatus || 'It is succeeded'}</span>
-      ) : (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-warning-bg text-warning-fg" title={zrastatus || 'Not synced'}>
-          {zrastatus ? 'Failed' : 'Not synced'}
-        </span>
-      )}
+      <span className="text-xs px-2 py-0.5 rounded-full bg-warning-bg text-warning-fg" title={zrastatus || 'Not synced'}>
+        {zrastatus ? 'Failed' : 'Not synced'}
+      </span>
       <button
         type="button"
         disabled={!token || sync.isPending}
         onClick={() => token && sync.mutate({ id, token })}
         className="text-xs text-brand hover:underline disabled:opacity-50"
       >
-        {sync.isPending ? <LoaderCircle size={11} className="inline animate-spin" /> : 'Update ZRA'}
+        {sync.isPending ? <LoaderCircle size={11} className="inline animate-spin" /> : 'Update to ZRA'}
       </button>
     </div>
   )
@@ -44,13 +94,30 @@ function ZraCell({ id, zraid, zrastatus }: { id: string; zraid: string; zrastatu
 // Real via custom/hotel/api.php?r=guests — the Hotel Suite app's own Guest
 // Directory (backed by Dolibarr's core societe/customer table — the classic
 // Tenants/List Tenant sidebar pages read the exact same data, superseded
-// here). ZRA sync (a=custsync) is real and wired; edit/docs stay for a
-// later pass.
+// here). ZRA sync (a=custsync) is real and wired; clicking a guest or the
+// row's own "Edit"/"Docs" buttons opens the real detail view
+// (HotelGuestDetailModal.tsx: profile edit, stay history, ID/preferences
+// and documents — r=guesthistory/docs, a=savecustomer/saveguestid/
+// savepref/uploaddoc/deldoc), matching the real page's own guestEdit()/
+// guestDocs() both opening the same modal on different tabs. "+ Add guest"
+// uses the real a=saveguest action (confirmed live by reading the Suite's
+// own saveGuest() JS: only name/email/phone are actually sent, even though
+// its own modal shows an unused Address field too). ZraCell only shows the
+// "Update to ZRA" button when NOT already synced — confirmed live: the real
+// page's own succeeded rows show just the badge, no button.
 export function HotelGuests() {
   const { data: guests, isLoading, isError, error, refetch } = useHotelGuests()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [viewingTab, setViewingTab] = useState<'profile' | 'docs'>('profile')
+  const [addingGuest, setAddingGuest] = useState(false)
+
+  function openGuest(id: string, tab: 'profile' | 'docs') {
+    setViewingId(id)
+    setViewingTab(tab)
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -75,8 +142,8 @@ export function HotelGuests() {
             <UserRoundCheck size={22} />
           </span>
           <div>
-            <h2 className="text-lg font-bold text-text!">Guest Directory</h2>
-            <p className="text-xs text-text-faint mt-0.5">{guests ? `${guests.length} profiles` : ''}</p>
+            <h2 className="text-lg font-bold text-text!">Guests</h2>
+            <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Guest CRM</p>
           </div>
         </div>
       </div>
@@ -88,7 +155,17 @@ export function HotelGuests() {
         {guests && (
           <Card className="!p-0 overflow-hidden flex-1 min-h-0">
             <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-b border-border">
-              <h3 className="font-semibold text-text!">Guests</h3>
+              <div className="flex items-center gap-3">
+                <h3 className="font-semibold text-text!">Guest Directory</h3>
+                <button
+                  type="button"
+                  onClick={() => setAddingGuest(true)}
+                  className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
+                >
+                  + Add guest
+                </button>
+                <span className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">{guests.length} profiles</span>
+              </div>
               <div className="flex items-center gap-2">
                 <select
                   value={perPage}
@@ -132,6 +209,7 @@ export function HotelGuests() {
                       <th className="font-medium px-3 py-2 text-right">Lifetime value</th>
                       <th className="font-medium px-3 py-2">Customer Code</th>
                       <th className="font-medium px-3 py-2">ZRA Status</th>
+                      <th className="font-medium px-3 py-2">Docs</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -140,12 +218,12 @@ export function HotelGuests() {
                       return (
                         <tr key={g.id} className="border-b border-border last:border-0">
                           <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-2">
+                            <button type="button" onClick={() => openGuest(g.id, 'profile')} className="flex items-center gap-2 hover:underline">
                               <span className={`shrink-0 w-6 h-6 rounded-full grid place-items-center text-[10px] font-bold ${ICON_STYLES[avatarColorFor(g.name)]}`}>
                                 {initialsFor(g.name)}
                               </span>
                               <span className="text-text!">{g.name}</span>
-                            </div>
+                            </button>
                           </td>
                           <td className="px-3 py-2.5 text-text-muted">{[g.email, g.phone].filter(Boolean).join(' · ') || '—'}</td>
                           <td className="px-3 py-2.5">
@@ -157,6 +235,14 @@ export function HotelGuests() {
                           <td className="px-3 py-2.5 text-text-muted">{g.code || '—'}</td>
                           <td className="px-3 py-2.5">
                             <ZraCell id={g.id} zraid={g.zraid} zrastatus={g.zrastatus} />
+                          </td>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            <button type="button" onClick={() => openGuest(g.id, 'profile')} className="text-xs text-brand hover:underline mr-3">
+                              Edit
+                            </button>
+                            <button type="button" onClick={() => openGuest(g.id, 'docs')} className="text-xs text-brand hover:underline">
+                              Docs
+                            </button>
                           </td>
                         </tr>
                       )
@@ -170,6 +256,9 @@ export function HotelGuests() {
       </div>
 
       {guests && <ListPagination page={page} perPage={perPage} total={filtered.length} onPageChange={setPage} edgeToEdge />}
+
+      {viewingId && <HotelGuestDetailModal id={viewingId} initialTab={viewingTab} onClose={() => setViewingId(null)} />}
+      {addingGuest && <AddGuestModal onClose={() => setAddingGuest(false)} />}
     </div>
   )
 }
