@@ -122,13 +122,7 @@ export function HotelReports() {
   const totalSourceRevenue = (summary?.sources ?? []).reduce((s, x) => s + x.v, 0) || 1
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <ChartLine size={22} />
-        </span>
-        <h2 className="text-lg font-bold text-text!">Reports</h2>
-      </div>
+    <div className="space-y-4 flex-1 min-h-0 flex flex-col">
 
       {isLoading && <LegacyLoadingCard label="Loading reports…" />}
       {isError && <LegacyErrorCard title="Couldn't load reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
@@ -203,7 +197,7 @@ export function HotelReports() {
             </button>
           </Card>
 
-          <Card className="!h-auto">
+          <Card className="flex-1 min-h-0">
             <h3 className="font-semibold text-text! mb-3">Operational Ledgers</h3>
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <div className="flex gap-1 flex-wrap">
@@ -233,7 +227,7 @@ export function HotelReports() {
               <p className="text-sm text-text-faint italic py-6 text-center">No records.</p>
             ) : (
               ledger.data && (
-                <div className="overflow-auto">
+                <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">

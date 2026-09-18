@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileSignature, LoaderCircle, X, Settings } from 'lucide-react'
+import { LoaderCircle, X, Settings } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -74,7 +74,7 @@ function QuoteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-lg bg-surface border border-border shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-lg bg-surface border border-border shadow-xl max-h-[90vh] overflow-y-auto no-scrollbar" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold text-text!">New Quotation</h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
@@ -93,7 +93,7 @@ function QuoteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
               className={`w-full ${fieldCls}`}
             />
             {guestQuery.trim().length >= 2 && !socId && results && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-surface border border-border rounded-lg shadow-lg max-h-40 overflow-auto">
+              <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-surface border border-border rounded-lg shadow-lg max-h-40 overflow-auto no-scrollbar">
                 {results.map((r) => (
                   <button
                     key={r.id}
@@ -171,7 +171,7 @@ function QuoteDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
   const { data, isLoading, isError, error } = useHotelQuoteDetail(id)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-lg bg-surface border border-border shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-lg bg-surface border border-border shadow-xl max-h-[90vh] overflow-y-auto no-scrollbar" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold text-text!">Quotation {data?.quote.quo || data?.quote.ref || `#${id}`}</h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
@@ -319,13 +319,7 @@ export function HotelQuotes() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <FileSignature size={22} />
-          </span>
-          <h2 className="text-lg font-bold text-text!">Quotations</h2>
-        </div>
+      <div className="flex items-center justify-end gap-3">
         <div className="flex items-center gap-2">
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className={fieldCls}>
             <option value="">All statuses</option>

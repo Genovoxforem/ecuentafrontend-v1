@@ -104,11 +104,13 @@ export const nav: NavSection = {
     // (not a room-specific view — the classic leftmenu param only
     // highlights a sidebar row, the Suite's own client-side SPA routing
     // doesn't read it) — so this leaf now points at the same real
-    // HotelDashboard.tsx page as the group header, matching that observed
-    // behavior exactly rather than the Suite's own separate internal
-    // "Rooms" rack tab (HotelRooms.tsx, still real and working, just no
-    // longer linked from here — see this file's own top comment). That
-    // classic list page's own real "+ Add" button goes to
+    // HotelDashboard.tsx page as the group header (both now render
+    // standalone, own-screen, via HotelSuiteLayout mounted outside the main
+    // AppLayout in App.tsx — see that layout's own top comment), matching
+    // that observed behavior exactly rather than the Suite's own separate
+    // internal "Rooms" rack tab (HotelRooms.tsx, still real and working,
+    // just no longer linked from here — see this file's own top comment).
+    // That classic list page's own real "+ Add" button goes to
     // booking/reservation/booking.php?type=booking (HotelNewBooking.tsx,
     // rebuilt to match field-for-field), saved via reservation_ajax.php?
     // action=add_booking — see hotel.queries.ts's own top comment on the
@@ -122,7 +124,9 @@ export const nav: NavSection = {
     // actions live.
     {
       label: 'Booking Management',
-      path: ROUTES.bookingDashboard,
+      // No path — a pure expand/collapse heading, not a clickable page (per
+      // explicit request). "Room Status" below is the only child that opens
+      // the Hotel Suite standalone app.
       items: [
         { label: 'Booking/Check-In List', path: ROUTES.hotelReservations },
         { label: 'Check Out List', path: ROUTES.hotelCheckoutList },

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ConciergeBell, LoaderCircle, Check, Trash2 } from 'lucide-react'
+import { LoaderCircle, Check, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -261,15 +261,6 @@ function EnquiriesLeadsCard() {
 export function HotelSuiteConcierge() {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <ConciergeBell size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Concierge</h2>
-          <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Wake-up calls &amp; leads</p>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <WakeupCallsCard />

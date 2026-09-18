@@ -1,8 +1,6 @@
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
-import { Link } from 'react-router-dom'
-import { Gauge, Gem, TrendingUp, DoorOpen, Users, AlertTriangle, CalendarPlus } from 'lucide-react'
+import { Gauge, Gem, TrendingUp, DoorOpen, Users, AlertTriangle } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
-import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
 import { useHotelDashboard, useHotelDashKpi, useHotelTrends, useHotelArrivals, type HotelRackRoom } from '../hotel.queries'
@@ -91,20 +89,6 @@ export function HotelDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <Gauge size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">Hotel Dashboard</h2>
-            <p className="text-xs text-text-faint mt-0.5">Live operational overview</p>
-          </div>
-        </div>
-        <Link to={ROUTES.hotelSuiteNewBooking} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          <CalendarPlus size={14} /> New Booking
-        </Link>
-      </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <KpiCard label="Occupancy" value={`${dashboard.occupancy}%`} sub={`of ${dashboard.total - dashboard.counts.ooo} sellable suites`} icon={Gauge} color="blue" />

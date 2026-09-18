@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Boxes } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelWarehouses, useHotelInventory, useHotelStockMoves } from '../hotel.queries'
@@ -20,12 +19,6 @@ export function HotelInventory() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <Boxes size={22} />
-        </span>
-        <h2 className="text-lg font-bold text-text!">Inventory</h2>
-      </div>
 
       {!whLoading && warehouses && (
         <div className="flex flex-wrap gap-3">
@@ -87,7 +80,7 @@ export function HotelInventory() {
           <p className="text-sm text-text-faint italic py-4 text-center">No matching items.</p>
         ) : (
           items && (
-            <div className="overflow-auto max-h-80">
+            <div className="overflow-auto max-h-80 no-scrollbar">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
@@ -130,7 +123,7 @@ export function HotelInventory() {
           <p className="text-sm text-text-faint italic py-4 text-center">No movements.</p>
         ) : (
           moves && (
-            <div className="overflow-auto max-h-80">
+            <div className="overflow-auto max-h-80 no-scrollbar">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">

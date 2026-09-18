@@ -1,4 +1,3 @@
-import { DoorOpen } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelRack } from '../hotel.queries'
@@ -44,14 +43,6 @@ export function HotelRooms() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <DoorOpen size={22} />
-          </span>
-          <h2 className="text-lg font-bold text-text!">Room Status</h2>
-        </div>
-      </div>
 
       {isLoading && <LegacyLoadingCard label="Loading suite rack…" />}
       {isError && <LegacyErrorCard title="Couldn't load the suite rack" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}

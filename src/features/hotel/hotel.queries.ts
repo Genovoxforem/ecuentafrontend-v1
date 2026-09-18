@@ -430,6 +430,10 @@ export interface HotelFeatureRow {
   src: 'feat' | 'prod'
   ftype?: string
   zraid?: string
+  // Only ever present on 'prod'-sourced rows (confirmed by reading the
+  // Suite's own nbRoomCfg()/nbCalc() JS directly, which reads f.tlrate to
+  // add a per-service tourism-levy line — see HotelSuiteNewBooking.tsx).
+  tlrate?: number
 }
 export interface HotelPayCfg {
   banks: { id: string; label: string }[]
@@ -514,8 +518,8 @@ export function useHotelEnquiries() {
 export function useHotelOccRooms() {
   return useQuery({ queryKey: ['hotel', 'occrooms'], queryFn: () => hotelGet<HotelOccRoom[]>('occrooms') })
 }
-export function useHotelRsOrders() {
-  return useQuery({ queryKey: ['hotel', 'rsorders'], queryFn: () => hotelGet<HotelRsOrder[]>('rsorders') })
+export function useHotelRsOrders(refetchInterval?: number) {
+  return useQuery({ queryKey: ['hotel', 'rsorders'], queryFn: () => hotelGet<HotelRsOrder[]>('rsorders'), refetchInterval })
 }
 export function useHotelRsRooms() {
   return useQuery({ queryKey: ['hotel', 'rsrooms'], queryFn: () => hotelGet<HotelRsRoom[]>('rsrooms') })

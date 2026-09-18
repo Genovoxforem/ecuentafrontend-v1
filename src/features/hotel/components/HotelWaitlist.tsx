@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Hourglass, LoaderCircle, X } from 'lucide-react'
+import { LoaderCircle, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelWaitlist, useHotelRoomTypes, useHotelSaveWait, useHotelWaitStatus, useHotelToken, type HotelWaitlistEntry } from '../hotel.queries'
@@ -97,13 +97,7 @@ export function HotelWaitlist() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <Hourglass size={22} />
-          </span>
-          <h2 className="text-lg font-bold text-text!">Waitlist</h2>
-        </div>
+      <div className="flex items-center justify-end gap-3">
         <button type="button" onClick={() => setModal({ entry: null })} className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
           + Add to waitlist
         </button>

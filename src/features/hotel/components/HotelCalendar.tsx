@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { CalendarDays } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelCalendar } from '../hotel.queries'
@@ -27,15 +26,6 @@ export function HotelCalendar() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <CalendarDays size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Booking Calendar</h2>
-          <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Room-by-day availability grid</p>
-        </div>
-      </div>
 
       <Card className="!h-auto">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -71,7 +61,7 @@ export function HotelCalendar() {
         {isError && <LegacyErrorCard title="Couldn't load calendar" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
         {data && (
-          <div className="overflow-auto">
+          <div className="overflow-auto no-scrollbar">
             <table className="border-collapse text-xs min-w-full">
               <thead>
                 <tr>

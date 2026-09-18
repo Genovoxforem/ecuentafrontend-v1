@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BellRing, LoaderCircle, LogIn, LogOut, Search } from 'lucide-react'
+import { LoaderCircle, LogIn, LogOut, Search } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
@@ -115,15 +115,6 @@ export function HotelFrontDesk() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <BellRing size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Front Desk</h2>
-          <p className="text-xs text-text-faint mt-0.5">Arrivals, in-house guests and checkouts</p>
-        </div>
-      </div>
 
       {dashboard && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -247,7 +238,7 @@ export function HotelFrontDesk() {
             {filteredCheckouts.length === 0 ? (
               <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No checkouts match this search.' : 'No checkouts yet.'}</p>
             ) : (
-              <div className="overflow-auto">
+              <div className="overflow-auto no-scrollbar">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">

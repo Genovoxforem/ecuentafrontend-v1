@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { QrCode, Printer } from 'lucide-react'
+import { Printer } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelRoomQr } from '../hotel.queries'
@@ -33,15 +33,6 @@ export function HotelRoomQR() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <QrCode size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Room QR</h2>
-          <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Scan to open in-room ordering</p>
-        </div>
-      </div>
 
       {isLoading && <LegacyLoadingCard label="Loading rooms…" />}
       {isError && <LegacyErrorCard title="Couldn't load rooms" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}

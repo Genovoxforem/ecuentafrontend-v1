@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Tags, Globe2, LoaderCircle, X } from 'lucide-react'
+import { Globe2, LoaderCircle, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -145,12 +145,6 @@ export function HotelRatesChannels() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <Tags size={22} />
-        </span>
-        <h2 className="text-lg font-bold text-text!">Rates &amp; Channels</h2>
-      </div>
 
       <Card className="!h-auto">
         <h3 className="font-semibold text-text! mb-1">Rate Plans</h3>
@@ -161,7 +155,7 @@ export function HotelRatesChannels() {
           <p className="text-sm text-text-faint italic py-4 text-center">No booking types defined — add one in Settings first.</p>
         ) : (
           ratePlans && (
-            <div className="overflow-auto">
+            <div className="overflow-auto no-scrollbar">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">

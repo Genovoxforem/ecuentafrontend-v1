@@ -26,6 +26,16 @@ export interface HotelSuiteNavItem {
   label: string
   path: string
   icon: LucideIcon
+  // The real Suite's own per-view subtitle (its SUB{} JS object, already
+  // used to fix each page's own header text) — reused here as the single
+  // source of truth for HotelSuiteLayout's shared topbar, so the title
+  // shown there always matches this list's own label.
+  subtitle: string
+  // Only set where the real page's own <h1> (its TIT{} value) differs from
+  // this list's own (shorter, sidebar-appropriate) label — currently just
+  // Calendar ("Booking Calendar" vs "Calendar"). HotelSuiteLayout's topbar
+  // falls back to `label` when this is absent.
+  title?: string
 }
 export interface HotelSuiteNavGroup {
   label: string
@@ -63,30 +73,37 @@ export const HOTEL_SUITE_NAV: HotelSuiteNavGroup[] = [
   {
     label: 'Operations',
     items: [
-      { label: 'Dashboard', path: ROUTES.bookingDashboard, icon: Gauge },
-      { label: 'Reservations', path: ROUTES.hotelSuiteReservations, icon: ClipboardList },
-      { label: 'Calendar', path: ROUTES.hotelCalendar, icon: CalendarDays },
-      { label: 'New Booking', path: ROUTES.hotelSuiteNewBooking, icon: CalendarPlus },
-      { label: 'Front Desk', path: ROUTES.hotelFrontDesk, icon: BellRing },
-      { label: 'Rooms', path: ROUTES.hotelRooms, icon: BedDouble },
-      { label: 'Room QR', path: ROUTES.hotelRoomQr, icon: QrCode },
-      { label: 'Housekeeping', path: ROUTES.hotelHousekeeping, icon: Sparkles },
-      { label: 'Maintenance', path: ROUTES.hotelMaintenance, icon: Wrench },
-      { label: 'Waitlist', path: ROUTES.hotelWaitlist, icon: Hourglass },
-      { label: 'Inventory', path: ROUTES.hotelInventory, icon: Boxes },
-      { label: 'Guests', path: ROUTES.hotelGuests, icon: Users },
-      { label: 'Concierge', path: ROUTES.hotelSuiteConcierge, icon: ConciergeBell },
-      { label: 'Room Service', path: ROUTES.hotelRoomService, icon: UtensilsCrossed },
+      { label: 'Dashboard', path: ROUTES.bookingDashboard, icon: Gauge, subtitle: 'Live operational overview' },
+      { label: 'Reservations', path: ROUTES.hotelSuiteReservations, icon: ClipboardList, subtitle: 'All reservations' },
+      { label: 'Calendar', path: ROUTES.hotelCalendar, icon: CalendarDays, subtitle: 'Room-by-day availability grid', title: 'Booking Calendar' },
+      { label: 'New Booking', path: ROUTES.hotelSuiteNewBooking, icon: CalendarPlus, subtitle: 'Create a reservation' },
+      { label: 'Front Desk', path: ROUTES.hotelFrontDesk, icon: BellRing, subtitle: 'Front desk operations' },
+      { label: 'Rooms', path: ROUTES.hotelRooms, icon: BedDouble, subtitle: 'Live suite rack' },
+      { label: 'Room QR', path: ROUTES.hotelRoomQr, icon: QrCode, subtitle: 'Scan to open in-room ordering' },
+      { label: 'Housekeeping', path: ROUTES.hotelHousekeeping, icon: Sparkles, subtitle: 'Suite status' },
+      { label: 'Maintenance', path: ROUTES.hotelMaintenance, icon: Wrench, subtitle: 'Tickets & work orders' },
+      { label: 'Waitlist', path: ROUTES.hotelWaitlist, icon: Hourglass, subtitle: 'Guests awaiting availability' },
+      { label: 'Inventory', path: ROUTES.hotelInventory, icon: Boxes, subtitle: 'Stock levels · Ecuenta Stock (read-only)' },
+      { label: 'Guests', path: ROUTES.hotelGuests, icon: Users, subtitle: 'Guest CRM' },
+      { label: 'Concierge', path: ROUTES.hotelSuiteConcierge, icon: ConciergeBell, subtitle: 'Wake-up calls & leads' },
+      { label: 'Room Service', path: ROUTES.hotelRoomService, icon: UtensilsCrossed, subtitle: 'Guest orders & F&B' },
     ],
   },
   {
     label: 'Estate',
     items: [
-      { label: 'Reports', path: ROUTES.hotelReports, icon: BarChart3 },
-      { label: 'Quotations', path: ROUTES.hotelQuotes, icon: FileEdit },
-      { label: 'Invoices', path: ROUTES.hotelInvoices, icon: Receipt },
-      { label: 'Rates & Channels', path: ROUTES.hotelRatesChannels, icon: Tag },
-      { label: 'Settings', path: ROUTES.hotelSettings, icon: Settings },
+      { label: 'Reports', path: ROUTES.hotelReports, icon: BarChart3, subtitle: 'Bed types & settings data' },
+      { label: 'Quotations', path: ROUTES.hotelQuotes, icon: FileEdit, subtitle: 'Proposals & corporate offers' },
+      { label: 'Invoices', path: ROUTES.hotelInvoices, icon: Receipt, subtitle: 'Billing & ZRA documents' },
+      { label: 'Rates & Channels', path: ROUTES.hotelRatesChannels, icon: Tag, subtitle: 'Distribution & pricing' },
+      { label: 'Settings', path: ROUTES.hotelSettings, icon: Settings, subtitle: 'Property configuration' },
     ],
   },
 ]
+
+// Flat path → nav-item lookup for HotelSuiteLayout's shared topbar (title +
+// subtitle), built once from the grouped list above instead of duplicating
+// it as a second map that could drift out of sync.
+export const HOTEL_SUITE_PAGE_BY_PATH: Record<string, HotelSuiteNavItem> = Object.fromEntries(
+  HOTEL_SUITE_NAV.flatMap((group) => group.items).map((item) => [item.path, item]),
+)

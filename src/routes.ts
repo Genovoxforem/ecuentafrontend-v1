@@ -296,6 +296,7 @@ export const ROUTES = {
   hotelInventory: '/hotel/inventory',
   hotelCalendar: '/hotel/calendar',
   hotelRoomQr: '/hotel/room-qr',
+  hotelKitchenScreen: '/hotel/kitchen-screen',
   hotelReports: '/hotel/reports',
   hotelQuotes: '/hotel/quotations',
   hotelInvoices: '/hotel/invoices',

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { UtensilsCrossed, LoaderCircle, Check, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -12,6 +13,7 @@ import {
   useHotelRejectOrder,
   useHotelToken,
 } from '../hotel.queries'
+import { ROUTES } from '../../../routes'
 
 const STATUS_TAG: Record<string, string> = {
   pending: 'bg-warning-bg text-warning-fg',
@@ -24,12 +26,12 @@ const STATUS_TAG: Record<string, string> = {
 // Real via custom/hotel/api.php?r=rsorders|rsrooms|posmenu, plus
 // a=postorder / a=orderstatus / a=confirmorder / a=rejectorder — the Hotel
 // Suite app's own Room Service (Guest Orders + Post Order to Room). The
-// "N new" badge and "Kitchen screen" link (custom/hotel/kitchen.php, opens
-// in a new tab) and "Charge F&B to a folio" label are all confirmed live
-// by reading the Suite's own JS/HTML directly — the badge is genuinely
-// just a client-side count of orders.data with status==='pending', and
-// "Charge F&B to a folio" is static descriptive text, not a clickable
-// action.
+// "N new" badge and "Charge F&B to a folio" label are confirmed live by
+// reading the Suite's own JS/HTML directly — the badge is genuinely just a
+// client-side count of orders.data with status==='pending'. "Kitchen
+// screen" used to link straight to custom/hotel/kitchen.php; it now opens
+// HotelKitchenScreen.tsx instead, a React rebuild of that same board over
+// the same rsorders endpoint (see that file's own comment).
 export function HotelRoomService() {
   const { data: token } = useHotelToken()
   const orders = useHotelRsOrders()
@@ -51,14 +53,16 @@ export function HotelRoomService() {
     return q ? items.filter((m) => m.name.toLowerCase().includes(q)) : items
   }, [menu, search])
 
+  const shownMenu = useMemo(() => filteredMenu.slice(0, 60), [filteredMenu])
+
   const groupedMenu = useMemo(() => {
     const groups = new Map<string, typeof filteredMenu>()
-    for (const m of filteredMenu.slice(0, 60)) {
+    for (const m of shownMenu) {
       if (!groups.has(m.category)) groups.set(m.category, [])
       groups.get(m.category)!.push(m)
     }
     return groups
-  }, [filteredMenu])
+  }, [shownMenu])
 
   const total = useMemo(() => {
     let t = 0
@@ -104,16 +108,7 @@ export function HotelRoomService() {
   const pendingCount = (orders.data ?? []).filter((o) => o.status === 'pending').length
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <UtensilsCrossed size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Room Service</h2>
-          <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Guest orders &amp; F&amp;B</p>
-        </div>
-      </div>
+    <div className="space-y-4 flex-1 min-h-0 flex flex-col">
 
       <Card className="!h-auto">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -121,14 +116,14 @@ export function HotelRoomService() {
             <h3 className="font-semibold text-text!">Guest Orders</h3>
             <span className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">{pendingCount} new</span>
           </div>
-          <a
-            href="/custom/hotel/kitchen.php"
+          <Link
+            to={ROUTES.hotelKitchenScreen}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
           >
             <UtensilsCrossed size={12} /> Kitchen screen ↗
-          </a>
+          </Link>
         </div>
         {orders.isLoading && <LegacyLoadingCard label="Loading orders…" />}
         {orders.isError && <LegacyErrorCard title="Couldn't load orders" message={orders.error instanceof Error ? orders.error.message : 'Unknown error.'} onRetry={() => orders.refetch()} />}
@@ -178,7 +173,7 @@ export function HotelRoomService() {
         )}
       </Card>
 
-      <Card className="!h-auto">
+      <Card className="flex-1 min-h-0">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="font-semibold text-text!">Post Order to Room</h3>
           <span className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">Charge F&amp;B to a folio</span>
@@ -203,7 +198,7 @@ export function HotelRoomService() {
         {menu && menu.length === 0 ? (
           <p className="text-sm text-text-faint italic py-4 text-center">No menu items configured.</p>
         ) : (
-          <div className="space-y-4 max-h-96 overflow-auto">
+          <div className="space-y-4 flex-1 min-h-0 overflow-auto no-scrollbar">
             {Array.from(groupedMenu.entries()).map(([category, items]) => (
               <div key={category}>
                 <p className="text-xs uppercase tracking-wide text-text-faint mb-2">
@@ -233,6 +228,11 @@ export function HotelRoomService() {
                 </div>
               </div>
             ))}
+            {filteredMenu.length > shownMenu.length && (
+              <p className="text-xs text-text-faint pt-1">
+                Showing {shownMenu.length} of {filteredMenu.length} items — type in the search box to narrow it down
+              </p>
+            )}
           </div>
         )}
         <div className="flex items-center gap-4 mt-4">

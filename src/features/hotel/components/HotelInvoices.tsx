@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Eye, FileDown, LoaderCircle } from 'lucide-react'
+import { Eye, FileDown, LoaderCircle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelInvoices, useHotelCreditNotes, useHotelInvZraSync, useHotelToken, fetchHotelInvoicePdfUrl } from '../hotel.queries'
@@ -43,12 +43,6 @@ export function HotelInvoices() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <FileText size={22} />
-        </span>
-        <h2 className="text-lg font-bold text-text!">Invoices</h2>
-      </div>
 
       <div className="flex gap-5 border-b border-border">
         <button
