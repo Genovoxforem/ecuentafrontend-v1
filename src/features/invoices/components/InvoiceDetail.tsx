@@ -8,11 +8,10 @@ import {
   StickyNote,
   Paperclip,
   CalendarClock,
-  Truck,
   BookOpen,
   Upload,
-  Check,
   LoaderCircle,
+  Pencil,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -20,16 +19,17 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/Le
 import {
   useInvoiceDetail,
   useInvoiceNotes,
-  useSaveInvoiceNotes,
+  useInvoiceNoteEditContext,
+  useUpdateInvoiceNote,
   useInvoiceContacts,
   useInvoiceStandingOrders,
   useInvoiceDocuments,
+  useInvoiceDocumentsPageMeta,
   useUploadInvoiceDocument,
   useInvoiceAgenda,
-  useInvoiceShipment,
-  useSaveInvoiceShipment,
   useInvoiceLedgerEntries,
 } from '../invoiceDetail.queries'
+import type { InvoiceDetail as InvoiceDetailData } from '../invoiceCardParser'
 
 const TABS = [
   { key: 'invoice', label: 'Customer Invoice', icon: Receipt },
@@ -38,7 +38,6 @@ const TABS = [
   { key: 'notes', label: 'Notes', icon: StickyNote },
   { key: 'documents', label: 'Linked Files', icon: Paperclip },
   { key: 'agenda', label: 'Events/Agenda', icon: CalendarClock },
-  { key: 'shipment', label: 'Shipment/GRN', icon: Truck },
   { key: 'ledgerentry', label: 'LedgerEntry', icon: BookOpen },
 ] as const
 type TabKey = (typeof TABS)[number]['key']
@@ -84,8 +83,6 @@ export function InvoiceDetail() {
     )
   }
 
-  const inv = data.invoice
-
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
       <div className="sticky -top-6 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
@@ -97,14 +94,19 @@ export function InvoiceDetail() {
                   <ChevronLeft size={14} /> Sales Invoices
                 </Link>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-text!">{inv.ref}</h2>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">{inv.status_label}</span>
+                  <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
+                  {data.statusLabel && <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">{data.statusLabel}</span>}
+                  {data.secondaryStatusLabel && <span className="text-xs text-text-faint">{data.secondaryStatusLabel}</span>}
                 </div>
                 <p className="text-xs text-text-faint mt-1">
-                  Ref. customer: {inv.ref_client || '—'} · Third-party:{' '}
-                  <Link to={ROUTES.customerDetail.replace(':id', data.customer.id)} className="text-brand hover:underline">
-                    {data.customer.name}
-                  </Link>
+                  Ref. customer: {data.refClient || '—'} · Third-party:{' '}
+                  {data.thirdPartySocid ? (
+                    <Link to={ROUTES.customerDetail.replace(':id', String(data.thirdPartySocid))} className="text-brand hover:underline">
+                      {data.thirdPartyName}
+                    </Link>
+                  ) : (
+                    data.thirdPartyName || '—'
+                  )}
                 </p>
               </div>
             </div>
@@ -119,7 +121,17 @@ export function InvoiceDetail() {
                       tab === key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'
                     }`}
                   >
-                    <Icon size={14} className="shrink-0" /> {label}
+                    <Icon size={14} className="shrink-0" />
+                    {label}
+                    {key === 'notes' && data.notesBadge > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{data.notesBadge}</span>
+                    )}
+                    {key === 'documents' && data.documentsBadge > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{data.documentsBadge}</span>
+                    )}
+                    {key === 'agenda' && data.agendaBadge > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{data.agendaBadge}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -135,15 +147,13 @@ export function InvoiceDetail() {
         {tab === 'notes' && <NotesTab id={id} />}
         {tab === 'documents' && <DocumentsTab id={id} />}
         {tab === 'agenda' && <AgendaTab id={id} />}
-        {tab === 'shipment' && <ShipmentTab id={id} />}
         {tab === 'ledgerentry' && <LedgerEntryTab id={id} />}
       </div>
     </div>
   )
 }
 
-function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').InvoiceDetailResponse }) {
-  const inv = data.invoice
+function InvoiceMainTab({ data }: { data: InvoiceDetailData }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-4">
@@ -152,31 +162,41 @@ function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').Inv
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 mt-3 text-sm">
             <div>
               <p className="text-text-faint text-xs">Type</p>
-              <p className="font-medium text-text!">{inv.type_label}</p>
+              <p className="font-medium text-text!">
+                {data.typeLabel || '—'} {data.typeNote && <span className="text-text-faint font-normal">({data.typeNote})</span>}
+              </p>
             </div>
             <div>
               <p className="text-text-faint text-xs">Discounts</p>
-              <p className="font-medium text-text!">{inv.discount_info}</p>
+              <p className="font-medium text-text!">{data.discountInfo || '—'}</p>
             </div>
             <div>
               <p className="text-text-faint text-xs">Invoice Date</p>
-              <p className="font-medium text-text!">{inv.date}</p>
+              <p className="font-medium text-text!">{data.invoiceDate || '—'}</p>
             </div>
             <div>
               <p className="text-text-faint text-xs">Payment Terms</p>
-              <p className="font-medium text-text!">{inv.cond_reglement_label || '—'}</p>
+              <p className="font-medium text-text!">{data.paymentTerms || '—'}</p>
             </div>
             <div>
               <p className="text-text-faint text-xs">Payment Due On</p>
-              <p className="font-medium text-text!">{inv.date_due}</p>
+              <p className="font-medium text-text!">{data.paymentDueOn || '—'}</p>
             </div>
             <div>
               <p className="text-text-faint text-xs">Payment Type</p>
-              <p className="font-medium text-text!">{inv.mode_reglement_label || '—'}</p>
+              <p className="font-medium text-text!">{data.paymentType || '—'}</p>
             </div>
             <div>
               <p className="text-text-faint text-xs">Currency</p>
-              <p className="font-medium text-text!">{inv.currency}</p>
+              <p className="font-medium text-text!">{data.currencyLabel || '—'}</p>
+            </div>
+            <div>
+              <p className="text-text-faint text-xs">Bank Account</p>
+              <p className="font-medium text-text!">{data.bankAccount || '—'}</p>
+            </div>
+            <div>
+              <p className="text-text-faint text-xs">Incoterms</p>
+              <p className="font-medium text-text!">{data.incoterms || '—'}</p>
             </div>
           </div>
         </Card>
@@ -191,17 +211,19 @@ function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').Inv
                 <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
                   <th className="font-medium px-4 py-2.5">Product/Service</th>
                   <th className="font-medium px-4 py-2.5">VAT</th>
+                  <th className="font-medium px-4 py-2.5">Landed Cost</th>
                   <th className="font-medium px-4 py-2.5 text-right">Unit Price (Excl.)</th>
                   <th className="font-medium px-4 py-2.5 text-right">Unit Price (Inc. Tax)</th>
                   <th className="font-medium px-4 py-2.5 text-right">Qty</th>
                   <th className="font-medium px-4 py-2.5 text-right">Disc.</th>
+                  <th className="font-medium px-4 py-2.5 text-right">Cost Price</th>
                   <th className="font-medium px-4 py-2.5 text-right">Total (Inc. Tax)</th>
                 </tr>
               </thead>
               <tbody>
                 {data.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-text-faint italic">
+                    <td colSpan={9} className="px-4 py-6 text-center text-text-faint italic">
                       No lines on this invoice.
                     </td>
                   </tr>
@@ -209,40 +231,90 @@ function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').Inv
                   data.lines.map((l) => (
                     <tr key={l.rowid} className="border-b border-border last:border-0">
                       <td className="px-4 py-2.5">
-                        {l.has_product && l.product_id ? (
-                          <Link to={ROUTES.productDetail.replace(':id', l.product_id)} className="font-medium text-brand hover:underline">
-                            {l.label || l.product_ref}
+                        {l.productId ? (
+                          <Link to={ROUTES.productDetail.replace(':id', l.productId)} className="font-medium text-brand hover:underline">
+                            {l.label}
                           </Link>
                         ) : (
-                          <span className="font-medium text-text!">{l.label || l.desc}</span>
+                          <span className="font-medium text-text!">{l.label}</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-text-muted">{l.tva_tx}%</td>
-                      <td className="px-4 py-2.5 text-right text-text-muted">{l.pu_ht_f}</td>
-                      <td className="px-4 py-2.5 text-right text-text-muted">{l.pu_ttc_f}</td>
+                      <td className="px-4 py-2.5 text-text-muted">{l.vatRatePercent || '—'}</td>
+                      <td className="px-4 py-2.5 text-text-muted">{l.landedCost || '—'}</td>
+                      <td className="px-4 py-2.5 text-right text-text-muted">{l.unitPriceExcl}</td>
+                      <td className="px-4 py-2.5 text-right text-text-muted">{l.unitPriceIncl}</td>
                       <td className="px-4 py-2.5 text-right text-text-muted">{l.qty}</td>
-                      <td className="px-4 py-2.5 text-right text-text-muted">{l.remise_percent}%</td>
-                      <td className="px-4 py-2.5 text-right text-text!">{l.total_ttc_f}</td>
+                      <td className="px-4 py-2.5 text-right text-text-muted">{l.discountPercent || '—'}</td>
+                      <td className="px-4 py-2.5 text-right text-text-muted">{l.costPrice || '—'}</td>
+                      <td className="px-4 py-2.5 text-right text-text!">{l.totalIncl}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
+          {data.actions.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-4 py-3 border-t border-border">
+              {data.actions.map((a) => (
+                <a key={a.label} href={a.url} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
+                  {a.label}
+                </a>
+              ))}
+            </div>
+          )}
         </Card>
 
-        <Card className="!h-auto">
-          <TabTitle>Payment Details</TabTitle>
-          <p className="text-xs text-text-faint mt-1">{inv.payment_status}</p>
-          {data.payments.length === 0 ? <p className="text-sm text-text-faint italic mt-2">No payments recorded yet.</p> : null}
+        <Card className="!h-auto !p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <TabTitle>Payment Details</TabTitle>
+          </div>
+          {data.payments.length === 0 ? (
+            <p className="text-sm text-text-faint italic p-4">No payments recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                    <th className="font-medium px-4 py-2.5">Payment</th>
+                    <th className="font-medium px-4 py-2.5">Date</th>
+                    <th className="font-medium px-4 py-2.5">Type</th>
+                    <th className="font-medium px-4 py-2.5">Bank Account</th>
+                    <th className="font-medium px-4 py-2.5 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.payments.map((p) => (
+                    <tr key={p.ref} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2.5">
+                        <a href={p.url} className="font-medium text-brand hover:underline">
+                          {p.ref}
+                        </a>
+                      </td>
+                      <td className="px-4 py-2.5 text-text-muted">{p.date}</td>
+                      <td className="px-4 py-2.5 text-text-muted">{p.type}</td>
+                      <td className="px-4 py-2.5 text-text-muted">{p.bankAccount}</td>
+                      <td className="px-4 py-2.5 text-right text-text!">{p.amount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="space-y-1.5 px-4 py-3 border-t border-border text-sm">
+            <div className="flex justify-between">
+              <span className="text-text-muted">Already paid (without credit notes and down payments)</span>
+              <span className="font-medium text-text!">{data.alreadyPaid || '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-muted">Billed</span>
+              <span className="font-medium text-text!">{data.billed || '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-semibold text-text!">Remaining unpaid</span>
+              <span className="font-bold text-brand">{data.remainingUnpaid || '—'}</span>
+            </div>
+          </div>
         </Card>
-
-        {inv.online_pay_url && (
-          <Card className="!h-auto">
-            <TabTitle>URL for Online Payment</TabTitle>
-            <p className="text-xs text-brand break-all mt-2">{inv.online_pay_url}</p>
-          </Card>
-        )}
       </div>
 
       <div className="space-y-4">
@@ -251,35 +323,47 @@ function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').Inv
           <div className="space-y-1.5 mt-3 text-sm">
             <div className="flex justify-between">
               <span className="text-text-muted">Subtotal (Excl. Tax)</span>
-              <span className="font-medium text-text!">
-                {inv.total_ht_f} {inv.currency}
-              </span>
+              <span className="font-medium text-text!">{data.amountExclTax}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-text-muted">VAT</span>
-              <span className="font-medium text-text!">
-                {inv.total_tva_f} {inv.currency}
-              </span>
+              <span className="font-medium text-text!">{data.vatAmount}</span>
             </div>
             <div className="flex justify-between pt-1.5 border-t border-border">
               <span className="font-semibold text-text!">Total (Incl. Tax)</span>
-              <span className="font-bold text-brand">
-                {inv.total_ttc_f} {inv.currency}
-              </span>
+              <span className="font-bold text-brand">{data.amountInclTax}</span>
             </div>
           </div>
         </Card>
 
         <Card className="!h-auto">
           <TabTitle>ZRA Invoice Details</TabTitle>
-          <div className="flex items-center justify-between mt-3 text-sm">
-            <span className="text-text-muted">ZRA Invoice Status</span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-warning-bg text-warning-fg text-xs font-medium">{data.zra.status || 'Not Submitted'}</span>
+          <div className="space-y-2 mt-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-text-muted">ZRA Invoice Status</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-warning-bg text-warning-fg text-xs font-medium">{data.zra.status || 'Not Submitted'}</span>
+            </div>
+            {[
+              ['Receipt No', data.zra.receiptNo],
+              ['Internal Data', data.zra.internalData],
+              ['Invoice Signature', data.zra.invoiceSignature],
+              ['Invoice No', data.zra.invoiceNo],
+              ['SDC ID', data.zra.sdcId],
+              ['MRC', data.zra.mrc],
+              ['Date', data.zra.date],
+            ].map(([label, value]) =>
+              value ? (
+                <div key={label} className="flex items-center justify-between gap-2">
+                  <span className="text-text-muted">{label}</span>
+                  <span className="font-medium text-text! text-right break-all">{value}</span>
+                </div>
+              ) : null,
+            )}
           </div>
         </Card>
 
         <Card className="!h-auto">
-          <TabTitle count={inv.nb_files}>Linked Files</TabTitle>
+          <TabTitle count={data.documentsBadge}>Linked Files</TabTitle>
           <p className="text-sm text-text-faint italic mt-2">See the Linked Files tab to manage documents.</p>
         </Card>
       </div>
@@ -289,57 +373,77 @@ function InvoiceMainTab({ data }: { data: import('../invoiceDetail.queries').Inv
 
 function NotesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useInvoiceNotes(id)
-  const [notePublic, setNotePublic] = useState('')
-  const [notePrivate, setNotePrivate] = useState('')
-  const [initialized, setInitialized] = useState(false)
-  const saveNotes = useSaveInvoiceNotes(id)
-  const [saved, setSaved] = useState(false)
+  const [editingField, setEditingField] = useState<'public' | 'private' | null>(null)
+  const [value, setValue] = useState('')
+  const editContext = useInvoiceNoteEditContext(id, editingField)
+  const updateNote = useUpdateInvoiceNote(id)
 
   if (isLoading) return <LegacyLoadingCard label="Loading notes…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load notes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
-  if (!initialized) {
-    setNotePublic(data.note_public ?? '')
-    setNotePrivate(data.note_private ?? '')
-    setInitialized(true)
+  function startEdit(field: 'public' | 'private') {
+    setEditingField(field)
+    setValue('')
+  }
+
+  function submit() {
+    if (!editingField || !editContext.data?.token) return
+    updateNote.mutate({ field: editingField, token: editContext.data.token, value }, { onSuccess: () => setEditingField(null) })
+  }
+
+  function NoteCard({ field, label, hint, content }: { field: 'public' | 'private'; label: string; hint: string; content: string }) {
+    const editing = editingField === field
+    return (
+      <Card className="!h-auto">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <p className="text-sm font-semibold text-text!">{label}</p>
+            <p className="text-xs text-text-faint">{hint}</p>
+          </div>
+          {!editing && (
+            <button type="button" onClick={() => startEdit(field)} className="shrink-0 w-7 h-7 rounded-md bg-brand text-white flex items-center justify-center hover:bg-brand-hover">
+              <Pencil size={12} />
+            </button>
+          )}
+        </div>
+        {editing ? (
+          editContext.isLoading ? (
+            <p className="text-xs text-text-faint flex items-center gap-1.5">
+              <LoaderCircle size={12} className="animate-spin" /> Loading real note form…
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <textarea
+                autoFocus
+                defaultValue={editContext.data?.currentValue ?? ''}
+                onChange={(e) => setValue(e.target.value)}
+                rows={4}
+                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
+              />
+              {updateNote.isError && <p className="text-xs text-danger">{updateNote.error instanceof Error ? updateNote.error.message : 'Failed to save.'}</p>}
+              <div className="flex gap-2">
+                <button type="button" disabled={updateNote.isPending} onClick={submit} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+                  {updateNote.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button type="button" onClick={() => setEditingField(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )
+        ) : (
+          <p className="text-sm text-text! whitespace-pre-wrap">{content || <span className="text-text-faint italic">Empty.</span>}</p>
+        )}
+      </Card>
+    )
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <TabTitle>Notes</TabTitle>
-        <button
-          type="button"
-          disabled={saveNotes.isPending}
-          onClick={() =>
-            saveNotes.mutate(
-              { note_public: notePublic, note_private: notePrivate },
-              {
-                onSuccess: () => {
-                  setSaved(true)
-                  setTimeout(() => setSaved(false), 2500)
-                },
-              },
-            )
-          }
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          <Check size={14} /> {saveNotes.isPending ? 'Saving…' : 'Save Notes'}
-        </button>
-      </div>
-      {saved && <p className="text-xs text-success-fg">Saved.</p>}
-      {saveNotes.isError && <p className="text-xs text-danger">{saveNotes.error instanceof Error ? saveNotes.error.message : 'Failed to save.'}</p>}
+      <TabTitle>Notes</TabTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="!h-auto">
-          <p className="text-sm font-semibold text-text!">Public Note</p>
-          <p className="text-xs text-text-faint mb-2">Visible to customer on printed documents</p>
-          <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={3} className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-        </Card>
-        <Card className="!h-auto">
-          <p className="text-sm font-semibold text-text!">Private Note</p>
-          <p className="text-xs text-text-faint mb-2">Internal use only — not visible on documents</p>
-          <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={3} className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-        </Card>
+        <NoteCard field="public" label="Public Note" hint="Visible to customer on printed documents" content={data.notePublic} />
+        <NoteCard field="private" label="Private Note" hint="Internal use only — not visible on documents" content={data.notePrivate} />
       </div>
     </div>
   )
@@ -350,27 +454,30 @@ function ContactsTab({ id }: { id: string | undefined }) {
   if (isLoading) return <LegacyLoadingCard label="Loading contacts…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load contacts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
-  const rows = [...data.internal, ...data.external]
   return (
     <div className="space-y-3">
-      <TabTitle count={data.total}>Contacts/Addresses</TabTitle>
+      <TabTitle count={data.rows.length}>Contacts/Addresses</TabTitle>
       <Card className="!h-auto !p-0 overflow-hidden">
-        {rows.length === 0 ? (
+        {data.rows.length === 0 ? (
           <p className="text-sm text-text-faint italic text-center py-8">No contacts linked to this invoice.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                <th className="font-medium px-4 py-2.5">Name</th>
-                <th className="font-medium px-4 py-2.5">Role</th>
+                <th className="font-medium px-4 py-2.5">Nature</th>
+                <th className="font-medium px-4 py-2.5">Third Party</th>
+                <th className="font-medium px-4 py-2.5">Contact</th>
+                <th className="font-medium px-4 py-2.5">Type</th>
                 <th className="font-medium px-4 py-2.5">Status</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((c) => (
-                <tr key={c.rowid} className="border-b border-border last:border-0">
-                  <td className="px-4 py-2.5 font-medium text-text!">{c.name}</td>
-                  <td className="px-4 py-2.5 text-text-muted">{c.type_label}</td>
+              {data.rows.map((c, i) => (
+                <tr key={i} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5 font-medium text-text!">{c.nature}</td>
+                  <td className="px-4 py-2.5 text-text-muted">{c.thirdParty}</td>
+                  <td className="px-4 py-2.5 text-text-muted">{c.contact}</td>
+                  <td className="px-4 py-2.5 text-text-muted">{c.contactType}</td>
                   <td className="px-4 py-2.5 text-text-muted">{c.status}</td>
                 </tr>
               ))}
@@ -389,27 +496,29 @@ function StandingOrdersTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle count={data.count}>Direct Debit Orders</TabTitle>
+      <TabTitle count={data.length}>Direct Debit Orders</TabTitle>
       <Card className="!h-auto">
-        {data.orders.length === 0 ? (
+        {data.length === 0 ? (
           <EmptyState icon={RefreshCcw} message="No direct debit orders found for this invoice." />
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                <th className="font-medium px-4 py-2.5">Ref</th>
+                <th className="font-medium px-4 py-2.5">Request Date</th>
+                <th className="font-medium px-4 py-2.5">User</th>
                 <th className="font-medium px-4 py-2.5">Amount</th>
-                <th className="font-medium px-4 py-2.5">Date</th>
-                <th className="font-medium px-4 py-2.5">Status</th>
+                <th className="font-medium px-4 py-2.5">Direct Debit Order</th>
+                <th className="font-medium px-4 py-2.5">Process Date</th>
               </tr>
             </thead>
             <tbody>
-              {data.orders.map((o) => (
-                <tr key={o.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-2.5 font-medium text-text!">{o.ref}</td>
+              {data.map((o, i) => (
+                <tr key={i} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5 text-text-muted">{o.requestDate}</td>
+                  <td className="px-4 py-2.5 text-text-muted">{o.user}</td>
                   <td className="px-4 py-2.5 text-text-muted">{o.amount}</td>
-                  <td className="px-4 py-2.5 text-text-muted">{o.date}</td>
-                  <td className="px-4 py-2.5 text-text-muted">{o.status}</td>
+                  <td className="px-4 py-2.5 font-medium text-text!">{o.ref}</td>
+                  <td className="px-4 py-2.5 text-text-muted">{o.processDate}</td>
                 </tr>
               ))}
             </tbody>
@@ -422,6 +531,7 @@ function StandingOrdersTab({ id }: { id: string | undefined }) {
 
 function DocumentsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useInvoiceDocuments(id)
+  const { data: meta, isLoading: metaLoading } = useInvoiceDocumentsPageMeta(id)
   const upload = useUploadInvoiceDocument(id)
   const [file, setFile] = useState<File | null>(null)
 
@@ -430,7 +540,7 @@ function DocumentsTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle count={data.nb_files}>Linked Files</TabTitle>
+      <TabTitle count={meta?.attachedCount ?? data.length}>Linked Files</TabTitle>
       <Card className="!h-auto">
         <p className="text-sm font-semibold text-text! mb-2">Attach a new file/document</p>
         {upload.isError && <p className="text-xs text-danger mb-2">{upload.error instanceof Error ? upload.error.message : 'Upload failed.'}</p>}
@@ -442,8 +552,8 @@ function DocumentsTab({ id }: { id: string | undefined }) {
           />
           <button
             type="button"
-            disabled={!file || upload.isPending}
-            onClick={() => file && upload.mutate(file, { onSuccess: () => setFile(null) })}
+            disabled={!file || !meta || metaLoading || upload.isPending}
+            onClick={() => file && meta && upload.mutate({ token: meta.attachToken, file, savingDocMask: meta.savingDocMask, useMask: false }, { onSuccess: () => setFile(null) })}
             className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
             <Upload size={14} /> {upload.isPending ? 'Uploading…' : 'Upload File'}
@@ -451,17 +561,12 @@ function DocumentsTab({ id }: { id: string | undefined }) {
         </div>
       </Card>
 
-      {data.margin.enabled && (
-        <Card className="!h-auto">
-          <p className="text-sm font-semibold text-text! mb-2">Margin Details</p>
-          <div className="text-sm overflow-x-auto [&_table]:w-full [&_td]:py-1.5 [&_td]:px-2 [&_.liste_titre]:text-xs [&_.liste_titre]:text-text-faint [&_.right]:text-right [&_.custumRight]:text-right [&_.totalRow]:font-semibold [&_.totalRow]:border-t [&_.totalRow]:border-border" dangerouslySetInnerHTML={{ __html: data.margin.margin_info }} />
-        </Card>
-      )}
-
       <Card className="!h-auto">
-        {data.files.length === 0 ? <EmptyState icon={Paperclip} message="No files attached to this invoice." /> : (
+        {data.length === 0 ? (
+          <EmptyState icon={Paperclip} message="No files attached to this invoice." />
+        ) : (
           <ul className="divide-y divide-border">
-            {data.files.map((f) => (
+            {data.map((f) => (
               <li key={f.name} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <a href={f.url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline truncate">
                   {f.name}
@@ -475,35 +580,21 @@ function DocumentsTab({ id }: { id: string | undefined }) {
         )}
       </Card>
 
-      <Card className="!h-auto">
-        <p className="text-sm font-semibold text-text! mb-2">Related Objects</p>
-        {data.related.length === 0 ? (
-          <p className="text-sm text-text-faint italic text-center py-4">None</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                <th className="font-medium py-2 pr-3">Type</th>
-                <th className="font-medium py-2 pr-3">Ref.</th>
-                <th className="font-medium py-2 pr-3">Date</th>
-                <th className="font-medium py-2 pr-3">Amount</th>
-                <th className="font-medium py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.related.map((r, i) => (
-                <tr key={i} className="border-b border-border last:border-0">
-                  <td className="py-2 pr-3 text-text-muted">{r.type}</td>
-                  <td className="py-2 pr-3 font-medium text-text!">{r.ref}</td>
-                  <td className="py-2 pr-3 text-text-muted">{r.date}</td>
-                  <td className="py-2 pr-3 text-text-muted">{r.amount}</td>
-                  <td className="py-2 text-text-muted">{r.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+      {meta && meta.links.length > 0 && (
+        <Card className="!h-auto">
+          <p className="text-sm font-semibold text-text! mb-2">Linked Files and Documents</p>
+          <ul className="divide-y divide-border">
+            {meta.links.map((l, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <a href={l.url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline truncate">
+                  {l.label}
+                </a>
+                <span className="text-text-muted shrink-0">{l.date}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   )
 }
@@ -515,120 +606,23 @@ function AgendaTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle count={data.count}>Events & Agenda</TabTitle>
+      <TabTitle count={data.events.length}>Events & Agenda</TabTitle>
       <Card className="!h-auto">
         {data.events.length === 0 ? (
           <EmptyState icon={CalendarClock} message="No events recorded for this invoice." />
         ) : (
           <ul className="divide-y divide-border">
-            {data.events.map((e) => (
-              <li key={e.id} className="py-2 text-sm">
+            {data.events.map((e, i) => (
+              <li key={i} className="py-2 text-sm">
                 <p className="font-medium text-text!">{e.label}</p>
                 <p className="text-xs text-text-faint">
-                  {e.type} · {e.date} · {e.user}
+                  {e.date} · {e.owner}
+                  {e.statusLabel ? ` · ${e.statusLabel}` : ''}
                 </p>
               </li>
             ))}
           </ul>
         )}
-      </Card>
-    </div>
-  )
-}
-
-function ShipmentTab({ id }: { id: string | undefined }) {
-  const { data, isLoading, isError, error, refetch } = useInvoiceShipment(id)
-  const save = useSaveInvoiceShipment(id)
-  const existing = data ? (Array.isArray(data.shipment) ? data.shipment[0] : data.shipment) : undefined
-
-  const [form, setForm] = useState({
-    gdn_no: '',
-    grn_no: '',
-    month_year: '',
-    shipping_via: '',
-    shipping_date: '',
-    tracking_id: '',
-    transporter: '',
-    truck_details: '',
-    shipping_address: '',
-  })
-  const [initialized, setInitialized] = useState(false)
-
-  if (isLoading) return <LegacyLoadingCard label="Loading shipment details…" />
-  if (isError || !data) return <LegacyErrorCard title="Couldn't load shipment details" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
-
-  if (!initialized && existing) {
-    setForm({
-      gdn_no: existing.gdn_no ?? '',
-      grn_no: existing.grn_no ?? '',
-      month_year: existing.shipment_month ?? '',
-      shipping_via: existing.shipping_via ?? '',
-      shipping_date: existing.shipping_date ?? '',
-      tracking_id: existing.tracking_id ?? '',
-      transporter: existing.transporter ?? '',
-      truck_details: existing.truck_details ?? '',
-      shipping_address: existing.shipping_address ?? '',
-    })
-    setInitialized(true)
-  }
-
-  const field = (key: keyof typeof form) => ({
-    value: form[key],
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
-  })
-  const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2'
-
-  return (
-    <div className="space-y-3">
-      <TabTitle>Shipment / GRN Details</TabTitle>
-      <Card className="!h-auto">
-        {save.isError && <p className="text-xs text-danger mb-2">{save.error instanceof Error ? save.error.message : 'Failed to save.'}</p>}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">GDN No.</span>
-            <input {...field('gdn_no')} placeholder="GDN Number" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">GRN No.</span>
-            <input {...field('grn_no')} placeholder="GRN Number" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">Month</span>
-            <input {...field('month_year')} placeholder="e.g. January 2025" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">Shipping Via</span>
-            <input {...field('shipping_via')} placeholder="Via" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">Shipping Date</span>
-            <input {...field('shipping_date')} placeholder="Date" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">Tracking ID</span>
-            <input {...field('tracking_id')} placeholder="Tracking ID" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">Transporter</span>
-            <input {...field('transporter')} placeholder="Transporter name" className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-text-faint text-xs">Truck Details</span>
-            <input {...field('truck_details')} placeholder="Truck/Vehicle details" className={inputCls} />
-          </label>
-        </div>
-        <label className="flex flex-col gap-1 text-sm mt-4">
-          <span className="text-text-faint text-xs">Shipping Address</span>
-          <textarea value={form.shipping_address} onChange={(e) => setForm((f) => ({ ...f, shipping_address: e.target.value }))} placeholder="Address" rows={2} className={inputCls} />
-        </label>
-        <button
-          type="button"
-          disabled={save.isPending}
-          onClick={() => save.mutate(form)}
-          className="mt-4 flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {save.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Save
-        </button>
       </Card>
     </div>
   )
@@ -641,40 +635,60 @@ function LedgerEntryTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle count={data.count}>Ledger Entries</TabTitle>
-      <Card className="!h-auto">
-        {data.entries.length === 0 ? (
+      <TabTitle count={data.rows.length}>Ledger Entries</TabTitle>
+      <Card className="!h-auto !p-0 overflow-hidden">
+        {data.rows.length === 0 ? (
           <div className="flex flex-col items-center gap-1 py-10 text-center">
             <BookOpen size={28} className="text-text-faint" />
             <p className="text-sm text-text-faint">No ledger entries found.</p>
             <p className="text-xs text-text-faint">Entries are created when the invoice is transferred to accounting.</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                <th className="font-medium py-2 pr-3">Date</th>
-                <th className="font-medium py-2 pr-3">Account</th>
-                <th className="font-medium py-2 pr-3">Label</th>
-                <th className="font-medium py-2 pr-3 text-right">Debit</th>
-                <th className="font-medium py-2 text-right">Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.entries.map((e) => (
-                <tr key={e.rowid} className="border-b border-border last:border-0">
-                  <td className="py-2 pr-3 text-text-muted">{e.date}</td>
-                  <td className="py-2 pr-3 text-text-muted">{e.account}</td>
-                  <td className="py-2 pr-3 text-text!">{e.label}</td>
-                  <td className="py-2 pr-3 text-right text-text-muted">{e.debit}</td>
-                  <td className="py-2 text-right text-text-muted">{e.credit}</td>
+          <>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                  <th className="font-medium px-4 py-2.5">Date</th>
+                  <th className="font-medium px-4 py-2.5">Accounting Doc.</th>
+                  <th className="font-medium px-4 py-2.5">Ref.</th>
+                  <th className="font-medium px-4 py-2.5">Journal</th>
+                  <th className="font-medium px-4 py-2.5">Account</th>
+                  <th className="font-medium px-4 py-2.5">Label</th>
+                  <th className="font-medium px-4 py-2.5 text-right">Debit</th>
+                  <th className="font-medium px-4 py-2.5 text-right">Credit</th>
+                  <th className="font-medium px-4 py-2.5 text-right">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.rows.map((e, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2.5 text-text-muted">{e.date}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{e.accountingDoc}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{e.ref}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{e.codeJournal}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{e.account}</td>
+                    <td className="px-4 py-2.5 text-text!">{e.label}</td>
+                    <td className="px-4 py-2.5 text-right text-text-muted">{e.debit}</td>
+                    <td className="px-4 py-2.5 text-right text-text-muted">{e.credit}</td>
+                    <td className="px-4 py-2.5 text-right text-text!">{e.amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex items-center justify-end gap-6 px-4 py-3 border-t border-border text-sm">
+              <span className="text-text-muted">
+                Debit <span className="font-semibold text-text!">{data.totalDebit}</span>
+              </span>
+              <span className="text-text-muted">
+                Credit <span className="font-semibold text-text!">{data.totalCredit}</span>
+              </span>
+              <span className="text-text-muted">
+                Balance <span className="font-bold text-brand">{data.balance}</span>
+              </span>
+            </div>
+          </>
         )}
       </Card>
     </div>
   )
 }
-

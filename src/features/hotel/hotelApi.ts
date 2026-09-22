@@ -1,16 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 
-// custom/hotel/app.php is a real, fully separate "Hotel Suite" single-page
-// app living inside the legacy backend (confirmed live: both "Booking
-// Management" and "Room Status" in the classic Dolibarr Hotel sidebar
-// redirect straight to it) — a genuine, comprehensive JSON API at
-// custom/hotel/api.php?r=<resource> (reads, no auth token needed beyond the
-// session cookie) and custom/hotel/api.php (POST, a=<action>, needs the
-// page's own per-session TOKEN). This supersedes the classic Dolibarr
-// Room Type/Bed Types/Booking Types/Floor/Tenant pages the old sidebar
-// also lists — its own Settings and Guests sections manage that exact same
-// data (confirmed by reading its full source directly).
+// custom/hotel/app.php — a separate "Hotel Suite" single-page app with its
+// own JSON API: custom/hotel/api.php?r=<resource> (GET) and ?a=<action>
+// (POST, needs the page's per-session TOKEN).
 
 export async function hotelGet<T>(resource: string): Promise<T> {
   const res = await fetch(`/custom/hotel/api.php?r=${resource}`, { credentials: 'same-origin' })
@@ -67,10 +60,8 @@ export async function hotelPost(action: string, fields: Record<string, string | 
   return data as HotelApiOk
 }
 
-// Same real a=uploaddoc contract as hotelPost, except the real page sends an
-// actual File in the FormData (fd.append('file', f)) rather than a string —
-// FormData.append(name, Blob) is a distinct overload hotelPost's own
-// string-only fields type can't express, hence this separate helper.
+// Same as hotelPost but sends a File (FormData.append(name, Blob) is a
+// distinct overload hotelPost's string-only fields type can't express).
 export async function hotelPostFile(action: string, fields: Record<string, string | number | undefined>, file: File, fileFieldName: string, token: string): Promise<HotelApiOk> {
   const fd = new FormData()
   fd.append('a', action)

@@ -34,11 +34,8 @@ function todayIso(offset = 0): string {
   return d.toISOString().slice(0, 10)
 }
 
-// New/edit quotation, simplified to a single room-type line (real dates,
-// real guest lookup, real room-type + rate from quotecatalog, real
-// a=savequote write) — the original SPA supports multiple room lines each
-// with their own add-on services; that per-line service editor isn't
-// wired here, everything else about the write is genuine.
+// New/edit quotation, simplified to a single room-type line — the real SPA
+// supports multiple lines with per-line services, not wired here.
 function QuoteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { data: token } = useHotelToken()
   const { data: catalog } = useHotelQuoteCatalog()

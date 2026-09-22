@@ -91,20 +91,9 @@ function ZraCell({ id, zraid, zrastatus }: { id: string; zraid: string; zrastatu
   )
 }
 
-// Real via custom/hotel/api.php?r=guests — the Hotel Suite app's own Guest
-// Directory (backed by Dolibarr's core societe/customer table — the classic
-// Tenants/List Tenant sidebar pages read the exact same data, superseded
-// here). ZRA sync (a=custsync) is real and wired; clicking a guest or the
-// row's own "Edit"/"Docs" buttons opens the real detail view
-// (HotelGuestDetailModal.tsx: profile edit, stay history, ID/preferences
-// and documents — r=guesthistory/docs, a=savecustomer/saveguestid/
-// savepref/uploaddoc/deldoc), matching the real page's own guestEdit()/
-// guestDocs() both opening the same modal on different tabs. "+ Add guest"
-// uses the real a=saveguest action (confirmed live by reading the Suite's
-// own saveGuest() JS: only name/email/phone are actually sent, even though
-// its own modal shows an unused Address field too). ZraCell only shows the
-// "Update to ZRA" button when NOT already synced — confirmed live: the real
-// page's own succeeded rows show just the badge, no button.
+// Guest Directory (r=guests), backed by Dolibarr's core societe table.
+// Edit/Docs open HotelGuestDetailModal.tsx. "+ Add guest" (a=saveguest)
+// only sends name/email/phone. ZraCell hides the button once synced.
 export function HotelGuests() {
   const { data: guests, isLoading, isError, error, refetch } = useHotelGuests()
   const [search, setSearch] = useState('')

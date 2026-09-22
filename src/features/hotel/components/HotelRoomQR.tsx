@@ -23,11 +23,7 @@ function RoomQrCard({ no, type }: { no: string; type: string }) {
   )
 }
 
-// Real via custom/hotel/api.php?r=roomqr — the Hotel Suite app's own Room
-// QR Codes view. Each code points to the real in-room ordering page
-// (custom/hotel/public/order.php?room=<no>), generated client-side with
-// the qrcode package already vendored in this app rather than the
-// original's own bundled QRCode.js.
+// Each code points to the real in-room ordering page (order.php?room=<no>).
 export function HotelRoomQR() {
   const { data: rooms, isLoading, isError, error, refetch } = useHotelRoomQr()
 

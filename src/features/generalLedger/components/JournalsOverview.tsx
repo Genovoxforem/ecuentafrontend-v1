@@ -1,83 +1,16 @@
-import { useState, type FormEvent } from 'react'
-import { BookText, Search, X as XIcon, Loader2, AlertTriangle, FileText } from 'lucide-react'
+import { useState } from 'react'
+import { BookText, Loader2, AlertTriangle, FileText, Pencil, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
-import { useJournalsReport, defaultLedgerFilters, type LedgerFilters } from '../generalLedger.queries'
-
-function FiltersForm({
-  draft,
-  onChange,
-  onSubmit,
-  onClear,
-  submitting,
-}: {
-  draft: LedgerFilters
-  onChange: (next: LedgerFilters) => void
-  onSubmit: () => void
-  onClear: () => void
-  submitting: boolean
-}) {
-  return (
-    <Card>
-      <form
-        onSubmit={(e: FormEvent<HTMLFormElement>) => {
-          e.preventDefault()
-          onSubmit()
-        }}
-        className="flex flex-wrap items-end gap-4"
-      >
-        <label className="flex flex-col gap-1 text-xs text-text-muted">
-          <span>From</span>
-          <input
-            type="date"
-            value={draft.dateStart}
-            onChange={(e) => onChange({ ...draft, dateStart: e.target.value })}
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-text-muted">
-          <span>To</span>
-          <input
-            type="date"
-            value={draft.dateEnd}
-            onChange={(e) => onChange({ ...draft, dateEnd: e.target.value })}
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-text-muted">
-          <span>Account code</span>
-          <input
-            type="text"
-            placeholder="e.g. 401, 570..."
-            value={draft.accountCode}
-            onChange={(e) => onChange({ ...draft, accountCode: e.target.value })}
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 w-40"
-          />
-        </label>
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-          >
-            {submitting ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-            Search
-          </button>
-          <button type="button" onClick={onClear} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-text-muted hover:bg-surface-hover">
-            <XIcon size={14} />
-            Clear
-          </button>
-        </div>
-      </form>
-    </Card>
-  )
-}
+import { useJournalsReport, useDeleteLedgerEntry, defaultLedgerFilters, type LedgerFilters } from '../generalLedger.queries'
+import { LedgerToolbar, LedgerFilterBar, LedgerPagination } from './LedgerControls'
+import { DocLink } from './DocLink'
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const isAuthIssue = /signed in|forbidden|403/i.test(message)
   return (
-    <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
+    <Card className="!h-auto !bg-danger-bg border-danger/40 flex items-start gap-3">
       <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />
       <div className="flex-1">
         <p className="text-sm font-semibold text-danger-fg">Couldn't load the journals</p>
@@ -97,45 +30,53 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
-const COLUMNS = ['Num.', 'Journal', 'Date', 'Accounting Doc.', 'Account', 'Subledger', 'Label', 'Debit', 'Credit', 'Date Export']
+const COLUMNS = ['Num.', 'Journal', 'Date', 'Accounting Doc.', 'Account', 'Subledger', 'Label', 'Debit', 'Credit', 'Date Export', 'Lettering Code', '']
 
+// The real page's own "View Flat List" mode (list.php) — same real API and
+// same LedgerFilters/LedgerControls this feature's other two views share
+// (see LedgerOverview.tsx / SubledgerReport.tsx).
 export function JournalsOverview() {
   const [filters, setFilters] = useState<LedgerFilters>(defaultLedgerFilters)
   const [draft, setDraft] = useState<LedgerFilters>(filters)
   const { data: report, isLoading, isFetching, isError, error, refetch } = useJournalsReport(filters)
+  const deleteEntry = useDeleteLedgerEntry()
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // Same sticky-header pattern as LedgerOverview.tsx/SubledgerReport.tsx —
+    // the title/toolbar/filters stick flush at main's true top and only the
+    // table body scrolls internally, instead of the whole page scrolling.
+    <div className="-m-6 flex-1 flex flex-col min-h-0">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950 space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <BookText size={20} className="text-brand" /> Operations - Journals
         </h2>
+        <LedgerToolbar active="flat" />
+        <LedgerFilterBar
+          draft={draft}
+          onChange={setDraft}
+          onSubmit={() => setFilters({ ...draft, page: 0 })}
+          onClear={() => {
+            const next = defaultLedgerFilters()
+            setDraft(next)
+            setFilters(next)
+          }}
+          submitting={isFetching}
+        />
       </div>
 
-      <FiltersForm
-        draft={draft}
-        onChange={setDraft}
-        onSubmit={() => setFilters(draft)}
-        onClear={() => {
-          const next = defaultLedgerFilters()
-          setDraft(next)
-          setFilters(next)
-        }}
-        submitting={isFetching}
-      />
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {isError && <ErrorState message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-      {isError && <ErrorState message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+        {isLoading && (
+          <Card className="items-center justify-center gap-2 py-10 text-center">
+            <Loader2 size={20} className="animate-spin text-brand" />
+            <p className="text-sm text-text-faint">Loading real journal entries from the accounting backend…</p>
+          </Card>
+        )}
 
-      {isLoading && (
-        <Card className="items-center justify-center gap-2 py-10 text-center">
-          <Loader2 size={20} className="animate-spin text-brand" />
-          <p className="text-sm text-text-faint">Loading real journal entries from the accounting backend…</p>
-        </Card>
-      )}
-
-      {report && (
-        <Card className="!p-0 !h-auto overflow-hidden">
-          <div className="overflow-auto max-h-[70vh]">
+        {report && (
+        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
@@ -168,13 +109,38 @@ export function JournalsOverview() {
                       </td>
                       <td className="px-3 py-2 text-text-muted">{entry.journal}</td>
                       <td className="px-3 py-2 text-text-muted whitespace-nowrap">{entry.date}</td>
-                      <td className="px-3 py-2 text-text-muted">{entry.accountingDoc || '-'}</td>
+                      <td className="px-3 py-2 text-text-muted">
+                        <DocLink docType={entry.docType} fkDoc={entry.fkDoc} docUrl={entry.docUrl} label={entry.accountingDoc} />
+                      </td>
                       <td className="px-3 py-2 text-text!">{entry.accountCode}</td>
                       <td className="px-3 py-2 text-text-muted">{entry.subledgerAccount || '-'}</td>
                       <td className="px-3 py-2 text-text!">{entry.label}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-text!">{entry.debit > 0 ? fmtZMW(entry.debit) : '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-text!">{entry.credit > 0 ? fmtZMW(entry.credit) : '-'}</td>
                       <td className="px-3 py-2 text-text-faint whitespace-nowrap">{entry.dateExport || '-'}</td>
+                      <td className="px-3 py-2 text-text-faint text-xs">{entry.letteringCode || '-'}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          {entry.canEdit && entry.editUrl && entry.transactionNum && (
+                            <Link to={ROUTES.ledgerPieceDetail.replace(':pieceNum', entry.transactionNum)} title="View / edit this transaction" className="p-1 rounded text-text-faint hover:text-brand hover:bg-brand/10">
+                              <Pencil size={13} />
+                            </Link>
+                          )}
+                          {entry.canDelete && entry.deleteUrl && (
+                            <button
+                              type="button"
+                              disabled={deleteEntry.isPending}
+                              title="Delete this entry on the real accounting backend"
+                              onClick={() => {
+                                if (entry.deleteUrl && window.confirm('Delete this accounting entry on the real backend? This cannot be undone.')) deleteEntry.mutate(entry.deleteUrl)
+                              }}
+                              className="p-1 rounded text-text-faint hover:text-danger hover:bg-danger-bg disabled:opacity-40"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -187,14 +153,16 @@ export function JournalsOverview() {
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-text!">{fmtZMW(report.totalDebit)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-text!">{fmtZMW(report.totalCredit)}</td>
-                    <td></td>
+                    <td colSpan={3}></td>
                   </tr>
                 </tfoot>
               )}
             </table>
           </div>
+          <LedgerPagination meta={report.meta} onPage={(page) => setFilters({ ...filters, page })} />
         </Card>
-      )}
+        )}
+      </div>
     </div>
   )
 }

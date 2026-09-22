@@ -24,21 +24,10 @@ import {
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const FEATURE_TYPE_LABEL: Record<string, string> = { complementary: 'Complimentary Amenities', facility: 'Facility', amenities: 'Amenities' }
 
-// Real via custom/hotel/api.php?r=settings (Floors/Room Types/Bed Types/
-// Booking Types — a=savetype/deltype&kind=...), r=rooms_admin (a=saveroom,
-// the Rooms card's own "+ Add Suite"), r=features (a=save_features via
-// booking_master.ajax.php) and r=paycfg — the Hotel Suite's own real
-// Settings tab, confirmed live to be a full property-configuration
-// dashboard (Floors/Room Types/Bed Types/Booking Types/Rooms/Room
-// Features/Integrations/Payments all inline), not just the Payments-only
-// leftover this page used to be. Floors and Room Types both genuinely fail
-// to persist (confirmed live: savetype returns {"ok":true} but silently
-// doesn't save) and the Rooms card's own "+ Add Suite" genuinely fails
-// with "Could not create room product" (a=saveroom, the same confirmed
-// bug documented in HotelAddRoomPage.tsx) — both buttons stay, matching
-// the real page exactly, since it offers them too despite the same
-// backend bugs. "Integrations" is static descriptive content in the real
-// page's own source (not backed by any API), reproduced verbatim.
+// Real Settings tab: full property-configuration dashboard. Floors/Room
+// Types don't persist (savetype returns ok:true but silently no-ops) and
+// "+ Add Suite" fails with "Could not create room product" — both buttons
+// stay, matching the real page. "Integrations" is static content.
 function TypeSection({ kind, label }: { kind: HotelTypeKind; label: string }) {
   const { data: settings, isLoading } = useHotelSettingsBundle()
   const { data: token } = useHotelToken()

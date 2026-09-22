@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Home } from 'lucide-react'
 import type { NavItem, NavSection } from '../../../features/navTypes'
+import { ROUTES } from '../../../routes'
 
 // Walks a section's item tree depth-first and returns the chain of labels
 // from the section root down to whichever item's own path matches
@@ -34,6 +35,14 @@ function sectionContainsPath(section: NavSection, pathname: string): boolean {
 // breadcrumb shows on the main landing page too.
 const PATH_ALIASES: Record<string, string> = {
   '/dashboard': '/home',
+  // Subledger and New Transaction are real backend pages, but only reachable
+  // as in-page view-toggle/action buttons on the real "Ledger" page — no
+  // independent leaf for either exists in the live llx_menu tree, so
+  // buildBreadcrumb never finds a direct match. Same fix as /dashboard above:
+  // alias them to the real "Ledger" leaf they're both variants of, rather
+  // than inventing a fake standalone menu entry for either.
+  [ROUTES.ledgerSubledger]: ROUTES.ledgerDashboard,
+  [ROUTES.ledgerCreate]: ROUTES.ledgerDashboard,
 }
 
 function resolvePath(pathname: string): string {

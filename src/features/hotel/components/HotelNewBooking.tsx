@@ -68,40 +68,10 @@ function Stepper({ step }: { step: number }) {
   )
 }
 
-// Real page: booking/reservation/booking.php?type=booking — the classic
-// "Add Booking" form behind the sidebar's real "Booking/Check-In List" leaf
-// (its own "+ Add" button goes here — confirmed live: the real llx_menu row
-// for that leaf points at booking/reservation/booking_list.php, a classic
-// page, not the Hotel Suite SPA; see hotel.queries.ts's own top comment on
-// the classic-booking hooks for the full finding). Rebuilt against the real
-// *rendered* page, not just its raw HTML source: Ref No, Purpose and the 4
-// "Extra Service" checkboxes (Driver/Gym & Spa/Breakfast/Dinner) all exist
-// as real markup in the page's source but are wrapped in an HTML comment
-// there (confirmed live) — genuinely never shown to a real user — so
-// they're deliberately left out here too, same reasoning as Billing Details
-// only ever showing Payable Amount (the tax/service_charge/total/
-// booking_charge fields the page's own JS references have no id= anywhere
-// in the real Billing Details section). Room Number stays real but
-// necessarily empty right now: reservation_ajax.php?action=
-// get_rooms_for_select (live-tested) returns zero rooms for any date range
-// on this backend, the same zero-room-inventory root cause already
-// documented in HotelAddRoomPage.tsx (a=saveroom is confirmed broken, so no
-// room has ever actually been created). Saves via reservation_ajax.php?
-// action=add_booking — live-tested end-to-end (created real booking
-// BK-000001, confirmed it in the real Booking/Check-In List, then cleaned
-// up via the real Cancel Booking action). Room card chrome (numbered badge,
-// Active pill, Copy/Collapse/Delete) is local-only UI state, not a real
-// backend field — Copy duplicates a room row's client-side values into a
-// new row, and Collapse just hides that row's fields, neither one talks to
-// the backend.
-//
-// Presented as a 4-step wizard (Reservation Details → Room Information →
-// Billing Details → Review & Confirm) per explicit request — purely a
-// presentation layer over the exact same state/hooks/validation/mutation
-// the single-page version used. Billing Details still shows only the one
-// real Payable Amount field (see the note above on why the other billing
-// fields a generic wizard reference might show don't exist on this real
-// page) — nothing fabricated.
+// Real page: booking.php?type=booking. Ref No/Purpose/Extra Service
+// checkboxes omitted (HTML-commented-out on the real page). Room Number
+// stays empty since this backend has zero rooms. Saves via
+// reservation_ajax.php?action=add_booking.
 export function HotelNewBooking() {
   const { data: options } = useHotelBookingFormOptions()
   const [step, setStep] = useState(0)

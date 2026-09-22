@@ -250,14 +250,8 @@ function EnquiriesLeadsCard() {
   )
 }
 
-// Real via custom/hotel/api.php?r=wakeups|enquiries, plus a=savewakeup/
-// wakedone/delwakeup/saveenquiry/delenquiry — the Hotel Suite app's own
-// Concierge tab (confirmed live: a condensed two-card dashboard, "Wake-up
-// Calls" + "Enquiries & Leads" side by side, distinct from the fuller
-// classic DataTables pages the outer sidebar's own "Wake-Up Calls" and
-// "Enquiry" leaves use — HotelWakeUpCallsPage.tsx / HotelEnquiryPage.tsx —
-// which share the exact same real resources/mutations, just presented as
-// full searchable/exportable tables instead of this compact view).
+// Real Suite Concierge tab: condensed two-card dashboard over the same
+// r=wakeups|enquiries resources the fuller classic pages also use.
 export function HotelSuiteConcierge() {
   return (
     <div className="space-y-4">

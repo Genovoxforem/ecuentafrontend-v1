@@ -23,15 +23,9 @@ const STATUS_TAG: Record<string, string> = {
   rejected: 'bg-neutral-bg text-neutral-fg',
 }
 
-// Real via custom/hotel/api.php?r=rsorders|rsrooms|posmenu, plus
-// a=postorder / a=orderstatus / a=confirmorder / a=rejectorder — the Hotel
-// Suite app's own Room Service (Guest Orders + Post Order to Room). The
-// "N new" badge and "Charge F&B to a folio" label are confirmed live by
-// reading the Suite's own JS/HTML directly — the badge is genuinely just a
-// client-side count of orders.data with status==='pending'. "Kitchen
-// screen" used to link straight to custom/hotel/kitchen.php; it now opens
-// HotelKitchenScreen.tsx instead, a React rebuild of that same board over
-// the same rsorders endpoint (see that file's own comment).
+// Real Room Service view (r=rsorders|rsrooms|posmenu, a=postorder/
+// orderstatus/confirmorder/rejectorder). "Kitchen screen" opens
+// HotelKitchenScreen.tsx, a React rebuild over the same rsorders endpoint.
 export function HotelRoomService() {
   const { data: token } = useHotelToken()
   const orders = useHotelRsOrders()

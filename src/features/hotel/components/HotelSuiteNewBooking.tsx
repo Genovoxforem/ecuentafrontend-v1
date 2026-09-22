@@ -22,12 +22,8 @@ function fmtShortDate(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// Real amount/tourism-levy math, ported line-for-line from the Suite's own
-// nbSvcPrice()/nbTLamt() JS (custom/hotel/app.php, read directly): a
-// service's price prefers amount_ttc over amount, and the levy is
-// round(price * rate) / 100 — i.e. rate is a percentage number (e.g. 1.5),
-// not a fraction, and only contributes when > 0. Getting this formula wrong
-// would make the wizard's totals diverge from what the real backend charges.
+// Ported from app.php's nbSvcPrice()/nbTLamt(): price prefers amount_ttc
+// over amount; levy is round(price * rate) / 100 (rate is a percentage).
 function svcPrice(f: HotelFeatureRow): number {
   const v = f.amount_ttc != null ? f.amount_ttc : f.amount
   return Number(v) || 0
@@ -101,21 +97,10 @@ function Stepper({ step }: { step: StepNum }) {
   )
 }
 
-// Real via custom/hotel/api.php?r=available|bookingplans|customers|features
-// and a=createbooking — the Hotel Suite's own internal "New Booking" tab
-// (custom/hotel/app.php#newbook). The real page itself is a single scrolling
-// form, not a wizard — this deliberately restructures it into 4 steps
-// (Guest → Suites → Occupancy & Services → Review) per explicit request, but
-// every field/value/format below was re-confirmed by reading that page's own
-// live nbInit()/nbCalc()/nbRoomCfg()/doCreate() JS directly (not guessed):
-// rmeta is `roomId:adults:children:extraBeds` joined by ',' across selected
-// rooms; rsvc is `roomId=featureId1,featureId2` joined by ';', one segment
-// per room that has at least one service selected (rooms with none are
-// omitted entirely) — see svcPrice()/tlAmt() above for the matching amount
-// math. Per-room occupancy/services couldn't be exercised end-to-end before
-// this session since r=available returns zero rooms on this dev backend
-// (same root cause documented in HotelAddRoomPage.tsx), but the wiring is
-// real, not a placeholder.
+// The real page is a single scrolling form, restructured here into 4 steps.
+// rmeta is `roomId:adults:children:extraBeds` joined by ','; rsvc is
+// `roomId=featureId1,featureId2` joined by ';' (rooms with no services
+// omitted) — see svcPrice()/tlAmt() above.
 export function HotelSuiteNewBooking() {
   const { data: token } = useHotelToken()
   const { data: plans } = useHotelBookingPlans()

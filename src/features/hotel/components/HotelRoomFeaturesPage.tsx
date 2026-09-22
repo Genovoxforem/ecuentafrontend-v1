@@ -83,13 +83,8 @@ function AddFeaturePanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   )
 }
 
-// Real via custom/hotel/api.php?r=features, plus booking/settings/
-// booking_master.ajax.php (action=save_features — see
-// useHotelSaveFeatureFull's own comment) for creating a feature/amenity,
-// and a=delfeature/a=delservice (Hotel Suite API) for deleting either kind.
-// Chargeable services (src='prod') are real Dolibarr products — see
-// hotel.queries.ts's own comment on why creating those stays out of scope
-// here.
+// r=features + save_features (create) + a=delfeature/delservice (delete).
+// Chargeable services (src='prod') are real Dolibarr products.
 export function HotelRoomFeaturesPage() {
   const { data: token } = useHotelToken()
   const { data: features, isLoading, isError, error, refetch } = useHotelFeatures()

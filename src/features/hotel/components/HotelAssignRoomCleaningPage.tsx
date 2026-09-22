@@ -5,15 +5,9 @@ import { useHotelHousekeepers, useHotelRack, useHotelAssignClean, useHotelToken 
 
 const fieldCls = 'h-10 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
-// Real page: booking/service/assign_room_cleaning.php (mainmenu=hotel&
-// leftmenu=assgn_clean_obj) — a single-field form (Assign Housekeeper +
-// Save), no room picker of its own. The real Hotel Suite write this maps to
-// (a=assignclean, r=housekeepers) takes both a housekeeper AND a comma list
-// of rooms, so — since the classic page never asks for rooms either — this
-// assigns every suite the real rack (r=rack) currently reports as "dirty"
-// (needing service) to the chosen housekeeper, same real mutation
-// HotelHousekeeping.tsx's own multi-select Assign form already uses, just
-// without a manual room picker to match this exact classic layout.
+// Real page: assign_room_cleaning.php — a single-field form (no room
+// picker). a=assignclean needs a room list too, so this assigns every
+// suite r=rack currently reports "dirty" to the chosen housekeeper.
 export function HotelAssignRoomCleaningPage() {
   const { data: token } = useHotelToken()
   const { data: housekeepers, isLoading: hkLoading } = useHotelHousekeepers()

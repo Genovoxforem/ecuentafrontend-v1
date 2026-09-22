@@ -20,15 +20,9 @@ const STATUS_LABEL: Record<string, string> = {
   provisional: 'Provisional',
 }
 
-// Real via custom/hotel/api.php?r=bookings — the Hotel Suite's own internal
-// "Reservations" tab (confirmed live: a plain Booking/Guest/Type/Stay/
-// Source/Status/Balance table, no filters/export/pagination on the real
-// page either, so none are added here). Distinct from HotelReservations.tsx
-// (the classic Booking/Check-In List page, booking/reservation/
-// booking_list.php) and from HotelBookingReportPage.tsx (the classic
-// Booking Report, booking/reports/booking_report.php) — this Suite sidebar
-// item used to reuse Booking Report as the closest available real
-// equivalent before this dedicated page existed.
+// Real Suite "Reservations" tab (r=bookings) — a plain table with no
+// filters/export/pagination on the real page either. Distinct from the
+// classic HotelReservations.tsx and HotelBookingReportPage.tsx.
 export function HotelSuiteReservations() {
   const { data: bookings, isLoading, isError, error, refetch } = useHotelBookings()
 

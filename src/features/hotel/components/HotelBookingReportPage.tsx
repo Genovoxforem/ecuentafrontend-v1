@@ -12,19 +12,9 @@ const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 const SOURCES = ['Direct', 'Corporate', 'OTA']
 const STATUS_LABEL: Record<string, string> = { confirmed: 'Confirmed', booked: 'Confirmed', checkin: 'In residence', checkout: 'Departed', cancelled: 'Cancelled', provisional: 'Provisional' }
 
-// Real page: booking/reports/booking_report.php — no single real resource
-// carries every column this page shows, so it joins two real ones by
-// booking number: r=bookings (Booking Type/Source/Due amount/Status) and
-// r=report&type=history (Room Number — bookings itself has no room field).
-// "Booking Date" (the classic page's own filter+column) has no equivalent
-// in either — same honesty rule as Check Out List/Room Cleaning Status
-// elsewhere in this module — so its filter is inert and its column reads
-// "—"; "Checkin/CheckOut date" is real (ci/co) and does filter. Booking
-// Type options come from the real Booking Types list (settings.booking);
-// Booking Source's 3 options are the Suite's own real fixed set (seen in
-// its own "Rate plan / source" pickers). Filtering is applied live as
-// fields change — "Go" is kept only for visual match to the real page's
-// button (it re-applies nothing new), "Clear" resets every filter.
+// Real page: booking_report.php — joins r=bookings (Type/Source/Due/Status)
+// with r=report&type=history (Room Number) by booking number. "Booking
+// Date" has no equivalent in either resource, so its filter is inert.
 export function HotelBookingReportPage() {
   const { data: bookings, isLoading, isError, error, refetch } = useHotelBookings()
   const { data: history } = useHotelLedger('history')

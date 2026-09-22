@@ -1,28 +1,27 @@
-import { useState, Fragment, type FormEvent } from 'react'
+import { useState, Fragment } from 'react'
 import {
   FileText,
-  Search,
-  X as XIcon,
   Trash2,
   Landmark,
   CalendarClock,
   Scale,
   Loader2,
   AlertTriangle,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  Layers,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
   ListCollapse,
   Rows3,
   Lock,
+  Pencil,
+  Wallet,
 } from 'lucide-react'
-import { Card, fmtZMW, SectionHeading, TodayStatCard } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, fmtZMW, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { Link } from 'react-router-dom'
-import { useLedgerReport, defaultLedgerFilters, type LedgerFilters, type LedgerMovement } from '../generalLedger.queries'
+import { useLedgerReport, useDeleteLedgerEntry, defaultLedgerFilters, type LedgerFilters, type LedgerMovement } from '../generalLedger.queries'
+import { DocLink } from './DocLink'
+import { LedgerToolbar, LedgerFilterBar, LedgerPagination } from './LedgerControls'
 
 // Deterministic (hash-based, not row-index) so the same journal code always
 // gets the same badge color across the whole table, not just within one
@@ -102,79 +101,6 @@ function MovementCard({ icon: Icon, label, movement }: { icon: typeof CalendarCl
   )
 }
 
-function FiltersForm({
-  draft,
-  onChange,
-  onSubmit,
-  onClear,
-  submitting,
-}: {
-  draft: LedgerFilters
-  onChange: (next: LedgerFilters) => void
-  onSubmit: () => void
-  onClear: () => void
-  submitting: boolean
-}) {
-  return (
-    <form
-      onSubmit={(e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault()
-        onSubmit()
-      }}
-      className="flex flex-wrap items-center gap-x-6 gap-y-3"
-    >
-      <label className="flex items-center gap-2 text-xs font-medium text-text-muted whitespace-nowrap">
-        From
-        <input
-          type="date"
-          value={draft.dateStart}
-          onChange={(e) => onChange({ ...draft, dateStart: e.target.value })}
-          className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-xs font-medium text-text-muted whitespace-nowrap">
-        To
-        <input
-          type="date"
-          value={draft.dateEnd}
-          onChange={(e) => onChange({ ...draft, dateEnd: e.target.value })}
-          className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-xs font-medium text-text-muted whitespace-nowrap">
-        Account code
-        <input
-          type="text"
-          placeholder="e.g. 401, 570..."
-          value={draft.accountCode}
-          onChange={(e) => onChange({ ...draft, accountCode: e.target.value })}
-          className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 w-32"
-        />
-      </label>
-      <div className="flex items-center gap-2 ml-auto">
-        <button
-          type="submit"
-          disabled={submitting}
-          title="Search"
-          aria-label="Search"
-          className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {submitting ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-        </button>
-        <button
-          type="button"
-          onClick={onClear}
-          title="Clear filters"
-          aria-label="Clear filters"
-          className="flex items-center justify-center w-9 h-9 rounded-lg bg-danger/10 text-danger hover:bg-danger/20"
-        >
-          <XIcon size={15} />
-        </button>
-      </div>
-    </form>
-  )
-}
-
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const isAuthIssue = message.toLowerCase().includes('signed in')
   return (
@@ -198,12 +124,13 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
-const COLUMNS = ['Num.', 'Journal', 'Date', 'Accounting Doc.', 'Label', 'Currency', 'Conversion', 'Debit', 'Credit']
+const COLUMNS = ['Num.', 'Journal', 'Date', 'Accounting Doc.', 'Label', 'Currency', 'Conversion', 'Debit', 'Credit', 'Lettering Code', '']
 
 export function LedgerOverview() {
   const [filters, setFilters] = useState<LedgerFilters>(defaultLedgerFilters)
   const [draft, setDraft] = useState<LedgerFilters>(filters)
   const { data: report, isLoading, isFetching, isError, error, refetch } = useLedgerReport(filters)
+  const deleteEntry = useDeleteLedgerEntry()
   // Collapsed by default — the legacy page dumps every transaction line for
   // every account into one flat table (can run past 250 rows), which makes
   // it unscannable. Groups start closed so the account-level totals/balance
@@ -223,34 +150,35 @@ export function LedgerOverview() {
     // flush at main's true top, and the table Card fills the leftover height
     // with its own internal scroll instead of an arbitrary max-h box.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-3 text-lg font-bold text-text!">
-          <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-brand/10 text-brand">
-            <FileText size={18} />
-          </span>
-          Operations - View By Accounting Account (Ledger)
-        </h2>
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="flex items-center gap-3 text-lg font-bold text-text!">
+            <span className="shrink-0 w-9 h-9 rounded-lg grid place-items-center bg-brand/10 text-brand">
+              <FileText size={18} />
+            </span>
+            Operations - View By Accounting Account (Ledger)
+          </h2>
           <YearStepper
             year={yearOf(filters)}
             onJump={(year) => {
-              const next = { ...filters, dateStart: `${year}-01-01`, dateEnd: `${year}-12-31` }
+              const next = { ...filters, dateStart: `${year}-01-01`, dateEnd: `${year}-12-31`, page: 0 }
               setDraft(next)
               setFilters(next)
             }}
-          />
-          <FiltersForm
-            draft={draft}
-            onChange={setDraft}
-            onSubmit={() => setFilters(draft)}
-            onClear={() => {
-              const next = defaultLedgerFilters()
-              setDraft(next)
-              setFilters(next)
-            }}
-            submitting={isFetching}
           />
         </div>
+        <LedgerToolbar active="account" />
+        <LedgerFilterBar
+          draft={draft}
+          onChange={setDraft}
+          onSubmit={() => setFilters({ ...draft, page: 0 })}
+          onClear={() => {
+            const next = defaultLedgerFilters()
+            setDraft(next)
+            setFilters(next)
+          }}
+          submitting={isFetching}
+        />
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
@@ -265,19 +193,6 @@ export function LedgerOverview() {
 
         {report && (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <TodayStatCard label="Total Debit" value={fmtZMW(report.grandTotalDebit)} caption="All accounts in range" icon={ArrowDownCircle} color="rose" />
-              <TodayStatCard label="Total Credit" value={fmtZMW(report.grandTotalCredit)} caption="All accounts in range" icon={ArrowUpCircle} color="green" />
-              <TodayStatCard
-                label="Net Balance"
-                value={`${fmtZMW(Math.abs(report.grandTotalCredit - report.grandTotalDebit))} ${report.grandTotalCredit >= report.grandTotalDebit ? 'Cr' : 'Dr'}`}
-                caption="Credit − Debit"
-                icon={Scale}
-                color={report.grandTotalCredit >= report.grandTotalDebit ? 'green' : 'rose'}
-              />
-              <TodayStatCard label="Accounts" value={String(report.groups.length)} caption="In this range" icon={Layers} color="indigo" />
-            </div>
-
             <Card className="!p-0 overflow-hidden flex-1 min-h-0">
               {report.groups.length > 0 && (
                 <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface">
@@ -353,7 +268,9 @@ export function LedgerOverview() {
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold ${journalBadgeColor(entry.journal)}`}>{entry.journal}</span>
                             </td>
                             <td className="px-3 py-2 text-text-muted whitespace-nowrap">{entry.date}</td>
-                            <td className="px-3 py-2 text-text-muted">{entry.accountingDoc || '-'}</td>
+                            <td className="px-3 py-2 text-text-muted">
+                              <DocLink docType={entry.docType} fkDoc={entry.fkDoc} docUrl={entry.docUrl} label={entry.accountingDoc} />
+                            </td>
                             <td className="px-3 py-2 text-text!">{entry.label}</td>
                             <td className="px-3 py-2 text-text-muted">{entry.currencyCode}</td>
                             <td className="px-3 py-2 text-text-faint text-xs">
@@ -362,22 +279,47 @@ export function LedgerOverview() {
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-text!">{entry.debit > 0 ? fmtZMW(entry.debit) : '-'}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-text!">{entry.credit > 0 ? fmtZMW(entry.credit) : '-'}</td>
+                            <td className="px-3 py-2 text-text-faint text-xs">{entry.letteringCode || '-'}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1">
+                                {entry.canEdit && entry.editUrl && entry.transactionNum && (
+                                  <Link to={ROUTES.ledgerPieceDetail.replace(':pieceNum', entry.transactionNum)} title="View / edit this transaction" className="p-1 rounded text-text-faint hover:text-brand hover:bg-brand/10">
+                                    <Pencil size={13} />
+                                  </Link>
+                                )}
+                                {entry.canDelete && entry.deleteUrl && (
+                                  <button
+                                    type="button"
+                                    disabled={deleteEntry.isPending}
+                                    title="Delete this entry on the real accounting backend"
+                                    onClick={() => {
+                                      if (entry.deleteUrl && window.confirm('Delete this accounting entry on the real backend? This cannot be undone.')) deleteEntry.mutate(entry.deleteUrl)
+                                    }}
+                                    className="p-1 rounded text-text-faint hover:text-danger hover:bg-danger-bg disabled:opacity-40"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                         <tr key={`t-${group.accountCode}`} className="bg-surface-hover font-medium">
-                          <td colSpan={COLUMNS.length - 2} className="px-3 py-1.5 text-right text-text-muted">
+                          <td colSpan={COLUMNS.length - 4} className="px-3 py-1.5 text-right text-text-muted">
                             Total for account {group.accountCode}
                           </td>
                           <td className="px-3 py-1.5 text-right tabular-nums text-text!">{fmtZMW(group.totalDebit)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums text-text!">{fmtZMW(group.totalCredit)}</td>
+                          <td colSpan={2}></td>
                         </tr>
                         <tr key={`b-${group.accountCode}`} className="bg-surface-hover/60">
-                          <td colSpan={COLUMNS.length - 2} className="px-3 py-1.5 text-right text-text-muted">
+                          <td colSpan={COLUMNS.length - 4} className="px-3 py-1.5 text-right text-text-muted">
                             Balance
                           </td>
                           <td colSpan={2} className={`px-3 py-1.5 text-right tabular-nums font-semibold ${group.balanceSide === 'Cr' ? 'text-danger' : 'text-success'}`}>
                             {fmtZMW(group.balance)} {group.balanceSide}
                           </td>
+                          <td colSpan={2}></td>
                         </tr>
                       </Fragment>
                       )
@@ -387,25 +329,28 @@ export function LedgerOverview() {
                 {report.groups.length > 0 && (
                   <tfoot>
                     <tr className="bg-brand/10 font-semibold">
-                      <td colSpan={COLUMNS.length - 2} className="px-3 py-2 text-right text-text!">
+                      <td colSpan={COLUMNS.length - 4} className="px-3 py-2 text-right text-text!">
                         Grand Total
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-text!">{fmtZMW(report.grandTotalDebit)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-text!">{fmtZMW(report.grandTotalCredit)}</td>
+                      <td colSpan={2}></td>
                     </tr>
                   </tfoot>
                 )}
               </table>
             </div>
+            <LedgerPagination meta={report.meta} onPage={(page) => setFilters({ ...filters, page })} />
           </Card>
 
           <Card className="!h-auto">
             <SectionHeading icon={Landmark}>Account Summary</SectionHeading>
             <div className="mt-3 flex flex-wrap gap-3">
-              {report.periodMovements && <MovementCard icon={CalendarClock} label="Period Movements" movement={report.periodMovements} />}
+              {report.openingBalance && <MovementCard icon={Wallet} label="Opening Balance" movement={report.openingBalance} />}
+              {report.periodMovements && <MovementCard icon={CalendarClock} label="Period Movements (All Pages)" movement={report.periodMovements} />}
               {report.closingBalance && <MovementCard icon={Scale} label="Closing Balance" movement={report.closingBalance} />}
-              {!report.periodMovements && !report.closingBalance && (
-                <p className="text-xs text-text-faint py-2">Filter by a single account code to see its period movements and closing balance.</p>
+              {!report.openingBalance && !report.periodMovements && !report.closingBalance && (
+                <p className="text-xs text-text-faint py-2">Filter by a single account code to see its opening balance, period movements, and closing balance.</p>
               )}
             </div>
           </Card>

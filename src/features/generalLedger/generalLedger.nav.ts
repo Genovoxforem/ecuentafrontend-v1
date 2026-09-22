@@ -14,6 +14,14 @@ export const nav: NavSection = {
   label: 'General Ledger',
   icon: BookText,
   items: [
+    // A real standalone leaf on the live menu (confirmed live: this is the
+    // exact item that's active/bulleted while sitting on
+    // accountancy/bookkeeping/listbyaccount_ajax.php — the same page
+    // "Ledger" under Accounting below also points at), not nested under
+    // Default Accounting/Accounting — was missing here entirely, which is
+    // why it rendered as an unmapped/disabled placeholder instead of a
+    // real link.
+    { label: 'Ledger Entry', path: ROUTES.ledgerDashboard },
     {
       label: 'Default Accounting',
       items: [

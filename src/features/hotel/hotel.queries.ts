@@ -1033,22 +1033,10 @@ export interface SaveServiceInput {
   tl: string
   token: string
 }
-// The Hotel Suite's own a=savefeature (custom/hotel/api.php) only ever
-// sends name + a hardcoded amount=0 (confirmed by reading app.php's own
-// saveFeature() function) — real, but a narrower write than the classic
-// booking/settings/feature.php page's own "Add Feature" offcanvas offers
-// (Feature Type / Amount / Status, 3 fields that page's real screenshot
-// shows and a=savefeature has no param for). That richer real write lives
-// at booking/settings/booking_master.ajax.php (action=save_features,
-// array-style feature_type[]/feature_name[]/accountancy_code[]/amount[]/
-// status[] fields — read directly from that page's own saveAllBtn click
-// handler) — confirmed live it writes the exact same r=features data
-// a=savefeature does (a test row created this way showed up there
-// immediately), so this is a strict superset, not a different resource.
-// accountancy_code is sent empty (matching the simple single-row default
-// flow that page itself uses before any accounting-code select is
-// attached) since neither the real screenshot's default view nor this
-// form exposes it.
+// Writes via booking_master.ajax.php (action=save_features) — a strict
+// superset of the Suite's own a=savefeature (name-only, amount hardcoded to
+// 0), so this covers Feature Type/Amount/Status too. accountancy_code is
+// sent empty since no field here exposes it.
 export interface SaveFeatureFullInput {
   featureType: 'complementary' | 'facility' | 'amenities'
   name: string
@@ -1106,16 +1094,9 @@ export function useHotelSavePayAcct() {
 }
 
 // ---------------------------------------------------------------------------
-// Real APIs the Suite's own app.php calls that this app hadn't wired yet —
-// every shape/field below was read directly out of that file's own JS (its
-// checkoutModal/collectPayModal/roomChargeModal/editRoomsRender/guestDetail/
-// guestDocsList/quote-editor/settings functions), not guessed. Grouped to
-// match the real checkout/billing wizard those functions form together.
+// Checkout/billing wizard resources — real shapes read from app.php's own JS.
 
-// r=folio&booking=X — itemized guest billing (same real endpoint the
-// existing folio preview on Front Desk's in-house card already reads via
-// inhSelect's own inline fetch; this adds a reusable hook for the fuller
-// checkout wizard below).
+// r=folio&booking=X — itemized guest billing.
 export interface HotelFolioLine {
   grp?: 'suite' | 'service' | 'kitchen' | string
   desc?: string
@@ -1538,22 +1519,29 @@ export function useHotelFxRate() {
   return useQuery({ queryKey: ['hotel', 'fxrate'], queryFn: () => hotelGet<HotelFxRate>('fxrate'), staleTime: 1000 * 60 * 30 })
 }
 
-// r=invoicepdf&booking=X / r=receipt&rcpt=X — on-demand document links, so
-// these are plain fetch-on-click helpers (React Query needs a stable key to
-// cache against; a one-shot "open this PDF" action doesn't fit that, same
-// reasoning as why the real page calls them inline rather than through its
-// own api() cache).
+// r=invoicepdf&booking=X / r=receipt&rcpt=X — one-shot fetch-on-click
+// helpers rather than useQuery hooks (no stable cache key needed).
 export async function fetchHotelInvoicePdfUrl(booking: string): Promise<string> {
   const r = await hotelGet<{ ok?: boolean; url?: string; error?: string }>(`invoicepdf&booking=${encodeURIComponent(booking)}`)
   if (!r.url) throw new Error(r.error || 'No invoice available.')
   return r.url
 }
+// `rcpt` is the payment `ref` typed when recording a payment (HotelCheckoutWizard.tsx's `payRef`).
 export interface HotelReceiptItem {
   desc: string
   amt: number
 }
 export interface HotelReceipt {
+  receipt: string
+  date?: string
+  guest?: string
+  booking?: string
+  method?: string
+  ref?: string
+  amount: number
+  collected: number
   items: HotelReceiptItem[]
+  error?: string
   [key: string]: unknown
 }
 export async function fetchHotelReceipt(rcpt: string): Promise<HotelReceipt> {
@@ -1571,13 +1559,8 @@ export function useHotelSyncChannel() {
   })
 }
 
-// a=savesuite — builds a real room-type PRODUCT (label/SKU/price/tax/
-// classification), distinct from a=savetype(kind=roomtype)'s own simple
-// name-only list row. Live-tested directly against this backend: it fails
-// outright with {"error":"Could not create suite: Table
-// 'bazaudye.llx_room_types' doesn't exist"} — a genuine missing-table bug,
-// not a working alternative to savetype's own non-persistence (see
-// HotelRoomTypesPage.tsx's own comment for both findings side by side).
+// a=savesuite — builds a real room-type product. BROKEN: fails with
+// "Could not create suite: Table 'bazaudye.llx_room_types' doesn't exist".
 export interface SaveSuiteInput {
   label: string
   ref: string
@@ -1600,10 +1583,8 @@ export function useHotelSaveSuite() {
   })
 }
 
-// Real, live Floor/Room Type options for Add Room's own dropdowns — see
-// createRoomFormParser.ts's own comment for why this scrapes
-// create_room.php directly instead of calling a JSON resource (there isn't
-// one for this real category data).
+// Floor/Room Type options for Add Room — scraped from create_room.php since
+// no JSON resource exists for this data (see createRoomFormParser.ts).
 export type { CreateRoomOption }
 export function useHotelCreateRoomFormOptions() {
   return useQuery({
@@ -1616,20 +1597,10 @@ export function useHotelCreateRoomFormOptions() {
   })
 }
 
-// ── Classic "Add Booking" flow (booking/reservation/booking.php?type=
-// booking + reservation_ajax.php) — the REAL flow behind the sidebar's
-// "Booking/Check-In List" leaf, confirmed live via curl to be a totally
-// separate backend page from the Hotel Suite SPA's own "New Booking" modal
-// (a=createbooking, what useHotelCreateBooking above wires). The real
-// llx_menu row for "Booking/Check-In List" points at
-// booking/reservation/booking_list.php (classic), NOT custom/hotel/
-// hotelindex.php (Suite) — unlike its sibling "Room Status", which does
-// redirect into the Suite. That classic list page's own "+ Add" button
-// goes to booking.php?type=booking, saved via reservation_ajax.php?
-// action=add_booking — live-tested end-to-end on the dev backend
-// (created real booking BK-000001, confirmed it in booking_table_ajax.php's
-// own list, then cleaned up via action=create_cancel, the real page's own
-// Cancel Booking action).
+// ── Classic "Add Booking" flow (booking.php?type=booking +
+// reservation_ajax.php) — separate from the Suite's own "New Booking" modal
+// (a=createbooking above). Reached via the sidebar's "Booking/Check-In
+// List" → "+ Add"; live-tested end to end (create/list/cancel).
 export type { ClassicBookingOption }
 export function useHotelBookingFormOptions() {
   return useQuery({
@@ -1643,10 +1614,7 @@ export function useHotelBookingFormOptions() {
 }
 
 // reservation_ajax.php?action=get_rooms_for_select — real per-date room
-// availability for the classic form's Room Number selects (live-tested:
-// {"status":"success","options":""} on this backend's current zero-room
-// inventory, same root cause already documented in HotelAddRoomPage.tsx —
-// a=saveroom is confirmed broken, so no room has ever been created).
+// availability for the classic form's Room Number selects.
 export function useHotelRoomsForSelect(checkIn: string, checkOut: string) {
   return useQuery({
     queryKey: ['hotel', 'classic-rooms-for-select', checkIn, checkOut],
@@ -1680,13 +1648,8 @@ interface RawClassicBookingRow {
 export interface HotelClassicBookingRow {
   id: string
   num: string
-  // The real page's own "Booking Date" column is genuinely bound to this
-  // raw field, not to booking_date1's actual formatted date (confirmed by
-  // reading the DataTable init JS directly: no columnDefs/render override
-  // exists) — so on the live backend it visibly just shows a row counter.
-  // Kept faithful to that real (if odd) display rather than silently
-  // swapping in booking_date1, same principle as Check Out List's own
-  // honest "—" for a field the real page doesn't actually show.
+  // Real page binds "Booking Date" to this raw field (a row counter), not
+  // booking_date1 — kept faithful rather than silently swapping it in.
   bookingDateRaw: string
   room: string
   customer: string
@@ -1728,10 +1691,8 @@ function parseClassicBookingRow(r: RawClassicBookingRow): HotelClassicBookingRow
     summaryUrl: extractHref(r.action, 'summary-button'),
   }
 }
-// booking/reservation/booking_table_ajax.php — the classic list page's own
-// real DataTables server-side source (live-tested with the full standard
-// DataTables param set; a partial param set makes the real PHP emit
-// "Undefined array key" warnings ahead of the JSON, confirmed live).
+// booking_table_ajax.php — real DataTables server-side source; needs the
+// full standard param set or the backend emits PHP warnings before the JSON.
 export function useHotelClassicBookings() {
   return useQuery({
     queryKey: ['hotel', 'classic-bookings'],

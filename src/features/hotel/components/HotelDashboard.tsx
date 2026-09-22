@@ -67,16 +67,9 @@ function RackPreview({ rack }: { rack: HotelRackRoom[] }) {
   )
 }
 
-// Real via custom/hotel/api.php?r=dashboard|dashkpi|trends|arrivals — the
-// Hotel Suite app's own Dashboard view, ported to this app's design system
-// (Card/ICON_STYLES instead of its bespoke gold/emerald theme) rather than
-// visually cloned — see hotelApi.ts's own top comment for how this real API
-// was found and confirmed. Matches the real page's own section layout:
-// Bookings and Revenue collected are two separate 6-month charts (not one
-// combined chart — both real fields already come from r=trends), and
-// Occupancy (today's Occupied/Ready/To service/Arriving/Out of service
-// breakdown, from dashboard.counts) sits beside Suite Rack, same as the
-// real Dashboard's own two-panel row.
+// Real Dashboard view (r=dashboard|dashkpi|trends|arrivals), ported to this
+// app's design system. Bookings/Revenue are separate 6-month charts (both
+// from r=trends); Occupancy (dashboard.counts) sits beside Suite Rack.
 export function HotelDashboard() {
   const { data: dashboard, isLoading, isError, error, refetch } = useHotelDashboard()
   const { data: kpi } = useHotelDashKpi()

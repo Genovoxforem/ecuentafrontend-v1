@@ -45,19 +45,8 @@ function OrderRow({ order, children }: { order: HotelRsOrder; children: React.Re
   )
 }
 
-// Real via custom/hotel/api.php?r=rsorders, plus a=confirmorder /
-// a=rejectorder / a=orderstatus — the same endpoints HotelRoomService.tsx
-// already uses. This is a React rebuild of the real Suite's own
-// custom/hotel/kitchen.php kiosk board (confirmed live by reading that
-// page's own JS directly: it's the exact same 3-column New/Cooking/Ready
-// split over the same rsorders array, filtered client-side by status, with
-// the same accept/reject/mark-ready/delivered actions and an 8s poll +
-// beep-on-new-order), restyled with this app's own Card/design system
-// (the real page's page is a standalone dark kiosk board — this one lives
-// inside the Suite shell like every other page here, e.g. the Dashboard
-// reached via the classic "Room Status" menu item). The "Kitchen screen ↗"
-// button in Room Service used to link straight to that PHP file; it now
-// opens this route instead.
+// React rebuild of the real kitchen.php kiosk board: 3-column New/Cooking/
+// Ready split over rsorders, filtered client-side, with an 8s poll + beep.
 export function HotelKitchenScreen() {
   const { data: token } = useHotelToken()
   const orders = useHotelRsOrders(8000)

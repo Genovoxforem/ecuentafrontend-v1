@@ -5,35 +5,15 @@ import { useHotelSettingsBundle, useHotelRoomTypes, useHotelSaveType, useHotelDe
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
-// Real page: categories/index.php?type=25 (the classic "booking_roomtype"
-// category screen) — confirmed live this backend throws a PHP fatal error
-// there ("Class 'RoomType' not found" in categorie.class.php), so this is
-// built against the real, WORKING Hotel Suite API instead
-// (custom/hotel/api.php?r=settings|roomtypes, a=savetype/deltype&kind=roomtype)
-// — the same data source HotelSettings.tsx's own Room Types card already
-// uses, just given its own dedicated page (matching the real classic
-// menu's separate "Room Type" entry). Two real resources disagree here
-// (confirmed live): r=roomtypes has 5 genuine room types this backend's
-// rooms/rates/rack actually use (Deluxe Suite, Heritage Suite, Standard,
-// Family Suite, Presidential), while r=settings.roomtype (the editable
-// list savetype/deltype act on) is empty — and saving a new entry there
-// returns {"ok":true} but doesn't persist (confirmed directly via a live
-// test write against the real backend, not guessed). So the 5 real types
-// are shown read-only below whenever the editable list is empty, rather
-// than hiding real data or fabricating edit/delete actions for rows that
-// don't exist in the resource those actions actually operate on.
-//
-// a=savesuite looked like it might be the real fix for the above — it
-// builds an actual Dolibarr product (label/SKU/price/tax/classification)
-// rather than writing to the non-persisting settings.roomtype list. Live-
-// tested directly against this backend before shipping this, though (same
-// verification method as the savetype/deltype finding above): it fails
-// outright with {"error":"Could not create suite: Table
-// 'bazaudye.llx_room_types' doesn't exist"} — a genuine missing-table bug
-// on this backend, not a maybe-works guess. "Add real room type" below is
-// kept (matching this page's own pattern of showing real, wired actions
-// even when they're confirmed broken) with that exact error surfaced
-// honestly rather than hidden or retried.
+// Real classic page (categories/index.php?type=25) throws a PHP fatal
+// error, so this uses the Suite API instead (r=settings/roomtypes,
+// a=savetype/deltype&kind=roomtype). r=roomtypes has 5 real types the
+// backend's rooms/rates/rack use; settings.roomtype (what savetype/deltype
+// act on) is empty and doesn't persist writes — so the 5 real types show
+// read-only when the editable list is empty. a=savesuite (a real product
+// write, not the same broken list) also fails: "Could not create suite:
+// Table 'bazaudye.llx_room_types' doesn't exist" — kept wired with that
+// error surfaced honestly.
 export function HotelRoomTypesPage() {
   const { data: settings } = useHotelSettingsBundle()
   const { data: roomTypes } = useHotelRoomTypes()

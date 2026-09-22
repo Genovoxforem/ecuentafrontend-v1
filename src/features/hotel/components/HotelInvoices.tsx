@@ -10,11 +10,7 @@ const STATUS_LABEL: Record<number, string> = { 0: 'Draft', 1: 'Unpaid', 3: 'Void
 function openInvoiceCard(id: string) {
   window.open(`/compta/facture/card.php?facid=${id}&save_lastsearch_values=1`, '_blank', 'noopener')
 }
-// r=invoicepdf&booking=X — real (confirmed live; keyed by the booking
-// number, not the invoice id, and returns {ok,url} to open rather than
-// being a direct PDF route itself). Replaces a guessed
-// /custom/hotel/invoicepdf.php?id=X URL that 403s — confirmed live it
-// doesn't exist on this backend.
+// r=invoicepdf&booking=X — keyed by booking number, not invoice id.
 async function viewInvoicePdf(bnum: string | null) {
   if (!bnum) {
     window.alert('No linked booking for this invoice — cannot look up its PDF.')
@@ -28,10 +24,7 @@ async function viewInvoicePdf(bnum: string | null) {
   }
 }
 
-// Real via custom/hotel/api.php?r=invoices|creditnotes|invoicepdf, plus
-// a=invzrasync — the Hotel Suite app's own Invoices & Folios / Credit
-// Notes view. "View invoice" opens the real Dolibarr invoice card; "PDF"
-// now genuinely calls r=invoicepdf (see viewInvoicePdf's own comment).
+// Real Invoices & Folios / Credit Notes view. "View invoice" opens the real Dolibarr invoice card.
 export function HotelInvoices() {
   const { data: token } = useHotelToken()
   const [tab, setTab] = useState<'inv' | 'cn'>('inv')
