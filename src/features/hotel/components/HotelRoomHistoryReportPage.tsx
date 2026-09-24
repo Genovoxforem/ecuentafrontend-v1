@@ -10,15 +10,9 @@ const fieldCls = 'h-9 px-2.5 rounded-md border border-input-border bg-input-bg t
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Real page: booking/reports/room_history.php — via custom/hotel/api.php?
-// r=report&type=history (the same real ledger Reports' own "Room history"
-// tab already reads). The real classic page requires picking a room before
-// it shows anything (its own header stays greyed out until then); this
-// mirrors that by filtering the already-fetched real rows client-side
-// rather than re-querying, and by holding the table back until a room is
-// picked. Room options come from the real Rooms list (r=rooms_admin — same
-// source Room List uses). "Room Rate (Per Day)" has no equivalent field in
-// this ledger resource at all, so it's shown as "—".
+// Real page: room_history.php, via r=report&type=history. The real page
+// requires picking a room first; mirrored by holding the table back until
+// one is picked. "Room Rate (Per Day)" has no equivalent field, shown as "—".
 export function HotelRoomHistoryReportPage() {
   const { data: history, isLoading, isError, error, refetch } = useHotelLedger('history')
   const { data: rooms } = useHotelRoomsAdmin()

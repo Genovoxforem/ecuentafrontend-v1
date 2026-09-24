@@ -5,12 +5,8 @@ import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToke
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
-// Real page: booking/settings/bed_types.php — this uses the Hotel Suite
-// API instead (custom/hotel/api.php?r=settings, a=savetype/deltype&kind=bed),
-// the same data source Hotel Settings' Bed Types card already used. Also
-// confirmed live (unlike kind=floor/roomtype — see HotelFloorTypesPage.tsx)
-// that writes here genuinely persist: a real write-then-read-back test
-// round-tripped correctly.
+// Real page: bed_types.php — uses r=settings, a=savetype/deltype&kind=bed.
+// Writes here genuinely persist (unlike kind=floor/roomtype).
 export function HotelBedTypesPage() {
   const { data: settings, isLoading, isError, error, refetch } = useHotelSettingsBundle()
   const { data: token } = useHotelToken()

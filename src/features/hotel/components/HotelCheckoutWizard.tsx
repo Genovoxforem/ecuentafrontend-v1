@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, LoaderCircle, CircleCheck, Circle, LogOut, ReceiptText, DoorOpen } from 'lucide-react'
+import { X, LoaderCircle, CircleCheck, Circle, LogOut, ReceiptText, DoorOpen, Printer } from 'lucide-react'
 import {
   useHotelFolio,
   useHotelFolioPay,
@@ -17,6 +17,8 @@ import {
   useHotelRemoveBookingRoom,
   useHotelAvailable,
   useHotelToken,
+  fetchHotelReceipt,
+  type HotelReceipt,
 } from '../hotel.queries'
 
 const btn = 'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50'
@@ -35,24 +37,10 @@ function Step({ ok, title, sub, action }: { ok: boolean; title: string; sub: str
   )
 }
 
-// Reproduces the real checkoutModal() from custom/hotel/app.php (read
-// directly, not guessed): checkout is gated behind 4 real steps — invoice
-// generated (a=invoice), finalized/ZRA (a=validateinvoice), collected
-// payments applied (a=applycollected, itself fed by a=recordpayment) — the
-// exact same `ready = !early && hasInv && fin && unapp<=0.01` gate the real
-// modal computes. HotelFrontDesk.tsx's own "simple contract" checkout
-// (a=checkout with force) still exists as the emergency override at the
-// bottom, same as the real modal's own force-anyway path via a confirm().
-//
-// Caveat: every one of this wizard's writes (invoice/validateinvoice/
-// recordpayment/applycollected, and the charge/room panels below) is wired
-// against contracts read directly from that real JS, but this backend
-// currently has zero rooms and zero bookings (confirmed live — nothing
-// exists for any of these to act on yet), so none of them could be
-// exercised end-to-end the way a=savesuite's own live test caught a
-// genuine "table doesn't exist" bug elsewhere on this backend (see
-// HotelRoomTypesPage.tsx). Re-verify each step live once a real booking
-// exists to check out.
+// Reproduces the real checkoutModal(): gated behind invoice generated,
+// finalized/ZRA, and collected payments applied. The old direct a=checkout
+// (with force) survives as the emergency override at the bottom. This
+// backend has zero bookings, so re-verify each step once a real one exists.
 export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booking: string; guest: string; onClose: () => void; onDone: () => void }) {
   const { data: token } = useHotelToken()
   const { data: folio, refetch: refetchFolio } = useHotelFolio(booking)
@@ -69,6 +57,26 @@ export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booki
   const [payAmount, setPayAmount] = useState('')
   const [payMode, setPayMode] = useState('cash')
   const [payRef, setPayRef] = useState('')
+
+  // r=receipt&rcpt=X — rcpt is the payment `ref` typed above; only viewable once recorded with a non-blank reference.
+  const [lastPaymentRef, setLastPaymentRef] = useState<string | null>(null)
+  const [receipt, setReceipt] = useState<HotelReceipt | null>(null)
+  const [receiptLoading, setReceiptLoading] = useState(false)
+  const [receiptError, setReceiptError] = useState('')
+
+  async function viewReceipt(rcpt: string) {
+    setReceiptLoading(true)
+    setReceiptError('')
+    try {
+      const r = await fetchHotelReceipt(rcpt)
+      if (r.error) throw new Error(r.error)
+      setReceipt(r)
+    } catch (e) {
+      setReceiptError(e instanceof Error ? e.message : 'Receipt not found.')
+    } finally {
+      setReceiptLoading(false)
+    }
+  }
 
   function refreshAll() {
     refetchFolio()
@@ -195,13 +203,18 @@ export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booki
                 disabled={!token || !payAmount || recordPay.isPending}
                 onClick={() => {
                   if (!token) return
+                  const ref = payRef.trim()
                   recordPay.mutate(
-                    { booking, amount: Number(payAmount), mode: payMode, ref: payRef, token },
+                    { booking, amount: Number(payAmount), mode: payMode, ref, token },
                     {
                       onSuccess: () => {
                         setShowPay(false)
                         setPayAmount('')
                         setPayRef('')
+                        if (ref) {
+                          setLastPaymentRef(ref)
+                          setReceipt(null)
+                        }
                         refreshAll()
                       },
                     },
@@ -212,6 +225,56 @@ export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booki
                 {recordPay.isPending && <LoaderCircle size={12} className="animate-spin" />} Record payment
               </button>
               {recordPay.isError && <p className="text-xs text-danger-fg">{recordPay.error instanceof Error ? recordPay.error.message : 'Failed.'}</p>}
+            </div>
+          )}
+
+          {lastPaymentRef && (
+            <div className="mb-3 p-3 rounded-lg border border-border bg-surface-alt">
+              {!receipt && (
+                <button
+                  type="button"
+                  disabled={receiptLoading}
+                  onClick={() => viewReceipt(lastPaymentRef)}
+                  className={`${btn} w-full justify-center border border-input-border text-text-muted hover:bg-surface-hover`}
+                >
+                  {receiptLoading ? <LoaderCircle size={12} className="animate-spin" /> : <ReceiptText size={12} />} View receipt · Ref {lastPaymentRef}
+                </button>
+              )}
+              {receiptError && <p className="text-xs text-danger-fg mt-1.5">{receiptError}</p>}
+              {receipt && (
+                <div id="hotel-receipt-print" className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-text!">Receipt {receipt.receipt}</p>
+                    <button type="button" onClick={() => window.print()} className="flex items-center gap-1 text-xs text-text-muted hover:text-text px-2 py-1 rounded-md hover:bg-surface-hover">
+                      <Printer size={12} /> Print
+                    </button>
+                  </div>
+                  <p className="text-xs text-text-faint">
+                    {receipt.date ?? ''} · {receipt.guest ?? guest} · Booking {receipt.booking ?? booking} · {(receipt.method ?? '').toUpperCase()}
+                    {receipt.ref ? ` · Ref ${receipt.ref}` : ''}
+                  </p>
+                  <div className="border-t border-border pt-2 space-y-1 text-xs">
+                    {(receipt.items ?? []).length === 0 ? (
+                      <div className="flex justify-between">
+                        <span className="text-text-muted">Payment / advance</span>
+                        <span className="text-text!">K{Number(receipt.amount).toLocaleString()}</span>
+                      </div>
+                    ) : (
+                      receipt.items.map((it, i) => (
+                        <div key={i} className="flex justify-between">
+                          <span className="text-text-muted">{it.desc}</span>
+                          <span className="text-text!">K{Number(it.amt).toLocaleString()}</span>
+                        </div>
+                      ))
+                    )}
+                    <div className="flex justify-between font-semibold border-t border-border pt-1">
+                      <span className="text-text!">Amount received</span>
+                      <span className="text-text!">K{Number(receipt.amount).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-text-faint">Total collected to date: K{Number(receipt.collected).toLocaleString()}</p>
+                </div>
+              )}
             </div>
           )}
 

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
-import { ChartLine, LoaderCircle, FileSpreadsheet, Printer } from 'lucide-react'
+import { ChartLine, LoaderCircle, FileSpreadsheet, Printer, BedSingle } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useHotelReportsSummary, useHotelLedger, useHotelNightAudit, useHotelToken, type LedgerType, type HotelLedgerRow } from '../hotel.queries'
+import { useHotelReportsSummary, useHotelLedger, useHotelNightAudit, useHotelBedTypesList, useHotelToken, type LedgerType, type HotelLedgerRow } from '../hotel.queries'
+
+type ReportTab = LedgerType | 'bedtypes'
 
 const TABS: { key: LedgerType; label: string }[] = [
   { key: 'history', label: 'Room history' },
@@ -85,32 +87,39 @@ function KpiTile({ label, value, icon: Icon, color }: { label: string; value: st
   )
 }
 
-// Real via custom/hotel/api.php?r=reports (KPIs + 7-day trend + revenue by
-// source) and r=report&type=<ledger> (7 operational ledgers, grouped under
-// "Operational Ledgers" matching the real page's own section heading),
-// plus a=nightaudit — the Hotel Suite app's own Reports view. Night Audit's
-// own status line starts as "End-of-day close · processes no-shows" on a
-// fresh page load (confirmed live: that's the real element's own initial
-// HTML, not a placeholder) and only becomes "Closed <date> · <n> no-shows
-// processed" ephemerally, client-side, right after Run Night Audit
-// actually succeeds — reproduced here the same way using the real
-// mutation's own response fields.
+// Real Reports view: r=reports (KPIs + trend), r=report&type=<ledger> (7
+// operational ledgers), a=nightaudit. Night Audit's status line only
+// switches to "Closed ..." client-side, right after a successful run.
 export function HotelReports() {
   const { data: token } = useHotelToken()
   const { data: summary, isLoading, isError, error, refetch } = useHotelReportsSummary()
-  const [tab, setTab] = useState<LedgerType>('history')
-  const ledger = useHotelLedger(tab)
+  const [tab, setTab] = useState<ReportTab>('history')
+  const ledger = useHotelLedger(tab === 'bedtypes' ? 'history' : tab)
+  // r=bedtypes — a plain read-only bed-type list; the real Reports tab's
+  // own sub-view for it (see useHotelBedTypesList's own comment), distinct
+  // from the 7 operational ledgers above since it isn't a LedgerType at all.
+  const bedTypes = useHotelBedTypesList()
   const audit = useHotelNightAudit()
   const [auditResult, setAuditResult] = useState<{ date: string; noshows: number } | null>(null)
 
   function exportCsv() {
+    if (tab === 'bedtypes') {
+      const rows = bedTypes.data ?? []
+      const csv = ['Bed type,Status', ...rows.map((r) => `${r.name},${r.status === 1 ? 'Active' : 'Inactive'}`)].join('\r\n')
+      downloadCsv(csv, 'bedtypes')
+      return
+    }
     const cols = COLUMNS[tab]
     const rows = ledger.data ?? []
     const csv = [cols.map((c) => c.label).join(','), ...rows.map((r) => cols.map((c) => String(r[c.key] ?? '')).join(','))].join('\r\n')
+    downloadCsv(csv, tab)
+  }
+
+  function downloadCsv(csv: string, name: string) {
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `report-${tab}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `report-${name}-${new Date().toISOString().slice(0, 10)}.csv`
     document.body.appendChild(a)
     a.click()
     setTimeout(() => {
@@ -122,13 +131,7 @@ export function HotelReports() {
   const totalSourceRevenue = (summary?.sources ?? []).reduce((s, x) => s + x.v, 0) || 1
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <ChartLine size={22} />
-        </span>
-        <h2 className="text-lg font-bold text-text!">Reports</h2>
-      </div>
+    <div className="space-y-4 flex-1 min-h-0 flex flex-col">
 
       {isLoading && <LegacyLoadingCard label="Loading reports…" />}
       {isError && <LegacyErrorCard title="Couldn't load reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
@@ -203,7 +206,7 @@ export function HotelReports() {
             </button>
           </Card>
 
-          <Card className="!h-auto">
+          <Card className="flex-1 min-h-0">
             <h3 className="font-semibold text-text! mb-3">Operational Ledgers</h3>
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <div className="flex gap-1 flex-wrap">
@@ -217,6 +220,13 @@ export function HotelReports() {
                     {t.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setTab('bedtypes')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${tab === 'bedtypes' ? 'bg-brand text-white' : 'text-text-muted hover:bg-surface-hover'}`}
+                >
+                  <BedSingle size={11} /> Bed types
+                </button>
               </div>
               <div className="flex gap-1.5">
                 <button type="button" onClick={exportCsv} className="flex items-center gap-1 text-xs text-text-muted hover:text-text px-2 py-1 rounded-md hover:bg-surface-hover">
@@ -228,36 +238,72 @@ export function HotelReports() {
               </div>
             </div>
 
-            {ledger.isLoading && <p className="text-sm text-text-faint py-4 text-center">Loading…</p>}
-            {ledger.data && ledger.data.length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">No records.</p>
-            ) : (
-              ledger.data && (
-                <div className="overflow-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                        {COLUMNS[tab].map((c) => (
-                          <th key={String(c.key)} className={`font-medium px-2 py-2 ${c.align === 'right' ? 'text-right' : ''}`}>
-                            {c.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ledger.data.map((r, i) => (
-                        <tr key={i} className="border-b border-border last:border-0">
-                          {COLUMNS[tab].map((c) => (
-                            <td key={String(c.key)} className={`px-2 py-2 text-text-muted ${c.align === 'right' ? 'text-right' : ''}`}>
-                              {c.key === 'total' ? `K${Number(r.total ?? 0).toLocaleString()}` : String(r[c.key] ?? '—')}
-                            </td>
+            {tab === 'bedtypes' ? (
+              <>
+                {bedTypes.isLoading && <p className="text-sm text-text-faint py-4 text-center">Loading…</p>}
+                {bedTypes.data && bedTypes.data.length === 0 ? (
+                  <p className="text-sm text-text-faint italic py-6 text-center">No bed types configured yet.</p>
+                ) : (
+                  bedTypes.data && (
+                    <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                            <th className="font-medium px-2 py-2">Bed type</th>
+                            <th className="font-medium px-2 py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bedTypes.data.map((b) => (
+                            <tr key={b.id} className="border-b border-border last:border-0">
+                              <td className="px-2 py-2 text-text!">{b.name}</td>
+                              <td className="px-2 py-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${b.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
+                                  {b.status === 1 ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
+              </>
+            ) : (
+              <>
+                {ledger.isLoading && <p className="text-sm text-text-faint py-4 text-center">Loading…</p>}
+                {ledger.data && ledger.data.length === 0 ? (
+                  <p className="text-sm text-text-faint italic py-6 text-center">No records.</p>
+                ) : (
+                  ledger.data && (
+                    <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                            {COLUMNS[tab].map((c) => (
+                              <th key={String(c.key)} className={`font-medium px-2 py-2 ${c.align === 'right' ? 'text-right' : ''}`}>
+                                {c.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ledger.data.map((r, i) => (
+                            <tr key={i} className="border-b border-border last:border-0">
+                              {COLUMNS[tab].map((c) => (
+                                <td key={String(c.key)} className={`px-2 py-2 text-text-muted ${c.align === 'right' ? 'text-right' : ''}`}>
+                                  {c.key === 'total' ? `K${Number(r.total ?? 0).toLocaleString()}` : String(r[c.key] ?? '—')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
+              </>
             )}
           </Card>
         </>

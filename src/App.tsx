@@ -53,6 +53,7 @@ const ExportAssistantModule = lazy(() => import('./modules/settings/ExportAssist
 const ImportAssistantModule = lazy(() => import('./modules/settings/ImportAssistantModule').then((m) => ({ default: m.ImportAssistantModule })))
 const CashflowSettingsModule = lazy(() => import('./modules/settings/CashflowSettingsModule').then((m) => ({ default: m.CashflowSettingsModule })))
 const WhatsappSettingsModule = lazy(() => import('./modules/settings/WhatsappSettingsModule').then((m) => ({ default: m.WhatsappSettingsModule })))
+const TerminalSetupModule = lazy(() => import('./modules/posAdmin/TerminalSetupModule').then((m) => ({ default: m.TerminalSetupModule })))
 const ZraModule = lazy(() => import('./modules/zra/ZraModule').then((m) => ({ default: m.ZraModule })))
 const ZraImportModule = lazy(() => import('./modules/zra/ZraImportModule').then((m) => ({ default: m.ZraImportModule })))
 const ZraAutomaticPurchaseModule = lazy(() => import('./modules/zra/ZraAutomaticPurchaseModule').then((m) => ({ default: m.ZraAutomaticPurchaseModule })))
@@ -306,6 +307,7 @@ const HotelSuiteReservationsModule = lazy(() => import('./modules/hotel/HotelSui
 const HotelSuiteNewBookingModule = lazy(() => import('./modules/hotel/HotelSuiteNewBookingModule').then((m) => ({ default: m.HotelSuiteNewBookingModule })))
 const HotelSuiteConciergeModule = lazy(() => import('./modules/hotel/HotelSuiteConciergeModule').then((m) => ({ default: m.HotelSuiteConciergeModule })))
 const HotelRoomQRModule = lazy(() => import('./modules/hotel/HotelRoomQRModule').then((m) => ({ default: m.HotelRoomQRModule })))
+const HotelKitchenScreenModule = lazy(() => import('./modules/hotel/HotelKitchenScreenModule').then((m) => ({ default: m.HotelKitchenScreenModule })))
 const HotelReportsModule = lazy(() => import('./modules/hotel/HotelReportsModule').then((m) => ({ default: m.HotelReportsModule })))
 const HotelQuotesModule = lazy(() => import('./modules/hotel/HotelQuotesModule').then((m) => ({ default: m.HotelQuotesModule })))
 const HotelInvoicesModule = lazy(() => import('./modules/hotel/HotelInvoicesModule').then((m) => ({ default: m.HotelInvoicesModule })))
@@ -364,6 +366,7 @@ const VendorContactTagsModule = lazy(() => import('./modules/purchases/VendorCon
 const QuickPurchaseCreateModule = lazy(() => import('./modules/purchases/QuickPurchaseCreateModule').then((m) => ({ default: m.QuickPurchaseCreateModule })))
 const DetailedPurchaseCreateModule = lazy(() => import('./modules/purchases/DetailedPurchaseCreateModule').then((m) => ({ default: m.DetailedPurchaseCreateModule })))
 const VendorInvoiceListModule = lazy(() => import('./modules/purchases/VendorInvoiceListModule').then((m) => ({ default: m.VendorInvoiceListModule })))
+const VendorInvoiceDetailModule = lazy(() => import('./modules/purchases/VendorInvoiceDetailModule').then((m) => ({ default: m.VendorInvoiceDetailModule })))
 const VendorInvoicePaidModule = lazy(() => import('./modules/purchases/VendorInvoicePaidModule').then((m) => ({ default: m.VendorInvoicePaidModule })))
 const VendorInvoiceUnpaidModule = lazy(() => import('./modules/purchases/VendorInvoiceUnpaidModule').then((m) => ({ default: m.VendorInvoiceUnpaidModule })))
 const VendorInvoiceManualModule = lazy(() => import('./modules/purchases/VendorInvoiceManualModule').then((m) => ({ default: m.VendorInvoiceManualModule })))
@@ -486,6 +489,42 @@ function App() {
                 <Route path="/pos" element={<RouteBoundary><PosLayout /></RouteBoundary>}>
                   <Route index element={<RouteBoundary><PosHome /></RouteBoundary>} />
                   <Route path="products" element={<RouteBoundary><PosProductsPage /></RouteBoundary>} />
+                </Route>
+                {/* Standalone, own chrome — no navbar/sidebar, same pattern as
+                    /pos above (kept full-bleed since it's meant to run on its
+                    own kitchen-side screen/tab), but styled with this app's
+                    own Card/design tokens to match the rest of the Suite
+                    rather than the real page's dark kiosk palette. */}
+                <Route path={ROUTES.hotelKitchenScreen} element={<RouteBoundary><HotelKitchenScreenModule /></RouteBoundary>} />
+                {/* Standalone, own chrome — no main app Navbar/Sidebar, same
+                    pattern as /pos: the real Hotel Suite (custom/hotel/app.php)
+                    is its own genuinely separate SPA-within-the-app (see
+                    HotelSuiteLayout's own top comment), so it gets the same
+                    "own screen" treatment POS gets rather than sitting nested
+                    inside the main app chrome. Every entry point into it
+                    (Room Status, Booking Management's own header, Home's
+                    "Hotel Dashboard" link, the Suite's own Dashboard tab)
+                    lands here directly. */}
+                <Route element={<HotelSuiteLayout />}>
+                  <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelRooms} element={<RouteBoundary><HotelRoomsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelFrontDesk} element={<RouteBoundary><HotelFrontDeskModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelSuiteNewBooking} element={<RouteBoundary><HotelSuiteNewBookingModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelGuests} element={<RouteBoundary><HotelGuestsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelHousekeeping} element={<RouteBoundary><HotelHousekeepingModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelMaintenance} element={<RouteBoundary><HotelMaintenanceModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelWaitlist} element={<RouteBoundary><HotelWaitlistModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelRoomService} element={<RouteBoundary><HotelRoomServiceModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelInventory} element={<RouteBoundary><HotelInventoryModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelCalendar} element={<RouteBoundary><HotelCalendarModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelRoomQr} element={<RouteBoundary><HotelRoomQRModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelReports} element={<RouteBoundary><HotelReportsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelSuiteConcierge} element={<RouteBoundary><HotelSuiteConciergeModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelSuiteReservations} element={<RouteBoundary><HotelSuiteReservationsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelQuotes} element={<RouteBoundary><HotelQuotesModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelInvoices} element={<RouteBoundary><HotelInvoicesModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelRatesChannels} element={<RouteBoundary><HotelRatesChannelsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.hotelSettings} element={<RouteBoundary><HotelSettingsModule /></RouteBoundary>} />
                 </Route>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -738,27 +777,6 @@ function App() {
                   <Route path={ROUTES.kitchenOrderManagement} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
                   <Route path={ROUTES.kitchenBeverageOrders} element={<RouteBoundary><BeverageOrdersModule /></RouteBoundary>} />
                   <Route path={ROUTES.kitchenCreateOrder} element={<RouteBoundary><CreateOrderModule /></RouteBoundary>} />
-                  <Route element={<HotelSuiteLayout />}>
-                    <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelRooms} element={<RouteBoundary><HotelRoomsModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelFrontDesk} element={<RouteBoundary><HotelFrontDeskModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelSuiteNewBooking} element={<RouteBoundary><HotelSuiteNewBookingModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelGuests} element={<RouteBoundary><HotelGuestsModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelHousekeeping} element={<RouteBoundary><HotelHousekeepingModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelMaintenance} element={<RouteBoundary><HotelMaintenanceModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelWaitlist} element={<RouteBoundary><HotelWaitlistModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelRoomService} element={<RouteBoundary><HotelRoomServiceModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelInventory} element={<RouteBoundary><HotelInventoryModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelCalendar} element={<RouteBoundary><HotelCalendarModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelRoomQr} element={<RouteBoundary><HotelRoomQRModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelReports} element={<RouteBoundary><HotelReportsModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelSuiteConcierge} element={<RouteBoundary><HotelSuiteConciergeModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelSuiteReservations} element={<RouteBoundary><HotelSuiteReservationsModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelQuotes} element={<RouteBoundary><HotelQuotesModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelInvoices} element={<RouteBoundary><HotelInvoicesModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelRatesChannels} element={<RouteBoundary><HotelRatesChannelsModule /></RouteBoundary>} />
-                    <Route path={ROUTES.hotelSettings} element={<RouteBoundary><HotelSettingsModule /></RouteBoundary>} />
-                  </Route>
                   <Route path={ROUTES.hotelReservations} element={<RouteBoundary><HotelReservationsModule /></RouteBoundary>} />
                   <Route path={ROUTES.hotelNewBooking} element={<RouteBoundary><HotelNewBookingModule /></RouteBoundary>} />
                   <Route path={ROUTES.hotelEnquiry} element={<RouteBoundary><HotelEnquiryModule /></RouteBoundary>} />
@@ -856,6 +874,7 @@ function App() {
                   <Route path={ROUTES.vendorInvoiceCreateQuick} element={<RouteBoundary><QuickPurchaseCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorInvoiceCreate} element={<RouteBoundary><DetailedPurchaseCreateModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorInvoiceList} element={<RouteBoundary><VendorInvoiceListModule /></RouteBoundary>} />
+                  <Route path={ROUTES.vendorInvoiceDetail} element={<RouteBoundary><VendorInvoiceDetailModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorInvoicePaid} element={<RouteBoundary><VendorInvoicePaidModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorInvoiceUnpaid} element={<RouteBoundary><VendorInvoiceUnpaidModule /></RouteBoundary>} />
                   <Route path={ROUTES.vendorInvoiceManual} element={<RouteBoundary><VendorInvoiceManualModule /></RouteBoundary>} />
@@ -918,6 +937,7 @@ function App() {
                   <Route path={ROUTES.importAssistant} element={<RouteBoundary><ImportAssistantModule /></RouteBoundary>} />
                   <Route path={ROUTES.cashflowSettings} element={<RouteBoundary><CashflowSettingsModule /></RouteBoundary>} />
                   <Route path={ROUTES.whatsappSettings} element={<RouteBoundary><WhatsappSettingsModule /></RouteBoundary>} />
+                  <Route path={ROUTES.takeposTerminalSetup} element={<RouteBoundary><TerminalSetupModule /></RouteBoundary>} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Route>
                 </Route>

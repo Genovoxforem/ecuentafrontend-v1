@@ -5,14 +5,8 @@ import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToke
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
-// Real page: booking/settings/booking_types.php — unlike Room Type/Floor
-// Details, this classic page genuinely works (confirmed live), writing
-// through its own booking_master.ajax.php. It shares the exact same real
-// data as the Hotel Suite API used here (custom/hotel/api.php?r=settings,
-// a=savetype/deltype&kind=booking) — confirmed live by matching a real row
-// ("106") on both. Also confirmed live (unlike kind=floor/roomtype — see
-// HotelFloorTypesPage.tsx) that writes here genuinely persist: a real
-// write-then-read-back test round-tripped correctly.
+// Real page: booking_types.php — unlike Room Type/Floor, kind=booking
+// writes here genuinely persist (unlike kind=floor/roomtype).
 export function HotelBookingTypesPage() {
   const { data: settings, isLoading, isError, error, refetch } = useHotelSettingsBundle()
   const { data: token } = useHotelToken()

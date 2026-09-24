@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { QrCode, Printer } from 'lucide-react'
+import { Printer } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelRoomQr } from '../hotel.queries'
@@ -23,25 +23,12 @@ function RoomQrCard({ no, type }: { no: string; type: string }) {
   )
 }
 
-// Real via custom/hotel/api.php?r=roomqr — the Hotel Suite app's own Room
-// QR Codes view. Each code points to the real in-room ordering page
-// (custom/hotel/public/order.php?room=<no>), generated client-side with
-// the qrcode package already vendored in this app rather than the
-// original's own bundled QRCode.js.
+// Each code points to the real in-room ordering page (order.php?room=<no>).
 export function HotelRoomQR() {
   const { data: rooms, isLoading, isError, error, refetch } = useHotelRoomQr()
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <QrCode size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Room QR</h2>
-          <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Scan to open in-room ordering</p>
-        </div>
-      </div>
 
       {isLoading && <LegacyLoadingCard label="Loading rooms…" />}
       {isError && <LegacyErrorCard title="Couldn't load rooms" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}

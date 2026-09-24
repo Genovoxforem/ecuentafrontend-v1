@@ -13,6 +13,8 @@ import {
   useHotelTlCodes,
   useHotelFeatures,
   useHotelCreateRoomFormOptions,
+  useHotelClsSearch,
+  useHotelFxRate,
   useHotelToken,
 } from '../hotel.queries'
 
@@ -78,70 +80,11 @@ const EXTRA_DEFAULTS: ExtraFields = {
   acType: 'yes',
 }
 
-// Real page: booking/settings/create_room.php?action=create&type=1 — a
-// Dolibarr product-card form (a Suite genuinely IS a Dolibarr product under
-// the hood — confirmed by useHotelSaveRoom's own real write already sending
-// a product classification code, country, packaging unit, and VAT rate).
-// Fetched and diff'd against this file directly (37 real fields extracted
-// from its own <label>/name= pairs, not guessed): every field is reproduced
-// below in the exact real order, including Bed Type (bed_types[], real
-// options from settings.bed) and AC Type (ac_type, AC/Non-AC) — both were
-// missing entirely before this pass. Room Number's real maxlength=6 /
-// [A-Za-z0-9]{1,6} pattern is enforced now too. Only the ones
-// useHotelSaveRoom actually accepts (Room Number, Status (Sell), Product
-// Classification, DefaultUnitToShow, Packaging Unit, Country of origin,
-// Selling price + its Inc./Exc. tax basis, VAT category Code, Tourism levy
-// Code, Floor, Room Type) are wired to real state and actually sent in
-// handleCreate below. Everything else (Label, Status (Buy), barcode,
-// Duration, Description, Public URL, customs code, State/Province, Note,
-// Min. selling price, IPL/Excise category, Manufacture TPIN, manufacturer
-// item code, RRP, the 4 separate accountancy codes, Tags, Enable On
-// Website, Amenities, Bed Type, AC Type) has no matching field on
-// useHotelSaveRoom (the Hotel Suite's own real saveRoom() JS sends only id/
-// no/ty/floor/rate/cap/status/cls/country/unit/packing/pbt/tva/vatcode/tl —
-// confirmed by reading it directly). Amenities *is* a real field on this
-// classic page (amenities[] posts to create_room.php itself, a plain
-// Dolibarr product-card POST — unlike the rest of this bag, not "no real
-// backend field at all"), but that's a different real write than the one
-// this app uses, so typing here still doesn't persist through
-// useHotelSaveRoom either. Real amenity/bed-type names are shown as options
-// (from r=features / settings.bed) for visual accuracy even though picking
-// them doesn't transmit.
-//
-// Full dropdown-by-dropdown audit against this file's own raw <select>
-// option lists caught 3 real inaccuracies, now fixed: "Status (Sell)"
-// (OnSell/NotOnSell) was actually mislabeled — the real value this app
-// submits isn't the classic form's own `statut` field at all, it's the
-// Hotel Suite's own roomForm() `rf_status` (confirmed by reading that
-// function directly: Active(1)/Out of service(2), same convention
-// HotelRoomListPage.tsx's own Edit panel already uses) — relabeled to
-// "Status"/Active/Out of service to match what's actually sent.
-// BarcodeType's real 3 options are Code 128/Qr Code/UPC, not Code 128/
-// EAN13 (EAN13 doesn't exist on the real page at all). NatureOfProductShort
-// only ever offers "Service" on the real page (no "Product" alternative —
-// makes sense, a suite is always a service), so that's now a disabled
-// single-option select instead of a 2-option live one. Country of origin's
-// real dropdown has ~240 live countries; kept as a disabled Zambia-only
-// display since useHotelSaveRoom's own `country` field always sends '239'
-// regardless of this control either way.
-//
-// Confirmed live this write is currently BROKEN on this backend regardless
-// of input — see the warning banner below for the full finding (every real
-// Room Type id fails with "Could not create room product", and the real
-// Suite's own Add Room form is equally affected since it sources Room Type
-// from the same empty list). id/cap were already correctly sent by
-// useHotelSaveRoom the whole time — that wasn't the gap; the gap is purely
-// server-side. Separately confirmed live: Room Type/Floor CAN genuinely be
-// created through a completely different real Dolibarr endpoint —
-// categories/card.php?type=25 (Room Type) / type=24 (Floor), the plain
-// generic-category CRUD (not the broken categories/index.php *listing*
-// page, and not the Hotel Suite's own savetype/savesuite actions) — a
-// created category shows up correctly in this very page's own real
-// room_type_id/floor_id dropdowns. But useHotelSaveRoom's `ty`/`floor`
-// still reject those real category ids the exact same way ("Could not
-// create room product"), so this doesn't unblock Add Room by itself — it
-// would need this app to submit through create_room.php's own real POST
-// instead, a bigger change not made here without confirming that's wanted.
+// Mirrors the real create_room.php form (37 fields); only the subset
+// useHotelSaveRoom actually accepts (marked with a red label below) is
+// wired to state and sent. BROKEN on this backend regardless of input:
+// every Room Type id fails with "Could not create room product" (see the
+// warning banner below) — a server-side gap, not a frontend one.
 export function HotelAddRoomPage() {
   const navigate = useNavigate()
   const { data: token } = useHotelToken()
@@ -154,15 +97,8 @@ export function HotelAddRoomPage() {
   const save = useHotelSaveRoom()
   const bedTypeOptions = settings?.bed ?? []
 
-  // Real, live Floor/Room Type options, scraped straight from
-  // create_room.php's own rendered dropdowns (see
-  // useHotelCreateRoomFormOptions' own comment — these are genuinely
-  // different, working ids from both r=roomtypes and settings.roomtype/
-  // settings.floor, sourced from Dolibarr's real generic category system).
-  // While that scrape is loading, fall back to the Hotel Suite's own
-  // (empty-right-now) settings.roomtype/settings.floor + its synthetic
-  // "Ground floor" default, matching app.php's own flOpts() behavior, so
-  // the selects never sit fully empty.
+  // Floor/Room Type options scraped from create_room.php; falls back to
+  // settings.roomtype/floor (+ a synthetic "Ground floor") while loading.
   const { data: createRoomFormOptions } = useHotelCreateRoomFormOptions()
   const hasRealRoomTypes = !!settings?.roomtype && settings.roomtype.length > 0
   const fallbackRoomTypeOptions = (hasRealRoomTypes ? settings!.roomtype : (roomTypes ?? [])).map((t) => ({ id: String(t.id), name: t.name }))
@@ -182,6 +118,12 @@ export function HotelAddRoomPage() {
   const [rate, setRate] = useState('')
   const [status, setStatus] = useState<0 | 1 | 2>(1)
   const [cls, setCls] = useState('90111501')
+  const [clsLabel, setClsLabel] = useState('Hotels')
+  const [clsOpen, setClsOpen] = useState(false)
+  // r=clssearch — reuses `cls` as the query, so typing a code still works.
+  const { data: clsResults } = useHotelClsSearch(cls)
+  // r=fxrate — the real USD-equivalent toggle those same money figures use.
+  const { data: fxRate } = useHotelFxRate()
   const [unit, setUnit] = useState('')
   const [packing, setPacking] = useState('')
   const [pbt, setPbt] = useState<'HT' | 'TTC'>('HT')
@@ -282,9 +224,39 @@ export function HotelAddRoomPage() {
               <option value="ProductStatusNotOnBuy">ProductStatusNotOnBuy</option>
             </select>
           </div>
-          <div>
+          <div className="relative">
             <label className="block text-xs text-danger mb-1">Product Classification *</label>
-            <input value={cls} onChange={(e) => setCls(e.target.value)} placeholder="Search Classification Code.." className={`w-full ${fieldCls}`} />
+            <input
+              value={cls}
+              onChange={(e) => {
+                setCls(e.target.value)
+                setClsLabel('')
+              }}
+              onFocus={() => setClsOpen(true)}
+              onBlur={() => setTimeout(() => setClsOpen(false), 150)}
+              placeholder="Search Classification Code.."
+              className={`w-full ${fieldCls}`}
+            />
+            {clsLabel && <p className="text-[11px] text-text-faint mt-1 truncate">{clsLabel}</p>}
+            {clsOpen && cls.trim().length >= 2 && clsResults && clsResults.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
+                {clsResults.slice(0, 30).map((o) => (
+                  <button
+                    key={o.code}
+                    type="button"
+                    onMouseDown={() => {
+                      setCls(o.code)
+                      setClsLabel(o.label)
+                      setClsOpen(false)
+                    }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-surface-hover"
+                  >
+                    <span className="text-text! truncate">{o.label}</span>
+                    <span className="text-text-faint font-mono shrink-0">{o.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">BarcodeType</label>
@@ -381,6 +353,11 @@ export function HotelAddRoomPage() {
                 <option value="HT">Exc. tax</option>
               </select>
             </div>
+            {/* r=fxrate — real USD-equivalent toggle (see useHotelFxRate's
+                own comment); only shown when the backend has it enabled. */}
+            {fxRate?.enabled && Number(rate) > 0 && (
+              <p className="text-[11px] text-text-faint mt-1">≈ {fxRate.code ?? 'USD'} {(Number(rate) * fxRate.rate).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+            )}
           </div>
 
           <div>

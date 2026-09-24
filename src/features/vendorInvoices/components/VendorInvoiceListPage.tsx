@@ -248,7 +248,15 @@ export function VendorInvoiceListPage({ status }: { status: VendorInvoiceStatus 
               ) : (
                 rows.map((r) => (
                   <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover align-top">
-                    <td className="px-4 py-3 text-brand font-medium whitespace-nowrap">{r.ref}</td>
+                    <td className="px-4 py-3 text-brand font-medium whitespace-nowrap">
+                      {r.id ? (
+                        <Link to={ROUTES.vendorInvoiceDetail.replace(':id', String(r.id))} className="hover:underline">
+                          {r.ref}
+                        </Link>
+                      ) : (
+                        r.ref
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-muted">{r.refSupplier || '-'}</td>
                     <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDate(r.invoiceDate)}</td>
                     <td className="px-4 py-3 text-brand">{r.thirdPartyName || '-'}</td>

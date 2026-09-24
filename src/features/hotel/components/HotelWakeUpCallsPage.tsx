@@ -9,16 +9,8 @@ import { useHotelWakeups, useHotelOccRooms, useHotelSaveWakeup, useHotelWakeupDo
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Real page: booking/service/wake_up_calls.php (mainmenu=hotel&leftmenu=
-// wake_up_obj) — via custom/hotel/api.php?r=wakeups (real Suite resource,
-// same one the old combined Concierge card used before this leaf was
-// carved out into its own page, same reasoning as Enquiry — see
-// HotelEnquiryPage.tsx's own note). Every column here is a real field
-// (id/room/guest/wdate/wtime/status). "+Add" opens the same real
-// savewakeup write inline, using the real occupied-rooms list (r=occrooms)
-// to pick a room the same way the old card did. Action offers both real
-// mutations the Suite exposes: "Done" (wakedone) while pending, and Delete
-// (delwakeup) always.
+// Real page: wake_up_calls.php, via r=wakeups. "+Add" uses r=occrooms for
+// the room picker; Action offers "Done" (wakedone) and Delete (delwakeup).
 export function HotelWakeUpCallsPage() {
   const { data: token } = useHotelToken()
   const { data: wakeups, isLoading, isError, error, refetch } = useHotelWakeups()

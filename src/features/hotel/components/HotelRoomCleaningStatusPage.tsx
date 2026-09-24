@@ -22,15 +22,9 @@ const STATUS_TAG: Record<string, string> = {
   inspected: 'bg-success-bg text-success-fg',
 }
 
-// Real page: booking/service/room_cleaning.php (mainmenu=hotel&leftmenu=
-// room_clean_obj) — via custom/hotel/api.php?r=cleanjobs (real Suite
-// resource, same one HotelHousekeeping.tsx's own assignments table already
-// uses). Sl.No/Employee Name/Room No/Status are all real fields (hk/room/
-// status). Completed Date has no equivalent field on this resource at all
-// (only an "assigned" date is ever returned, regardless of status), so —
-// same honesty rule as Booking Date elsewhere in this module — it's shown
-// as "—" rather than reusing the assigned date under a different label.
-// Read-only, matching the real classic page (no Action column there).
+// Real page: room_cleaning.php, via r=cleanjobs. Completed Date has no
+// equivalent field (only "assigned" is ever returned), shown as "—".
+// Read-only, matching the real classic page.
 export function HotelRoomCleaningStatusPage() {
   const { data: jobs, isLoading, isError, error, refetch } = useHotelCleanJobs()
   const [search, setSearch] = useState('')

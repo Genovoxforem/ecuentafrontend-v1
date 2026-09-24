@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { UserRoundCheck, LoaderCircle, Check, X } from 'lucide-react'
+import { LoaderCircle, Check, X } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -91,20 +91,9 @@ function ZraCell({ id, zraid, zrastatus }: { id: string; zraid: string; zrastatu
   )
 }
 
-// Real via custom/hotel/api.php?r=guests — the Hotel Suite app's own Guest
-// Directory (backed by Dolibarr's core societe/customer table — the classic
-// Tenants/List Tenant sidebar pages read the exact same data, superseded
-// here). ZRA sync (a=custsync) is real and wired; clicking a guest or the
-// row's own "Edit"/"Docs" buttons opens the real detail view
-// (HotelGuestDetailModal.tsx: profile edit, stay history, ID/preferences
-// and documents — r=guesthistory/docs, a=savecustomer/saveguestid/
-// savepref/uploaddoc/deldoc), matching the real page's own guestEdit()/
-// guestDocs() both opening the same modal on different tabs. "+ Add guest"
-// uses the real a=saveguest action (confirmed live by reading the Suite's
-// own saveGuest() JS: only name/email/phone are actually sent, even though
-// its own modal shows an unused Address field too). ZraCell only shows the
-// "Update to ZRA" button when NOT already synced — confirmed live: the real
-// page's own succeeded rows show just the badge, no button.
+// Guest Directory (r=guests), backed by Dolibarr's core societe table.
+// Edit/Docs open HotelGuestDetailModal.tsx. "+ Add guest" (a=saveguest)
+// only sends name/email/phone. ZraCell hides the button once synced.
 export function HotelGuests() {
   const { data: guests, isLoading, isError, error, refetch } = useHotelGuests()
   const [search, setSearch] = useState('')
@@ -136,18 +125,6 @@ export function HotelGuests() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
-      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <UserRoundCheck size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">Guests</h2>
-            <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Guest CRM</p>
-          </div>
-        </div>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
         {isLoading && <LegacyLoadingCard label="Loading guests…" />}
         {isError && <LegacyErrorCard title="Couldn't load guests" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
@@ -197,7 +174,7 @@ export function HotelGuests() {
             {filtered.length === 0 ? (
               <p className="text-sm text-text-faint italic py-6 text-center">{guests.length === 0 ? 'No guests yet.' : 'No guests match this search.'}</p>
             ) : (
-              <div className="flex-1 min-h-0 overflow-auto">
+              <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-10">
                     <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">

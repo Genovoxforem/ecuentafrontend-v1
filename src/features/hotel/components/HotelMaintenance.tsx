@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Wrench, LoaderCircle, X } from 'lucide-react'
+import { LoaderCircle, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelMaintenance, useHotelMaintStaff, useHotelSaveMaint, useHotelMaintAdvance, useHotelDelMaint, useHotelToken, type HotelMaintTicket } from '../hotel.queries'
@@ -123,15 +123,7 @@ export function HotelMaintenance() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <Wrench size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">Maintenance Tickets</h2>
-          </div>
-        </div>
+      <div className="flex items-center justify-end gap-3">
         <button type="button" onClick={() => setModal({ ticket: null })} className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
           + Report issue
         </button>

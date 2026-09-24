@@ -15,10 +15,8 @@ type Tab = 'profile' | 'history' | 'id' | 'docs'
 const fieldCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const STATUS_TAG: Record<string, string> = { checkin: 'bg-success-bg text-success-fg', checkout: 'bg-neutral-bg text-neutral-fg', cancelled: 'bg-warning-bg text-warning-fg', noshow: 'bg-danger-bg text-danger-fg' }
 
-// r=guesthistory + a=savecustomer/saveguestid/savepref, r=docs + a=uploaddoc/
-// deldoc — the real Guest Directory's own "View" detail (guestDetail() in
-// custom/hotel/app.php), reproduced field-for-field from that file's own
-// guestDetail/guestDocsList functions.
+// Real Guest Directory "View" detail: r=guesthistory + a=savecustomer/
+// saveguestid/savepref, r=docs + a=uploaddoc/deldoc.
 export function HotelGuestDetailModal({ id, onClose, initialTab = 'profile' }: { id: string; onClose: () => void; initialTab?: Tab }) {
   const { data: token } = useHotelToken()
   const { data: hist, isLoading, isError, error, refetch } = useHotelGuestHistory(id)

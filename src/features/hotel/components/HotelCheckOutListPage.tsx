@@ -19,19 +19,9 @@ function payStatusFor(inv: { paye: 0 | 1; paid: number; total: number } | undefi
   return { label: 'Unpaid', cls: 'bg-danger-bg text-danger-fg' }
 }
 
-// Real page: booking/reservation/checkout_list.php — this uses custom/hotel/
-// api.php?r=checkouts (already checked-out bookings only), cross-referenced
-// with r=invoices by bnum===num to derive Payment Status (paye/paid/total),
-// since checkouts itself carries no payment field of its own. "Booking Date"
-// (the classic page's own column) has no equivalent in either real
-// resource — checkouts only returns check-in/check-out dates, not a
-// separate reservation-created date — so that column is honestly shown as
-// "—" rather than reusing check-in date under a different label. "+ADD
-// Booking" goes to the same real New Booking page the Booking/Check-In List
-// page already uses. Status is fixed "Checked Out" since r=checkouts is
-// inherently that slice already; Action links to the matched invoice when
-// one exists (this Suite has no per-invoice detail route, so it opens the
-// Invoices list).
+// Real page: checkout_list.php — uses r=checkouts, cross-referenced with
+// r=invoices (bnum===num) for Payment Status. "Booking Date" has no
+// equivalent in either resource, shown honestly as "—".
 export function HotelCheckOutListPage() {
   const { data: checkouts, isLoading, isError, error, refetch } = useHotelCheckouts()
   const { data: invoices } = useHotelInvoices()

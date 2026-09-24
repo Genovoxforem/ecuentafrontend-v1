@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Brush, LoaderCircle } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelRack, useHotelCleanJobs, useHotelHousekeepers, useHotelCleanRoom, useHotelCleanAdvance, useHotelAssignClean, useHotelToken } from '../hotel.queries'
@@ -60,7 +60,7 @@ function AssignForm({ onDone }: { onDone: () => void }) {
       </label>
       <div>
         <p className="text-sm text-text-muted mb-1.5">Suites to service</p>
-        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto">
+        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto no-scrollbar">
           {(rack ?? []).map((r) => {
             const on = rooms.has(r.id)
             const flagged = r.status === 'dirty' || r.status === 'occupied'
@@ -116,15 +116,6 @@ export function HotelHousekeeping() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <Brush size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Housekeeping</h2>
-          <p className="text-xs text-text-faint mt-0.5">Tap a suite marked "to service" to mark it ready</p>
-        </div>
-      </div>
 
       {rack.isLoading && <LegacyLoadingCard label="Loading suite status…" />}
       {rack.isError && <LegacyErrorCard title="Couldn't load suite status" message={rack.error instanceof Error ? rack.error.message : 'Unknown error.'} onRetry={() => rack.refetch()} />}

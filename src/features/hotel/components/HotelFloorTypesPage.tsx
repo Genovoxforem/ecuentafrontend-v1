@@ -5,19 +5,10 @@ import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToke
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
-// Real page: categories/index.php?type=24 (the classic "booking_floor"
-// category screen) — confirmed live this backend throws a PHP fatal error
-// there too ("Class 'Floor' not found" in categorie.class.php, same failure
-// class as Room Type's type=25 — see HotelRoomTypesPage.tsx's own top
-// comment), so this is built against the real, working Hotel Suite API
-// instead (custom/hotel/api.php?r=settings, a=savetype/deltype&kind=floor)
-// — the same data source HotelSettings.tsx's own Floors card already uses,
-// just given its own dedicated page. Unlike Room Type, there's no separate
-// real read-only resource of in-use floor names to fall back on here
-// (r=settings.floor is the only floor data this backend exposes, and it's
-// currently empty — confirmed live, saving a new one returns {"ok":true}
-// but doesn't persist, same bug as Room Type's kind), so this stays a
-// plain CRUD list rather than inventing reference data that doesn't exist.
+// Real classic page (categories/index.php?type=24) throws a PHP fatal
+// error, so this uses the Suite API instead (r=settings, a=savetype/
+// deltype&kind=floor). settings.floor is empty and doesn't persist writes
+// (same bug as Room Type), with no fallback read-only resource here.
 export function HotelFloorTypesPage() {
   const { data: settings } = useHotelSettingsBundle()
   const { data: token } = useHotelToken()

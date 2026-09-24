@@ -1,16 +1,9 @@
-import { DoorOpen } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelRack } from '../hotel.queries'
 
-// The real custom/hotel/app.php stylesheet's own .s-occupied/.s-ready/
-// .s-dirty/.s-arriving/.s-ooo tints are fixed light-mode hex values (its
-// page has no dark mode of its own) — reproducing them verbatim here made
-// every tile read as a near-white, indistinguishable blank square on this
-// app's dark theme. Mapped to this app's own theme-aware status tokens
-// instead (the same success/warning/danger/info/neutral pairs every other
-// badge in this app already uses), so the 5 statuses stay visually
-// distinct — and correctly themed — in both light and dark mode.
+// Real status tints are fixed light-mode hex (no dark mode of their own);
+// mapped to this app's theme-aware status tokens instead.
 const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   ready: { label: 'Ready', cls: 'bg-success-bg text-success-fg' },
   occupied: { label: 'Occupied', cls: 'bg-info-bg text-info-fg' },
@@ -19,18 +12,9 @@ const STATUS_STYLES: Record<string, { label: string; cls: string }> = {
   ooo: { label: 'Out of service', cls: 'bg-danger-bg text-danger-fg' },
 }
 
-// Real via custom/hotel/api.php?r=rack — this reproduces the real Hotel
-// Suite app's own "Room Status" section (custom/hotel/app.php#view-rooms:
-// its "Booking Management → Room Status" classic sidebar entry redirects
-// straight into this exact view) structurally: one card titled "Suite Rack
-// — live status" with an "N keys" count, suites grouped by floor
-// (rackHTML()'s own grouping/sort), a 44×40 tile per suite tinted by its
-// real status, and a swatch legend below with no per-status counts —
-// matching that view's own rackHTML()/.rm/.s-*/.statkey markup and layout
-// (colors are this app's own theme tokens, not the real page's fixed
-// light-mode hex — see STATUS_STYLES above). Read-only here, same as the
-// real view (it has no click actions of its own — editing a suite lives in
-// Settings).
+// Reproduces the real "Room Status" section structurally: suites grouped by
+// floor, one tile per suite tinted by status, legend below. Read-only, same
+// as the real view — editing a suite lives in Settings.
 export function HotelRooms() {
   const { data: rack, isLoading, isError, error, refetch } = useHotelRack()
 
@@ -44,14 +28,6 @@ export function HotelRooms() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <DoorOpen size={22} />
-          </span>
-          <h2 className="text-lg font-bold text-text!">Room Status</h2>
-        </div>
-      </div>
 
       {isLoading && <LegacyLoadingCard label="Loading suite rack…" />}
       {isError && <LegacyErrorCard title="Couldn't load the suite rack" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}

@@ -1,12 +1,6 @@
-// Parses the real classic "Add Booking" page (booking/reservation/booking.php
-// ?type=booking) — confirmed live via curl this is a totally different real
-// flow from the Hotel Suite SPA's own "New Booking" modal (a=createbooking):
-// the real sidebar menu's "Booking/Check-In List" leaf links to
-// booking/reservation/booking_list.php, NOT the Suite, and that classic
-// page's own "+ Add" button goes to this exact form, saved via
-// reservation_ajax.php?action=add_booking (live-tested: genuinely persists —
-// {"status":"success","booking_id":1,...}). See hotel.queries.ts's own
-// useHotelBookingFormOptions/useHotelCreateClassicBooking for the rest.
+// Parses the classic "Add Booking" page (booking.php?type=booking), a
+// separate flow from the Suite's "New Booking" modal. Saved via
+// reservation_ajax.php?action=add_booking.
 
 export interface ClassicBookingOption {
   value: string
@@ -42,12 +36,8 @@ export function parseClassicBookingFormOptions(doc: Document): ClassicBookingFor
   }
 }
 
-// reservation_ajax.php?action=get_rooms_for_select returns
-// {"status":"success","options":"<option value=..>..</option>..."} — a raw
-// HTML fragment the real page injects directly into the room_number[]
-// select (confirmed live: empty on this backend's current zero-room
-// inventory, same root cause as r=available/rooms_admin both returning
-// nothing — see HotelAddRoomPage.tsx's own top comment).
+// get_rooms_for_select returns {"options":"<option ...>...</option>..."} —
+// a raw HTML fragment the real page injects into the room_number[] select.
 export function parseRoomOptionsFragment(fragmentHtml: string): ClassicBookingOption[] {
   if (!fragmentHtml.trim()) return []
   const doc = new DOMParser().parseFromString(`<select>${fragmentHtml}</select>`, 'text/html')

@@ -17,19 +17,9 @@ const PAY_TAG: Record<string, string> = {
   unpaid: 'bg-danger-bg text-danger-fg',
 }
 
-// Real page: booking/reservation/booking_list.php?type=booking — the
-// classic "Booking/Check-In List" sidebar leaf. Confirmed live this is a
-// genuinely separate real backend page from the Hotel Suite SPA (custom/
-// hotel/hotelindex.php): the real llx_menu row for this exact leaf points
-// at this classic page, not the Suite — unlike its sibling "Room Status",
-// which does redirect into the Suite. Data + actions both come straight
-// from the real classic AJAX endpoints, not the Suite API — see
-// hotel.queries.ts's own top comment on the classic-booking hooks for the
-// full finding and live-test trail. Booking Date column is genuinely bound
-// to a raw field the real page's own DataTable never actually formats as a
-// date (confirmed by reading its init JS: no columnDefs/render override
-// exists) — kept faithful to that real (if odd) display rather than
-// silently substituting a different value under that label.
+// Real page: booking_list.php — a separate classic page from the Suite
+// SPA. Booking Date column is bound to a raw field the real page never
+// actually formats as a date, kept faithful rather than substituted.
 export function HotelReservations() {
   const { data: bookings, isLoading, isError, error, refetch } = useHotelClassicBookings()
   const cancel = useHotelCancelClassicBooking()

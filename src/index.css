@@ -18,16 +18,26 @@
    load flashed that dark gradient before AppShell's own themed background
    painted over it. Using the same --color-surface/--color-text tokens
    every other surface in the app already uses instead. */
+html,
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  height: 100%;
+  /* Every route's own root (AppShell, PosLayout, HotelSuiteLayout) is
+     already built as a fixed h-screen shell with its own explicit
+     overflow-y-auto scroll regions inside it — nothing in this app relies
+     on the actual document/window scrolling. Belt-and-braces guard against
+     a native browser scrollbar ever appearing at this outer level (seen on
+     Hotel Suite pages after they moved to their own top-level route,
+     outside AppShell's own overflow-hidden root) rather than only ever
+     hiding scrollbars on inner divs one at a time. */
+  overflow: hidden;
   background-color: var(--color-surface);
   color: var(--color-text);
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
 }
 
 /* Same visual convention as pos/index.css's own toast-in — adapted for a

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BellRing, LoaderCircle, LogIn, LogOut, Search } from 'lucide-react'
+import { LoaderCircle, LogIn, LogOut, Search, Ban, ArrowRightLeft, CalendarClock } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
@@ -11,6 +11,9 @@ import {
   useHotelCheckouts,
   useHotelAvailable,
   useHotelCheckIn,
+  useHotelCancelBooking,
+  useHotelMoveRoom,
+  useHotelEditDates,
   useHotelToken,
   useHotelDashboard,
   type HotelArrival,
@@ -67,6 +70,113 @@ function AssignAndCheckIn({ guest, onDone }: { guest: HotelArrival; onDone: () =
   )
 }
 
+// a=cancel — cancels a booking not yet checked in (Arrivals / Upcoming).
+function CancelBookingButton({ num, onDone }: { num: string; onDone: () => void }) {
+  const { data: token } = useHotelToken()
+  const cancel = useHotelCancelBooking()
+  return (
+    <button
+      type="button"
+      disabled={!token || cancel.isPending}
+      onClick={() => {
+        if (token && confirm(`Cancel booking ${num}? This cannot be undone.`)) {
+          cancel.mutate({ booking: num, token }, { onSuccess: onDone })
+        }
+      }}
+      title="Cancel booking"
+      className="flex items-center gap-1 text-xs font-medium text-danger-fg rounded-md px-2 py-1.5 hover:bg-danger-bg disabled:opacity-50"
+    >
+      {cancel.isPending ? <LoaderCircle size={12} className="animate-spin" /> : <Ban size={12} />} Cancel
+    </button>
+  )
+}
+
+// a=move — moves an in-house guest to a different suite. Reuses the same
+// r=available room list AssignAndCheckIn already fetches for arrivals.
+function MoveRoomAction({ num, onDone }: { num: string; onDone: () => void }) {
+  const { data: token } = useHotelToken()
+  const today = new Date().toISOString().slice(0, 10)
+  const { data: available } = useHotelAvailable(today, today)
+  const move = useHotelMoveRoom()
+  const [open, setOpen] = useState(false)
+  const [room, setRoom] = useState('')
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} title="Move to another suite" className="flex items-center gap-1 text-xs text-text-muted rounded-md px-2 py-1.5 hover:bg-surface-hover">
+        <ArrowRightLeft size={12} /> Move
+      </button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <select value={room} onChange={(e) => setRoom(e.target.value)} className="h-8 text-xs rounded-md border border-input-border bg-input-bg text-text px-2">
+        <option value="">New suite…</option>
+        {(available ?? []).slice(0, 20).map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.no} · {r.type}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={!token || !room || move.isPending}
+        onClick={() => token && move.mutate({ booking: num, to: room, token }, { onSuccess: () => (setOpen(false), setRoom(''), onDone()) })}
+        className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-md px-2.5 py-1.5 hover:bg-brand-hover disabled:opacity-50"
+      >
+        {move.isPending ? <LoaderCircle size={12} className="animate-spin" /> : 'Move'}
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-text-faint hover:text-text-muted px-1">
+        Cancel
+      </button>
+    </div>
+  )
+}
+
+// a=editdates — edits a booking's check-in/check-out dates (e.g. extending
+// an in-house stay).
+function EditDatesAction({ num, checkIn, checkOut, onDone }: { num: string; checkIn: string; checkOut: string; onDone: () => void }) {
+  const { data: token } = useHotelToken()
+  const editDates = useHotelEditDates()
+  const [open, setOpen] = useState(false)
+  const [ci, setCi] = useState(checkIn)
+  const [co, setCo] = useState(checkOut)
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setCi(checkIn)
+          setCo(checkOut)
+          setOpen(true)
+        }}
+        title="Edit stay dates"
+        className="flex items-center gap-1 text-xs text-text-muted rounded-md px-2 py-1.5 hover:bg-surface-hover"
+      >
+        <CalendarClock size={12} /> Dates
+      </button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <input type="date" value={ci} onChange={(e) => setCi(e.target.value)} className="h-8 text-xs rounded-md border border-input-border bg-input-bg text-text px-2" />
+      <input type="date" value={co} onChange={(e) => setCo(e.target.value)} className="h-8 text-xs rounded-md border border-input-border bg-input-bg text-text px-2" />
+      <button
+        type="button"
+        disabled={!token || !ci || !co || editDates.isPending}
+        onClick={() => token && editDates.mutate({ booking: num, ci, co, token }, { onSuccess: () => (setOpen(false), onDone()) })}
+        className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-md px-2.5 py-1.5 hover:bg-brand-hover disabled:opacity-50"
+      >
+        {editDates.isPending ? <LoaderCircle size={12} className="animate-spin" /> : 'Save'}
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-text-faint hover:text-text-muted px-1">
+        Cancel
+      </button>
+    </div>
+  )
+}
+
 function GuestRow({ children, guest, meta }: { children?: React.ReactNode; guest: string; meta: string }) {
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
@@ -80,19 +190,10 @@ function GuestRow({ children, guest, meta }: { children?: React.ReactNode; guest
   )
 }
 
-// Real via custom/hotel/api.php?r=arrivals|inhouse|upcoming|checkouts|
-// dashboard, plus a=checkin — the Hotel Suite app's own Front Desk. The 4
-// top stat cards (Arrivals/Departures/In Residence/Vacant Ready) reuse
-// r=dashboard's own real fields (arrivals/departures/inhouse/counts.ready —
-// confirmed live: the real Front Desk tab shows exactly these 4). Each
-// tab's own search box is a client-side filter over data already fetched
-// (guest/booking/suite), matching the real page's own per-tab search —
-// no separate search endpoint exists or is needed. Check-out now opens the
-// real multi-step wizard (HotelCheckoutWizard.tsx: folio → generate invoice
-// → finalize/ZRA → collect & apply payment → check out), reproducing the
-// original SPA's own checkoutModal() instead of the earlier simplified
-// direct a=checkout call — that simple contract is still there as the
-// wizard's own "Force check out anyway" escape hatch.
+// Stat cards reuse r=dashboard's fields. Each tab's search box filters
+// already-fetched data client-side. Check-out opens the multi-step
+// HotelCheckoutWizard; the old direct a=checkout survives as its "Force
+// check out anyway" escape hatch.
 export function HotelFrontDesk() {
   const [tab, setTab] = useState<Tab>('arr')
   const [search, setSearch] = useState('')
@@ -115,15 +216,6 @@ export function HotelFrontDesk() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <BellRing size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Front Desk</h2>
-          <p className="text-xs text-text-faint mt-0.5">Arrivals, in-house guests and checkouts</p>
-        </div>
-      </div>
 
       {dashboard && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -195,7 +287,10 @@ export function HotelFrontDesk() {
             ) : (
               filteredArrivals.map((g) => (
                 <GuestRow key={g.num} guest={g.guest} meta={`${g.btype || ''} · ETA ${g.eta}`}>
-                  <AssignAndCheckIn guest={g} onDone={() => arrivals.refetch()} />
+                  <div className="flex items-center gap-1.5">
+                    <AssignAndCheckIn guest={g} onDone={() => arrivals.refetch()} />
+                    <CancelBookingButton num={g.num} onDone={() => arrivals.refetch()} />
+                  </div>
                 </GuestRow>
               ))
             )}
@@ -211,6 +306,8 @@ export function HotelFrontDesk() {
                 <GuestRow key={g.num} guest={g.guest} meta={`Suite ${g.rooms || '—'} · out ${g.co}`}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-text-muted">K{Number(g.bal).toLocaleString()}</span>
+                    <MoveRoomAction num={g.num} onDone={() => inhouse.refetch()} />
+                    <EditDatesAction num={g.num} checkIn="" checkOut={g.co} onDone={() => inhouse.refetch()} />
                     <button
                       type="button"
                       disabled={!token}
@@ -236,7 +333,9 @@ export function HotelFrontDesk() {
                   key={g.num}
                   guest={g.guest}
                   meta={`${g.btype || ''} · ${g.cidate}${g.rooms ? ` · Suite ${g.rooms}` : ''} · ${g.din <= 1 ? 'tomorrow' : `in ${g.din} days`}`}
-                />
+                >
+                  <CancelBookingButton num={g.num} onDone={() => upcoming.refetch()} />
+                </GuestRow>
               ))
             )}
           </>
@@ -247,7 +346,7 @@ export function HotelFrontDesk() {
             {filteredCheckouts.length === 0 ? (
               <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No checkouts match this search.' : 'No checkouts yet.'}</p>
             ) : (
-              <div className="overflow-auto">
+              <div className="overflow-auto no-scrollbar">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">

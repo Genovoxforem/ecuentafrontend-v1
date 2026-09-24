@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ConciergeBell, LoaderCircle, Check, Trash2 } from 'lucide-react'
+import { LoaderCircle, Check, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -250,26 +250,11 @@ function EnquiriesLeadsCard() {
   )
 }
 
-// Real via custom/hotel/api.php?r=wakeups|enquiries, plus a=savewakeup/
-// wakedone/delwakeup/saveenquiry/delenquiry — the Hotel Suite app's own
-// Concierge tab (confirmed live: a condensed two-card dashboard, "Wake-up
-// Calls" + "Enquiries & Leads" side by side, distinct from the fuller
-// classic DataTables pages the outer sidebar's own "Wake-Up Calls" and
-// "Enquiry" leaves use — HotelWakeUpCallsPage.tsx / HotelEnquiryPage.tsx —
-// which share the exact same real resources/mutations, just presented as
-// full searchable/exportable tables instead of this compact view).
+// Real Suite Concierge tab: condensed two-card dashboard over the same
+// r=wakeups|enquiries resources the fuller classic pages also use.
 export function HotelSuiteConcierge() {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-          <ConciergeBell size={22} />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-text!">Concierge</h2>
-          <p className="text-xs text-text-faint mt-0.5 uppercase tracking-wide">Wake-up calls &amp; leads</p>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <WakeupCallsCard />

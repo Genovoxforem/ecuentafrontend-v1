@@ -296,6 +296,7 @@ export const ROUTES = {
   hotelInventory: '/hotel/inventory',
   hotelCalendar: '/hotel/calendar',
   hotelRoomQr: '/hotel/room-qr',
+  hotelKitchenScreen: '/hotel/kitchen-screen',
   hotelReports: '/hotel/reports',
   hotelQuotes: '/hotel/quotations',
   hotelInvoices: '/hotel/invoices',
@@ -393,6 +394,7 @@ export const ROUTES = {
   vendorContactDetail: '/vendor-contacts/:id',
   vendorContactTags: '/vendor-contacts/tags',
   vendorInvoiceList: '/vendor-invoices',
+  vendorInvoiceDetail: '/vendor-invoices/:id',
   vendorInvoiceCreate: '/vendor-invoices/create',
   vendorInvoiceCreateQuick: '/vendor-invoices/create/quick',
   vendorInvoicePaid: '/vendor-invoices/paid',
@@ -456,4 +458,8 @@ export const ROUTES = {
   importAssistant: '/settings/import',
   cashflowSettings: '/settings/cashflow',
   whatsappSettings: '/settings/whatsapp',
+  // takepos/admin/terminal.php?terminal=<n> — real classic Dolibarr page,
+  // no dedicated left-menu leaf of its own on this backend (reached via
+  // the TakePOS module's own "Point of Sales module setup" tabs instead).
+  takeposTerminalSetup: '/pos-terminal-setup',
 } as const

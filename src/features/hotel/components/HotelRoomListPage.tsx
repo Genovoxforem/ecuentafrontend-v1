@@ -137,16 +137,9 @@ function EditRoomPanel({
   )
 }
 
-// Real page: booking/settings/room_list.php — this uses the real Hotel
-// Suite API instead (custom/hotel/api.php?r=rooms_admin, a=saveroom/
-// delroom/zrasync), the same data source HotelSettings.tsx's own Rooms
-// card already used, now given its own dedicated page matching the real
-// classic menu's separate "Room List" entry (and its real Sl.No/Room No/
-// Floor Name/Room Type/Room Rate/Status/Action column layout). "+ ADD
-// Room" goes to the dedicated Add Room page (create_room.php's real
-// equivalent); Edit opens a lighter inline panel here instead, since only
-// a handful of fields actually vary per room (see HotelAddRoomPage.tsx's
-// own comment on why the rest stay real, sensible defaults).
+// Real page: room_list.php — built against the Suite API instead
+// (r=rooms_admin, a=saveroom/delroom/zrasync). Edit opens a lighter inline
+// panel since only a handful of fields actually vary per room.
 export function HotelRoomListPage() {
   const { data: rooms, isLoading, isError, error, refetch } = useHotelRoomsAdmin()
   const { data: settings } = useHotelSettingsBundle()
@@ -161,12 +154,7 @@ export function HotelRoomListPage() {
   const [editingRoom, setEditingRoom] = useState<HotelRoomAdmin | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  // Real, live Floor/Room Type options — see HotelAddRoomPage.tsx's own
-  // comment and useHotelCreateRoomFormOptions' own comment: scraped from
-  // create_room.php's real dropdowns (Dolibarr's generic category system),
-  // genuinely different ids from both r=roomtypes and settings.roomtype/
-  // settings.floor. Falls back to those while the scrape is loading so the
-  // selects never sit fully empty.
+  // Floor/Room Type options scraped from create_room.php; falls back to settings.roomtype/floor while loading.
   const { data: createRoomFormOptions } = useHotelCreateRoomFormOptions()
   const fallbackRoomTypeOptions = (settings?.roomtype && settings.roomtype.length > 0 ? settings.roomtype : (roomTypes ?? [])).map((t) => ({ id: String(t.id), name: t.name }))
   const roomTypeOptions = createRoomFormOptions?.roomTypes.length ? createRoomFormOptions.roomTypes : fallbackRoomTypeOptions

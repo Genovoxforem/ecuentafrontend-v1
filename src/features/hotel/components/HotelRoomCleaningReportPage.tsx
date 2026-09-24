@@ -17,13 +17,8 @@ const STATUS_TAG: Record<string, string> = {
   inspected: 'bg-success-bg text-success-fg',
 }
 
-// Real page: booking/reports/room_cleaning_report.php — via custom/hotel/
-// api.php?r=report&type=cleaning (a richer resource than r=cleanjobs, the
-// one Room Cleaning Status uses: this one genuinely carries a Completed
-// Date field, so unlike that page this report needs no "—" placeholder).
-// Every filter here (Assigned Date, Completed Date, Employee Name, Room No,
-// Cleaning Status) maps to a real field and filters the already-fetched
-// rows live — "Go" is kept only for visual match to the real page's button.
+// Real page: room_cleaning_report.php, via r=report&type=cleaning — richer
+// than r=cleanjobs, this one carries a real Completed Date field.
 export function HotelRoomCleaningReportPage() {
   const { data: log, isLoading, isError, error, refetch } = useHotelLedger('cleaning')
 

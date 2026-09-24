@@ -9,15 +9,8 @@ import { useHotelEnquiries, useHotelSaveEnquiry, useHotelDelEnquiry, useHotelTok
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Real page: booking/reservation/enquiry.php (mainmenu=hotel&leftmenu=
-// enqry_obj) — via custom/hotel/api.php?r=enquiries (real Suite resource,
-// same one the old combined Concierge card used — see that component's own
-// note on why this leaf was carved out into its own page). Every column
-// here is a real field (id/name/email/phone/ci/co/created); there's no
-// status or room column on the real classic page either, so none is added.
-// "+Add" opens the same real saveenquiry write inline (no separate legacy
-// create page to mirror — the classic page's own "Add" just opens a plain
-// modal with these same fields).
+// Real page: enquiry.php, via r=enquiries. No status/room column on the
+// real page either. "+Add" opens the real saveenquiry write inline.
 export function HotelEnquiryPage() {
   const { data: token } = useHotelToken()
   const { data: enquiries, isLoading, isError, error, refetch } = useHotelEnquiries()

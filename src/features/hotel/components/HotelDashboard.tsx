@@ -1,8 +1,6 @@
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
-import { Link } from 'react-router-dom'
-import { Gauge, Gem, TrendingUp, DoorOpen, Users, AlertTriangle, CalendarPlus } from 'lucide-react'
+import { Gauge, Gem, TrendingUp, DoorOpen, Users, AlertTriangle } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
-import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
 import { useHotelDashboard, useHotelDashKpi, useHotelTrends, useHotelArrivals, type HotelRackRoom } from '../hotel.queries'
@@ -69,16 +67,9 @@ function RackPreview({ rack }: { rack: HotelRackRoom[] }) {
   )
 }
 
-// Real via custom/hotel/api.php?r=dashboard|dashkpi|trends|arrivals — the
-// Hotel Suite app's own Dashboard view, ported to this app's design system
-// (Card/ICON_STYLES instead of its bespoke gold/emerald theme) rather than
-// visually cloned — see hotelApi.ts's own top comment for how this real API
-// was found and confirmed. Matches the real page's own section layout:
-// Bookings and Revenue collected are two separate 6-month charts (not one
-// combined chart — both real fields already come from r=trends), and
-// Occupancy (today's Occupied/Ready/To service/Arriving/Out of service
-// breakdown, from dashboard.counts) sits beside Suite Rack, same as the
-// real Dashboard's own two-panel row.
+// Real Dashboard view (r=dashboard|dashkpi|trends|arrivals), ported to this
+// app's design system. Bookings/Revenue are separate 6-month charts (both
+// from r=trends); Occupancy (dashboard.counts) sits beside Suite Rack.
 export function HotelDashboard() {
   const { data: dashboard, isLoading, isError, error, refetch } = useHotelDashboard()
   const { data: kpi } = useHotelDashKpi()
@@ -91,20 +82,6 @@ export function HotelDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <Gauge size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">Hotel Dashboard</h2>
-            <p className="text-xs text-text-faint mt-0.5">Live operational overview</p>
-          </div>
-        </div>
-        <Link to={ROUTES.hotelSuiteNewBooking} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          <CalendarPlus size={14} /> New Booking
-        </Link>
-      </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <KpiCard label="Occupancy" value={`${dashboard.occupancy}%`} sub={`of ${dashboard.total - dashboard.counts.ooo} sellable suites`} icon={Gauge} color="blue" />
