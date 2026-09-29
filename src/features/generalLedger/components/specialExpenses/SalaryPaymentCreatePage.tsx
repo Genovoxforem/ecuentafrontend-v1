@@ -1,28 +1,31 @@
 import { Banknote } from 'lucide-react'
-import { DisabledFormPage } from '../../../../shared/components/forms/DisabledFormPage'
+import { ROUTES } from '../../../../routes'
+import { LegacyFormPage } from '../LegacyFormPage'
 
-// salaries/card.php?action=create — classic form-POST, full-page reload, no JSON.
+// salaries/card.php?action=create — the real "New payment - salaries" form;
+// Save posts action=add and the backend redirects to the new payment.
 export function SalaryPaymentCreatePage() {
   return (
-    <DisabledFormPage
+    <LegacyFormPage
       icon={Banknote}
       title="New Payment - Salaries"
-      sourcePath="salaries/card.php?action=create"
-      sections={[
-        {
-          fields: [
-            { label: 'Employee', type: 'select', required: true },
-            { label: 'Date Payment', type: 'date', required: true },
-            { label: 'Date Value', type: 'date', required: true },
-            { label: 'Period Start', type: 'date' },
-            { label: 'Period End', type: 'date' },
-            { label: 'Amount', required: true },
-            { label: 'Label' },
-            { label: 'Payment Mode', type: 'select' },
-            { label: 'Bank Account', type: 'select' },
-            { label: 'Project', type: 'select' },
-          ],
-        },
+      path="/salaries/card.php"
+      query={{ action: 'create' }}
+      anchor="fk_user"
+      submitExtra={{ save: 'Save' }}
+      redirectTo={ROUTES.ledgerSalaryList}
+      fields={[
+        { name: 'fk_user', label: 'Employee', required: true },
+        { name: 'label', label: 'Label', required: true },
+        { name: 'datep', label: 'Date of payment', kind: 'date', required: true },
+        { name: 'datev', label: 'Value date', kind: 'date' },
+        { name: 'datesp', label: 'Start date of period', kind: 'date', required: true },
+        { name: 'dateep', label: 'End date of period', kind: 'date', required: true },
+        { name: 'amount', label: 'Amount', required: true },
+        { name: 'accountid', label: 'Bank account', required: true },
+        { name: 'paymenttype', label: 'Payment type', required: true },
+        { name: 'num_payment', label: 'Number' },
+        { name: 'fk_project', label: 'Project' },
       ]}
     />
   )

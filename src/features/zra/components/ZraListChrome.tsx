@@ -7,17 +7,6 @@ export const PER_PAGE = 25
 // instead of each hand-rolling its own static/non-sticky footer.
 export { ListPagination } from '../../../shared/components/ListPagination'
 
-// Upload/sync actions across the ZRA module submit to the LIVE ZRA government
-// tax sandbox (see custom/zra/core/modules/zraworker.class.php), not just a
-// local mutation. Left unwired pending explicit confirmation that live
-// submission is wanted, rather than silently faking success or silently
-// firing real government-facing requests.
-export function notWiredYet() {
-  window.alert(
-    'This action submits to the live ZRA government tax API and has not been wired up yet — confirm with the developer before enabling it.',
-  )
-}
-
 export function ListHeader({ icon, title, count, action }: { icon: React.ReactNode; title: string; count: number | undefined; action?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">

@@ -4,6 +4,7 @@ import { Warehouse, ShoppingCart, ShoppingBag, RefreshCw, Search, RotateCcw, Loa
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { ROUTES } from '../../../routes'
@@ -91,7 +92,10 @@ function sortValue(m: StockMovementRow, key: SortKey): string | number {
 // by a genuine, complete JSON API (product/stock/ajax/movement_list_api.php),
 // not classic HTML — every stat tile, filter option, table column and the
 // bulk "Update to ZRA" action below is real, live-verified data.
-export function StockMovementsListPage() {
+// `embedded`: rendered under another form (Stock correction / transfer) instead of as a
+// page of its own — it then sits in the normal flow, without the full-page negative
+// margins and sticky header that would pull it up over the form above.
+export function StockMovementsListPage({ embedded = false }: { embedded?: boolean }) {
   const warehouses = useWarehouses()
   const [warehouseId, setWarehouseId] = useState('')
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
@@ -109,6 +113,7 @@ export function StockMovementsListPage() {
 
   const { data, isLoading, isError, error } = useStockMovementsList({ ...applied, warehouseId: warehouseId || undefined })
   const bulkZra = useBulkUpdateZraStatus()
+  const confirm = useConfirm()
 
   const stats = data?.stats
 
@@ -162,10 +167,11 @@ export function StockMovementsListPage() {
     })
   }
 
-  function handleBulkZra() {
+  async function handleBulkZra() {
     const rows = (data?.movements ?? []).filter((m) => selected.has(m.id)).map((m) => ({ rowid: m.id, inventoryCode: m.inventoryCode }))
     if (rows.length === 0) return
-    if (!window.confirm(`Update ${rows.length} movement(s) to ZRA?`)) return
+    const ok = await confirm({ title: 'Update to ZRA?', message: `Update ${rows.length} movement(s) to ZRA?`, variant: 'default', confirmLabel: 'Update' })
+    if (!ok) return
     bulkZra.mutate(rows, { onSuccess: () => setSelected(new Set()) })
   }
 
@@ -190,8 +196,14 @@ export function StockMovementsListPage() {
   }
 
   return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+    <div className={embedded ? 'flex flex-col' : '-m-6 flex-1 flex flex-col min-h-0'}>
+      <div
+        className={
+          embedded
+            ? 'flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3'
+            : 'sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950'
+        }
+      >
         <div>
           <p className="text-xs text-text-faint">Warehouse Stock Information</p>
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
@@ -208,7 +220,7 @@ export function StockMovementsListPage() {
         </select>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+      <div className={embedded ? 'flex flex-col space-y-4 pt-4' : 'flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4'}>
         {isError && (
           <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
             <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />

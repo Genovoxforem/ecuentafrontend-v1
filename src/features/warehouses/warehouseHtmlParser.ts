@@ -186,83 +186,6 @@ export function parseInventoryListDocument(doc: Document): InventoryListRow[] {
   return result
 }
 
-// expensereport/landedcostbilled.php's create form — confirmed live that its
-// three "pick a value" fields (Purchase Invoice, Landed Cost Invoice, Landed
-// Expense) are all bespoke modal/DataTable pickers, not plain <select>s, and
-// that the form itself (110KB+) has no plain <button type="submit"> at all —
-// its actual save mechanism is JS-assembled in a way this pass couldn't
-// safely reverse-engineer without risking a guessed, unverified write path
-// (unlike Warehouses/Inventory earlier, which were fully verified live).
-// This only extracts real OPTION data for display/selection, honestly
-// leaving Landed Expense unwired rather than guessing its contract:
-//   - fk_user_author: a real, already-rendered <select> (just select2-
-//     enhanced) — extracted directly via querySelector.
-//   - landedcost_id: a real <select multiple> with the full real invoice
-//     list, present in the source but wrapped in an HTML comment (the
-//     modal-based checkedlanded widget replaces it visually) — invisible to
-//     DOMParser, so extracted via regex on the raw HTML text instead.
-//   - Purchase Invoice: no such commented fallback exists for this one —
-//     its real options come from the "Vendor Invoices" modal's own
-//     DataTable rows, which the initial page load already server-renders
-//     (page 1 only, ~10 of the real total — confirmed live "Showing 1 to 10
-//     of 17 entries" — later pages load via an AJAX call this pass didn't
-//     chase, so this is real but not necessarily the complete list).
-export interface LandedCostFormOptions {
-  users: Array<{ id: number; label: string }>
-  vendorInvoices: Array<{ id: number; ref: string; vendorName: string; date: string; amount: number }>
-  landedCostInvoices: Array<{ id: number; ref: string }>
-}
-
-export function parseLandedCostFormOptions(html: string): LandedCostFormOptions {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-
-  const users: LandedCostFormOptions['users'] = []
-  doc.querySelectorAll('#fk_user_author option').forEach((opt) => {
-    const id = Number(opt.getAttribute('value'))
-    const label = (opt.textContent ?? '').replace(/\s+/g, ' ').trim()
-    if (id > 0 && label) users.push({ id, label })
-  })
-
-  const vendorInvoices: LandedCostFormOptions['vendorInvoices'] = []
-  doc.querySelectorAll('#inv_detModal input.prus_id').forEach((checkbox) => {
-    const row = checkbox.closest('tr')
-    if (!row) return
-    const cells = row.querySelectorAll('td')
-    const invoiceLink = cells[1]?.querySelector('a[href*="facid="]')
-    const idMatch = invoiceLink?.getAttribute('href')?.match(/facid=(\d+)/)
-    if (!idMatch) return
-    // Vendor name: the tooltip anchor's own direct text nodes only — its
-    // avatar-circle child div has its own initials text that would
-    // otherwise get prepended (same pitfall as societeListParser.ts's
-    // parseCustName / orderCardParser.ts's third-party name extraction).
-    const vendorLink = cells[2]?.querySelector('a.refurl')
-    const vendorName = vendorLink
-      ? Array.from(vendorLink.childNodes)
-          .filter((n) => n.nodeType === Node.TEXT_NODE)
-          .map((n) => n.textContent ?? '')
-          .join('')
-          .trim()
-      : (cells[2]?.textContent ?? '').trim()
-    vendorInvoices.push({
-      id: Number(idMatch[1]),
-      ref: (invoiceLink?.textContent ?? '').trim(),
-      vendorName,
-      date: (cells[3]?.textContent ?? '').trim(),
-      amount: parseAmount(cells[4]?.textContent ?? ''),
-    })
-  })
-
-  const landedCostInvoices: LandedCostFormOptions['landedCostInvoices'] = []
-  const commentMatch = html.match(/<!--\s*<select name="landedcost_id"[\s\S]*?<\/select>\s*-->/)
-  if (commentMatch) {
-    for (const m of commentMatch[0].matchAll(/<option value="(\d+)">([^<]*)<\/option>/g)) {
-      landedCostInvoices.push({ id: Number(m[1]), ref: m[2].trim() })
-    }
-  }
-
-  return { users, vendorInvoices, landedCostInvoices }
-}
-
 // product/stock/card.php?id=X — a single real warehouse's own detail page.
 // Classic server-rendered Dolibarr page (no REST API under product/stock/,
 // confirmed — only ajax/ helpers for other features), so this scrapes it
@@ -288,7 +211,7 @@ export interface WarehouseCard {
   locationSummary: string
   environment: string
   parentWarehouseName: string
-  parentWarehouseUrl: string
+  parentWarehouseId: number | null
   description: string
   differentProductsCount: number
   totalProductsCount: number
@@ -329,7 +252,7 @@ export function parseWarehouseCardDocument(doc: Document, id: number): Warehouse
   // Warehouse" id=9, present as a real link to MAIN_BRANCH for "mtm" id=12).
   const parentWarehouseLink = afterLabel('Parent warehouse')?.querySelector('a')
   const parentWarehouseName = (parentWarehouseLink?.textContent ?? '').trim()
-  const parentWarehouseUrl = parentWarehouseLink?.getAttribute('href') ?? ''
+  const parentWarehouseId = Number(parentWarehouseLink?.getAttribute('href')?.match(/[?&]id=(\d+)/)?.[1]) || null
   const description = (afterLabel('Description')?.textContent ?? '').trim()
   const differentProductsCount = Number((afterLabel('Number of different products')?.textContent ?? '0').trim()) || 0
   const totalProductsCount = Number((afterLabel('Total number of products')?.textContent ?? '0').trim()) || 0
@@ -402,7 +325,7 @@ export function parseWarehouseCardDocument(doc: Document, id: number): Warehouse
     locationSummary,
     environment,
     parentWarehouseName,
-    parentWarehouseUrl,
+    parentWarehouseId,
     description,
     differentProductsCount,
     totalProductsCount,

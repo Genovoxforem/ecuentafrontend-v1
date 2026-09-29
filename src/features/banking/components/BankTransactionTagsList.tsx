@@ -3,6 +3,7 @@ import { Tags, Pencil, Trash2, Check, X, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { inputClasses } from '../../../shared/components/forms/FormField'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { useBankTransactionCategories, useAddBankTransactionCategory, useUpdateBankTransactionCategory, useDeleteBankTransactionCategory } from '../banking.queries'
 
 // compta/bank/categ.php — manages llx_bank_categ (bank *transaction* tags,
@@ -15,6 +16,7 @@ export function BankTransactionTagsList() {
   const addCategory = useAddBankTransactionCategory()
   const updateCategory = useUpdateBankTransactionCategory()
   const deleteCategory = useDeleteBankTransactionCategory()
+  const confirm = useConfirm()
 
   const [newLabel, setNewLabel] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -50,7 +52,7 @@ export function BankTransactionTagsList() {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm('Delete this tag? This cannot be undone.')) return
+    if (!(await confirm({ title: 'Delete Tag?', message: 'Are you sure you want to delete this tag?' }))) return
     setFormError(null)
     try {
       await deleteCategory.mutateAsync(id)

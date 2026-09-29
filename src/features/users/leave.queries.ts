@@ -1,23 +1,18 @@
-import { useQuery } from '@tanstack/react-query'
-import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
-import { useLogActivity } from '../agenda/agenda.queries'
-import { useAuth } from '../auth/AuthContext'
-import { formatDate } from '../../utils/format'
-import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { fetchLegacyDocument, fetchLegacyText, legacyMissingContentError, legacyRefusalMessages, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { toastMessages } from '../generalLedger/bindLines.queries'
 import { parseHolidayStats, parseHolidayRows, type HolidayStats, type HolidayRequestRow, type HolidayAjaxResponse } from './holidayParser'
 
 // Reused by the Payroll module (see modules/payroll/PayrollLeaveListModule.tsx
 // / PayrollLeaveRequestModule.tsx) rather than duplicated — this same data
 // backs both `/users-dashboard/hrm/leave/*` and `/payroll/leave-request` +
-// `/payroll/all-leave-request`. Confirmed real backend pages for the payroll
-// entry point: holiday/card.php (leftmenu=leave_rqst_obj, "New leave
-// request") and holiday/list.php (leftmenu=corehr_object, "Holiday
-// Management"). Leave *types* are real (below); leave *requests* stay
-// local-only like the rest of this module's session-tracked lists — see
-// useCreateLeaveRequest.
+// `/payroll/all-leave-request`. Real backend pages: holiday/card.php
+// (leftmenu=leave_rqst_obj, "New leave request") and holiday/list.php
+// (leftmenu=corehr_object, "Holiday Management").
 
 export interface LeaveType {
+  id: number
   code: string
   label: string
   balanceDays: number
@@ -37,6 +32,7 @@ export function useLeaveTypes() {
     queryFn: async (): Promise<LeaveType[]> => {
       const { data } = await api.get<LeaveTypesResponse>('/user/leave-types.php')
       return (data.types ?? []).map((t) => ({
+        id: t.id,
         code: t.code,
         label: t.label,
         balanceDays: Math.round(t.newByMonth * 12),
@@ -45,27 +41,6 @@ export function useLeaveTypes() {
     staleTime: 1000 * 60 * 10,
   })
 }
-
-export type LeaveStatus = 'Draft' | 'Validated' | 'Approved' | 'Cancelled'
-
-export interface LeaveRequest {
-  ref: string
-  employeeId: number
-  employeeName: string
-  validatorName: string
-  typeCode: string
-  typeLabel: string
-  startDate: string
-  endDate: string
-  days: number
-  description: string
-  createDate: string
-  updateDate: string
-  status: LeaveStatus
-}
-
-const KEY = ['local', 'leave-requests'] as const
-const SEED: LeaveRequest[] = []
 
 // ── Holiday Management (holiday/list.php) — real data ───────────────────
 // Real: the 5 stat cards render server-side into list.php's own initial
@@ -119,49 +94,102 @@ export function useHolidayRequests(input: HolidayListInput) {
   })
 }
 
+// ── New leave request (holiday/card.php?action=create) — real ───────────
+
+export interface LeaveFormOption {
+  value: string
+  label: string
+}
+
+export interface LeaveCreateForm {
+  employees: LeaveFormOption[]
+  types: LeaveFormOption[]
+  approvers: LeaveFormOption[]
+}
+
+// The legacy page's markup is malformed enough that, once parsed, the form's controls
+// are not descendants of <form name="demandeCP"> — so everything is looked up on
+// the document (each name is unique on this page), never scoped to the form.
+function readOptions(doc: Document, name: string): LeaveFormOption[] {
+  const select = doc.querySelector<HTMLSelectElement>(`select[name="${name}"]`)
+  return Array.from(select?.options ?? [])
+    .filter((o) => o.value.trim() !== '' && o.value !== '-1')
+    .map((o) => ({ value: o.value, label: (o.textContent ?? '').replace(/\s+/g, ' ').trim() }))
+}
+
+// The real form's own dropdowns: who a request can be made for, the leave
+// types (with the ids the backend expects) and who can approve — the approver
+// list is only the users with approval rights, not every user.
+export function useLeaveCreateForm() {
+  return useQuery({
+    queryKey: ['users', 'holiday', 'createForm'],
+    queryFn: async (): Promise<LeaveCreateForm> => {
+      const doc = await fetchLegacyDocument('/holiday/card.php', new URLSearchParams({ action: 'create' }))
+      if (!doc.querySelector('select[name="fuserid"]')) throw legacyMissingContentError(doc, 'The leave request form on this backend page was not recognised.')
+      return { employees: readOptions(doc, 'fuserid'), types: readOptions(doc, 'type'), approvers: readOptions(doc, 'valideur') }
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+export type LeaveDayPortion = 'fullday' | 'morning' | 'afternoon'
+
 export interface NewLeaveRequestInput {
-  employeeId: number
-  employeeName: string
-  validatorName: string
-  typeCode: string
-  startDate: string
-  endDate: string
+  employeeId: string
+  typeId: string
+  mode: 'single' | 'multi'
+  startDate: string // yyyy-mm-dd
+  startSession: LeaveDayPortion
+  endDate: string // yyyy-mm-dd, multi-day only
+  endSession: LeaveDayPortion
+  approverId: string
   description: string
 }
 
-function daysBetween(startIso: string, endIso: string) {
-  const start = new Date(startIso)
-  const end = new Date(endIso)
-  const diff = Math.round((end.getTime() - start.getTime()) / 86400000)
-  return Math.max(1, diff + 1)
-}
-
+// The same POST the real form's own submit sends (token, action=add, fuserid,
+// type, leave_mode, date_debut_/date_fin_ in yyyy-mm-dd, the two session
+// types, valideur, description). The token is scraped fresh off the create
+// page right before. A created request redirects to card.php?id=<new id>; a
+// refusal (duplicate dates, no balance, …) re-shows the form with the reason
+// in an inline toast, still HTTP 200 — so success is judged by the redirect.
 export function useCreateLeaveRequest() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
-  const { data: leaveTypes } = useLeaveTypes()
-  return (input: NewLeaveRequestInput) => {
-    const type = leaveTypes?.find((t) => t.code === input.typeCode)
-    const today = todayIso()
-    const row: LeaveRequest = {
-      ref: nextLocalRef('LEAVE'),
-      employeeId: input.employeeId,
-      employeeName: input.employeeName,
-      validatorName: input.validatorName,
-      typeCode: input.typeCode,
-      typeLabel: type?.label ?? input.typeCode,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      days: daysBetween(input.startDate, input.endDate),
-      description: input.description,
-      createDate: today,
-      updateDate: today,
-      status: 'Validated',
-    }
-    update((current) => [row, ...current])
-    const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: `Leave request ${row.ref} for ${row.employeeName} (${row.typeLabel}, ${formatDate(row.startDate)} – ${formatDate(row.endDate)})`, category: 'leave', authorName })
-    return row
-  }
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: NewLeaveRequestInput): Promise<string> => {
+      const createDoc = await fetchLegacyDocument('/holiday/card.php', new URLSearchParams({ action: 'create' }))
+      const token = createDoc.querySelector<HTMLInputElement>('input[name="token"]')?.value
+      if (!token) throw legacyMissingContentError(createDoc, 'Could not find a CSRF token on the leave request page.')
+
+      const body = new URLSearchParams({
+        token,
+        action: 'add',
+        fuserid: input.employeeId,
+        type: input.typeId,
+        leave_mode: input.mode,
+        date_debut_: input.startDate,
+        start_session_type: input.startSession,
+        date_fin_: input.mode === 'multi' ? input.endDate : '',
+        end_session_type: input.endSession,
+        valideur: input.approverId,
+        description: input.description,
+      })
+      const res = await fetch('/holiday/card.php', { method: 'POST', credentials: 'same-origin', body })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+
+      const landed = new URL(res.url)
+      const createdId = landed.searchParams.get('id')
+      if (createdId && /^\d+$/.test(createdId)) return createdId
+      const refusal = toastMessages(html).find((t) => t.type === 'error')?.message ?? legacyRefusalMessages(html)[0]
+      if (refusal) throw new Error(refusal)
+      // No reason given: a redirect away from the form (to the list, say) still
+      // means it was created; being handed the form back means it was not.
+      if (!landed.pathname.endsWith('/holiday/card.php')) return ''
+      throw new Error('The backend did not create the leave request.')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', 'holiday'] })
+    },
+  })
 }

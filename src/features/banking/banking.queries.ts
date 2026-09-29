@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { parseLegacyJson, fetchLegacyText, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { parseLegacyJson, fetchLegacyText, fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { parseBankAccountsList, type BankAccountListRow } from './bankAccountsListParser'
 import { parseBankAccountFormPage, type BankAccountFormContext } from './bankAccountFormParser'
 import {
   parseBankEntryDetailPage,
@@ -103,6 +104,20 @@ export function useBankAccountsList() {
         balance: Number(r.totbank ?? 0),
       }))
     },
+    staleTime: 1000 * 30,
+  })
+}
+
+// compta/bank/list.php — the real Bank Management Details table, server-rendered with every
+// column (type, accounting account, journal, entries to reconcile, status, balance). The page only
+// lists open accounts unless asked (`search_status=closed|all`) and stops at `limit`.
+export type BankAccountStatusFilter = 'opened' | 'closed' | 'all'
+
+export function useBankAccountsDetailedList(status: BankAccountStatusFilter) {
+  return useQuery({
+    queryKey: ['banking', 'accounts', 'detailed', status],
+    queryFn: async (): Promise<BankAccountListRow[]> =>
+      parseBankAccountsList(await fetchLegacyDocument('/compta/bank/list.php', new URLSearchParams({ search_status: status, limit: '1000' }))),
     staleTime: 1000 * 30,
   })
 }

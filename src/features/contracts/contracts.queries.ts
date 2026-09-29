@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { useLocalCollection, nextLocalRef } from '../../shared/localCollection'
-import { useLogActivity } from '../agenda/agenda.queries'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 import { parseContractListRow, type RawContractListRow, type ContractListRow } from './contractListParser'
+import { parseContractListStats, parseContractServiceRows } from './contractPagesParser'
 
 export type ContractRow = ContractListRow
 
@@ -24,9 +24,9 @@ interface ContractListAjaxResponse {
 
 // contrat/list_ajax.php — real, confirmed by reading that file directly
 // (Contrat/Societe getNomUrl() HTML cells, real per-contract status-badge
-// counts). No separate summary endpoint exists, so the four stat cards are
-// computed client-side from this same row list, matching this codebase's
-// established convention elsewhere (Customers/Sales Orders/etc).
+// counts). The eight stat-card values come from contrat/list.php's own
+// server-rendered cards (see contractPagesParser.ts) — the row list alone can't
+// say what started, expired or was followed up this month.
 //
 // columns[0][data]=ref is required on every request — see
 // contractListParser.ts's header comment for the real backend bug this
@@ -45,29 +45,13 @@ export function useContractsSummary() {
         'order[0][column]': '0',
         'order[0][dir]': 'desc',
       })
-      const res = await fetch('/contrat/list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
+      const [res, statsDoc] = await Promise.all([
+        fetch('/contrat/list_ajax.php', { method: 'POST', credentials: 'same-origin', body }),
+        fetchLegacyDocument('/contrat/list.php'),
+      ])
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const json: ContractListAjaxResponse = await res.json()
-      const contracts = json.data.map(parseContractListRow)
-
-      const now = new Date()
-      const isThisMonth = (dateStr: string) => {
-        const m = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-        if (!m) return false
-        return Number(m[1]) - 1 === now.getMonth() && Number(m[3]) === now.getFullYear()
-      }
-
-      return {
-        totalContracts: json.recordsTotal,
-        createdThisMonth: contracts.filter((c) => isThisMonth(c.contractDate)).length,
-        runningTotal: contracts.reduce((sum, c) => sum + c.inProgress, 0),
-        startedThisMonth: 0,
-        expiredCount: contracts.reduce((sum, c) => sum + c.expired, 0),
-        expiredThisMonth: 0,
-        closedCount: contracts.reduce((sum, c) => sum + c.closed, 0),
-        followupsThisMonth: 0,
-        contracts,
-      }
+      return { ...parseContractListStats(statsDoc), contracts: json.data.map(parseContractListRow) }
     },
     staleTime: 1000 * 30,
   })
@@ -115,8 +99,7 @@ interface ContractCreateResponse {
 // would submit them. `lines` is a JSON-encoded string in one form field,
 // decoded server-side with json_decode(), not a nested array of fields.
 export function useCreateContract() {
-  const logActivity = useLogActivity()
-  return async (input: NewContractInput, authorName: string) => {
+  return async (input: NewContractInput) => {
     const [year, month, day] = input.contractDate.split('-')
     const body = new URLSearchParams()
     body.set('action', 'create')
@@ -152,49 +135,17 @@ export function useCreateContract() {
     const data: ContractCreateResponse = await res.json()
     if (!data.success) throw new Error(data.message || 'Failed to create contract')
 
-    logActivity({ label: `New contract ${data.data?.ref ?? ''} created`, category: 'contracts', authorName })
     return data.data
   }
 }
 
-// Individual service lines within a contract — same local-only convention
-// as contracts themselves (no backend endpoint), kept as a separate
-// collection since ContractRow has no line-item concept of its own.
-export interface ContractServiceRow {
-  ref: string
-  contractRef: string
-  service: string
-  thirdParty: string
-  plannedStart: string
-  realStart: string
-  plannedEnd: string
-  realEnd: string
-  status: 'Planned' | 'Running' | 'Closed'
-}
-
-const SERVICES_KEY = ['local', 'contractServices'] as const
-
+// Service lines across all contracts — contrat/services_list.php, a read-only
+// list (services are added on a contract's own card, not here). The real page
+// pages its rows, so ask for a large page.
 export function useContractServices() {
-  const [services] = useLocalCollection<ContractServiceRow[]>(SERVICES_KEY, [])
-  return services
-}
-
-export interface NewContractServiceInput {
-  contractRef: string
-  service: string
-  thirdParty: string
-  plannedStart: string
-  realStart: string
-  plannedEnd: string
-  realEnd: string
-  status: ContractServiceRow['status']
-}
-
-export function useCreateContractService() {
-  const [, update] = useLocalCollection<ContractServiceRow[]>(SERVICES_KEY, [])
-  return (input: NewContractServiceInput) => {
-    const row: ContractServiceRow = { ref: nextLocalRef('(SVC)'), ...input }
-    update((cur) => [row, ...cur])
-    return row
-  }
+  return useQuery({
+    queryKey: ['contracts', 'services'],
+    queryFn: async () => parseContractServiceRows(await fetchLegacyDocument('/contrat/services_list.php', new URLSearchParams({ limit: '1000' }))),
+    staleTime: 1000 * 30,
+  })
 }

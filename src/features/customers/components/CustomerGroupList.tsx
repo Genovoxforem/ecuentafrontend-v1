@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Layers, Plus, Search, Pencil, Trash2, Tag } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -43,6 +44,7 @@ function matchesSearch(group: CustomerGroupRow, query: string) {
 export function CustomerGroupList() {
   const { data, isLoading } = useCustomerGroupsSummary()
   const deleteGroup = useDeleteCustomerGroup()
+  const confirm = useConfirm()
 
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
@@ -62,8 +64,15 @@ export function CustomerGroupList() {
     setPage(1)
   }
 
-  function handleDelete(group: CustomerGroupRow) {
-    const confirmed = window.confirm(`Delete customer group "${group.label}"? This can't be undone.`)
+  async function handleDelete(group: CustomerGroupRow) {
+    const confirmed = await confirm({
+      title: 'Delete Customer Group?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{group.label}</strong>?
+        </>
+      ),
+    })
     if (!confirmed) return
     deleteGroup.mutate(group.id)
   }

@@ -1,22 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { parseLegacyStats } from '../salesOrders/legacyStatsParser'
 import type { MonthlyStats } from '../salesOrders/orderStats.queries'
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
-
-// GET /api/purchase-orders/stats/ (api/purchase-orders/stats/index.php) —
-// real, mirrors api/orders/stats/ against llx_commande_fournisseur (see
-// that endpoint's header comment).
+// commande/stats/index.php?mode=supplier — the classic purchase order
+// statistics page (same page as the customer orders one, in supplier mode),
+// read through the shared legacyStatsParser.ts. Replaces GET
+// /api/purchase-orders/stats/, which does not exist on the backend (404).
 export function usePurchaseOrderStats(year: number) {
   return useQuery({
     queryKey: ['purchase-orders', 'stats', year],
-    queryFn: async (): Promise<MonthlyStats> => {
-      const { data } = await api.get<WebEnvelope<MonthlyStats>>('/purchase-orders/stats/', { params: { year } })
-      return data.data
-    },
+    queryFn: async (): Promise<MonthlyStats> =>
+      parseLegacyStats(await fetchLegacyDocument('/commande/stats/index.php', new URLSearchParams({ mode: 'supplier', year: String(year) })), year),
     placeholderData: (prev) => prev,
   })
 }

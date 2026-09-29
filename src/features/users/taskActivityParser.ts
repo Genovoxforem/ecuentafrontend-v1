@@ -1,7 +1,6 @@
 // Parses compta/resultat/task_activity.php (the real "Task / Activities
 // Details" report) — no REST API exists for Dolibarr's agenda/actioncomm
-// records on this backend (same gap agenda.queries.ts's own useRecentActivity
-// documents). Verified live against the real dev backend: a GET returns the
+// records on this backend. Verified live against the real dev backend: a GET returns the
 // filter form (a fresh CSRF token + the "Customer Details" <select> this
 // report's own combo uses — every third party regardless of customer/
 // prospect/supplier type, unlike useCustomersSummary's customer-only list),

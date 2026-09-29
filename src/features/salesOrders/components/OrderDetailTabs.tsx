@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -556,6 +557,7 @@ function DocumentsTab({ id }: { id: string | undefined }) {
   const { data: meta, isLoading: metaLoading, isError: metaIsError, error: metaError, refetch: refetchMeta } = useOrderDocumentsPageMeta(id)
   const uploadDoc = useUploadOrderDocument(id)
   const linkDoc = useLinkOrderDocument(id)
+  const confirm = useConfirm()
 
   const [file, setFile] = useState<File | null>(null)
   const [useMask, setUseMask] = useState(true)
@@ -671,7 +673,7 @@ function DocumentsTab({ id }: { id: string | undefined }) {
                           <Eye size={14} />
                         </a>
                         {doc.deleteUrl && (
-                          <button type="button" title="Delete" onClick={() => deleteOrderDocument(doc.deleteUrl, doc.name, refetch)} className="text-text-faint hover:text-danger">
+                          <button type="button" title="Delete" onClick={() => deleteOrderDocument(doc.deleteUrl, doc.name, refetch, confirm)} className="text-text-faint hover:text-danger">
                             <Trash2 size={14} />
                           </button>
                         )}

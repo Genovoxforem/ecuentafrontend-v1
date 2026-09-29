@@ -16,8 +16,6 @@ import { useVendorOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
-import { useLogActivity } from '../../agenda/agenda.queries'
-import { useAuth } from '../../auth/AuthContext'
 import { parseOrderDictionaries, looksLikeLegacyLoginPage } from '../../salesOrders/orderFormOptionsParser'
 
 // This entire form talks to a real, complete JSON API —
@@ -270,8 +268,6 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
   const [formError, setFormError] = useState('')
   const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null)
 
-  const { user } = useAuth()
-  const logActivity = useLogActivity()
   const listLink = backTo ?? ROUTES.purchaseOrderList
   const { data: vendors, isLoading: vendorsLoading } = useVendorOptions()
   const { data: fixedVendor } = useCustomerDetail(fixedCustomerId)
@@ -447,10 +443,7 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
       }
       return data.data as CreatedOrder
     },
-    onSuccess: (order, validate) => {
-      const vendorName = vendors?.find((v) => v.id === vendorId)?.name ?? 'a vendor'
-      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `${validate ? 'New' : 'Draft'} purchase order ${order.ref} for ${vendorName}`, category: 'purchase', authorName })
+    onSuccess: (order) => {
       setCreatedOrder(order)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create purchase order'),

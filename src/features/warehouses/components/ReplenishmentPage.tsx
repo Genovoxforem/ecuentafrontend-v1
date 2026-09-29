@@ -3,6 +3,7 @@ import { PackageSearch, Search, Filter, LoaderCircle, AlertTriangle, CheckCircle
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { useVendorsSummary } from '../../vendors/vendors.queries'
 import {
@@ -68,6 +69,7 @@ function MissingStocksTab({ onViewOrdersFor }: { onViewOrdersFor: (productId: nu
   const { data, isLoading, isError, error } = useMissingStocks({ mode, fkSupplier })
   const vendors = useVendorsSummary()
   const createOrders = useCreateReplenishmentOrders()
+  const confirm = useConfirm()
 
   const rows = useMemo(() => data?.rows ?? [], [data])
   const filtered = useMemo(() => {
@@ -104,9 +106,15 @@ function MissingStocksTab({ onViewOrdersFor }: { onViewOrdersFor: (productId: nu
     setPage(1)
   }
 
-  function handleCreateOrders() {
+  async function handleCreateOrders() {
     if (!data || selectedLines.length === 0) return
-    if (!window.confirm(`Create purchase order(s) for ${selectedLines.length} selected product(s)?`)) return
+    const ok = await confirm({
+      title: 'Create Purchase Orders?',
+      message: `Create purchase order(s) for ${selectedLines.length} selected product(s)?`,
+      variant: 'default',
+      confirmLabel: 'Create',
+    })
+    if (!ok) return
     createOrders.mutate(
       { token: data.token, lines: selectedLines.map((l) => ({ productId: l.row.productId, vendorPriceId: l.state.vendorPriceId, qty: l.state.qty })) },
       { onSuccess: () => setRowState(new Map()) },

@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LayoutDashboard, Receipt, Clock, CheckCheck, ListChecks, Plus, RefreshCw, Trash2, X, Loader2 } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { todayIso } from '../../../shared/localCollection'
+import { ChartLine, CheckCheck, Clock, Inbox, ListChecks, Loader2, Plus, Receipt, RefreshCw, Ticket, Trash2, X } from 'lucide-react'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import {
   useKitchenDashboardStats,
   useKitchenDashboardTokens,
@@ -12,83 +11,125 @@ import {
   type KitchenDashboardStatusFilter,
 } from '../kitchenDashboard.queries'
 
-function StatCard({ label, caption, value, icon: Icon, color }: { label: string; caption: string; value: number; icon: typeof Receipt; color: string }) {
+function StatCard({ label, caption, value, icon: Icon }: { label: string; caption: string; value: number; icon: typeof Receipt }) {
   return (
-    <Card className="!h-auto flex items-center gap-3">
-      <span className={`shrink-0 w-11 h-11 rounded-lg grid place-items-center ${color}`}>
-        <Icon size={20} />
+    <div className="relative rounded-lg border border-border bg-surface-alt px-3.5 py-2.5">
+      <p className="text-xs font-bold uppercase tracking-wide text-text-muted">{label}</p>
+      <p className="text-2xl font-semibold leading-tight text-brand">{value}</p>
+      <p className="text-sm font-medium text-text!">{caption}</p>
+      <span className="absolute right-2.5 top-2.5 grid h-9 w-9 place-items-center rounded-md border border-border bg-surface text-text-muted shadow-sm">
+        <Icon size={17} />
       </span>
-      <div>
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold text-text!">{value}</p>
-        <p className="text-xs text-text-faint">{caption}</p>
-      </div>
-    </Card>
+    </div>
   )
 }
 
+// The KOT status of a line, coloured as on the backend page.
+const KOT_BADGE: Record<string, string> = {
+  Pending: 'bg-neutral-bg text-neutral-fg',
+  Preparing: 'bg-info-bg text-info-fg',
+  'Ready To Serve': 'bg-brand/15 text-brand',
+  Served: 'bg-success-bg text-success-fg',
+}
+
+// Today in the user's own calendar (toISOString() would give the UTC date, which is
+// yesterday for the first hours of a day in Zambia).
+const localToday = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const orderDate = (s: string) => {
+  const d = new Date(`${s}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString()
+}
+
 function OrderDetailsModal({ orderId, onClose }: { orderId: number; onClose: () => void }) {
-  const { data, isLoading } = useKitchenOrderDetails(orderId)
+  const { data, isLoading, isError } = useKitchenOrderDetails(orderId)
+  const order = data?.order
+  const completed = Number(order?.ordercomplete) === 1
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[80vh] overflow-auto rounded-xl border border-border bg-surface shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="font-semibold text-text!">Order Details</h3>
-          <button type="button" onClick={onClose} className="text-text-faint hover:text-text!">
+      <div className="w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl border border-border bg-surface shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h3 className="text-lg font-semibold text-text!">Invoice Details</h3>
+          <button type="button" onClick={onClose} className="text-text-faint hover:text-text!" aria-label="Close">
             <X size={18} />
           </button>
         </div>
-        <div className="p-4">
+        <div className="p-5">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8 text-text-faint gap-2">
-              <Loader2 size={16} className="animate-spin" /> Loading…
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-text-faint">
+              <Loader2 size={22} className="animate-spin" />
+              <p className="text-sm">Loading invoice details…</p>
             </div>
-          ) : !data?.order ? (
+          ) : isError ? (
+            <p className="rounded-lg border border-danger/40 bg-danger-bg/50 px-3 py-2 text-sm text-danger">Error loading invoice details</p>
+          ) : !order ? (
             <p className="text-sm text-text-faint italic">Order not found.</p>
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2 text-sm mb-4">
-                <p className="text-text-muted">Ref</p>
-                <p className="text-text! font-medium">{data.order.ref}</p>
-                <p className="text-text-muted">Token</p>
-                <p className="text-text!">{data.order.tokenno || '—'}</p>
-                <p className="text-text-muted">Customer</p>
-                <p className="text-text!">{data.order.customer_name || '—'}</p>
-                <p className="text-text-muted">Total (Incl. Tax)</p>
-                <p className="text-text! font-semibold">{Number(data.order.total_ttc).toFixed(2)} ZMW</p>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-text!">Order Information</h4>
+                <dl className="space-y-1.5 text-sm">
+                  {(
+                    [
+                      ['Reference', order.ref],
+                      ['Token', order.tokenno || 'N/A'],
+                      ['Customer', order.customer_name || 'N/A'],
+                      ['Date', orderDate(order.datef)],
+                    ] as const
+                  ).map(([k, v]) => (
+                    <div key={k} className="flex gap-2">
+                      <dt className="font-semibold text-text!">{k}:</dt>
+                      <dd className="text-text-muted">{v}</dd>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <dt className="font-semibold text-text!">Status:</dt>
+                    <dd>
+                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${completed ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'}`}>
+                        {completed ? 'Completed Order' : 'Active Order'}
+                      </span>
+                    </dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="font-semibold text-text!">Total:</dt>
+                    <dd className="text-text-muted tabular-nums">{Number(order.total_ttc).toFixed(2)}</dd>
+                  </div>
+                </dl>
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                    <th className="py-2 pr-3">Item</th>
-                    <th className="py-2 px-3 text-right">Qty</th>
-                    <th className="py-2 px-3 text-right">Total</th>
-                    <th className="py-2 pl-3">KOT Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-4 text-text-faint italic">
-                        No items.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.items.map((i) => (
-                      <tr key={i.id} className="border-b border-border last:border-0">
-                        <td className="py-2 pr-3 text-text!">{i.productLabel || i.description}</td>
-                        <td className="py-2 px-3 text-right text-text-muted tabular-nums">{i.qty}</td>
-                        <td className="py-2 px-3 text-right text-text! tabular-nums">{i.totalTtc.toFixed(2)}</td>
-                        <td className="py-2 pl-3">
-                          <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-neutral-bg text-neutral-fg">{i.kotstatus || 'Pending'}</span>
-                        </td>
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-text!">Order Items</h4>
+                {data.items.length === 0 ? (
+                  <p className="text-sm text-text-faint">No items found</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs font-semibold text-text!">
+                        <th className="py-1.5 pr-2">Item</th>
+                        <th className="py-1.5 px-2">Qty</th>
+                        <th className="py-1.5 px-2 text-right">Price</th>
+                        <th className="py-1.5 pl-2">KOT Status</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </>
+                    </thead>
+                    <tbody>
+                      {data.items.map((i) => (
+                        <tr key={i.id} className="border-b border-border last:border-0">
+                          <td className="py-1.5 pr-2 text-text!">{i.productLabel || i.description}</td>
+                          <td className="py-1.5 px-2 text-text-muted tabular-nums">{i.qty}</td>
+                          <td className="py-1.5 px-2 text-right text-text-muted tabular-nums">{i.totalTtc.toFixed(2)}</td>
+                          <td className="py-1.5 pl-2">
+                            <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${KOT_BADGE[i.kotstatus || 'Pending'] ?? KOT_BADGE.Pending}`}>{i.kotstatus || 'Pending'}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -96,12 +137,12 @@ function OrderDetailsModal({ orderId, onClose }: { orderId: number; onClose: () 
   )
 }
 
-// Real via kitchen/dashboard.php + kitchen/dashboard_ajax.php — a genuinely
-// different real page from kitchen/ordermanagement.php (KitchenOrdersList,
-// routed separately at kitchenOrderManagement). See
-// kitchenDashboard.queries.ts for the full endpoint-by-endpoint evidence.
+// kitchen/dashboard.php — the real Kitchen Dashboard: today's (or the chosen
+// day's) order counts and the order "tokens" per status, read from
+// kitchen/dashboard_ajax.php (see kitchenDashboard.queries.ts). Clicking a
+// token opens its invoice; a draft order can be deleted.
 export function KitchenDashboardPage() {
-  const [date, setDate] = useState(todayIso())
+  const [date, setDate] = useState(localToday())
   const [status, setStatus] = useState<KitchenDashboardStatusFilter>('all')
   const [viewOrderId, setViewOrderId] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState('')
@@ -109,17 +150,29 @@ export function KitchenDashboardPage() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats, isFetching: statsFetching } = useKitchenDashboardStats(date)
   const { data: tokens, isLoading: tokensLoading, refetch: refetchTokens } = useKitchenDashboardTokens(status, date)
   const deleteOrder = useDeleteDraftOrder()
+  const confirm = useConfirm()
 
   function handleRefresh() {
     refetchStats()
     refetchTokens()
   }
 
-  function handleDelete(id: number, ref: string) {
-    if (!window.confirm(`Delete draft order ${ref}? This can't be undone.`)) return
+  async function handleDelete(id: number, ref: string) {
+    const ok = await confirm({
+      title: 'Delete Draft Order?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{ref}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     setDeleteError('')
     deleteOrder.mutate(id, { onError: (err) => setDeleteError(err instanceof Error ? err.message : 'Could not delete this order.') })
   }
+
+  // The counts are for the chosen day, so the caption says which day.
+  const dayCaption = date === localToday() ? "Today's orders" : `Orders on ${orderDate(date)}`
 
   const tabs: { key: KitchenDashboardStatusFilter; label: string; count: number }[] = [
     { key: 'all', label: 'All', count: stats?.statusCounts.all ?? 0 },
@@ -128,66 +181,92 @@ export function KitchenDashboardPage() {
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <LayoutDashboard size={20} className="text-brand" /> Kitchen Dashboard
+        <h2 className="flex items-center gap-2 text-2xl font-semibold text-text!">
+          <ChartLine size={24} className="text-text-muted" /> Kitchen Dashboard
         </h2>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30" />
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={statsFetching}
-            className="h-9 px-3 rounded-md border border-input-border bg-input-bg text-text-muted text-sm font-medium hover:bg-surface-hover disabled:opacity-50 flex items-center gap-1.5"
-          >
-            <RefreshCw size={14} className={statsFetching ? 'animate-spin' : ''} /> Refresh
-          </button>
-          <Link to={ROUTES.kitchenOrderManagement} className="h-9 px-3 rounded-md border border-input-border bg-input-bg text-text-muted text-sm font-medium hover:bg-surface-hover flex items-center gap-1.5">
-            <ListChecks size={14} /> Order Management
+          <Link to={ROUTES.kitchenOrderManagement} className="flex h-10 items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 text-sm font-medium text-text! shadow-sm hover:bg-surface-hover">
+            <ListChecks size={15} /> Order Management
           </Link>
-          <Link to={ROUTES.kitchenCreateOrder} className="h-9 px-3 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-hover flex items-center gap-1.5">
-            <Plus size={14} /> New Order
+          <Link to={ROUTES.kitchenCreateOrder} className="flex h-10 items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 text-sm font-medium text-text! shadow-sm hover:bg-surface-hover">
+            <Plus size={15} /> New Order
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total Orders" caption="Today's orders" value={statsLoading ? 0 : stats?.totalOrders ?? 0} icon={Receipt} color="bg-violet-500/15 text-violet-600" />
-        <StatCard label="Active Orders" caption="Orders in progress" value={statsLoading ? 0 : stats?.active ?? 0} icon={Clock} color="bg-danger-bg text-danger-fg" />
-        <StatCard label="Completed Orders" caption="Finished orders" value={statsLoading ? 0 : stats?.completed ?? 0} icon={CheckCheck} color="bg-success-bg text-success-fg" />
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <StatCard label="Total Orders" caption={dayCaption} value={statsLoading ? 0 : stats?.totalOrders ?? 0} icon={Receipt} />
+        <StatCard label="Active Orders" caption="Orders in progress" value={statsLoading ? 0 : stats?.active ?? 0} icon={Clock} />
+        <StatCard label="Completed Orders" caption="Finished orders" value={statsLoading ? 0 : stats?.completed ?? 0} icon={CheckCheck} />
       </div>
 
-      <Card className="!h-auto">
-        <div className="flex flex-wrap gap-2 border-b border-border pb-3 mb-4">
-          {tabs.map((t) => (
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
+        <h3 className="flex items-center gap-2 text-xl font-semibold text-text!">
+          <Ticket size={22} className="text-text-muted" /> Token Status Overview
+        </h3>
+        <label className="flex flex-col items-end gap-1 text-sm font-medium text-text!">
+          Select Date:
+          <span className="flex">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => e.target.value && setDate(e.target.value)}
+              className="h-9 w-56 rounded-l-md border border-input-border bg-input-bg px-3 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30 sm:w-80"
+            />
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={statsFetching}
+              className="flex h-9 items-center gap-1.5 rounded-r-md bg-brand px-3.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            >
+              <RefreshCw size={14} className={statsFetching ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </span>
+        </label>
+      </div>
+
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-border">
+        {tabs.map((t) => {
+          const active = status === t.key
+          return (
             <button
               key={t.key}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setStatus(t.key)}
-              className={`px-3.5 py-2 rounded-md text-sm font-medium ${status === t.key ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted hover:bg-surface-hover'}`}
+              className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold uppercase ${active ? 'border-brand text-brand' : 'border-transparent text-text! hover:text-brand'}`}
             >
               {t.label} ({t.count})
             </button>
-          ))}
+          )
+        })}
+      </div>
+
+      {deleteError && <p className="text-sm text-danger-fg">{deleteError}</p>}
+
+      {tokensLoading ? (
+        <div className="flex items-center justify-center gap-2 py-14 text-text-faint">
+          <Loader2 size={22} className="animate-spin" />
         </div>
-
-        {deleteError && <p className="text-sm text-danger-fg mb-3">{deleteError}</p>}
-
-        {tokensLoading ? (
-          <div className="flex items-center justify-center py-12 text-text-faint gap-2">
-            <Loader2 size={16} className="animate-spin" /> Loading orders…
-          </div>
-        ) : !tokens || tokens.length === 0 ? (
-          <p className="text-center py-12 text-text-faint italic">No orders found for this status</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {tokens.map((t) => (
-              <div
-                key={t.id}
-                onClick={() => setViewOrderId(t.id)}
-                className="relative cursor-pointer rounded-lg border border-border bg-surface-alt p-3 hover:border-brand hover:shadow-sm transition-shadow"
-              >
+      ) : !tokens || tokens.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-14 text-text-faint">
+          <Inbox size={52} className="opacity-40" />
+          <p className="text-sm">No orders found for this status</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {tokens.map((t) => (
+            <div key={t.id} onClick={() => setViewOrderId(t.id)} className="cursor-pointer overflow-hidden rounded-lg border border-border bg-surface-alt transition-shadow hover:border-brand hover:shadow-sm">
+              <div className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5">
+                <div>
+                  <h5 className="text-lg font-bold text-text!">#{t.tokenNo}</h5>
+                  <p className="flex items-center gap-1 text-xs text-text-muted">
+                    <Clock size={11} /> {t.timeElapsed}
+                  </p>
+                </div>
                 {t.isDraft && (
                   <button
                     type="button"
@@ -196,39 +275,34 @@ export function KitchenDashboardPage() {
                       handleDelete(t.id, t.ref)
                     }}
                     title="Delete draft order"
-                    className="absolute top-2 right-2 p-1 rounded-md text-text-faint hover:bg-danger-bg hover:text-danger-fg"
+                    className="grid h-8 w-8 place-items-center rounded-md bg-danger text-white hover:opacity-90"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                   </button>
                 )}
-                <p className="text-xl font-bold text-text!">#{t.tokenNo}</p>
-                <div className="text-xs text-text-muted mt-1 space-y-0.5">
-                  <p>
-                    <span className="font-medium text-text-faint">Ref:</span> {t.ref}
-                  </p>
-                  <p>
-                    <span className="font-medium text-text-faint">Table:</span> {t.table || 'N/A'}
-                  </p>
-                  <p>
-                    <span className={`inline-block mt-0.5 px-2 py-0.5 rounded text-[11px] font-medium ${t.completed ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'}`}>
-                      {t.completed ? 'Completed Order' : 'Active Order'}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-medium text-text-faint">Items:</span> {t.totalItems}
-                  </p>
-                  <p>
-                    <span className="font-medium text-text-faint">Amount:</span> {t.amount}
-                  </p>
-                </div>
-                <p className="text-[11px] text-text-faint mt-2 flex items-center gap-1">
-                  <Clock size={11} /> {t.timeElapsed}
-                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              <ul className="divide-y divide-border text-sm">
+                <li className="flex items-center justify-between gap-2 px-3.5 py-2">
+                  <strong className="text-text!">Ref:</strong> <span className="text-text-muted">{t.ref}</span>
+                </li>
+                <li className="flex items-center justify-between gap-2 px-3.5 py-2">
+                  <strong className="text-text!">Table:</strong> <span className="text-text-muted">{t.table || 'N/A'}</span>
+                </li>
+                <li className="flex items-center justify-between gap-2 px-3.5 py-2">
+                  <strong className="text-text!">Order Status:</strong>
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${t.completed ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'}`}>{t.completed ? 'Completed Order' : 'Active Order'}</span>
+                </li>
+                <li className="flex items-center justify-between gap-2 px-3.5 py-2">
+                  <strong className="text-text!">Items:</strong> <span className="text-text-muted">{t.totalItems}</span>
+                </li>
+                <li className="flex items-center justify-between gap-2 px-3.5 py-2">
+                  <strong className="text-text!">Amount:</strong> <span className="text-text-muted tabular-nums">{t.amount}</span>
+                </li>
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
 
       {viewOrderId != null && <OrderDetailsModal orderId={viewOrderId} onClose={() => setViewOrderId(null)} />}
     </div>

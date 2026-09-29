@@ -48,8 +48,6 @@ import { StickyFormShell } from '../layout/StickyFormShell'
 import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
 import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
 import axios from 'axios'
-import { useLogActivity } from '../../../features/agenda/agenda.queries'
-import { useAuth } from '../../../features/auth/AuthContext'
 import { useThirdPartyFormOptions, useStatesByCountry, fetchSocieteFormContext } from '../../../features/customers/thirdPartyOptions.queries'
 import { ROUTES } from '../../../routes'
 
@@ -392,8 +390,6 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const [formError, setFormError] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
 
   const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
 
@@ -496,8 +492,6 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [variant === 'vendor' ? 'vendors' : 'customers', 'summary'] })
-      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `New ${variant} added: ${values.name.trim()}`, category: 'thirdparty', authorName })
       // Land on the real detail page (native rebuild of societe/card.php)
       // instead of the list — matches what the legacy wizard itself does on
       // create. Falls back to cancelPath only if the response somehow

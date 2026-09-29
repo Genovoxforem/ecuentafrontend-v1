@@ -1,17 +1,17 @@
 import { Percent } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
 import { ROUTES } from '../../../../routes'
+import { LegacyListPage } from '../LegacyListPage'
 
-// compta/tva/list.php — classic Dolibarr list of VAT payments, no JSON.
+// compta/tva/list.php — the real list of sales tax (VAT) payments.
 export function SalesTaxList() {
   return (
-    <InertListPage
+    <LegacyListPage
       icon={Percent}
-      title="Sales Tax"
-      sourcePath="compta/tva/list.php"
-      columns={['Ref', 'Label', 'Period End Date', 'Date Payment', 'Type', 'Number', 'Bank Transaction', 'Account', 'Paid']}
-      addLabel="New Sales Tax"
-      addPath={ROUTES.ledgerSalesTaxCreate}
+      title="Sales Tax Payments"
+      path="/compta/tva/list.php"
+      firstHeader={/^Ref/}
+      addTo={{ label: 'New Sales Tax', to: ROUTES.ledgerSalesTaxCreate }}
+      searchable
     />
   )
 }

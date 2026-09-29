@@ -1,43 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Receipt } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { CalendarDays, CheckCheck } from 'lucide-react'
+import { StickyListLayout, ScrollCard, STICKY_THEAD } from '../../../shared/components/layout/StickyListLayout'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
-import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useExpenseReportsList, type ExpenseListFilters, type ExpenseReportRow } from '../expenses.queries'
+import { useExpenseReportsList, type ExpenseListFilters } from '../expenses.queries'
+import { parseParty } from '../expensePagesParser'
+import { controlCls } from '../expenseTable'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { PaidBadge, PartyHtml, PerPageSelect, SearchBox, SortTh, StatusBadge } from './expenseParts'
 import { ROUTES } from '../../../routes'
-
-const PAGE_SIZE = 20
-
-type SortKey = 'ref' | 'user' | 'linkedTo' | 'dateStart' | 'totalHt' | 'totalTtc' | 'status' | 'paid'
-
-// Server-paginated (expense/ajax/expense_list.php) — sorting applies within
-// the loaded page only, same caveat as this app's other server-paginated
-// lists (ContactListPage.tsx).
-function sortValue(r: ExpenseReportRow, key: SortKey): string | number {
-  switch (key) {
-    case 'ref':
-      return r.ref
-    case 'user':
-      return r.user
-    case 'linkedTo':
-      return r.linkedTo
-    case 'dateStart':
-      return r.dateStart
-    case 'totalHt':
-      return r.totalHt
-    case 'totalTtc':
-      return r.totalTtc
-    case 'status':
-      return r.status
-    case 'paid':
-      return r.paid ? 1 : 0
-  }
-}
-const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
-const selectCls = inputCls + ' appearance-none'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -49,121 +21,162 @@ const STATUS_OPTIONS = [
   { value: '99', label: 'Refused' },
 ]
 
-const STATUS_BADGE_CLS: Record<string, string> = {
-  Draft: 'bg-neutral-bg text-neutral-fg',
-  Submitted: 'bg-info-bg text-info-fg',
-  Approved: 'bg-success-bg text-success-fg',
-  Paid: 'bg-brand/10 text-brand',
-  Cancelled: 'bg-warning-bg text-warning-fg',
-  Refused: 'bg-danger-bg text-danger-fg',
+// The columns the endpoint can sort by (its `columns[].data` names). Linked To, Paid and Notes are not
+// sortable on the backend's own table either.
+const COLUMNS: { key: string; label: string; sort?: string; align?: 'right' }[] = [
+  { key: 'ref', label: 'Ref', sort: 'ref' },
+  { key: 'linked', label: 'Linked To' },
+  { key: 'user', label: 'User', sort: 'user' },
+  { key: 'start', label: 'Start Date', sort: 'date_debut' },
+  { key: 'end', label: 'End Date', sort: 'date_fin' },
+  { key: 'created', label: 'Created', sort: 'date_create' },
+  { key: 'ht', label: 'Amount HT', sort: 'total_ht', align: 'right' },
+  { key: 'vat', label: 'VAT', sort: 'total_tva', align: 'right' },
+  { key: 'ttc', label: 'Amount TTC', sort: 'total_ttc', align: 'right' },
+  { key: 'status', label: 'Status', sort: 'status' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'notes', label: 'Notes' },
+]
+
+// Waits for typing to pause before the search goes to the server.
+function useDebounced<T>(value: T, ms = 300): T {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return v
 }
 
-// Real via expense/ajax/expense_list.php — confirmed the best-built file in
-// this whole module (real permission check, real child-user rights
-// scoping, real filters/sort/pagination against llx_expensereport).
+// expense/list.php: every expense report, searched, sorted and paged by the backend
+// (expense/ajax/expense_list.php), newest first.
 export function ExpenseReportsList() {
-  const [filters, setFilters] = useState<ExpenseListFilters>({ status: '', dateFrom: '', dateTo: '' })
+  const [status, setStatus] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const search = useDebounced(searchInput.trim())
+  const [perPage, setPerPage] = useState(20)
   const [page, setPage] = useState(0)
-  const { data, isLoading, isError, error, refetch } = useExpenseReportsList(filters, page, PAGE_SIZE)
+  const [sort, setSort] = useState<{ by: string; dir: 'asc' | 'desc' }>({ by: 'date_create', dir: 'desc' })
+
+  const filters: ExpenseListFilters = { status, dateFrom, dateTo, search, orderBy: sort.by, orderDir: sort.dir }
+  const { data, isLoading, isError, error, refetch, isFetching } = useExpenseReportsList(filters, page, perPage)
   const rows = data?.rows ?? []
-  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<ExpenseReportRow, SortKey>(rows, sortValue)
 
-  function setFilter<K extends keyof ExpenseListFilters>(key: K, value: ExpenseListFilters[K]) {
-    setPage(0)
-    setFilters((f) => ({ ...f, [key]: value }))
-  }
-
-  function getExportData() {
-    return {
-      headers: ['Ref', 'Employee', 'Linked To', 'Period', 'Total HT', 'Total TTC', 'Status', 'Paid'],
-      rows: sortedRows.map((r) => [r.ref, r.user, r.linkedTo, `${r.dateStart} - ${r.dateEnd}`, r.totalHt, r.totalTtc, r.status, r.paid ? 'Paid' : 'Unpaid']),
+  const restart =
+    <T,>(set: (v: T) => void) =>
+    (v: T) => {
+      set(v)
+      setPage(0)
     }
+  const toggleSort = (by: string) => {
+    setSort((s) => (s.by === by ? { by, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { by, dir: 'asc' }))
+    setPage(0)
   }
+
+  // What is on screen, as the backend's Copy / CSV / Excel / Print / PDF buttons export it.
+  const getExportData = () => ({
+    headers: ['Ref', 'User', 'Start Date', 'End Date', 'Created', 'Amount HT', 'VAT', 'Amount TTC', 'Status', 'Notes'],
+    rows: rows.map((r) => [r.ref, parseParty(r.userHtml)?.name ?? r.user, r.dateStart, r.dateEnd, r.dateCreate, r.totalHt, r.totalTva, r.totalTtc, r.status, r.notes]),
+  })
 
   return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
-      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Receipt size={20} className="text-brand" /> Expense Reports
-        </h2>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={selectCls}>
+    <StickyListLayout
+      header={
+        <>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+            <CheckCheck size={20} className="text-brand" /> Expense List
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            {data && <TableExportButtons title="Expense List" getExportData={getExportData} />}
+            <PerPageSelect value={perPage} onChange={restart(setPerPage)} label="" />
+            <SearchBox value={searchInput} onChange={restart(setSearchInput)} placeholder="Search…" />
+            <select value={status} onChange={(e) => restart(setStatus)(e.target.value)} className={controlCls} aria-label="Status">
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
             </select>
-            <input type="date" value={filters.dateFrom} onChange={(e) => setFilter('dateFrom', e.target.value)} className={inputCls} title="From" />
-            <input type="date" value={filters.dateTo} onChange={(e) => setFilter('dateTo', e.target.value)} className={inputCls} title="To" />
-          </div>
-          {data && <TableExportButtons title="Expense Reports" getExportData={getExportData} />}
-        </div>
-
-        {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
-        {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-
-        {data && (
-          <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10">
-                  <TheadRow>
-                    <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
-                    <Th sortKey="user" sort={sort} onSort={toggleSort}>Employee</Th>
-                    <Th sortKey="linkedTo" sort={sort} onSort={toggleSort}>Linked To</Th>
-                    <Th sortKey="dateStart" sort={sort} onSort={toggleSort}>Period</Th>
-                    <Th sortKey="totalHt" sort={sort} onSort={toggleSort} align="right">Total HT</Th>
-                    <Th sortKey="totalTtc" sort={sort} onSort={toggleSort} align="right">Total TTC</Th>
-                    <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
-                    <Th sortKey="paid" sort={sort} onSort={toggleSort}>Paid</Th>
-                  </TheadRow>
-                </thead>
-                <tbody>
-                  {sortedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-3 py-4 text-text-faint italic">
-                        No expense reports found.
-                      </td>
-                    </tr>
-                  ) : (
-                    sortedRows.map((r) => (
-                      <tr key={r.id} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 text-text!">
-                          <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
-                            {r.ref}
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2 text-text-muted">{r.user}</td>
-                        <td className="px-3 py-2 text-text-muted">{r.linkedTo}</td>
-                        <td className="px-3 py-2 text-text-muted whitespace-nowrap">
-                          {r.dateStart} – {r.dateEnd}
-                        </td>
-                        <td className="px-3 py-2 text-right text-text-muted">{r.totalHt}</td>
-                        <td className="px-3 py-2 text-right text-text!">{r.totalTtc}</td>
-                        <td className="px-3 py-2">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE_CLS[r.status] ?? 'bg-neutral-bg text-neutral-fg'}`}>{r.status}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.paid ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg'}`}>
-                            {r.paid ? 'Paid' : 'Unpaid'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="flex items-center gap-2 rounded-md border border-input-border bg-input-bg px-3 text-sm text-text-muted">
+              <CalendarDays size={15} className="text-brand" />
+              <input type="date" value={dateFrom} onChange={(e) => restart(setDateFrom)(e.target.value)} className="h-9 bg-transparent text-text outline-none" aria-label="From" />
+              <span>–</span>
+              <input type="date" value={dateTo} onChange={(e) => restart(setDateTo)(e.target.value)} className="h-9 bg-transparent text-text outline-none" aria-label="To" />
             </div>
-          </Card>
-        )}
-      </div>
+          </div>
+        </>
+      }
+    >
+      {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
+      {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-      {data && <ListPagination page={page + 1} perPage={PAGE_SIZE} total={data.filtered} onPageChange={(p) => setPage(p - 1)} edgeToEdge />}
-    </div>
+      {data && (
+        <>
+          <ScrollCard className={`transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
+            <table className="w-full text-sm">
+              <thead className={STICKY_THEAD}>
+                <tr className="border-b border-border bg-surface">
+                  {COLUMNS.map((c) =>
+                    c.sort ? (
+                      <SortTh key={c.key} active={sort.by === c.sort} dir={sort.dir} onSort={() => toggleSort(c.sort!)} align={c.align}>
+                        {c.label}
+                      </SortTh>
+                    ) : (
+                      <th key={c.key} className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold">
+                        {c.label}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={COLUMNS.length} className="px-4 py-8 text-center italic text-text-faint">
+                      {data.total === 0 ? 'No expense records available' : 'No matching records found'}
+                    </td>
+                  </tr>
+                )}
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-b border-border last:border-0">
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <Link to={ROUTES.expenseCard.replace(':id', String(r.id))} className="text-brand hover:underline">
+                        {r.ref}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">
+                      <PartyHtml html={r.linkedHtml} showIcon />
+                    </td>
+                    <td className="px-3 py-2">
+                      <PartyHtml html={r.userHtml} avatar />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateStart}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateEnd}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateCreate}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-text-muted">{r.totalHt}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-text-muted">{r.totalTva}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-text!">{r.totalTtc}</td>
+                    <td className="px-3 py-2">
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <PaidBadge paid={r.paid} />
+                    </td>
+                    <td className="max-w-72 truncate px-3 py-2 text-text-muted" title={r.notes}>
+                      {r.notes}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollCard>
+          <div className="-mx-6 -mb-4">
+            <ListPagination page={page + 1} perPage={perPage} total={data.filtered} onPageChange={(p) => setPage(p - 1)} edgeToEdge />
+          </div>
+        </>
+      )}
+    </StickyListLayout>
   )
 }

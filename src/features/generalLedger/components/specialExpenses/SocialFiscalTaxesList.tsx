@@ -1,18 +1,17 @@
 import { Landmark } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
 import { ROUTES } from '../../../../routes'
+import { LegacyListPage } from '../LegacyListPage'
 
-// compta/sociales/list.php — classic Dolibarr list over llx_chargesociales,
-// no JSON. Create/edit on compta/sociales/card.php (classic form-POST).
+// compta/sociales/list.php — the real list of social/fiscal taxes.
 export function SocialFiscalTaxesList() {
   return (
-    <InertListPage
+    <LegacyListPage
       icon={Landmark}
-      title="Social/Fiscal Taxes"
-      sourcePath="compta/sociales/list.php"
-      columns={['Ref', 'Label', 'Type', 'Date', 'Period End Date', 'Amount', 'Status']}
-      addLabel="New Social/Fiscal Tax"
-      addPath={ROUTES.ledgerSocialFiscalTaxCreate}
+      title="Social Or Fiscal Taxes"
+      path="/compta/sociales/list.php"
+      firstHeader={/^Ref/}
+      addTo={{ label: 'New Social/Fiscal Tax', to: ROUTES.ledgerSocialFiscalTaxCreate }}
+      searchable
     />
   )
 }

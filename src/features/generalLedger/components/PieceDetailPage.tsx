@@ -1,468 +1,506 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { FileText, ChevronRight, Home, Info, AlertTriangle, Pencil, Trash2, X, Check, LoaderCircle, Calendar, FileSignature, Tag, CalendarClock, BookOpen, ListChecks } from 'lucide-react'
-import { Card, fmtZMW, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { AlertTriangle, Check, FileText, Info, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { usePieceDetail, useDeleteLedgerEntry, usePieceEditContext, useUpdatePieceField, useRowEditContext, useUpdatePieceLine, usePieceCreationDate, type PieceLine } from '../generalLedger.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
-import { DocLink } from './DocLink'
+import { resolveDocLink } from '../ledgerHtmlParser'
+import { parseAmount, type PieceCard, type PieceCardAddRow, type PieceCardLine } from '../pieceCardParser'
+import {
+  fetchExchangeRate,
+  useAddPieceLine,
+  useDeletePieceLine,
+  useJournalOptions,
+  usePieceCard,
+  useUpdatePieceHeader,
+  useUpdatePieceLine,
+  useValidateTransaction,
+  type PieceHeaderField,
+  type PieceLineInput,
+} from '../pieceCard.queries'
 
-const disabledInputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-2 py-1.5 cursor-not-allowed'
-const activeInputCls = 'text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 outline-none focus:ring-2 focus:ring-brand/30'
+const inputCls = 'h-9 w-full rounded-md border border-input-border bg-input-bg px-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
+const th = 'px-3 py-2.5 text-left text-xs font-semibold text-text whitespace-nowrap'
 
-type EditableField = 'date' | 'journal' | 'docRef'
+// The real page prints the type as stored ("bank", "expense_report", …).
+const formatDocType = (docType: string) => docType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
-// Real doc_type values are lowercase snake-ish ("bank", "expense_report",
-// "customer_invoice", ...) — the real page's own "Type Of Document" field
-// title-cases them with spaces, reproduced here rather than hardcoding a
-// lookup table for values not yet seen live.
-function formatDocType(docType: string): string {
-  if (!docType) return ''
-  return docType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+// "2026-04-27" for the date box, from the "04/27/2026" the page prints.
+function displayDateToIso(display: string): string {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(display.trim())
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
 }
 
-// A real field box: icon + label, with the current value below. `onEdit`
-// only renders the pencil for fields that actually have a real backend
-// edit mechanism (Date/Journal/Accounting Doc.) — Transaction No. and Type
-// Of Document don't (no setpiecenum/settype action exists on the real
-// page), so those two stay plain, undecorated read-only boxes rather than
-// implying an edit capability that isn't real.
-function FieldBox({
-  icon: Icon,
-  label,
-  value,
-  onEdit,
-  editTitle,
-  children,
-}: {
-  icon: typeof Calendar
+// What the page's own script shows under an amount box while typing: amount x exchange rate.
+function converted(amount: string, rate: string): string {
+  const value = parseFloat(amount.replace(/,/g, ''))
+  const factor = parseFloat(rate.replace(/,/g, ''))
+  return Number.isFinite(value) && Number.isFinite(factor) ? (value * factor).toFixed(4) : ''
+}
+
+const round2 = (n: number) => String(Math.round(n * 100) / 100)
+
+interface LineForm {
+  account: string
+  subledger: string
+  subledgerLabel: string
   label: string
-  value?: string
+  currency: string
+  rate: string
+  debit: string
+  credit: string
+}
+
+const toInput = (f: LineForm): PieceLineInput => ({
+  accountingaccount_number: f.account,
+  subledger_account: f.subledger,
+  subledger_label: f.subledgerLabel,
+  label_operation: f.label,
+  multicurrency_code: f.currency,
+  currency_amo: f.rate,
+  debit: f.debit,
+  credit: f.credit,
+})
+
+// The boxes of one line, shared by the "add" row and the row being edited.
+function LineFields({ form, set, add, busy, submitLabel, onSubmit, onCancel }: { form: LineForm; set: (patch: Partial<LineForm>) => void; add: PieceCardAddRow; busy: boolean; submitLabel: string; onSubmit: () => void; onCancel?: () => void }) {
+  const [rateBusy, setRateBusy] = useState(false)
+  const changeCurrency = (currency: string) => {
+    set({ currency })
+    setRateBusy(true)
+    // The page fills the rate box with the currency's latest rate.
+    fetchExchangeRate(currency)
+      .then((rate) => {
+        if (/^\d+(\.\d+)?$/.test(rate)) set({ rate })
+      })
+      .catch(() => undefined)
+      .finally(() => setRateBusy(false))
+  }
+  const preview = (amount: string) => {
+    // Like the page's own script, nothing is shown until an amount has been typed.
+    const text = Number(amount.replace(/,/g, '')) ? converted(amount, form.rate) : ''
+    return text ? <span className="block text-right text-xs italic text-text-faint">{text}</span> : null
+  }
+  return (
+    <>
+      <td className="min-w-56 px-2 py-2 align-top">
+        <SearchableSelect value={form.account} onChange={(account) => set({ account })} options={add.accountOptions} placeholder="Select account" />
+      </td>
+      <td className="min-w-48 px-2 py-2 align-top space-y-2">
+        <input value={form.subledger} onChange={(e) => set({ subledger: e.target.value })} placeholder="Subledger account" className={inputCls} />
+        <input value={form.subledgerLabel} onChange={(e) => set({ subledgerLabel: e.target.value })} placeholder="Subledger account label" className={inputCls} />
+      </td>
+      <td className="min-w-44 px-2 py-2 align-top">
+        <input value={form.label} onChange={(e) => set({ label: e.target.value })} className={inputCls} aria-label="Label operation" />
+      </td>
+      <td className="min-w-44 px-2 py-2 align-top">
+        <select value={form.currency} onChange={(e) => changeCurrency(e.target.value)} className={inputCls} aria-label="Currency">
+          {add.currencyOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="w-28 px-2 py-2 align-top">
+        <input value={form.rate} onChange={(e) => set({ rate: e.target.value })} className={`${inputCls} text-right`} aria-label="Exchange rate" disabled={rateBusy} />
+      </td>
+      <td className="w-32 px-2 py-2 align-top">
+        <input value={form.debit} onChange={(e) => set({ debit: e.target.value })} className={`${inputCls} text-right`} aria-label="Debit" />
+        {preview(form.debit)}
+      </td>
+      <td className="w-32 px-2 py-2 align-top">
+        <input value={form.credit} onChange={(e) => set({ credit: e.target.value })} className={`${inputCls} text-right`} aria-label="Credit" />
+        {preview(form.credit)}
+      </td>
+      <td className="px-2 py-2 align-top">
+        <div className="flex items-center gap-1.5">
+          <button type="button" disabled={busy} onClick={onSubmit} className="flex h-9 items-center gap-1 rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+            {busy ? <LoaderCircle size={13} className="animate-spin" /> : submitLabel === 'Add' ? <Plus size={13} /> : <Check size={13} />} {submitLabel}
+          </button>
+          {onCancel && (
+            <button type="button" onClick={onCancel} title="Cancel" className="grid h-9 w-9 place-items-center rounded-md border border-border text-text-faint hover:text-danger hover:bg-danger-bg">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </td>
+    </>
+  )
+}
+
+function blankForm(add: PieceCardAddRow): LineForm {
+  return { account: '', subledger: '', subledgerLabel: '', label: '', currency: add.currency || add.currencyOptions[0]?.value || '', rate: add.exchangeRate || '1.00', debit: '0.00', credit: '0.00' }
+}
+
+// The rate box of an edited line: its own rate, or 1.00 when it has none (the page itself always
+// starts an edit at 1.00, which would silently overwrite a foreign line's rate).
+function formForEdit(l: PieceCardLine, add: PieceCardAddRow): LineForm {
+  const rate = parseAmount(l.exchangeRate) > 0 ? l.exchangeRate.replace(/,/g, '') : '1.00'
+  return { account: l.account, subledger: l.subledger, subledgerLabel: l.subledgerLabel, label: l.label, currency: l.currency || add.currency, rate, debit: l.debit.replace(/,/g, ''), credit: l.credit.replace(/,/g, '') }
+}
+
+// Date / Journal / Accounting Doc.: a value with a pencil that turns it into the page's own edit form.
+function HeaderRow({
+  label,
+  editing,
+  onEdit,
+  display,
+  editor,
+}: {
+  label: string
+  editing: boolean
   onEdit?: () => void
-  editTitle?: string
-  children?: React.ReactNode
+  display: React.ReactNode
+  editor: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-text-faint">
-          <Icon size={13} className="text-brand" /> {label}
-        </span>
-        {onEdit && (
-          <button type="button" onClick={onEdit} title={editTitle} className="shrink-0 w-6 h-6 rounded-md bg-brand text-white flex items-center justify-center hover:bg-brand-hover">
-            <Pencil size={11} />
+    <div className="grid grid-cols-[minmax(9rem,14rem)_1fr] items-center gap-3 py-1.5">
+      <span className="flex items-center justify-between gap-2 text-sm text-text-muted">
+        {label}
+        {onEdit && !editing && (
+          <button type="button" onClick={onEdit} title={`Edit ${label}`} aria-label={`Edit ${label}`} className="grid h-6 w-6 place-items-center rounded-md text-brand hover:bg-brand/10">
+            <Pencil size={13} />
           </button>
         )}
-      </div>
-      {children ?? <p className="text-sm font-semibold text-text!">{value || '-'}</p>}
+      </span>
+      <div className="min-h-9 text-sm text-text! flex items-center">{editing ? editor : display}</div>
     </div>
   )
 }
 
-// Native replacement for accountancy/bookkeeping/card.php?piece_num=X —
-// every journal entry's real "view source" link on this backend points at
-// this exact same generic page regardless of journal type (confirmed live:
-// sampled OD/BQ/ER entries, all resolved to the same URL shape), and that
-// page has no JSON of its own. Every field it would show is already
-// sitting in the same listbyaccount_ajax_api.php response Ledger/Journals
-// fetch — see usePieceDetail's own comment — so this refetches that real
-// endpoint and filters to the one piece, rather than linking out to the
-// classic page.
-export function PieceDetailPage() {
-  const { pieceNum } = useParams<{ pieceNum: string }>()
-  const { data: lines, isLoading, isError, error, refetch } = usePieceDetail(pieceNum)
-  const { data: creationDate } = usePieceCreationDate(pieceNum)
-  const deleteEntry = useDeleteLedgerEntry()
-  const [warningDismissed, setWarningDismissed] = useState(false)
+function TransactionCard({ card, pieceNum, mode }: { card: PieceCard; pieceNum: string; mode: string }) {
+  const navigate = useNavigate()
+  const confirm = useConfirm()
+  const updateHeader = useUpdatePieceHeader(pieceNum, mode)
+  const addLine = useAddPieceLine(pieceNum, mode)
+  const updateLine = useUpdatePieceLine(pieceNum, mode)
+  const deleteLine = useDeletePieceLine(pieceNum, mode)
+  const validate = useValidateTransaction(pieceNum)
 
-  const [editingField, setEditingField] = useState<EditableField | null>(null)
-  const [dateValue, setDateValue] = useState('')
-  const [journalValue, setJournalValue] = useState('')
-  const [docRefValue, setDocRefValue] = useState('')
-  const editContext = usePieceEditContext(pieceNum, editingField)
-  const updateField = useUpdatePieceField()
+  const [editingField, setEditingField] = useState<PieceHeaderField | null>(null)
+  const [fieldValue, setFieldValue] = useState('')
+  const journals = useJournalOptions(pieceNum, mode, editingField === 'journal')
 
-  const [editingRowId, setEditingRowId] = useState<string | null>(null)
-  const [rowForm, setRowForm] = useState({ accountCode: '', subledgerAccount: '', subledgerLabel: '', label: '', currencyCode: '', debit: '', credit: '' })
-  const rowEditContext = useRowEditContext(pieceNum, editingRowId)
-  const updateLine = useUpdatePieceLine()
+  const add = card.add
+  const [newValues, setNewValues] = useState<LineForm | null>(null)
+  const newLine = newValues ?? (add ? blankForm(add) : null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState<LineForm | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [dismissedFor, setDismissedFor] = useState('')
 
-  function startRowEdit(l: PieceLine) {
-    setEditingRowId(l.rowId)
-    setRowForm({ accountCode: l.accountCode, subledgerAccount: l.subledgerAccount, subledgerLabel: '', label: l.label, currencyCode: l.currencyCode, debit: l.debit ? String(l.debit) : '0', credit: l.credit ? String(l.credit) : '0' })
+  const totals = useMemo(() => {
+    const debit = card.lines.reduce((s, l) => s + parseAmount(l.debit), 0)
+    const credit = card.lines.reduce((s, l) => s + parseAmount(l.credit), 0)
+    return { debit, credit, balanced: Math.abs(debit - credit) < 0.005 }
+  }, [card.lines])
+  // A changed total brings the warning back.
+  const warningKey = `${totals.debit}|${totals.credit}`
+
+  const fail = (e: unknown) => setProblem(e instanceof Error ? e.message : 'The request was refused.')
+  const clear = () => {
+    setProblem(null)
+    setNotice(null)
   }
 
-  function submitRowEdit() {
-    if (!pieceNum || !editingRowId || !rowEditContext.data?.token) return
-    updateLine.mutate(
-      {
-        pieceNum,
-        rowId: editingRowId,
-        token: rowEditContext.data.token,
-        hidden: rowEditContext.data.hidden,
-        fields: {
-          accountingaccount_number: rowForm.accountCode,
-          subledger_account: rowForm.subledgerAccount,
-          subledger_label: rowForm.subledgerLabel,
-          label_operation: rowForm.label,
-          multicurrency_code: rowForm.currencyCode,
-          debit: rowForm.debit,
-          credit: rowForm.credit,
-        },
-      },
-      { onSuccess: () => setEditingRowId(null) },
-    )
-  }
-
-  function startEdit(field: EditableField, currentValue: string) {
+  const startField = (field: PieceHeaderField) => {
+    clear()
     setEditingField(field)
-    if (field === 'date') setDateValue(currentValue)
-    if (field === 'journal') setJournalValue(currentValue)
-    if (field === 'docRef') setDocRefValue(currentValue)
+    setFieldValue(field === 'date' ? displayDateToIso(card.date) : field === 'journal' ? card.journal : card.accountingDoc)
+  }
+  const saveField = () => {
+    if (!editingField) return
+    clear()
+    updateHeader.mutate({ field: editingField, value: fieldValue }, { onSuccess: () => setEditingField(null), onError: fail })
   }
 
-  function submitEdit() {
-    if (!pieceNum || !editContext.data?.token || !editingField) return
-    const token = editContext.data.token
-    const onSuccess = () => setEditingField(null)
-    if (editingField === 'date') {
-      const [yyyy, mm, dd] = dateValue.split('-')
-      if (!yyyy || !mm || !dd) return
-      updateField.mutate({ pieceNum, token, action: 'setdate', fields: { doc_date: `${mm}/${dd}/${yyyy}`, doc_dateday: dd, doc_datemonth: mm, doc_dateyear: yyyy } }, { onSuccess })
-    } else if (editingField === 'journal') {
-      updateField.mutate({ pieceNum, token, action: 'setjournal', fields: { code_journal: journalValue } }, { onSuccess })
-    } else if (editingField === 'docRef') {
-      updateField.mutate({ pieceNum, token, action: 'setdocref', fields: { doc_ref: docRefValue } }, { onSuccess })
-    }
+  const checkLine = (f: LineForm): string | null => {
+    if (!f.account) return 'Select an account.'
+    if (Number(f.debit.replace(/,/g, '')) !== 0 && Number(f.credit.replace(/,/g, '')) !== 0) return 'A line cannot have both a debit and a credit.'
+    return null
+  }
+  const submitNew = () => {
+    if (!newLine || !add) return
+    clear()
+    const bad = checkLine(newLine)
+    if (bad) return setProblem(bad)
+    addLine.mutate(toInput(newLine), { onSuccess: () => { setNewValues(null); setNotice('Line added.') }, onError: fail })
+  }
+  const submitEdit = () => {
+    if (!editingId || !editValues) return
+    clear()
+    const bad = checkLine(editValues)
+    if (bad) return setProblem(bad)
+    updateLine.mutate({ id: editingId, input: toInput(editValues) }, { onSuccess: () => { setEditingId(null); setNotice('Record saved.') }, onError: fail })
+  }
+  const removeLine = async (l: PieceCardLine) => {
+    clear()
+    const ok = await confirm({ title: 'Delete movement?', message: `Delete the line ${l.account}${l.label ? ` — ${l.label}` : ''} from transaction ${pieceNum}?` })
+    if (!ok) return
+    deleteLine.mutate(l.id, { onSuccess: () => setNotice('Line deleted.'), onError: fail })
+  }
+  const doValidate = async () => {
+    clear()
+    const ok = await confirm({
+      title: 'Validate transaction?',
+      message: `Move transaction ${pieceNum} into the ledger?`,
+      warningTitle: 'The ledger gives it a new number.',
+      warningMessage: 'Once validated it is an ordinary ledger transaction.',
+      variant: 'default',
+      confirmLabel: 'Validate Transaction',
+    })
+    if (!ok) return
+    validate.mutate(undefined, { onSuccess: () => navigate(ROUTES.ledgerList), onError: fail })
   }
 
-  if (isLoading) return <LegacyLoadingCard label="Loading transaction…" />
-  if (isError) return <LegacyErrorCard title="Couldn't load transaction" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
-
-  const totalDebit = (lines ?? []).reduce((s, l) => s + l.debit, 0)
-  const totalCredit = (lines ?? []).reduce((s, l) => s + l.credit, 0)
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.005
-  const head = lines && lines.length > 0 ? lines[0] : null
+  const docTo = resolveDocLink(card.docType, card.hidden.fk_doc ?? '', null)
+  const scratch = mode === '_tmp'
 
   return (
     <div className="space-y-4">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-text-faint">
-        <Link to={ROUTES.ledgerDashboard} className="flex items-center gap-1 hover:text-text">
-          <Home size={12} /> General Ledger
-        </Link>
-        <ChevronRight size={11} />
-        <Link to={ROUTES.ledgerList} className="hover:text-text">
-          Journal
-        </Link>
-        <ChevronRight size={11} />
-        <span className="text-text font-medium">Modify Transaction</span>
-      </nav>
+      {!totals.balanced && dismissedFor !== warningKey && card.lines.length > 0 && (
+        <div role="status" className="fixed top-14 right-4 z-[60] flex max-w-sm items-start gap-2.5 rounded-xl border border-warning/40 bg-warning-bg px-4 py-3 text-warning-fg shadow-lg">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <p className="text-xs font-medium leading-snug">
+            Movement not correctly balanced. Debit = {round2(totals.debit)} | Credit = {round2(totals.credit)}
+          </p>
+          <button type="button" onClick={() => setDismissedFor(warningKey)} aria-label="Dismiss" className="shrink-0 rounded-md p-0.5 hover:bg-warning-fg/10">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${ICON_STYLES.blue}`}>
-            <FileText size={20} />
-          </span>
+      {scratch && (
+        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
+          <Info size={15} className="mt-0.5 shrink-0 text-info-fg" />
+          <p className="text-xs text-info-fg">This transaction is still being entered. It joins the ledger, under a new number, when you press Validate Transaction (debit and credit must be equal).</p>
+        </Card>
+      )}
+      {notice && <div className="rounded-lg border border-success/40 bg-success-bg/50 px-4 py-3 text-sm text-success-fg">{notice}</div>}
+      {problem && (
+        <div role="alert" className="whitespace-pre-line rounded-lg border border-danger/40 bg-danger-bg/50 px-4 py-3 text-sm text-danger">
+          {problem}
+        </div>
+      )}
+
+      <div className="border-b border-border">
+        <span className="inline-block border-b-2 border-brand px-3 py-2 text-sm font-semibold uppercase text-brand">Transaction</span>
+      </div>
+
+      <Card className="!h-auto">
+        <div className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
           <div>
-            <h2 className="text-lg font-bold text-text!">Modify Transaction</h2>
-            <p className="text-xs text-text-faint">Update journal entry details and ledger movements</p>
+            <HeaderRow label="Numero Of Transaction" editing={false} display={card.pieceNum} editor={null} />
+            <HeaderRow
+              label="Date"
+              editing={editingField === 'date'}
+              onEdit={() => startField('date')}
+              display={card.date || '—'}
+              editor={<HeaderEditor onSave={saveField} onCancel={() => setEditingField(null)} busy={updateHeader.isPending}><input type="date" value={fieldValue} onChange={(e) => setFieldValue(e.target.value)} className={inputCls} aria-label="Date" /></HeaderEditor>}
+            />
+            <HeaderRow
+              label="Journal"
+              editing={editingField === 'journal'}
+              onEdit={() => startField('journal')}
+              display={card.journal || '—'}
+              editor={
+                <HeaderEditor onSave={saveField} onCancel={() => setEditingField(null)} busy={updateHeader.isPending} disabled={!journals.data}>
+                  {journals.data ? (
+                    <select value={fieldValue} onChange={(e) => setFieldValue(e.target.value)} className={inputCls} aria-label="Journal">
+                      {journals.data.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-xs text-text-faint">
+                      <LoaderCircle size={13} className="animate-spin" /> Loading…
+                    </span>
+                  )}
+                </HeaderEditor>
+              }
+            />
+            <HeaderRow
+              label="Accounting Doc."
+              editing={editingField === 'docRef'}
+              onEdit={() => startField('docRef')}
+              display={
+                docTo ? (
+                  <Link to={docTo} className="flex items-center gap-1 text-brand hover:underline">
+                    <FileText size={12} /> {card.accountingDoc}
+                  </Link>
+                ) : (
+                  card.accountingDoc || '—'
+                )
+              }
+              editor={<HeaderEditor onSave={saveField} onCancel={() => setEditingField(null)} busy={updateHeader.isPending}><input value={fieldValue} onChange={(e) => setFieldValue(e.target.value)} className={inputCls} aria-label="Accounting Doc." /></HeaderEditor>}
+            />
+          </div>
+          <div>
+            {card.docType && <HeaderRow label="Type Of Document" editing={false} display={formatDocType(card.docType)} editor={null} />}
+            <HeaderRow label="Creation Date" editing={false} display={card.creationDate || '—'} editor={null} />
           </div>
         </div>
-        <Link to={ROUTES.ledgerList} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-          <ChevronRight size={14} className="rotate-180" /> Back to list
+      </Card>
+
+      <h3 className="text-lg font-medium text-text!">List Of Movements</h3>
+
+      <Card className="!h-auto !p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-surface">
+                <th className={th}>Account</th>
+                <th className={th}>Subledger Account</th>
+                <th className={th}>Label Operation</th>
+                <th className={th}>Currency</th>
+                <th className={`${th} text-right`}>Exchange Rate</th>
+                <th className={`${th} text-right`}>Debit{card.currencyLabel ? ` (${card.currencyLabel})` : ''}</th>
+                <th className={`${th} text-right`}>Credit{card.currencyLabel ? ` (${card.currencyLabel})` : ''}</th>
+                <th className={th}>Event</th>
+              </tr>
+            </thead>
+            <tbody>
+              {card.lines.map((l) =>
+                editingId === l.id && editValues && add ? (
+                  <tr key={l.id} className="border-b border-border bg-surface/50">
+                    <LineFields form={editValues} set={(patch) => setEditValues((f) => (f ? { ...f, ...patch } : f))} add={add} busy={updateLine.isPending} submitLabel="Update" onSubmit={submitEdit} onCancel={() => setEditingId(null)} />
+                  </tr>
+                ) : (
+                  <tr key={l.id} className="border-b border-border align-top">
+                    <td className="px-3 py-2.5 text-text!">
+                      {l.account}
+                      {l.accountLabel && <span className="text-text-faint"> - {l.accountLabel}</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-text-muted">
+                      {l.subledger || '-'}
+                      {l.subledger && l.subledgerLabel && <span className="text-text-faint"> - {l.subledgerLabel}</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-text-muted">{l.label}</td>
+                    <td className="px-3 py-2.5 text-text-muted">{l.currency}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-text-muted">{l.exchangeRate}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-danger">
+                      {l.debit}
+                      <span className="block text-xs italic">({l.debitConverted})</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-brand">
+                      {l.credit}
+                      <span className="block text-xs italic">({l.creditConverted})</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          title="Edit"
+                          aria-label={`Edit line ${l.account}`}
+                          disabled={!add}
+                          onClick={() => {
+                            clear()
+                            if (!add) return
+                            setEditingId(l.id)
+                            setEditValues(formForEdit(l, add))
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-md text-brand hover:bg-brand/10 disabled:opacity-40"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button type="button" title="Delete" aria-label={`Delete line ${l.account}`} disabled={!l.deleteHref || deleteLine.isPending} onClick={() => removeLine(l)} className="grid h-8 w-8 place-items-center rounded-md text-danger hover:bg-danger-bg disabled:opacity-40">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              )}
+              {add && newLine && editingId === null && (
+                <tr className="border-b border-border bg-surface/50">
+                  <LineFields form={newLine} set={(patch) => setNewValues((f) => ({ ...(f ?? blankForm(add)), ...patch }))} add={add} busy={addLine.isPending} submitLabel="Add" onSubmit={submitNew} />
+                </tr>
+              )}
+            </tbody>
+            {card.lines.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-border font-semibold">
+                  <td colSpan={5} className="px-3 py-2 text-text!">
+                    Total
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-text!">{round2(totals.debit)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-text!">{round2(totals.credit)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </Card>
+
+      {scratch && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            disabled={!totals.balanced || card.lines.length === 0 || validate.isPending}
+            title={totals.balanced ? undefined : `Movement not correctly balanced. Debit = ${round2(totals.debit)} | Credit = ${round2(totals.credit)}`}
+            onClick={doValidate}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            {validate.isPending && <LoaderCircle size={14} className="animate-spin" />} Validate Transaction
+          </button>
+          <Link to={ROUTES.ledgerList} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
+            Cancel
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HeaderEditor({ children, onSave, onCancel, busy, disabled }: { children: React.ReactNode; onSave: () => void; onCancel: () => void; busy: boolean; disabled?: boolean }) {
+  return (
+    <div className="flex w-full max-w-md items-center gap-1.5">
+      <div className="flex-1">{children}</div>
+      <button type="button" disabled={busy || disabled} onClick={onSave} className="flex h-9 items-center gap-1 rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+        {busy ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />} Modify
+      </button>
+      <button type="button" onClick={onCancel} title="Cancel" className="grid h-9 w-9 place-items-center rounded-md border border-border text-text-faint hover:text-danger hover:bg-danger-bg">
+        <X size={14} />
+      </button>
+    </div>
+  )
+}
+
+// The backend's own "Modification of a transaction" card (accountancy/bookkeeping/card.php).
+export function PieceDetailPage() {
+  const { pieceNum = '' } = useParams<{ pieceNum: string }>()
+  const [search] = useSearchParams()
+  const mode = search.get('mode') === '_tmp' ? '_tmp' : ''
+  const { data: card, isLoading, isError, error, refetch } = usePieceCard(pieceNum, mode)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-text!">Modification Of A Transaction</h2>
+        <Link to={ROUTES.ledgerList} className="text-sm font-medium text-brand hover:underline">
+          Back To List
         </Link>
       </div>
 
-      {!lines || lines.length === 0 ? (
+      {isLoading && <LegacyLoadingCard label="Loading transaction…" />}
+      {isError && <LegacyErrorCard title="Couldn't load transaction" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {!isLoading && !isError && !card && (
         <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">No lines found for piece #{pieceNum} in the real ledger data currently available.</p>
+          <Info size={15} className="mt-0.5 shrink-0 text-info-fg" />
+          <p className="text-xs text-info-fg">
+            There is no transaction {pieceNum}
+            {mode === '_tmp' ? ' being entered' : ''} on the backend.
+          </p>
         </Card>
-      ) : (
-        <>
-          {!isBalanced && !warningDismissed && (
-            <div
-              role="status"
-              className="fixed top-14 right-4 z-[60] flex items-start gap-2.5 max-w-sm px-4 py-3 rounded-xl bg-warning-bg text-warning-fg shadow-lg border border-warning/40 animate-[toast-in_0.2s_ease-out_forwards]"
-            >
-              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-              <p className="text-xs font-medium leading-snug">
-                Movement not correctly balanced. Debit = {fmtZMW(totalDebit)} | Credit = {fmtZMW(totalCredit)}
-              </p>
-              <button type="button" onClick={() => setWarningDismissed(true)} aria-label="Dismiss" className="shrink-0 p-0.5 rounded-md hover:bg-warning-fg/10">
-                <X size={14} />
-              </button>
-            </div>
-          )}
-
-          <Card className="!h-auto">
-            <div className="flex items-center gap-2 mb-3">
-              <span className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center ${ICON_STYLES.blue}`}>
-                <FileSignature size={14} />
-              </span>
-              <h3 className="text-sm font-bold text-text!">Transaction Information</h3>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3 items-stretch">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
-                <FieldBox icon={Tag} label="Transaction No." value={pieceNum} />
-
-                {editingField === 'date' ? (
-                  <FieldBox icon={Calendar} label="Date">
-                    <div className="flex items-center gap-1.5">
-                      <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} className={`${activeInputCls} flex-1`} />
-                      <button type="button" disabled={!editContext.data || updateField.isPending} onClick={submitEdit} title="Modify" className="p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
-                        {updateField.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}
-                      </button>
-                      <button type="button" onClick={() => setEditingField(null)} title="Cancel" className="p-1.5 rounded-md text-text-faint hover:text-danger hover:bg-danger-bg">
-                        <X size={13} />
-                      </button>
-                    </div>
-                  </FieldBox>
-                ) : (
-                  <FieldBox icon={Calendar} label="Date" value={head?.date} onEdit={() => startEdit('date', head?.date ?? '')} editTitle="Edit (real: accountancy/bookkeeping/card.php?action=editdate)" />
-                )}
-
-                {editingField === 'docRef' ? (
-                  <div className="sm:col-span-2">
-                    <FieldBox icon={FileText} label="Accounting Document">
-                      <div className="flex items-center gap-1.5">
-                        <input type="text" value={docRefValue} onChange={(e) => setDocRefValue(e.target.value)} className={`${activeInputCls} flex-1`} />
-                        <button type="button" disabled={!editContext.data || updateField.isPending} onClick={submitEdit} title="Modify" className="p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
-                          {updateField.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}
-                        </button>
-                        <button type="button" onClick={() => setEditingField(null)} title="Cancel" className="p-1.5 rounded-md text-text-faint hover:text-danger hover:bg-danger-bg">
-                          <X size={13} />
-                        </button>
-                      </div>
-                    </FieldBox>
-                  </div>
-                ) : (
-                  <div className="sm:col-span-2">
-                    <FieldBox icon={FileText} label="Accounting Document" onEdit={() => startEdit('docRef', head?.accountingDoc ?? '')} editTitle="Edit (real: accountancy/bookkeeping/card.php?action=editdocref)">
-                      <p className="text-sm font-semibold text-text!">
-                        <DocLink docType={head?.docType ?? ''} fkDoc={head?.fkDoc ?? ''} docUrl={head?.docUrl ?? null} label={head?.accountingDoc ?? ''} />
-                      </p>
-                    </FieldBox>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
-                <FieldBox icon={Tag} label="Type Of Document" value={formatDocType(head?.docType ?? '')} />
-
-                {editingField === 'journal' ? (
-                  <FieldBox icon={BookOpen} label="Journal">
-                    <div className="flex items-center gap-1.5">
-                      {editContext.data ? (
-                        <select value={journalValue} onChange={(e) => setJournalValue(e.target.value)} className={`${activeInputCls} flex-1`}>
-                          {editContext.data.journalOptions.map((o) => (
-                            <option key={o.code} value={o.code}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-xs text-text-faint px-2 py-1.5">
-                          <LoaderCircle size={13} className="animate-spin" /> Loading…
-                        </span>
-                      )}
-                      <button type="button" disabled={!editContext.data || updateField.isPending} onClick={submitEdit} title="Modify" className="p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
-                        {updateField.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}
-                      </button>
-                      <button type="button" onClick={() => setEditingField(null)} title="Cancel" className="p-1.5 rounded-md text-text-faint hover:text-danger hover:bg-danger-bg">
-                        <X size={13} />
-                      </button>
-                    </div>
-                  </FieldBox>
-                ) : (
-                  <FieldBox icon={BookOpen} label="Journal" value={head?.journal} onEdit={() => startEdit('journal', head?.journal ?? '')} editTitle="Edit (real: accountancy/bookkeeping/card.php?action=editjournal)" />
-                )}
-
-                <div className="sm:col-span-2">
-                  <FieldBox icon={CalendarClock} label="Creation Date" value={creationDate} />
-                </div>
-              </div>
-
-              <div className={`rounded-lg p-4 flex flex-row lg:flex-col items-center gap-3 justify-center text-center lg:w-36 ${ICON_STYLES.blue}`}>
-                <span className="shrink-0 w-11 h-11 rounded-full bg-brand text-white flex items-center justify-center">
-                  <BookOpen size={20} />
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-brand">Journal</p>
-                  <p className="text-[11px] text-brand/70">Journal Entry</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="!h-auto !p-0 overflow-x-auto">
-            <div className="flex items-center gap-2 px-4 pt-4 pb-1">
-              <span className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center ${ICON_STYLES.blue}`}>
-                <ListChecks size={14} />
-              </span>
-              <h3 className="text-sm font-bold text-text!">List of Movements</h3>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">#</th>
-                  <th className="font-medium px-3 py-2">Account</th>
-                  <th className="font-medium px-3 py-2">Subledger Account</th>
-                  <th className="font-medium px-3 py-2">Label Operation</th>
-                  <th className="font-medium px-3 py-2">Currency</th>
-                  <th className="font-medium px-3 py-2 text-right">Debit</th>
-                  <th className="font-medium px-3 py-2 text-right">Credit</th>
-                  <th className="font-medium px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, i) =>
-                  editingRowId === l.rowId ? (
-                    <tr key={i} className="border-b border-border last:border-0 bg-surface/50">
-                      <td className="px-3 py-2 text-text-faint text-xs">{i + 1}</td>
-                      <td className="px-3 py-2">
-                        {rowEditContext.data ? (
-                          <select value={rowForm.accountCode} onChange={(e) => setRowForm((f) => ({ ...f, accountCode: e.target.value }))} className={activeInputCls}>
-                            {rowEditContext.data.accountOptions.map((o) => (
-                              <option key={o.code} value={o.code}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="flex items-center gap-1.5 text-xs text-text-faint px-2 py-1.5">
-                            <LoaderCircle size={13} className="animate-spin" /> Loading chart of accounts…
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 space-y-1.5">
-                        <input value={rowForm.subledgerAccount} onChange={(e) => setRowForm((f) => ({ ...f, subledgerAccount: e.target.value }))} placeholder="Subledger account" className={activeInputCls} />
-                        <input value={rowForm.subledgerLabel} onChange={(e) => setRowForm((f) => ({ ...f, subledgerLabel: e.target.value }))} placeholder="Subledger account label" className={activeInputCls} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input value={rowForm.label} onChange={(e) => setRowForm((f) => ({ ...f, label: e.target.value }))} className={activeInputCls} />
-                      </td>
-                      <td className="px-3 py-2">
-                        {rowEditContext.data ? (
-                          <select value={rowForm.currencyCode} onChange={(e) => setRowForm((f) => ({ ...f, currencyCode: e.target.value }))} className={activeInputCls}>
-                            {rowEditContext.data.currencyOptions.map((o) => (
-                              <option key={o.code} value={o.code}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="flex items-center gap-1.5 text-xs text-text-faint px-2 py-1.5">
-                            <LoaderCircle size={13} className="animate-spin" /> Loading…
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input value={rowForm.debit} onChange={(e) => setRowForm((f) => ({ ...f, debit: e.target.value }))} className={`${activeInputCls} text-right`} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input value={rowForm.credit} onChange={(e) => setRowForm((f) => ({ ...f, credit: e.target.value }))} className={`${activeInputCls} text-right`} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5">
-                          <button type="button" disabled={!rowEditContext.data || updateLine.isPending} onClick={submitRowEdit} title="Update" className="w-7 h-7 rounded-md bg-brand text-white flex items-center justify-center hover:bg-brand-hover disabled:opacity-50">
-                            {updateLine.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}
-                          </button>
-                          <button type="button" onClick={() => setEditingRowId(null)} title="Cancel" className="w-7 h-7 rounded-md border border-border text-text-faint flex items-center justify-center hover:text-danger hover:bg-danger-bg">
-                            <X size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={i} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-text-faint text-xs">{i + 1}</td>
-                      <td className="px-3 py-2 text-text!">
-                        {l.accountCode} — {l.accountLabel}
-                      </td>
-                      <td className="px-3 py-2 text-text-muted">{l.subledgerAccount || '-'}</td>
-                      <td className="px-3 py-2 text-text-muted">{l.label}</td>
-                      <td className="px-3 py-2 text-text-muted">{l.currencyCode}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{l.debit ? fmtZMW(l.debit) : ''}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{l.credit ? fmtZMW(l.credit) : ''}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5">
-                          {l.canEdit && (
-                            <button type="button" onClick={() => startRowEdit(l)} title="Edit this entry (real: accountancy/bookkeeping/card.php?action=update)" className="w-7 h-7 rounded-md bg-brand text-white flex items-center justify-center hover:bg-brand-hover">
-                              <Pencil size={12} />
-                            </button>
-                          )}
-                          {l.canDelete && l.deleteUrl && (
-                            <button
-                              type="button"
-                              disabled={deleteEntry.isPending}
-                              title="Delete this entry on the real accounting backend"
-                              onClick={() => {
-                                if (l.deleteUrl && window.confirm('Delete this accounting entry on the real backend? This cannot be undone.')) deleteEntry.mutate(l.deleteUrl)
-                              }}
-                              className="w-7 h-7 rounded-md bg-danger text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ),
-                )}
-                {/* Real "Add" row on the classic page (accountingaccount_number/
-                    subledger_account/subledger_label/label_operation/
-                    multicurrency_code/debit/credit, submit name="save"
-                    value="Add") — a classic full-page-POST, no JSON create
-                    endpoint, so reproduced disabled like the standalone New
-                    Transaction form rather than pretending to submit. */}
-                <tr className="border-b border-border bg-surface/50">
-                  <td className="px-3 py-2"></td>
-                  <td className="px-3 py-2">
-                    <select disabled className={disabledInputCls}>
-                      <option>Select…</option>
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 space-y-1.5">
-                    <input disabled placeholder="Subledger account" className={disabledInputCls} />
-                    <input disabled placeholder="Subledger account label" className={disabledInputCls} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input disabled placeholder="Label operation" className={disabledInputCls} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <select disabled className={disabledInputCls}>
-                      <option>Zambian Kwacha (ZMW)</option>
-                    </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <input disabled placeholder="0.00" className={`${disabledInputCls} text-right`} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input disabled placeholder="0.00" className={`${disabledInputCls} text-right`} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <button type="button" disabled title="Backend page: accountancy/bookkeeping/card.php — a classic full-page-reload page, no JSON API. Disabled since there's nothing to submit to." className="rounded-md bg-neutral-bg px-3 py-1.5 text-xs font-medium text-text-faint opacity-70 cursor-not-allowed whitespace-nowrap">
-                      Add
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-border font-semibold">
-                  <td className="px-3 py-2 text-text!" colSpan={5}>
-                    Total
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-text!">{fmtZMW(totalDebit)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-text!">{fmtZMW(totalCredit)}</td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
-          </Card>
-        </>
       )}
+      {card && <TransactionCard key={`${pieceNum}-${mode}`} card={card} pieceNum={pieceNum} mode={mode} />}
     </div>
   )
 }

@@ -1,33 +1,32 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { parsePaymentsList, type PaymentRow } from './paymentsListParser'
 
-export interface PaymentRow {
-  id: number
-  ref: string
-  paymentReference: string | null
-  customerName: string | null
-  paymentDate: string
-  paymentTypeLabel: string | null
-  amount: number
-  statusCode: number
-  statusLabel: 'Validated' | 'Draft'
+export type { PaymentRow }
+
+export interface PaymentsPeriod {
+  from: string // yyyy-MM-dd
+  to: string // yyyy-MM-dd
 }
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
+// "2026-09-24" -> "09/24/2026" (the classic page's own date format)
+const us = (iso: string) => {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
 }
 
-// GET /api/payments/ (api/payments/index.php) — real, reads
-// llx_paiement/llx_paiement_facture. limit: 500, fetched once and
-// filtered/grouped client-side (same convention as ThirdPartyList.tsx) —
-// this backend has no date-range filter of its own.
-export function usePayments(search = '') {
+// compta/paiement/list.php?newdatepicker=<from> - <to> — see
+// paymentsListParser.ts. The backend returns the whole period in one response
+// (no paging), so search / sort / paging stay client-side, like every other
+// list in this app.
+export function usePayments(period: PaymentsPeriod) {
   return useQuery({
-    queryKey: ['payments', search],
+    queryKey: ['payments', period.from, period.to],
     queryFn: async (): Promise<{ items: PaymentRow[]; total: number }> => {
-      const { data } = await api.get<WebEnvelope<{ items: PaymentRow[]; total: number }>>('/payments/', { params: { search: search || undefined, limit: 500 } })
-      return data.data
+      const range = `${us(period.from)} - ${us(period.to)}`
+      const items = parsePaymentsList(await fetchLegacyDocument('/compta/paiement/list.php', new URLSearchParams({ newdatepicker: range })))
+      return { items, total: items.length }
     },
+    placeholderData: (prev) => prev,
   })
 }

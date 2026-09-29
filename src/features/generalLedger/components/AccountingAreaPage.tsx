@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { FileText, CheckSquare, CalendarDays } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
-import { getBackendUrl } from '../../../api/backends'
 
 // accountancy/index.php — a getting-started wizard (steps 1-9, A-E) that links
 // into Setup/Binding pages built elsewhere in this module. Every href below
@@ -14,21 +13,13 @@ import { getBackendUrl } from '../../../api/backends'
 //     the sidebar's separate "Chart of accounts" leaf (admin/accountjstree.php,
 //     a different real page) — mapped to ledgerPcgVersion here.
 //   - STEP 2's "Chart of accounts models" is yet another real page
-//     (admin/accountmodel.php, distinct from both of the above) with no
-//     dedicated page built in this app yet — opens the real backend page
-//     directly instead of a fabricated internal route.
+//     (admin/accountmodel.php, distinct from both of the above) — it has its own
+//     React page (ChartOfAccountsModelsList) at ROUTES.ledgerChartOfAccountsModels.
 // Step D ("Registration in accounting" / "Register transactions in
 // accounting") is genuinely plain bold text on the real page too, not a
 // link — left as plain text rather than a fabricated route.
-function StepLink({ to, external, children }: { to: string | null; external?: boolean; children: ReactNode }) {
+function StepLink({ to, children }: { to: string | null; children: ReactNode }) {
   if (!to) return <span className="font-medium text-text!">{children}</span>
-  if (external) {
-    return (
-      <a href={to} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
-        {children}
-      </a>
-    )
-  }
   return (
     <Link to={to} className="font-medium text-brand hover:underline">
       {children}
@@ -44,20 +35,7 @@ function Step({ id, children }: { id: string; children: ReactNode }) {
   )
 }
 
-// STEP 2 has no built React page yet, so it opens the real backend page
-// directly — but getBackendUrl() throws when VITE_BACKEND_URL isn't
-// configured, so guard it the same way Navbar.tsx does rather than crashing
-// this page's render.
-function useLegacyPageUrl(path: string): string | null {
-  try {
-    return `${getBackendUrl()}${path}`
-  } catch {
-    return null
-  }
-}
-
 export function AccountingAreaPage() {
-  const chartOfAccountsModelsUrl = useLegacyPageUrl('/accountancy/admin/accountmodel.php')
   return (
     <div className="space-y-4">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
@@ -77,9 +55,7 @@ export function AccountingAreaPage() {
           </Step>
           <Step id="2">
             Check that a model of chart of account exists or create one from menu Setup -{' '}
-            <StepLink to={chartOfAccountsModelsUrl} external>
-              Chart of accounts models
-            </StepLink>
+            <StepLink to={ROUTES.ledgerChartOfAccountsModels}>Chart of accounts models</StepLink>
           </Step>
           <Step id="3">
             Select and/or complete your chart of account from menu Setup - <StepLink to={ROUTES.ledgerPcgVersion}>Chart of accounts</StepLink>

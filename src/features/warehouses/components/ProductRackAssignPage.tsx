@@ -3,6 +3,7 @@ import { PackagePlus, Filter, RotateCcw, LoaderCircle, AlertTriangle, Pencil, Tr
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useProductOptions } from '../../products/products.queries'
@@ -207,6 +208,7 @@ export function ProductRackAssignPage() {
   const shelvesFilter = useShelvesByRack(rackId || undefined)
   const { data, isLoading, isError, error } = useProductAssignments(applied)
   const deleteAssignment = useDeleteAssignmentReal()
+  const confirm = useConfirm()
 
   const rows = useMemo(() => data ?? [], [data])
   const { sorted, sort, toggleSort } = useSortableRows<ProductAssignmentRow, SortKey>(rows, sortValue)
@@ -257,9 +259,17 @@ export function ProductRackAssignPage() {
     }
   }
 
-  function handleDelete(row: ProductAssignmentRow) {
+  async function handleDelete(row: ProductAssignmentRow) {
     if (!row.assignId) return
-    if (!window.confirm(`Remove this assignment for ${row.productRef}?`)) return
+    const ok = await confirm({
+      title: 'Remove Assignment?',
+      message: (
+        <>
+          Remove this assignment for <strong className="text-text!">{row.productRef}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     deleteAssignment.mutate(row.assignId)
   }
 

@@ -1,25 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { LedgerReport, LedgerAccountGroup, JournalsReport, JournalRow, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerHtmlParser'
-import { fetchLegacyDocument, parseLegacyJson, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import type { LedgerReport, LedgerAccountGroup, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerHtmlParser'
+import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { legacyAdminSend } from '../settings/legacyAdminRequest'
+import { fetchPieceCard } from './pieceCard.queries'
 
-// This session's audit of the General Ledger module found a real, complete,
-// already-built JSON API sitting unused right next to the classic
-// server-rendered report pages — accountancy/bookkeeping/listbyaccount_ajax_api.php.
-// Confirmed by reading its PHP directly (real filtering/sorting/pagination,
-// grouped-by-account output with subtotals and opening/period/closing
-// balances, real per-line edit/delete URLs and permission flags) and
-// live-tested (real fiscal year, real account groups, 112 real total
-// records). Neither listbyaccount.php, listbysubaccount.php, nor list.php
-// (Journals) actually calls this endpoint themselves — it was built and
-// never wired into any legacy page's own UI. Three hooks below share it:
-// useLedgerReport groups by account, useSubledgerReport groups by the same
-// response's own subledger_account field, useJournalsReport flattens the
-// same real entries into chronological order — this used to scrape list.php's
-// HTML with DOMParser (see ledgerHtmlParser.ts's now-unused
-// parseJournalsDocument/looksLikeLegacyLoginPage), which violated this
-// project's "no HTML-scraping, real API data only" rule; replaced once this
-// real endpoint was found to carry everything Journals needs
-// (code_journal/doc_date/doc_ref/label_operation/debit/credit per entry).
+// The Ledger and Subledger reports read a real JSON API that sits next to the classic
+// server-rendered pages — accountancy/bookkeeping/listbyaccount_ajax_api.php (real filtering,
+// sorting, pagination, grouped-by-account output with subtotals and opening/period/closing
+// balances, per-line edit/delete URLs and permission flags). useLedgerReport groups by account,
+// useSubledgerReport groups by the same response's own subledger_account field.
+//
+// The Journals page (Operations - Journals) does NOT use it: that endpoint ignores the "Include docs
+// already exported" setting, caps a page at 200 rows and pages by account, so its rows differ from
+// list.php's. Journals reads list.php itself (journalsList.queries.ts).
 //
 // Every filter field below was individually live-tested against the real
 // endpoint (not assumed from the legacy form's own field list) by reading
@@ -311,39 +304,6 @@ function mapApiResponseToSubledgerReport(data: RawLedgerApiResponse): SubledgerR
   }
 }
 
-function mapApiResponseToJournalsReport(data: RawLedgerApiResponse): JournalsReport {
-  const rows: JournalRow[] = data.groups
-    .flatMap((g) =>
-      g.entries.map(
-        (e): JournalRow => ({
-          transactionNum: e.piece_num,
-          cardUrl: e.piece_url,
-          journal: e.code_journal,
-          date: e.doc_date ?? '',
-          accountingDoc: e.doc_ref,
-          accountCode: g.account_number,
-          subledgerAccount: e.subledger_account,
-          label: e.label_operation,
-          debit: e.debit,
-          credit: e.credit,
-          dateExport: e.date_export ?? '',
-          letteringCode: e.lettering_code || '',
-          docType: e.doc_type,
-          fkDoc: e.fk_doc ? String(e.fk_doc) : '',
-          docUrl: e.doc_url || null,
-          canEdit: e.can_edit,
-          editUrl: e.edit_url,
-          canDelete: e.can_delete,
-          deleteUrl: e.delete_url,
-        }),
-      ),
-    )
-    // The API groups by account for the Ledger view; Journals wants the
-    // same real entries in chronological/piece order instead.
-    .sort((a, b) => a.date.localeCompare(b.date) || a.transactionNum.localeCompare(b.transactionNum))
-  return { rows, totalDebit: data.summary.period.debit, totalCredit: data.summary.period.credit, meta: mapMeta(data.meta) }
-}
-
 async function fetchBookkeepingApi(filters: LedgerFilters): Promise<RawLedgerApiResponse> {
   const params = buildParams(filters)
   const res = await fetch(`/accountancy/bookkeeping/listbyaccount_ajax_api.php?${params.toString()}`, { credentials: 'same-origin' })
@@ -373,14 +333,6 @@ export function useSubledgerReport(filters: LedgerFilters) {
   })
 }
 
-export function useJournalsReport(filters: LedgerFilters) {
-  return useQuery({
-    queryKey: ['generalLedger', 'journals', filters],
-    queryFn: async (): Promise<JournalsReport> => mapApiResponseToJournalsReport(await fetchBookkeepingApi(filters)),
-    staleTime: 1000 * 30,
-  })
-}
-
 // Real per-entry delete_url (accountancy/bookkeeping/listbyaccount.php?
 // action=delmouv&mvt_num=X) — matches the real page's own trash-icon
 // action per row (see ledgerHtmlParser.ts's LedgerRow comment). A bare GET
@@ -397,262 +349,9 @@ export function useDeleteLedgerEntry() {
   })
 }
 
-export interface PieceLine {
-  rowId: string
-  accountCode: string
-  accountLabel: string
-  subledgerAccount: string
-  journal: string
-  date: string
-  accountingDoc: string
-  docType: string
-  fkDoc: string
-  docUrl: string | null
-  label: string
-  currencyCode: string
-  debit: number
-  credit: number
-  canEdit: boolean
-  editUrl: string | null
-  canDelete: boolean
-  deleteUrl: string | null
-}
-
-// Every journal-entry row's real `piece_url` (Ledger/Journals' "view
-// source" link) points at the exact same generic accountancy/bookkeeping/
-// card.php?piece_num=X — not a per-object link into the invoice/order/bank
-// entry that generated it, confirmed live (sampled real entries across
-// every journal code present on this instance: OD/BQ/ER all resolved to
-// that one URL shape). That page is classic HTML with no JSON of its own,
-// but every real field it would show (account/label/journal/date/debit/
-// credit per line of the balanced entry) is already sitting in the same
-// listbyaccount_ajax_api.php response Ledger/Journals already fetch — so
-// this refetches that same real endpoint over a wide date range and
-// filters client-side to the one piece, rather than linking out to the
-// classic page or scraping it.
-export function usePieceDetail(pieceNum: string | undefined) {
-  return useQuery({
-    queryKey: ['generalLedger', 'piece', pieceNum],
-    queryFn: async (): Promise<PieceLine[]> => {
-      const data = await fetchBookkeepingApi({ ...defaultLedgerFilters(), dateStart: '2000-01-01', dateEnd: '2100-12-31', limit: 5000 })
-      const lines: PieceLine[] = []
-      for (const g of data.groups) {
-        for (const e of g.entries) {
-          if (e.piece_num === pieceNum) {
-            lines.push({
-              rowId: String(e.id),
-              accountCode: g.account_number,
-              accountLabel: g.account_label,
-              subledgerAccount: e.subledger_account,
-              journal: e.code_journal,
-              date: e.doc_date ?? '',
-              accountingDoc: e.doc_ref,
-              docType: e.doc_type,
-              fkDoc: e.fk_doc ? String(e.fk_doc) : '',
-              docUrl: e.doc_url || null,
-              label: e.label_operation,
-              currencyCode: e.currency_code,
-              debit: e.debit,
-              credit: e.credit,
-              canEdit: e.can_edit,
-              editUrl: e.edit_url,
-              canDelete: e.can_delete,
-              deleteUrl: e.delete_url,
-            })
-          }
-        }
-      }
-      return lines
-    },
-    enabled: !!pieceNum,
-    staleTime: 1000 * 30,
-  })
-}
-
-export interface JournalOption {
-  code: string
-  label: string
-}
-
-interface PieceEditContext {
-  token: string
-  journalOptions: JournalOption[]
-}
-
-// Backs the three real inline-edit forms on card.php's own "TRANSACTION"
-// panel (Date/Journal/Accounting Doc., each behind its own pencil icon —
-// confirmed live: action=editdate/editjournal/editdocref reveal a classic
-// form named setdate/setjournal/setdocref, each posting back to
-// card.php?piece_num=X with token/action/mode plus the one changed field).
-// That page has no JSON, so its real CSRF token and the real journal code
-// list (AC/AN/BQ/ER/... — this instance's actual llx_accounting_journal
-// rows, not guessed) have to come from scraping the classic page itself —
-// fetched lazily (only once a field is actually being edited) rather than
-// on every piece-detail page load. The bare card.php?piece_num=X page only
-// shows the plain read-only "TRANSACTION" panel with a pencil link per
-// field — the actual <select name="code_journal">/<input> and their real
-// token only render when the URL carries the matching action=edit* param
-// (confirmed live: the journal <select> is simply absent from the page
-// without it), so this has to fetch the same action-qualified URL each
-// pencil already links to, not the bare page.
-export function usePieceEditContext(pieceNum: string | undefined, field: 'date' | 'journal' | 'docRef' | null) {
-  const action = field === 'date' ? 'editdate' : field === 'journal' ? 'editjournal' : field === 'docRef' ? 'editdocref' : null
-  return useQuery({
-    queryKey: ['generalLedger', 'pieceEditContext', pieceNum, action],
-    queryFn: async (): Promise<PieceEditContext> => {
-      const doc = await fetchLegacyDocument(`/accountancy/bookkeeping/card.php`, new URLSearchParams({ piece_num: pieceNum ?? '', action: action ?? '', mode: '' }))
-      const token = doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
-      const select = doc.querySelector<HTMLSelectElement>('select[name="code_journal"]')
-      const journalOptions = select
-        ? Array.from(select.querySelectorAll('option'))
-            .map((o) => ({ code: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
-            .filter((o) => o.code)
-        : []
-      return { token, journalOptions }
-    },
-    enabled: !!pieceNum && !!action,
-    staleTime: 1000 * 30,
-  })
-}
-
-export interface UpdatePieceFieldInput {
-  pieceNum: string
-  token: string
-  // Real action names straight off each field's own form — setdate takes
-  // the split day/month/year fields too (same convention as every other
-  // Dolibarr date field already handled in this app, e.g. terminal setup's
-  // header/footer form), setjournal/setdocref take just their one field.
-  action: 'setdate' | 'setjournal' | 'setdocref'
-  fields: Record<string, string>
-}
-
-export function useUpdatePieceField() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ pieceNum, token, action, fields }: UpdatePieceFieldInput) => {
-      const body = new URLSearchParams({ token, action, mode: '', ...fields })
-      const res = await fetch(`/accountancy/bookkeeping/card.php?piece_num=${encodeURIComponent(pieceNum)}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
-  })
-}
-
 export interface ChartOption {
   code: string
   label: string
-}
-
-export interface RowEditContext {
-  token: string
-  // Real hidden fields the actual row-edit form carries alongside the
-  // user-facing ones (doc_date as its own real unix-timestamp encoding —
-  // different from the piece-header's own mm/dd/yyyy setdate form — plus
-  // doc_type/doc_ref/code_journal/fk_doc/fk_docdet/mode) — scraped and
-  // passed straight back through unchanged rather than recomputed, so
-  // there's no risk of getting the timestamp encoding wrong.
-  hidden: Record<string, string>
-  accountOptions: ChartOption[]
-  currencyOptions: ChartOption[]
-}
-
-// Backs the real per-row "Event" pencil in the "List of movements" table —
-// confirmed live its real href is card.php?action=update&id=<rowid>&
-// piece_num=X&token=..., NOT the bare edit_url this app already uses for
-// the Ledger/Journals/Subledger list pages' own pencil (that one correctly
-// just opens the piece; this one turns that ONE line, in place on the real
-// page, into the same editable field set the "Add" row already mirrors —
-// accountingaccount_number/subledger_account/subledger_label/
-// label_operation/multicurrency_code/debit/credit, submit name="update").
-// rowid is the entry's own `id` (distinct from piece_num — the same id the
-// real page threads through its action=update&id=X link).
-export function useRowEditContext(pieceNum: string | undefined, rowId: string | null) {
-  return useQuery({
-    queryKey: ['generalLedger', 'rowEditContext', pieceNum, rowId],
-    queryFn: async (): Promise<RowEditContext> => {
-      const doc = await fetchLegacyDocument('/accountancy/bookkeeping/card.php', new URLSearchParams({ piece_num: pieceNum ?? '', action: 'update', id: rowId ?? '', mode: '' }))
-      const idInput = Array.from(doc.querySelectorAll<HTMLInputElement>('input[name="id"]')).find((el) => el.value === rowId)
-      const form = idInput?.closest('form')
-      const token = form?.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
-      const hidden: Record<string, string> = {}
-      form?.querySelectorAll<HTMLInputElement>('input[type="hidden"]').forEach((el) => {
-        if (el.name && el.name !== 'token' && el.name !== 'id') hidden[el.name] = el.value
-      })
-      const accountSelect = form?.querySelector<HTMLSelectElement>('select[name="accountingaccount_number"]')
-      const accountOptions = accountSelect
-        ? Array.from(accountSelect.querySelectorAll('option'))
-            .map((o) => ({ code: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
-            .filter((o) => o.code && o.code !== '-1')
-        : []
-      const currencySelect = form?.querySelector<HTMLSelectElement>('select[name="multicurrency_code"]')
-      const currencyOptions = currencySelect
-        ? Array.from(currencySelect.querySelectorAll('option'))
-            .map((o) => ({ code: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
-            .filter((o) => o.code)
-        : []
-      return { token, hidden, accountOptions, currencyOptions }
-    },
-    enabled: !!pieceNum && !!rowId,
-    staleTime: 1000 * 30,
-  })
-}
-
-export interface UpdatePieceLineInput {
-  pieceNum: string
-  rowId: string
-  token: string
-  hidden: Record<string, string>
-  fields: {
-    accountingaccount_number: string
-    subledger_account: string
-    subledger_label: string
-    label_operation: string
-    multicurrency_code: string
-    debit: string
-    credit: string
-  }
-}
-
-export function useUpdatePieceLine() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ pieceNum, rowId, token, hidden, fields }: UpdatePieceLineInput) => {
-      const body = new URLSearchParams({ token, id: rowId, update: 'Update', ...hidden, ...fields })
-      const res = await fetch(`/accountancy/bookkeeping/card.php?piece_num=${encodeURIComponent(pieceNum)}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
-  })
-}
-
-// Real "Creation Date" value shown in the classic card.php page's own right
-// column — confirmed live, genuinely distinct from Date/doc_date (e.g. Date
-// 05/18/2026 vs Creation Date 06/18/2026 on the same real piece). The JSON
-// API has no such field at all, so this scrapes the bare classic page once
-// per piece (no action= param needed — it's on the plain read view) rather
-// than guessing or reusing doc_date under a different label.
-export function usePieceCreationDate(pieceNum: string | undefined) {
-  return useQuery({
-    queryKey: ['generalLedger', 'pieceCreationDate', pieceNum],
-    queryFn: async (): Promise<string> => {
-      const doc = await fetchLegacyDocument('/accountancy/bookkeeping/card.php', new URLSearchParams({ piece_num: pieceNum ?? '' }))
-      const cells = Array.from(doc.querySelectorAll('td'))
-      const idx = cells.findIndex((td) => (td.textContent ?? '').trim().toLowerCase() === 'creation date')
-      return idx >= 0 && cells[idx + 1] ? (cells[idx + 1].textContent ?? '').trim() : ''
-    },
-    enabled: !!pieceNum,
-    staleTime: 1000 * 30,
-  })
 }
 
 // Backs the real accountancy/bookkeeping/card.php?action=create page —
@@ -662,7 +361,7 @@ export function usePieceCreationDate(pieceNum: string | undefined) {
 // next_num_mvt field, e.g. "7" — the create form's own <form action>
 // already points at card.php?piece_num=7). Real field names confirmed by
 // reading the raw form: doc_date/doc_dateday/doc_datemonth/doc_dateyear
-// (mm/dd/yyyy, same split-date convention as usePieceEditContext's own
+// (mm/dd/yyyy, same split-date convention as useUpdatePieceHeader's own
 // setdate form)/code_journal/doc_ref for the header,
 // accountingaccount_number/subledger_account/subledger_label/
 // label_operation/multicurrency_code/currency_amo (the real exchange-rate
@@ -730,55 +429,27 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: async ({ token, nextNumMvt, fields }: CreateTransactionInput) => {
       const body = new URLSearchParams({ token, action: 'confirm_create', next_num_mvt: nextNumMvt, mode: '_tmp', save: 'Add', ...fields })
-      const res = await fetch(`/accountancy/bookkeeping/card.php?piece_num=${encodeURIComponent(nextNumMvt)}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      // Same real-error-banner convention already used elsewhere in this app
-      // for a POST that gets a 200 but was actually rejected server-side
-      // (e.g. missing required field) — Dolibarr re-renders the same create
-      // page with a real <div class="error">MESSAGE</div> instead of
-      // redirecting on validation failure.
+      const html = await legacyAdminSend(
+        '/accountancy/bookkeeping/card.php',
+        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() },
+        `?piece_num=${encodeURIComponent(nextNumMvt)}`,
+      )
+      // A refused post (a missing required field) re-renders the create page with an error box.
       const errorMatch = html.match(/<div class="error">([\s\S]*?)<\/div>/)
       if (errorMatch) {
         const div = document.createElement('div')
         div.innerHTML = errorMatch[1]
         throw new Error((div.textContent ?? 'The backend rejected this transaction.').trim())
       }
-      // The real page's own next_num_mvt hint is confirmed live to be
-      // unreliable on this backend: it can point at a piece_num ALREADY
-      // occupied by a real, unrelated, auto-generated entry (e.g. a bank
-      // "Expense report payment" piece) — action=confirm_create against an
-      // already-occupied piece_num gets silently no-op'd server-side (200
-      // response, no error banner, but nothing new is actually written —
-      // confirmed live: the piece afterward shows only its original
-      // pre-existing content, no trace of the submitted fields). A real user
-      // clicking "Add" on the actual classic page would hit the exact same
-      // collision if enough concurrent activity happened between loading the
-      // create form and submitting it — this isn't a gap this app
-      // introduced. Detected here by confirming the just-submitted doc_ref
-      // actually appears in the response as this piece's own Accounting
-      // Doc. value, rather than trusting the 200 status alone.
-      const docRefMatch = html.match(/Accounting Doc\.<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/)
-      const actualDocRef = docRefMatch ? (() => {
-        const div = document.createElement('div')
-        div.innerHTML = docRefMatch[1]
-        return (div.textContent ?? '').trim()
-      })() : ''
-      if (actualDocRef !== fields.doc_ref) {
-        throw new Error(
-          `The backend didn't actually create this transaction — piece #${nextNumMvt} already had unrelated real content ("${actualDocRef}") and the submission was silently rejected. Retry to get a fresh piece number.`,
-        )
-      }
+      // The page keeps a new transaction in its scratch table (mode `_tmp`) until it is validated,
+      // and numbers it from that table's own sequence — so it is only found under that mode.
+      // Trusting the 200 status alone is not enough; the transaction has to be there.
+      const card = await fetchPieceCard(nextNumMvt, '_tmp')
+      if (!card || card.accountingDoc !== fields.doc_ref) throw new Error(`The backend did not create this transaction (no transaction ${nextNumMvt} with accounting doc. "${fields.doc_ref}" was found). Try again.`)
       return { pieceNum: nextNumMvt }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })
 }
 
-export type { LedgerReport, LedgerAccountGroup, LedgerRow, LedgerMovement, JournalsReport, JournalRow, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerHtmlParser'
+export type { LedgerReport, LedgerAccountGroup, LedgerRow, LedgerMovement, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerHtmlParser'

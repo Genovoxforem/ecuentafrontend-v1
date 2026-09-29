@@ -1,16 +1,9 @@
 import { Lock } from 'lucide-react'
-import { DisabledFormPage } from '../../../../shared/components/forms/DisabledFormPage'
+import { LegacyFormPage } from '../LegacyFormPage'
 
-// accountancy/admin/closure.php — a tiny settings form (profit/loss accounts
-// + default closure journal), reads/writes Dolibarr constants directly, no
-// list, no JSON.
+// accountancy/admin/closure.php — the real closure settings (profit / loss result accounts and the
+// closure journal). The note, labels and order are the backend form's own; Modify posts its
+// action=update.
 export function ClosureAccountsPage() {
-  return (
-    <DisabledFormPage
-      icon={Lock}
-      title="Closure Accounts"
-      sourcePath="accountancy/admin/closure.php"
-      sections={[{ fields: [{ label: 'Profit Account', required: true }, { label: 'Loss Account', required: true }, { label: 'Default Closure Journal', type: 'select', required: true }] }]}
-    />
-  )
+  return <LegacyFormPage icon={Lock} title="Closure accounts" path="/accountancy/admin/closure.php" anchor="ACCOUNTING_RESULT_PROFIT" />
 }

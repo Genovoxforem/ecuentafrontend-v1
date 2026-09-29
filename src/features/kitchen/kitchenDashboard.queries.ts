@@ -111,18 +111,29 @@ export interface KitchenDashboardOrderItem {
   kotstatus: string
 }
 
+export interface KitchenDashboardOrder {
+  rowid: number
+  ref: string
+  tokenno: string
+  datef: string // the order date, as the backend prints it (yyyy-mm-dd)
+  total_ttc: number
+  ordercomplete: number
+  customer_name: string
+}
+
 export function useKitchenOrderDetails(orderId: number | null) {
   return useQuery({
     queryKey: ['kitchenDashboard', 'orderDetails', orderId],
-    queryFn: async (): Promise<{ order: { rowid: number; ref: string; tokenno: string; total_ttc: number; ordercomplete: number; customer_name: string } | null; items: KitchenDashboardOrderItem[] }> => {
+    queryFn: async (): Promise<{ order: KitchenDashboardOrder | null; items: KitchenDashboardOrderItem[] }> => {
+      // Live: numbers arrive as strings, and each line's id is `id` (not `rowid`).
       const data = await postForm<{
-        order: { rowid: number; ref: string; tokenno: string; total_ttc: number; ordercomplete: number; customer_name: string } | null
-        items: Array<{ rowid: number; description: string; product_ref: string; product_label: string; qty: number; total_ht: number; total_ttc: number; kotstatus: string }>
+        order: KitchenDashboardOrder | null
+        items: Array<{ id?: number | string; rowid?: number | string; description: string; product_ref: string; product_label: string; qty: number; total_ht: number; total_ttc: number; kotstatus: string }>
       }>({ action: 'get_invoice_details', order_id: String(orderId) })
       return {
         order: data.order,
         items: (data.items ?? []).map((i) => ({
-          id: i.rowid,
+          id: Number(i.id ?? i.rowid),
           description: i.description,
           productRef: i.product_ref,
           productLabel: i.product_label,

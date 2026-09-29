@@ -1,19 +1,16 @@
 import { HeartHandshake } from 'lucide-react'
-import { InertListPage } from '../../../shared/components/forms/InertListPage'
 import { ROUTES } from '../../../routes'
+import { LegacyListPage } from './LegacyListPage'
 
-// don/list.php — classic Dolibarr list over llx_don, no JSON. Status filter
-// values (STATUS_DRAFT/VALIDATED/PAID/CANCELED) are hardcoded literal
-// constants on the real page, not DB-driven.
+// don/list.php — the real donations list.
 export function DonationsList() {
   return (
-    <InertListPage
+    <LegacyListPage
       icon={HeartHandshake}
       title="Donations"
-      sourcePath="don/list.php"
-      columns={['Ref', 'Third Party', 'Name', 'Date', 'Amount', 'Status']}
-      addLabel="New Donation"
-      addPath={ROUTES.ledgerDonationCreate}
+      path="/don/list.php"
+      firstHeader={/^Ref/}
+      addTo={{ label: 'New Donation', to: ROUTES.ledgerDonationCreate }}
     />
   )
 }

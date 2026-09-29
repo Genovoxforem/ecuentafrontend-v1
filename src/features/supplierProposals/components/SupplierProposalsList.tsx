@@ -7,7 +7,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
-import type { SupplierProposalRow, SupplierProposalsSummary } from '../supplierProposals.queries'
+import type { SupplierProposalRange, SupplierProposalRow, SupplierProposalsSummary } from '../supplierProposals.queries'
 
 type SortKey = 'ref' | 'thirdParty' | 'validationDate' | 'plannedDelivery' | 'amountExcl' | 'amountIncl' | 'author' | 'status'
 
@@ -27,7 +27,7 @@ const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 function matchesSearch(proposal: SupplierProposalRow, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  return [proposal.ref, proposal.thirdParty, proposal.author, proposal.status].some((field) => field.toLowerCase().includes(q))
+  return [proposal.ref, proposal.vendor, proposal.author, proposal.status].some((field) => field.toLowerCase().includes(q))
 }
 
 function sortValue(p: SupplierProposalRow, key: SortKey): string | number {
@@ -35,11 +35,11 @@ function sortValue(p: SupplierProposalRow, key: SortKey): string | number {
     case 'ref':
       return p.ref
     case 'thirdParty':
-      return p.thirdParty
+      return p.vendor
     case 'validationDate':
-      return p.validationDate
+      return p.validationIso
     case 'plannedDelivery':
-      return p.plannedDelivery
+      return p.plannedDeliveryIso
     case 'amountExcl':
       return p.amountExclTax
     case 'amountIncl':
@@ -51,7 +51,7 @@ function sortValue(p: SupplierProposalRow, key: SortKey): string | number {
   }
 }
 
-export function SupplierProposalsList({ summary }: { summary: SupplierProposalsSummary }) {
+export function SupplierProposalsList({ summary, range, onRangeChange }: { summary: SupplierProposalsSummary; range: SupplierProposalRange; onRangeChange: (range: SupplierProposalRange) => void }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
@@ -73,7 +73,7 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
   function getExportData() {
     const rows = sortedProposals.map((p) => [
       p.ref,
-      p.thirdParty,
+      p.vendor,
       p.validationDate,
       p.plannedDelivery,
       `${formatMoney(p.amountExclTax)} ZMW`,
@@ -155,9 +155,37 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
               />
             </div>
             <TableExportButtons title="Vendor Quotation" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="flex items-center gap-1.5 rounded-md border border-input-border bg-input-bg px-3 py-1.5 text-sm text-text-muted cursor-default ml-auto">
-              <CalendarDays size={14} /> Select Date Range
-            </button>
+            <div className="ml-auto flex items-center gap-2 text-sm text-text-muted">
+              <CalendarDays size={14} />
+              <input
+                type="date"
+                aria-label="From date"
+                value={range.from}
+                max={range.to || undefined}
+                onChange={(e) => {
+                  onRangeChange({ ...range, from: e.target.value })
+                  setPage(1)
+                }}
+                className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+              />
+              <span>to</span>
+              <input
+                type="date"
+                aria-label="To date"
+                value={range.to}
+                min={range.from || undefined}
+                onChange={(e) => {
+                  onRangeChange({ ...range, to: e.target.value })
+                  setPage(1)
+                }}
+                className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+              />
+              {(range.from || range.to) && (
+                <button type="button" onClick={() => onRangeChange({ from: '', to: '' })} className="text-xs font-medium text-brand hover:underline">
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
@@ -185,9 +213,17 @@ export function SupplierProposalsList({ summary }: { summary: SupplierProposalsS
                 </tr>
               ) : (
                 pageProposals.map((p) => (
-                  <tr key={p.ref} className="border-b border-border">
-                    <td className="px-4 py-3 text-brand">{p.ref}</td>
-                    <td className="px-4 py-3 text-text!">{p.thirdParty}</td>
+                  <tr key={p.id} className="border-b border-border">
+                    <td className="px-4 py-3 font-medium text-text!">{p.ref}</td>
+                    <td className="px-4 py-3 text-text!">
+                      {p.vendorId ? (
+                        <Link to={ROUTES.customerDetail.replace(':id', String(p.vendorId))} className="text-brand hover:underline">
+                          {p.vendor}
+                        </Link>
+                      ) : (
+                        p.vendor
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-text-muted whitespace-nowrap">{p.validationDate}</td>
                     <td className="px-4 py-3 text-text-muted whitespace-nowrap">{p.plannedDelivery}</td>
                     <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(p.amountExclTax)} ZMW</td>

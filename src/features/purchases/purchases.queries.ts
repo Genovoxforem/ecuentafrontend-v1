@@ -1,6 +1,6 @@
 import { useVendorsSummary } from '../vendors/vendors.queries'
 import { usePurchaseOrdersSummary } from '../purchaseOrders/purchaseOrders.queries'
-import { useSupplierProposalsSummary } from '../supplierProposals/supplierProposals.queries'
+import { useSupplierProposalAreaSummary } from '../supplierProposals/supplierProposalArea.queries'
 import { useVendorInvoices } from '../vendorInvoices/vendorInvoices.queries'
 
 export interface PurchaseStatCounts {
@@ -52,7 +52,7 @@ export interface PurchasesSummary {
 export function usePurchasesSummary() {
   const { data: vendors, isLoading: vendorsLoading, isError: vendorsIsError, error: vendorsError } = useVendorsSummary()
   const { data: purchaseOrders } = usePurchaseOrdersSummary()
-  const { data: supplierProposals } = useSupplierProposalsSummary()
+  const { data: supplierProposals } = useSupplierProposalAreaSummary()
   const { data: allInvoices, isLoading: invoicesLoading, isError: invoicesIsError, error: invoicesError } = useVendorInvoices('all')
   const { data: automaticInvoices } = useVendorInvoices('automatic')
 
@@ -72,7 +72,7 @@ export function usePurchasesSummary() {
   const summary: PurchasesSummary = {
     stats: {
       purchaseInvoices: allInvoices.total,
-      supplierProposals: supplierProposals?.totalProposals ?? 0,
+      supplierProposals: supplierProposals?.total ?? 0,
       purchaseOrders: purchaseOrders?.totalOrders ?? 0,
       vendors: vendors.totalVendors,
       asycudaDeclarations: 0,

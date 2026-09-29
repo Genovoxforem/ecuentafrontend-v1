@@ -53,6 +53,7 @@ export const nav: NavSection = {
         { label: 'HRM Area', path: ROUTES.hrmArea },
         { label: 'List Leave', path: ROUTES.leaveList },
         { label: 'Leave', path: ROUTES.leaveRequest },
+        { label: 'Leave request', path: ROUTES.leaveRequest },
         { label: 'Time Spent', path: ROUTES.timeSpent },
         { label: 'Activitieslist', path: ROUTES.activitiesDetail },
       ],

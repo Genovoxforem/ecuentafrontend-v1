@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ListChecks, Plus, Trash2, LoaderCircle, X, Check } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatDate } from '../../../utils/format'
 import { useTasksList, useCreateTask, useDeleteTask, type TaskRow } from '../tasks.queries'
 import type { ProjectRow } from '../projects.queries'
@@ -24,12 +25,21 @@ function formatWorkload(seconds: number | null) {
 export function ProjectTasksTab({ project }: { project: ProjectRow }) {
   const { data, isLoading, isError, error } = useTasksList(project.id)
   const deleteTask = useDeleteTask()
+  const confirm = useConfirm()
   const [pendingId, setPendingId] = useState<number | null>(null)
   const [rowError, setRowError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
 
-  function handleDelete(id: number, ref: string | null) {
-    if (!window.confirm(`Delete task ${ref || `#${id}`}? This cannot be undone.`)) return
+  async function handleDelete(id: number, ref: string | null) {
+    const ok = await confirm({
+      title: 'Delete Task?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{ref || `#${id}`}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     setRowError('')
     setPendingId(id)
     deleteTask.mutate(id, {

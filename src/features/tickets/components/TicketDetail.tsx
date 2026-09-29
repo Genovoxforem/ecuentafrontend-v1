@@ -43,6 +43,7 @@ import {
   type AddFollowupInput,
 } from '../ticketDetail.queries'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 disabled:bg-surface disabled:text-text-faint disabled:cursor-default'
 const primaryBtn = 'inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:bg-neutral-bg disabled:text-text-faint disabled:cursor-default'
@@ -231,6 +232,7 @@ function TicketMainTab({ ticket, onDeleted }: { ticket: TicketRow; onDeleted: ()
   const reopen = useReopenTicket(String(ticket.id), ticket.trackId)
   const close = useCloseTicket(String(ticket.id), ticket.trackId)
   const del = useDeleteTicket(String(ticket.id), ticket.trackId)
+  const confirm = useConfirm()
   const assign = useAssignTicketUser(String(ticket.id), ticket.trackId)
   const updateSubject = useUpdateTicketSubject(String(ticket.id), ticket.trackId)
 
@@ -362,8 +364,8 @@ function TicketMainTab({ ticket, onDeleted }: { ticket: TicketRow; onDeleted: ()
             <button
               type="button"
               disabled={close.isPending}
-              onClick={() => {
-                if (window.confirm('Close this ticket?')) close.mutate()
+              onClick={async () => {
+                if (await confirm({ title: 'Close Ticket?', message: 'Close this ticket?', variant: 'default', confirmLabel: 'Close Ticket' })) close.mutate()
               }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-success text-white hover:bg-success-hover px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             >
@@ -373,8 +375,8 @@ function TicketMainTab({ ticket, onDeleted }: { ticket: TicketRow; onDeleted: ()
           <button
             type="button"
             disabled={del.isPending}
-            onClick={() => {
-              if (window.confirm('Delete this ticket? This cannot be undone.')) del.mutate(undefined, { onSuccess: onDeleted })
+            onClick={async () => {
+              if (await confirm({ title: 'Delete Ticket?', message: 'Are you sure you want to delete this ticket?' })) del.mutate(undefined, { onSuccess: onDeleted })
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 text-danger px-3 py-1.5 text-sm font-medium hover:bg-danger-bg disabled:opacity-50 ml-auto"
           >

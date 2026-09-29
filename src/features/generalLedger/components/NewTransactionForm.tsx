@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { FilePlus, LoaderCircle, Plus, CalendarClock, Rows3, ArrowLeft, Calendar, Lightbulb, BookOpen } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useCreateTransactionContext, useCreateTransaction } from '../generalLedger.queries'
+import { pieceRoute } from '../pieceCard.queries'
 import { ROUTES } from '../../../routes'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 outline-none focus:ring-2 focus:ring-brand/30'
@@ -103,7 +104,8 @@ export function NewTransactionForm() {
         },
       },
       {
-        onSuccess: (result) => navigate(ROUTES.ledgerPieceDetail.replace(':pieceNum', result.pieceNum)),
+        // A new transaction waits in the backend's scratch table until it is validated on its card.
+        onSuccess: (result) => navigate(pieceRoute(result.pieceNum, '_tmp')),
         // The real backend's own next_num_mvt hint can point at an already-
         // occupied piece_num (see useCreateTransaction's own comment) — on
         // that specific failure, refetch the create context so the next

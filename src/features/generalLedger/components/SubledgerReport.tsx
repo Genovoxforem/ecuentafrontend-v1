@@ -3,6 +3,7 @@ import { ListTree, FileText, Loader2, AlertTriangle, ChevronDown, ChevronRight, 
 import { Link } from 'react-router-dom'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { useSubledgerReport, useDeleteLedgerEntry, defaultLedgerFilters, type LedgerFilters } from '../generalLedger.queries'
 import { LedgerToolbar, LedgerFilterBar, LedgerPagination } from './LedgerControls'
 import { DocLink } from './DocLink'
@@ -51,6 +52,7 @@ export function SubledgerReport() {
   const [draft, setDraft] = useState<LedgerFilters>(filters)
   const { data: report, isLoading, isFetching, isError, error, refetch } = useSubledgerReport(filters)
   const deleteEntry = useDeleteLedgerEntry()
+  const confirm = useConfirm()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const toggleGroup = (key: string) =>
     setExpanded((prev) => {
@@ -125,7 +127,7 @@ export function SubledgerReport() {
                   {COLUMNS.map((col) => (
                     <th key={col} className={`font-medium px-3 py-2 whitespace-nowrap ${col === 'Debit' || col === 'Credit' ? 'text-right' : ''}`}>
                       {col}
-                    </th>
+                     </th>
                   ))}
                 </tr>
               </thead>
@@ -191,8 +193,8 @@ export function SubledgerReport() {
                                       type="button"
                                       disabled={deleteEntry.isPending}
                                       title="Delete this entry on the real accounting backend"
-                                      onClick={() => {
-                                        if (entry.deleteUrl && window.confirm('Delete this accounting entry on the real backend? This cannot be undone.')) deleteEntry.mutate(entry.deleteUrl)
+                                      onClick={async () => {
+                                        if (entry.deleteUrl && (await confirm({ title: 'Delete Entry?', message: 'Delete this accounting entry on the real backend?' }))) deleteEntry.mutate(entry.deleteUrl)
                                       }}
                                       className="p-1 rounded text-text-faint hover:text-danger hover:bg-danger-bg disabled:opacity-40"
                                     >

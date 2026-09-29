@@ -36,19 +36,7 @@ function computeSuppressedIndices(items: NavItem[]): Set<number> {
   return suppressed
 }
 
-function SidebarLeaf({
-  item,
-  depth,
-  navigate,
-  location,
-  suppressCurrent = false,
-}: {
-  item: NavLeafItem
-  depth: number
-  navigate: NavigateFunction
-  location: Location
-  suppressCurrent?: boolean
-}) {
+function SidebarLeaf({ item, depth, navigate, location, suppressCurrent = false }: { item: NavLeafItem; depth: number; navigate: NavigateFunction; location: Location; suppressCurrent?: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -69,15 +57,18 @@ function SidebarLeaf({
     <button
       type="button"
       disabled={!isLink || loading}
-      onClick={isLink ? () => { setLoading(true); navigate(item.path!) } : undefined}
+      onClick={
+        isLink
+          ? () => {
+              setLoading(true)
+              navigate(item.path!)
+            }
+          : undefined
+      }
       onMouseEnter={isLink ? () => prefetchRoute(item.path!) : undefined}
       style={{ paddingLeft: `${depth * 0.75 + 0.75}rem` }}
       className={`w-full flex items-start gap-2 text-left py-1.5 pr-2 rounded-md text-[13px] leading-4 transition-colors ${
-        isCurrent
-          ? 'text-brand font-semibold'
-          : isLink
-            ? 'text-text-muted hover:text-brand hover:bg-brand/5 cursor-pointer'
-            : 'text-text-faint cursor-default'
+        isCurrent ? 'text-brand font-semibold' : isLink ? 'text-text-muted hover:text-brand hover:bg-brand/5 cursor-pointer' : 'text-text-faint cursor-default'
       }`}
     >
       {loading ? (
@@ -174,9 +165,7 @@ function SidebarNavItem({
           }}
           onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
           style={{ paddingLeft: `${depth * 0.75 + 0.25}rem` }}
-          className={`flex-1 min-w-0 text-left py-1.5 rounded-md text-[13px] font-semibold transition-colors ${
-            isCurrent || isPinned ? 'text-brand' : 'text-text-muted hover:text-text'
-          }`}
+          className={`flex-1 min-w-0 text-left py-1.5 rounded-md text-[13px] font-semibold transition-colors ${isCurrent || isPinned ? 'text-brand' : 'text-text-muted hover:text-text'}`}
         >
           <span className="truncate">{item.label}</span>
         </button>
@@ -184,9 +173,7 @@ function SidebarNavItem({
           type="button"
           onClick={() => toggleGroup(groupKey, parentKey)}
           title={`${isOpen ? 'Collapse' : 'Expand'} ${item.label}`}
-          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${
-            isOpen ? 'bg-brand text-white' : 'bg-brand/90 text-white hover:bg-brand'
-          }`}
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${isOpen ? 'bg-brand text-white' : 'bg-brand/90 text-white hover:bg-brand'}`}
         >
           <Plus size={11} strokeWidth={3} className={`transition-transform ${isOpen ? 'rotate-45' : ''}`} />
         </button>
@@ -260,7 +247,13 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   // section holds the current page — so the flyout panel never shows the
   // clicked section's children.
   useEffect(() => {
-    const currentSection = SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, location.pathname)))
+    // A ledger detail page (a transaction, an account card) is not a menu item of its own, but it
+    // belongs to General Ledger — also when the page is opened by its address.
+    const currentSection =
+      SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, location.pathname))) ??
+      (location.pathname.startsWith('/ledger/') ? SECTIONS.find((section) => section.key === 'general-ledger') : undefined) ??
+      // Same for an expense's own card (/expenses/card/:id), which is opened from the Expenses pages.
+      (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined)
     if (currentSection) setActiveKey(currentSection.key)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [SECTIONS, location.pathname])
@@ -319,34 +312,32 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
     <div className="relative flex h-full shrink-0 bg-rail-bg" onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
         <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2">
-        {SECTIONS.map((section) => {
-          const Icon = section.icon
-          const isActive = section.key === activeKey
-          return (
-            <button
-              key={section.key}
-              type="button"
-              title={section.label}
-              onClick={() => {
-                setActiveKey(section.key)
-                setOpenGroups({})
-                setHoverGroup(new Set())
-                if (!open && onOpen) onOpen()
-                if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
-              }}
-              className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
-                isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
-              }`}
-            >
-              <span className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
-                isActive ? 'bg-brand text-white shadow-md shadow-brand/25' : 'group-hover/rail:bg-brand/10'
-              }`}>
-                <Icon size={20} strokeWidth={1.8} />
-              </span>
-              <span className="w-full truncate text-center">{section.label}</span>
-            </button>
-          )
-        })}
+          {SECTIONS.map((section) => {
+            const Icon = section.icon
+            const isActive = section.key === activeKey
+            return (
+              <button
+                key={section.key}
+                type="button"
+                title={section.label}
+                onClick={() => {
+                  setActiveKey(section.key)
+                  setOpenGroups({})
+                  setHoverGroup(new Set())
+                  if (!open && onOpen) onOpen()
+                  if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
+                }}
+                className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
+                  isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
+                }`}
+              >
+                <span className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-brand text-white shadow-md shadow-brand/25' : 'group-hover/rail:bg-brand/10'}`}>
+                  <Icon size={20} strokeWidth={1.8} />
+                </span>
+                <span className="w-full truncate text-center">{section.label}</span>
+              </button>
+            )
+          })}
         </div>
       </aside>
 

@@ -3,10 +3,8 @@ import { UserX } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useUsersSummary } from '../../users/users.queries'
-import { useAuth } from '../../auth/AuthContext'
 import { ROUTES } from '../../../routes'
 import { TERMINATION_TYPES, useCreateTermination } from '../payrollActions.queries'
-import { useRecordTermination } from '../payrollLists.queries'
 
 // Real via payroll/ajax.php?savetermination=1... (payroll/terminations.php's
 // "Add Termination" panel). Termination Type options are copied verbatim
@@ -14,9 +12,7 @@ import { useRecordTermination } from '../payrollLists.queries'
 // live data.
 export function TerminationForm() {
   const { data: users } = useUsersSummary()
-  const { user } = useAuth()
   const createTermination = useCreateTermination()
-  const recordTermination = useRecordTermination()
 
   const [employeeId, setEmployeeId] = useState('')
   const [terminationType, setTerminationType] = useState('')
@@ -41,21 +37,10 @@ export function TerminationForm() {
     if (!terminationType) return setError('Select a termination type.')
     if (!noticeDate) return setError('Select a notice date.')
     if (!terminationDate) return setError('Select a termination date.')
-    const employee = users?.users.find((u) => String(u.id) === employeeId)
-    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
     createTermination.mutate(
       { employeeId: Number(employeeId), terminationType, noticeDate, terminationDate, description },
       {
         onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
-        onSuccess: () =>
-          recordTermination.add({
-            createdBy,
-            employeeName: employee?.name || employee?.login || 'Unknown',
-            terminationType,
-            noticeDate,
-            terminationDate,
-            description,
-          }),
       },
     )
   }

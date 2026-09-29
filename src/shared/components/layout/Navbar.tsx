@@ -12,9 +12,10 @@ import { DailySummaryPanel } from './navbar/DailySummaryPanel'
 import { ClockInPanel } from './navbar/ClockInPanel'
 import { AllAppsDrawer } from './navbar/AllAppsDrawer'
 import { useAttendanceStatus } from '../../../features/attendance/attendance.queries'
+import { useNotificationCount } from '../../../features/notifications/notifications.queries'
+import { useTodayNewLeadsCount } from '../../../features/projects/projects.queries'
 import { Avatar } from '../Avatar'
 import logoFull from '../../../assets/Ecuenta_logo.png'
-import { getBackendUrl } from '../../../api/backends'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | 'apps' | null
 
@@ -86,22 +87,22 @@ function useEntityLogo(entity: string | undefined) {
   useEffect(() => {
     if (!storageKey) return
     const cached = localStorage.getItem(storageKey)
-    if (cached) {
+    // Only a cached image counts — never something else that was stored under this key.
+    if (cached?.startsWith('data:image/')) {
       setSrc(cached)
       return
     }
 
     setSrc(logoFull)
     const controller = new AbortController()
-    let logoUrl: string
-    try {
-      logoUrl = `${new URL(getBackendUrl()).origin}/viewimage.php?cache=1&modulepart=mycompany&file=logos%2FEcuenta_logo_png.png&entity=${encodeURIComponent(entity!)}`
-    } catch {
-      return
-    }
-    fetch(logoUrl, { credentials: 'include', signal: controller.signal })
+    // Same-origin on purpose: this is fetch()ed (to cache it as a data URL), which
+    // a cross-origin backend URL blocks with CORS. Production runs on the backend's
+    // origin and the dev server proxies /viewimage.php (see vite.config.ts).
+    const logoUrl = `/viewimage.php?cache=1&modulepart=mycompany&file=logos%2FEcuenta_logo_png.png&entity=${encodeURIComponent(entity!)}`
+    fetch(logoUrl, { credentials: 'same-origin', signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error('Company logo unavailable')
+        // A session redirect or the SPA fallback also answers 200, with HTML.
+        if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) throw new Error('Company logo unavailable')
         return response.blob()
       })
       .then((blob) => {
@@ -141,6 +142,8 @@ function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
 // shares this session directly and just needs an SPA navigation.
 export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen: boolean; onToggleSidebar: () => void; onLogout: () => void }) {
   const navigate = useNavigate()
+  const { data: notificationCount = 0 } = useNotificationCount()
+  const { data: todayNewLeads } = useTodayNewLeadsCount()
   const { theme, setTheme } = useTheme()
   const { sidebarStyle, setSidebarStyle } = useSidebarStyle()
   const { user } = useAuth()
@@ -229,7 +232,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         {openPanel === 'apps' && <AllAppsDrawer query={appsQuery} onQueryChange={setAppsQuery} onClose={closePanel} />}
         <div className="hidden lg:flex items-center gap-2 h-9 pl-3 pr-1.5 rounded-full border border-border text-sm text-text-muted whitespace-nowrap">
           Today New Leads
-          <span className="w-6 h-6 flex items-center justify-center rounded-full bg-info-bg text-info-fg text-xs font-semibold">27</span>
+          <span className="min-w-6 h-6 px-1 flex items-center justify-center rounded-full bg-info-bg text-info-fg text-xs font-semibold">{todayNewLeads ?? '–'}</span>
         </div>
       </div>
 
@@ -328,7 +331,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
             className={isModern ? MODERN_ICON_REST_COLOR : ''}
           >
             <Bell size={19} />
-            <Badge count={2} color="bg-danger" />
+            {notificationCount > 0 && <Badge count={notificationCount} color="bg-danger" />}
           </IconButton>
           {openPanel === 'notifications' && <NotificationsPanel onClose={closePanel} />}
         </div>

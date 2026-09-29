@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { lazy, Suspense, useState, useRef, useEffect, type ReactNode } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
   ChevronsLeft,
@@ -39,8 +40,10 @@ import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAllProductsRich } from '../../products/products.queries'
-import { useWarehouseDetail, useWarehouseMovements, useWarehouseEvents, useGenerateWarehouseDoc, type WarehouseMovementFilters } from '../warehouseExtras.queries'
+import { useWarehouseDetail, useWarehouseMovements, useWarehouseEvents, useGenerateWarehouseDoc, useDeleteWarehouse, type WarehouseMovementFilters } from '../warehouseExtras.queries'
 import type { WarehouseProductRow } from '../warehouseHtmlParser'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { getPageNumbers } from '../../../shared/components/ListPagination'
@@ -48,15 +51,18 @@ import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { WarehouseEditModal } from './WarehouseEditModal'
 import { AddEventModal } from '../../agenda/components/AddEventModal'
 
+// The product Stock tab's own Correct Stock / Transfer Stock dialogs, reused for
+// the per-product actions in the products table below.
+const ProductStockActionModal = lazy(() => import('../../products/components/ProductDetailTabs').then((m) => ({ default: m.ProductStockActionModal })))
+
 // Native rebuild of product/stock/card.php?id=X plus its two sibling tabs,
 // Stock Movements (movement_list.php — a JS SPA shell backed by a real JSON
 // API, product/stock/ajax/movement_list_api.php) and Events (events.php,
 // scraped like the Warehouse tab itself) — see warehouseHtmlParser.ts for
 // how each was verified against the real backend source, not guessed from
-// screenshots. Transfer stock/Correct stock/Update to ZRA (header actions)
-// and the per-product Stock movement/Stock correction links stay
-// legacy-modal-driven and route out to the real legacy pages, same
-// "link out for a not-yet-natively-built action" convention used elsewhere.
+// screenshots. The header's Transfer stock/Correct stock/Update to ZRA
+// shortcuts open the Stock Movements tab; the per-product Stock Movement /
+// Stock Correction actions open the product Stock tab's own dialogs in place.
 
 type WarehouseTab = 'warehouse' | 'movements' | 'events'
 
@@ -97,6 +103,15 @@ export function WarehouseDetail() {
   const [productSearchId, setProductSearchId] = useState('')
   const [appliedProductSearchId, setAppliedProductSearchId] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
+  const navigate = useNavigate()
+  const confirm = useConfirm()
+  const deleteWarehouse = useDeleteWarehouse()
+
+  async function handleDelete() {
+    if (!id) return
+    if (!(await confirm({ title: 'Delete Warehouse?', message: 'Are you sure you want to delete this warehouse?' }))) return
+    deleteWarehouse.mutate(id, { onSuccess: () => navigate(ROUTES.warehouseList) })
+  }
   // The real Product Search select (card.php's own select_produits() call)
   // lists the WHOLE product catalog, not just products already stocked
   // here — confirmed live: "mtm" (0 products) still offers a full searchable
@@ -194,9 +209,15 @@ export function WarehouseDetail() {
                   </button>
                 )}
                 {data.deleteUrl ? (
-                  <a href={stripBackendPrefix(data.deleteUrl)} target="_blank" rel="noreferrer" title="Delete" className="p-1.5 rounded-md text-text-faint hover:bg-danger-bg hover:text-danger-fg">
-                    <Trash2 size={16} />
-                  </a>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleteWarehouse.isPending}
+                    title="Delete"
+                    className="p-1.5 rounded-md text-text-faint hover:bg-danger-bg hover:text-danger-fg disabled:opacity-60"
+                  >
+                    {deleteWarehouse.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  </button>
                 ) : (
                   data.deleteRefusedTitle && (
                     <span title={data.deleteRefusedTitle} className="p-1.5 rounded-md text-text-faint/50 cursor-not-allowed">
@@ -238,6 +259,11 @@ export function WarehouseDetail() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
+        {deleteWarehouse.isError && (
+          <p role="alert" className="text-sm font-medium text-danger">
+            {deleteWarehouse.error instanceof Error ? deleteWarehouse.error.message : 'Delete failed.'}
+          </p>
+        )}
         {tab === 'warehouse' && (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -247,9 +273,13 @@ export function WarehouseDetail() {
                   <InfoRow
                     label="Parent warehouse"
                     value={
-                      <a href={stripBackendPrefix(data.parentWarehouseUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                        {data.parentWarehouseName}
-                      </a>
+                      data.parentWarehouseId ? (
+                        <Link to={ROUTES.warehouseDetail.replace(':id', String(data.parentWarehouseId))} className="text-brand hover:underline">
+                          {data.parentWarehouseName}
+                        </Link>
+                      ) : (
+                        data.parentWarehouseName
+                      )
                     }
                   />
                 )}
@@ -300,6 +330,7 @@ export function WarehouseDetail() {
               <WarehouseProductsTable
                 products={appliedProductSearchId ? data.products.filter((p) => String(p.id) === appliedProductSearchId) : data.products}
                 emptyMessage={appliedProductSearchId ? 'No matching product found in this warehouse.' : 'No products in this warehouse.'}
+                warehouseId={data.id}
               />
             </Card>
           </>
@@ -351,7 +382,9 @@ function productSortValue(row: WarehouseProductRow, key: ProductSortKey): string
   }
 }
 
-function WarehouseProductsTable({ products, emptyMessage }: { products: WarehouseProductRow[]; emptyMessage: string }) {
+function WarehouseProductsTable({ products, emptyMessage, warehouseId }: { products: WarehouseProductRow[]; emptyMessage: string; warehouseId: number }) {
+  const queryClient = useQueryClient()
+  const [stockAction, setStockAction] = useState<{ kind: 'correct' | 'transfer'; productId: number } | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
@@ -458,16 +491,16 @@ function WarehouseProductsTable({ products, emptyMessage }: { products: Warehous
                   <td className="px-4 py-2 text-right tabular-nums text-text!">{formatMoney(p.valueForSell)}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {p.transferUrl && (
-                      <a href={stripBackendPrefix(p.transferUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+                      <button type="button" onClick={() => setStockAction({ kind: 'transfer', productId: p.id })} className="inline-flex items-center gap-1 text-brand hover:underline">
                         <ArrowLeftRight size={13} /> Stock Movement
-                      </a>
+                      </button>
                     )}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {p.correctionUrl && (
-                      <a href={stripBackendPrefix(p.correctionUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+                      <button type="button" onClick={() => setStockAction({ kind: 'correct', productId: p.id })} className="inline-flex items-center gap-1 text-brand hover:underline">
                         <FilePenLine size={13} /> Stock Correction
-                      </a>
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -531,6 +564,22 @@ function WarehouseProductsTable({ products, emptyMessage }: { products: Warehous
             </button>
           </div>
         </div>
+      )}
+
+      {stockAction && (
+        <Suspense fallback={null}>
+          <ProductStockActionModal
+            kind={stockAction.kind}
+            productId={String(stockAction.productId)}
+            warehouseId={String(warehouseId)}
+            onClose={() => {
+              setStockAction(null)
+              // A saved correction/transfer changes this warehouse's units and
+              // movements; the product-side hooks only refresh the product.
+              queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+            }}
+          />
+        </Suspense>
       )}
     </>
   )
@@ -822,13 +871,7 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
                     <td className="px-4 py-2 text-text-muted">{m.label}</td>
                     <td className="px-4 py-2 text-text-muted">{m.typeLabel}</td>
                     <td className="px-4 py-2 text-text-muted">
-                      {m.originUrl ? (
-                        <a href={stripBackendPrefix(m.originUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {m.originText}
-                        </a>
-                      ) : (
-                        m.originText || '—'
-                      )}
+                      {m.originText ? <LegacyObjectLink url={m.originUrl}>{m.originText}</LegacyObjectLink> : '—'}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-text-muted">{m.costPrice || '—'}</td>
                     <td className={`px-4 py-2 text-right tabular-nums font-medium ${m.qtyDisplay.startsWith('+') ? 'text-success-fg' : 'text-danger-fg'}`}>{m.qtyDisplay}</td>

@@ -21,6 +21,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons, type ExportTableData } from '../../../shared/components/TableExportButtons'
 import { formatMoney } from '../../../utils/format'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
 import {
   useMinMaxStockPage,
@@ -99,6 +100,7 @@ export function MinMaxStockPage() {
   const bulkSave = useBulkUpdateMinMaxStock()
   const applySuggested = useApplySuggestedLevels()
   const importCsv = useImportMinMaxCsv()
+  const confirm = useConfirm()
 
   const rows = data?.rows ?? []
   const stats = data?.stats
@@ -136,8 +138,14 @@ export function MinMaxStockPage() {
     bulkSave.mutate(entries, { onSuccess: () => setPendingEdits(new Map()) })
   }
 
-  function handleApplySuggested() {
-    if (!window.confirm('Apply suggested min/max levels to all products without levels set?')) return
+  async function handleApplySuggested() {
+    const ok = await confirm({
+      title: 'Apply Suggested Levels?',
+      message: 'Apply suggested min/max levels to all products without levels set?',
+      variant: 'default',
+      confirmLabel: 'Apply',
+    })
+    if (!ok) return
     applySuggested.mutate()
   }
 

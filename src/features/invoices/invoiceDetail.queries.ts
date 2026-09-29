@@ -32,9 +32,9 @@ export function useInvoiceDetail(id: string | undefined) {
 // note.php shows read-only content on its bare GET — the real
 // pencil-then-form-then-submit mechanism (action=editnote_public/
 // editnote_private reveal the real textarea+token, action=setnote_public/
-// setnote_private submit it) matches PieceDetailPage's own
-// usePieceEditContext/useUpdatePieceField pattern in
-// generalLedger.queries.ts, not a single always-editable-textarea save.
+// setnote_private submit it) matches the transaction card's own
+// useUpdatePieceHeader pattern in
+// generalLedger/pieceCard.queries.ts, not a single always-editable-textarea save.
 
 export function useInvoiceNotes(id: string | undefined) {
   return useQuery<InvoiceNotes>({

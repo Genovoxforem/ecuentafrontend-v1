@@ -18,6 +18,7 @@ import {
   useHotelDashboard,
   type HotelArrival,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 type Tab = 'arr' | 'inh' | 'upc' | 'out'
 const TAB_TITLE: Record<Tab, string> = {
@@ -72,14 +73,15 @@ function AssignAndCheckIn({ guest, onDone }: { guest: HotelArrival; onDone: () =
 
 // a=cancel — cancels a booking not yet checked in (Arrivals / Upcoming).
 function CancelBookingButton({ num, onDone }: { num: string; onDone: () => void }) {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const cancel = useHotelCancelBooking()
   return (
     <button
       type="button"
       disabled={!token || cancel.isPending}
-      onClick={() => {
-        if (token && confirm(`Cancel booking ${num}? This cannot be undone.`)) {
+      onClick={async () => {
+        if (token && (await confirm(`Cancel booking ${num}? This cannot be undone.`))) {
           cancel.mutate({ booking: num, token }, { onSuccess: onDone })
         }
       }}

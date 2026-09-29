@@ -36,7 +36,7 @@ export interface SalesSummary {
 
 // Combines everything already wired elsewhere: real invoice/customer
 // counts and status breakdown from GET /api/dashboard/, real invoice list
-// (for today's amount) from GET /api/invoices/, and local-only
+// (for today's amount) from the invoice list (invoice_ajax_list.php), and local-only
 // quotations/contracts counts (no backend endpoint exists for either — see
 // quotations.queries.ts / contracts.queries.ts). Credit notes, ASYCUDA, and
 // best-selling products have no data source at all on this backend, so

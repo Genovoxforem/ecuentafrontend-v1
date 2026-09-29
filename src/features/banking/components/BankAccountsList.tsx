@@ -1,90 +1,83 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Landmark, Search, Plus, Filter } from 'lucide-react'
+import { Landmark, Search, Plus, Filter, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useBankAccountsList, useBankAccountsDropdown, useReconcileCounts, type BankAccountRow } from '../banking.queries'
-import { formatMoney } from '../../../utils/format'
+import { useBankAccountsDetailedList, type BankAccountStatusFilter } from '../banking.queries'
+import type { BankAccountListRow } from '../bankAccountsListParser'
 import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
-type SortKey = 'label' | 'accountNumber' | 'currencyCode' | 'balance'
+type SortKey = 'ref' | 'label' | 'type' | 'number' | 'accountingAccount' | 'journal' | 'reconcile' | 'status' | 'balance'
 
-// Column set matches the real compta/bank/list.php exactly.
-// Real: Bank Accounts/Label/Number/Currency/Balance (bank-sidebar-list-ajax.php),
-// Status (inferred from presence in api/bank_accounts.php, which hardcodes
-// `WHERE clos = 0` — an account appearing there is genuinely open; one
-// missing is genuinely closed, not guessed), and Entries To Reconcile (the
-// real `search_conciliated=0` count from bankentries_list_ajax.php — see
-// useReconcileCounts in banking.queries.ts for the full explanation of what
-// is and isn't reproduced from the real page's badge).
-// Still honest "—": Type, Accounting Account and Accounting Code Journal —
-// list.php's own direct SQL has zero json_encode anywhere (confirmed by
-// reading it directly) and no other confirmed JSON endpoint returns these
-// fields (bank-sidebar-list-ajax.php's SQL only selects
-// rowid/totbank/label/number/currency_code).
-const COLUMNS: { label: string; key?: SortKey }[] = [
-  { label: 'Bank Accounts', key: 'label' },
-  { label: 'Label' },
-  { label: 'Type' },
-  { label: 'Number', key: 'accountNumber' },
-  { label: 'Accounting Account' },
-  { label: 'Accounting Code Journal' },
-  { label: 'Entries To Reconcile' },
-  { label: 'Status' },
-  { label: 'Balance', key: 'balance' },
+// The columns of the backend's own list (compta/bank/list.php), all read from it.
+const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
+  { label: 'Bank Accounts', key: 'ref' },
+  { label: 'Label', key: 'label' },
+  { label: 'Type', key: 'type' },
+  { label: 'Number', key: 'number' },
+  { label: 'Accounting Account', key: 'accountingAccount' },
+  { label: 'Accounting Code Journal', key: 'journal' },
+  { label: 'Entries To Reconcile', key: 'reconcile' },
+  { label: 'Status', key: 'status' },
+  { label: 'Balance', key: 'balance', align: 'right' },
 ]
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+const STATUS_OPTIONS: { value: BankAccountStatusFilter; label: string }[] = [
+  { value: 'opened', label: 'Opened' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'all', label: 'All' },
+]
 
-function matchesSearch(account: BankAccountRow, query: string) {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return [account.label, account.accountNumber, account.currencyCode].some((field) => field.toLowerCase().includes(q))
+function reconcileText(a: BankAccountListRow): string {
+  return a.toReconcile.kind === 'count' ? String(a.toReconcile.count) : a.toReconcile.text
 }
 
-function sortValue(a: BankAccountRow, key: SortKey): string | number {
+function matchesSearch(a: BankAccountListRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [a.ref, a.label, a.type, a.number, a.accountingAccount, a.journal, a.statusLabel, a.balanceText].some((field) => field.toLowerCase().includes(q))
+}
+
+function sortValue(a: BankAccountListRow, key: SortKey): string | number {
   switch (key) {
+    case 'ref':
+      return a.ref
     case 'label':
       return a.label
-    case 'accountNumber':
-      return a.accountNumber
-    case 'currencyCode':
-      return a.currencyCode
+    case 'type':
+      return a.type
+    case 'number':
+      return a.number
+    case 'accountingAccount':
+      return a.accountingAccount
+    case 'journal':
+      return a.journal
+    case 'reconcile':
+      return a.toReconcile.kind === 'count' ? a.toReconcile.count : -1
+    case 'status':
+      return a.statusLabel
     case 'balance':
       return a.balance
   }
 }
 
-// Real via compta/bank/bank-sidebar-list-ajax.php — confirmed genuine JSON,
-// but an orphaned endpoint: the live compta/bank/index.php and list.php
-// pages never call it themselves (same "real API sitting unused next to a
-// scraped/classic page" pattern this session already found for the General
-// Ledger module's listbyaccount_ajax_api.php). No permission check exists
-// on this endpoint server-side — any logged-in user can call it.
+// Bank Management Details (compta/bank/list.php) — shown under both Banking and General Ledger
+// > Setup > Bank accounts, since the backend has one page for both. Every cell is what that page
+// prints; its own default is to list open accounts only, and the filter button changes that.
 export function BankAccountsList() {
-  const { data: accounts, isLoading, isError, error, refetch } = useBankAccountsList()
-  const { data: openAccounts, isLoading: openAccountsLoading } = useBankAccountsDropdown()
+  const [status, setStatus] = useState<BankAccountStatusFilter>('opened')
+  const [showFilter, setShowFilter] = useState(false)
+  const { data: accounts, isLoading, isError, error, refetch } = useBankAccountsDetailedList(status)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
 
-  const openAccountIds = useMemo(() => new Set((openAccounts ?? []).map((a) => a.id)), [openAccounts])
-  const accountIds = useMemo(() => (accounts ?? []).map((a) => a.id), [accounts])
-  const reconcileResults = useReconcileCounts(accountIds)
-  const reconcileCounts = useMemo(() => {
-    const map = new Map<number, { loading: boolean; error: boolean; count: number }>()
-    accountIds.forEach((id, i) => {
-      const r = reconcileResults[i]
-      map.set(id, { loading: r.isLoading, error: r.isError, count: r.data ?? 0 })
-    })
-    return map
-  }, [accountIds, reconcileResults])
-
   const filteredAccounts = useMemo(() => (accounts ?? []).filter((a) => matchesSearch(a, search)), [accounts, search])
-  const { sorted: sortedAccounts, sort, toggleSort } = useSortableRows<BankAccountRow, SortKey>(filteredAccounts, sortValue)
+  const { sorted: sortedAccounts, sort, toggleSort } = useSortableRows<BankAccountListRow, SortKey>(filteredAccounts, sortValue)
   const pageAccounts = sortedAccounts.slice((page - 1) * perPage, page * perPage)
 
   function handleSearchChange(value: string) {
@@ -97,40 +90,54 @@ export function BankAccountsList() {
     setPage(1)
   }
 
+  function handleStatusChange(value: BankAccountStatusFilter) {
+    setStatus(value)
+    setPage(1)
+  }
+
   function getExportData() {
-    const rows = sortedAccounts.map((a) => [
-      a.label,
-      a.label,
-      '—',
-      a.accountNumber || '—',
-      '—',
-      '—',
-      String(reconcileCounts.get(a.id)?.count ?? '—'),
-      openAccountIds.has(a.id) ? 'Open' : 'Closed',
-      formatMoney(a.balance),
-    ])
+    const rows = sortedAccounts.map((a) => [a.ref, a.label, a.type, a.number, a.accountingAccount, a.journal, reconcileText(a), a.statusLabel, a.balanceText])
     return { headers: COLUMN_LABELS, rows }
   }
+
+  const entriesLink = (id: string) => `${ROUTES.bankingEntries}?account=${id}`
 
   return (
     // -m-6 + flex-1 flex-col: same pattern as ServicesList.tsx / ThirdPartyList.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+      <div className="sticky -top-6 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Landmark size={20} className="text-brand" /> Bank Management Details
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="relative flex items-center gap-2">
           <Link to={ROUTES.bankingNewAccount} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New
           </Link>
           <button
             type="button"
-            disabled
-            title="No real filter API confirmed for this backend"
-            className="flex items-center justify-center w-9 h-9 rounded-lg border border-input-border text-text-faint opacity-60 cursor-not-allowed"
+            aria-label="Filter"
+            aria-expanded={showFilter}
+            onClick={() => setShowFilter((v) => !v)}
+            className={`flex items-center justify-center w-9 h-9 rounded-lg border text-text-muted hover:bg-surface-hover ${status !== 'opened' ? 'border-brand text-brand' : 'border-input-border'}`}
           >
             <Filter size={14} />
           </button>
+          {showFilter && (
+            <div className="absolute right-0 top-11 z-30 w-56 rounded-lg border border-border bg-surface p-3 shadow-lg">
+              <label className="block text-xs text-text-faint mb-1">Status</label>
+              <select
+                value={status}
+                onChange={(e) => handleStatusChange(e.target.value as BankAccountStatusFilter)}
+                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+              >
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -169,7 +176,7 @@ export function BankAccountsList() {
                 <thead className="sticky top-0 z-10">
                   <TheadRow>
                     {COLUMNS.map((col) => (
-                      <Th key={col.label} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.key === 'balance' ? 'right' : 'left'}>
+                      <Th key={col.label} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.align ?? 'left'} className="!px-3 !whitespace-normal">
                         {col.label}
                       </Th>
                     ))}
@@ -179,7 +186,7 @@ export function BankAccountsList() {
                   {accounts.length === 0 ? (
                     <tr>
                       <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
-                        No bank accounts found.
+                        No {status === 'all' ? '' : `${status === 'opened' ? 'open' : 'closed'} `}bank accounts found.
                       </td>
                     </tr>
                   ) : filteredAccounts.length === 0 ? (
@@ -191,53 +198,39 @@ export function BankAccountsList() {
                   ) : (
                     pageAccounts.map((a) => (
                       <tr key={a.id} className="border-b border-border last:border-0">
-                        <td className="px-4 py-2 text-text!">
-                          <Link to={ROUTES.bankingAccountDetail.replace(':id', String(a.id))} className="flex items-center gap-1.5 text-brand hover:underline">
-                            <Landmark size={13} className="shrink-0" /> {a.label}
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <Link to={ROUTES.bankingAccountDetail.replace(':id', a.id)} className="flex items-center gap-1.5 text-brand hover:underline">
+                            <Landmark size={13} className="shrink-0" /> {a.ref}
                           </Link>
                         </td>
-                        <td className="px-4 py-2 text-text-muted">{a.label}</td>
-                        <td className="px-4 py-2 text-text-faint" title="No real API available on this backend">
-                          —
-                        </td>
-                        <td className="px-4 py-2 text-text-muted">{a.accountNumber || '—'}</td>
-                        <td className="px-4 py-2 text-text-faint" title="No real API available on this backend">
-                          —
-                        </td>
-                        <td className="px-4 py-2 text-text-faint" title="No real API available on this backend">
-                          —
-                        </td>
-                        <td className="px-4 py-2">
-                          {(() => {
-                            const r = reconcileCounts.get(a.id)
-                            if (!r || r.loading) return <span className="text-text-faint">…</span>
-                            if (r.error) return <span className="text-text-faint" title="Couldn't load from bankentries_list_ajax.php">—</span>
-                            return (
-                              <span
-                                className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-brand/10 text-brand"
-                                title="Unreconciled entries (search_conciliated=0 count via bankentries_list_ajax.php)"
-                              >
-                                {r.count}
-                              </span>
-                            )
-                          })()}
-                        </td>
-                        <td className="px-4 py-2">
-                          {openAccountsLoading ? (
-                            <span className="text-text-faint">…</span>
-                          ) : (
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                                openAccountIds.has(a.id) ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'
-                              }`}
-                              title="Inferred from presence in api/bank_accounts.php, which filters WHERE clos = 0"
-                            >
-                              {openAccountIds.has(a.id) ? 'Open' : 'Closed'}
+                        <td className="px-3 py-2 text-text!">{a.label}</td>
+                        <td className="px-3 py-2 text-text-muted">{a.type || '—'}</td>
+                        <td className="px-3 py-2 text-text-muted">{a.number || '—'}</td>
+                        <td className="px-3 py-2 text-text-muted">{a.accountingAccount || '—'}</td>
+                        <td className="px-3 py-2 text-text-muted">{a.journal || '—'}</td>
+                        <td className="px-3 py-2">
+                          {a.toReconcile.kind === 'count' ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Link to={entriesLink(a.id)} title="Entries to reconcile" className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-warning-bg text-warning-fg hover:opacity-80">
+                                {a.toReconcile.count}
+                              </Link>
+                              {a.toReconcile.late > 0 && (
+                                <span title="Late" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-danger-bg text-danger-fg">
+                                  <AlertTriangle size={11} /> {a.toReconcile.late}
+                                </span>
+                              )}
                             </span>
+                          ) : (
+                            <span className="text-text-muted">{a.toReconcile.text || '—'}</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-right text-text!">
-                          {formatMoney(a.balance)} {a.currencyCode}
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${a.open ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>{a.statusLabel}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                          <Link to={entriesLink(a.id)} className={`hover:underline ${a.balance < 0 ? 'text-danger' : 'text-brand'}`}>
+                            {a.balanceText}
+                          </Link>
                         </td>
                       </tr>
                     ))

@@ -5,6 +5,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelEnquiries, useHotelSaveEnquiry, useHotelDelEnquiry, useHotelToken } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -12,6 +13,7 @@ const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 // Real page: enquiry.php, via r=enquiries. No status/room column on the
 // real page either. "+Add" opens the real saveenquiry write inline.
 export function HotelEnquiryPage() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: enquiries, isLoading, isError, error, refetch } = useHotelEnquiries()
   const save = useHotelSaveEnquiry()
@@ -60,9 +62,9 @@ export function HotelEnquiryPage() {
     )
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!token) return
-    if (!confirm('Delete this enquiry?')) return
+    if (!(await confirm('Delete this enquiry?'))) return
     setDeleting(id)
     del.mutate({ id, token }, { onSettled: () => setDeleting(null) })
   }

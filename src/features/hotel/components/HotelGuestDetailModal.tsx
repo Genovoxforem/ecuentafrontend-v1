@@ -10,6 +10,7 @@ import {
   useHotelDelDoc,
   useHotelToken,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 type Tab = 'profile' | 'history' | 'id' | 'docs'
 const fieldCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -228,6 +229,7 @@ export function HotelGuestDetailModal({ id, onClose, initialTab = 'profile' }: {
 }
 
 function GuestDocsPanel({ socid, token }: { socid: string; token: string | undefined }) {
+  const confirm = useConfirm()
   const { data: docs, isLoading, refetch } = useHotelGuestDocs(socid)
   const upload = useHotelUploadDoc()
   const del = useHotelDelDoc()
@@ -249,7 +251,7 @@ function GuestDocsPanel({ socid, token }: { socid: string; token: string | undef
               <button
                 type="button"
                 disabled={!token || del.isPending}
-                onClick={() => token && confirm('Delete this document?') && del.mutate({ socid, file: d.name, token }, { onSuccess: () => refetch() })}
+                onClick={async () => token && (await confirm('Delete this document?')) && del.mutate({ socid, file: d.name, token }, { onSuccess: () => refetch() })}
                 className="text-danger-fg hover:underline"
               >
                 <Trash2 size={13} />

@@ -17,6 +17,7 @@ import {
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import {
   useInventoryLinesPage,
   useAddInventoryLineReal,
@@ -53,6 +54,7 @@ export function InventoryCountLines({ inventoryId }: { inventoryId: string }) {
   const deleteLine = useDeleteInventoryLineReal()
   const closeInventory = useCloseInventoryReal()
   const cancelInventory = useCancelInventoryReal()
+  const confirm = useConfirm()
 
   // Real Qty edits only live in this page's own #formrecord until "Save" is
   // submitted — reset the local draft whenever a fresh page of lines comes
@@ -120,23 +122,33 @@ export function InventoryCountLines({ inventoryId }: { inventoryId: string }) {
     })
   }
 
-  function handleDeleteLine(lineId: number) {
-    if (!window.confirm('Remove this line from the count?')) return
+  async function handleDeleteLine(lineId: number) {
+    if (!(await confirm({ title: 'Remove Line?', message: 'Remove this line from the count?' }))) return
     deleteLine.mutate({ id: inventoryId, page, lineId })
   }
 
-  function handleClose() {
-    if (
-      !window.confirm(
-        'Make Movements and Close will post real stock movements reconciling Expected vs. Real quantities for every line, and close this inventory. This cannot be undone. Continue?',
-      )
-    )
-      return
+  async function handleClose() {
+    const ok = await confirm({
+      title: 'Make Movements and Close?',
+      message: 'This will post real stock movements reconciling Expected vs. Real quantities for every line, and close this inventory.',
+      warningTitle: 'This action cannot be undone.',
+      warningMessage: 'Stock movements posted here are permanent.',
+      variant: 'default',
+      confirmLabel: 'Continue',
+    })
+    if (!ok) return
     closeInventory.mutate({ id: inventoryId, page })
   }
 
-  function handleCancel() {
-    if (!window.confirm('Cancel this inventory? No stock movements will be posted, and it can no longer be edited.')) return
+  async function handleCancel() {
+    const ok = await confirm({
+      title: 'Cancel Inventory?',
+      message: 'No stock movements will be posted, and it can no longer be edited.',
+      variant: 'default',
+      confirmLabel: 'Cancel Inventory',
+      cancelLabel: 'Keep',
+    })
+    if (!ok) return
     cancelInventory.mutate(inventoryId)
   }
 

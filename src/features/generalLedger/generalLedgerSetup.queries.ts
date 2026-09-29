@@ -1,4 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { legacyAdminSend } from '../settings/legacyAdminRequest'
+import { parseDefaultAccountsPage, type DefaultAccountsPage } from './defaultAccountsParser'
 
 // accountancy/admin/accountjstree.php's own page does no server-side query at
 // all — the Chart of Accounts tree is loaded entirely client-side from two
@@ -103,171 +106,48 @@ export function useCreateAccount() {
   })
 }
 
-// accountancy/admin/openingbalance.php + openingbalance_ajax.php — a real
-// JSON write (confirmed: inserts real llx_accounting_bookkeeping rows,
-// responds {status:200/500}). No read API exists for what's already been
-// entered, so the caller pairs this with a session-local echo list.
-export interface OpeningBalanceLine {
-  accountNumber: string
-  debit: string
-  credit: string
-}
-
-export function useSaveOpeningBalance() {
-  return useMutation({
-    mutationFn: async ({ date, lines }: { date: string; lines: OpeningBalanceLine[] }) => {
-      const params = new URLSearchParams({ action: 'validate', newdatepicker: date })
-      for (const line of lines) {
-        params.append('accounts[]', line.accountNumber)
-        params.append('debit[]', line.debit || '0')
-        params.append('credit[]', line.credit || '0')
-      }
-      const res = await fetch('/accountancy/admin/openingbalance_ajax.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: CoaSaveResult[] = await res.json()
-      if ((data[0]?.status ?? 500) !== 200) throw new Error('The opening balance backend rejected this entry.')
-      return data[0]
-    },
-  })
-}
-
-// Flattens the real Chart of Accounts tree into a plain list for use as a
-// select's option list (Opening Balance's account picker, etc.).
-export function flattenCoaTree(nodes: CoaNode[]): CoaNode[] {
-  const out: CoaNode[] = []
-  const walk = (list: CoaNode[]) => {
-    for (const node of list) {
-      out.push(node)
-      if (node.items?.length) walk(node.items)
-    }
-  }
-  walk(nodes)
-  return out
-}
-
 // ── Default Accounts (accountancy/admin/defaultaccounts.php) ────────────
-// Classic full-page form, no JSON — confirmed by reading the PHP source
-// directly. Every field is a real Dolibarr constant (each <select> is
-// FormAccounting::select_account(), the exact same real Chart-of-Accounts
-// data already fetched for the CoA tree page above), saved one at a time
-// server-side via ecuenta_set_const() when action=update is posted. The 30
-// real field names below were confirmed two ways: reading the PHP array
-// build logic (list_account_main/list_account) AND cross-checking every
-// `name="..."` actually rendered on the live page — the isInEEC()/
-// isModEnabled() conditionals in the source mean the true field set can
-// only be confirmed by checking the live render, not the source alone.
-//
-// This form updates 30 fields at once from a single Save click, and each
-// field's real POST value defaults to empty string if omitted — submitting
-// only the changed field(s) would silently blank out every other one. Per
-// this app's established safe-write pattern for this exact shape of
-// problem (see userDetailTabs.queries.ts's Leave Types save), a fresh copy
-// of the real form is fetched immediately before submit and its real
-// FormData is used as the base (carrying every other field's current
-// value forward untouched), with only the field(s) the user actually
-// changed overridden — never read into React state or displayed, so
-// nothing here scrapes the page for display data, only to safely preserve
-// what isn't being changed.
-export const DEFAULT_ACCOUNT_GROUPS: { heading: string; fields: { key: string; label: string }[] }[] = [
-  {
-    heading: 'Third Parties | Users',
-    fields: [
-      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER', label: 'Customer Account' },
-      { key: 'ACCOUNTING_ACCOUNT_SUPPLIER', label: 'Supplier Account' },
-      { key: 'SALARIES_ACCOUNTING_ACCOUNT_PAYMENT', label: 'Salaries Payment Account' },
-    ],
-  },
-  {
-    heading: 'Product',
-    fields: [
-      { key: 'ACCOUNTING_PRODUCT_SOLD_ACCOUNT', label: 'Product Sold Account' },
-      { key: 'ACCOUNTING_PRODUCT_SOLD_EXPORT_ACCOUNT', label: 'Product Sold Account (Export)' },
-      { key: 'ACCOUNTING_PRODUCT_BUY_ACCOUNT', label: 'Product Bought Account' },
-      { key: 'ACCOUNTING_PRODUCT_BUY_EXPORT_ACCOUNT', label: 'Product Bought Account (Export)' },
-    ],
-  },
-  {
-    heading: 'Service',
-    fields: [
-      { key: 'ACCOUNTING_SERVICE_SOLD_ACCOUNT', label: 'Service Sold Account' },
-      { key: 'ACCOUNTING_SERVICE_SOLD_EXPORT_ACCOUNT', label: 'Service Sold Account (Export)' },
-      { key: 'ACCOUNTING_SERVICE_BUY_ACCOUNT', label: 'Service Bought Account' },
-      { key: 'ACCOUNTING_SERVICE_BUY_EXPORT_ACCOUNT', label: 'Service Bought Account (Export)' },
-    ],
-  },
-  {
-    heading: 'Others',
-    fields: [
-      { key: 'ACCOUNTING_VAT_BUY_ACCOUNT', label: 'VAT Bought Account' },
-      { key: 'ACCOUNTING_VAT_SOLD_ACCOUNT', label: 'VAT Sold Account' },
-      { key: 'ACCOUNTING_VAT_PAY_ACCOUNT', label: 'VAT Pay Account' },
-      { key: 'ACCOUNTING_ACCOUNT_SUSPENSE', label: 'Suspense Account' },
-      { key: 'ACCOUNTING_ACCOUNT_TRANSFER_CASH', label: 'Transfer Cash Account' },
-      { key: 'DONATION_ACCOUNTINGACCOUNT', label: 'Donation Account' },
-      { key: 'ADHERENT_SUBSCRIPTION_ACCOUNTINGACCOUNT', label: 'Subscription Account' },
-      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_DEPOSIT', label: 'Customer Deposit Account' },
-      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_OPENING', label: 'Customer Opening Account' },
-      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_ADVANCE', label: 'Customer Advance Account' },
-      { key: 'ACCOUNTING_ACCOUNT_SUPPLIER_ADVANCE', label: 'Supplier Advance Account' },
-      { key: 'ACCOUNTING_ACCOUNT_LEDGER_OPENING', label: 'Ledger Opening Account' },
-      { key: 'ACCOUNTING_ACCOUNT_LEDGER_SHIPPING', label: 'Ledger Shipping Account' },
-      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_LOAN', label: 'Customer Loan Account' },
-      { key: 'ACCOUNTING_ACCOUNT_CUSTOMER_INTEREST', label: 'Customer Interest Account' },
-    ],
-  },
-  {
-    heading: 'Loan Management',
-    fields: [
-      { key: 'LOAN_ACCOUNTING_ACCOUNT_CAPITAL', label: 'Loan Capital Account' },
-      { key: 'LOAN_ACCOUNTING_ACCOUNT_INTEREST', label: 'Loan Interest Account' },
-      { key: 'LOAN_ACCOUNTING_ACCOUNT_INSURANCE', label: 'Loan Insurance Account' },
-      { key: 'LOAN_ACCOUNTING_ACCOUNT_PENALTY', label: 'Loan Penalty Account' },
-    ],
-  },
-]
+// A classic form page with no JSON. Reading is the page itself (defaultAccountsParser.ts: its
+// sections, labels, the chart of accounts as options, and every field's stored account).
+// Saving is the form's own POST — and that POST sets EVERY listed constant, blank when
+// missing, so it always carries all fields with their current values. Both writes are
+// confirmed by reading the page again, since the backend answers with the whole page.
+const DEFAULT_ACCOUNTS_PATH = '/accountancy/admin/defaultaccounts.php'
+const DEFAULT_ACCOUNTS_KEY = ['generalLedger', 'defaultAccounts'] as const
 
-async function fetchDefaultAccountsForm(): Promise<{ form: HTMLFormElement; token: string }> {
-  const res = await fetch('/accountancy/admin/defaultaccounts.php', { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const html = await res.text()
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  const form = Array.from(doc.querySelectorAll('form')).find((f) => f.querySelector('input[name="action"][value="update"]'))
-  if (!form) throw new Error('Could not find the real Default Accounts form on the legacy page.')
-  const token = (form.querySelector('input[name="token"]') as HTMLInputElement | null)?.value ?? ''
-  if (!token) throw new Error('Could not find a CSRF token on the Default Accounts page.')
-  return { form, token }
+const fetchDefaultAccounts = async (): Promise<DefaultAccountsPage> => parseDefaultAccountsPage(await fetchLegacyDocument(DEFAULT_ACCOUNTS_PATH))
+
+export function useDefaultAccounts() {
+  return useQuery({ queryKey: DEFAULT_ACCOUNTS_KEY, queryFn: fetchDefaultAccounts, staleTime: 1000 * 30 })
 }
 
+// `values` = field name -> account number, for every field on the page.
 export function useUpdateDefaultAccounts() {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (changes: Record<string, string>) => {
-      const { form, token } = await fetchDefaultAccountsForm()
-      const body = new FormData(form)
-      body.set('token', token)
-      for (const [key, value] of Object.entries(changes)) body.set(key, value)
-      const res = await fetch('/accountancy/admin/defaultaccounts.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    mutationFn: async (values: Record<string, string>) => {
+      const before = await fetchDefaultAccounts()
+      const body = new URLSearchParams({ token: before.token, action: 'update', ...values })
+      await legacyAdminSend(DEFAULT_ACCOUNTS_PATH, { method: 'POST', body })
+      const saved = new Map(
+        (await fetchDefaultAccounts()).sections.flatMap((s) => s.fields).map((f) => [f.name, f.value] as const),
+      )
+      if (Object.entries(values).some(([name, value]) => saved.get(name) !== value)) throw new Error('The backend did not save these accounts.')
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: DEFAULT_ACCOUNTS_KEY }),
   })
 }
 
+// "Set As Default (Reference)": the page's second form, which overwrites the accounts with the
+// backend's own reference values and redirects back.
 export function useSetDefaultAccountsToReference() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const { token } = await fetchDefaultAccountsForm()
+      const { token } = await fetchDefaultAccounts()
       const body = new URLSearchParams({ token, action: 'set_reference_defaults', button_set_reference_defaults: '1' })
-      const res = await fetch('/accountancy/admin/defaultaccounts.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await legacyAdminSend(DEFAULT_ACCOUNTS_PATH, { method: 'POST', body })
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: DEFAULT_ACCOUNTS_KEY }),
   })
 }

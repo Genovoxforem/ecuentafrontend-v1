@@ -1,136 +1,172 @@
-import { useMemo, useState } from 'react'
-import { Repeat } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useAllExpenseReports, useCreateRecurringExpense } from '../expenses.queries'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Pause, Play, Plus, RefreshCw, Save } from 'lucide-react'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { ROUTES } from '../../../routes'
+import { useCreateRecurring, useRecurring, useToggleRecurring } from '../expenseTabs.queries'
+import type { RecurringRow } from '../expenseTabsParser'
+import { controlCls } from '../expenseTable'
+import { ExpenseTable, type ExpenseColumn } from './ExpenseTable'
+import { Field, FormCard, FormProblem } from './expenseParts'
 
-const inputCls = 'h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const FREQUENCIES = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'quarterly', label: 'Quarterly' },
-  { value: 'yearly', label: 'Yearly' },
-] as const
-
-// Real via expense/api/expense.php action=create_recurring — genuine INSERT
-// into llx_expense_recurring. Confirmed by reading the whole module: no
-// cron/executor anywhere ever reads next_run/auto_create to actually create
-// a new expense report from a template — this saves a real row, but the
-// feature is inert on this backend, same as the real recurring.php page.
-// The template picker is sourced from the real List endpoint (any status,
-// matching the real form's own unrestricted dropdown). The history/
-// pause-resume table has no JSON list endpoint at all, so it's an honest
-// empty state.
+// expense/recurring.php: expense reports the backend is told to repeat on a schedule.
 export function ExpenseRecurringPage() {
-  const { data } = useAllExpenseReports()
-  const rows = useMemo(() => data?.rows ?? [], [data])
+  const { data, isLoading, isError, error, refetch } = useRecurring()
+  const create = useCreateRecurring()
+  const toggle = useToggleRecurring()
+
   const [templateId, setTemplateId] = useState('')
-  const [frequency, setFrequency] = useState<(typeof FREQUENCIES)[number]['value']>('monthly')
+  const [frequency, setFrequency] = useState<string | null>(null)
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
-  const [autoCreate, setAutoCreate] = useState(false)
-  const createRecurring = useCreateRecurringExpense()
-  const [result, setResult] = useState<'success' | 'error' | null>(null)
+  const [autoCreate, setAutoCreate] = useState('0')
+  const [problem, setProblem] = useState<string | null>(null)
 
-  async function submit() {
-    if (!templateId || !dateStart) return
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!templateId) return setProblem('Choose the template expense report.')
+    if (!dateStart) return setProblem('Enter the start date.')
+    setProblem(null)
     try {
-      await createRecurring.mutateAsync({ templateId: Number(templateId), frequency, dateStart, dateEnd: dateEnd || undefined, autoCreate })
-      setResult('success')
+      await create.mutateAsync({ templateId, frequency: frequency ?? data?.frequencies.find((f) => f.selected)?.value ?? 'monthly', dateStart, dateEnd, autoCreate: autoCreate === '1' })
       setTemplateId('')
       setDateStart('')
       setDateEnd('')
-    } catch {
-      setResult('error')
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : 'Could not create the recurring template.')
     }
   }
 
-  return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
-      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Repeat size={20} className="text-brand" /> Recurring Expenses
-        </h2>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
-        <Card className="!h-auto">
-          <h3 className="font-semibold text-text! mb-3">Create Recurring Expense</h3>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Template Expense Report</label>
-              <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={`${inputCls} w-full`}>
-                <option value="">Select template…</option>
-                {rows.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.ref} — {r.user}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Frequency</label>
-              <select value={frequency} onChange={(e) => setFrequency(e.target.value as typeof frequency)} className={`${inputCls} w-full`}>
-                {FREQUENCIES.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Start Date</label>
-              <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className={`${inputCls} w-full`} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">End Date</label>
-              <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className={`${inputCls} w-full`} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Auto Create</label>
-              <select value={autoCreate ? '1' : '0'} onChange={(e) => setAutoCreate(e.target.value === '1')} className={`${inputCls} w-full`}>
-                <option value="0">No</option>
-                <option value="1">Yes</option>
-              </select>
-            </div>
-          </div>
-          {result === 'error' && <p className="text-sm text-danger-fg mt-2">{createRecurring.error instanceof Error ? createRecurring.error.message : 'Could not create the recurring template.'}</p>}
-          {result === 'success' && <p className="text-sm text-success-fg mt-2">Recurring template created. Note: this backend has no scheduler that actually acts on it.</p>}
+  const columns: ExpenseColumn<RecurringRow>[] = [
+    { key: 'n', header: '#', sortValue: (r) => Number(r.n) || 0, cell: (r) => <span className="text-text-muted">{r.n}</span> },
+    {
+      key: 'ref',
+      header: 'Template Ref',
+      sortValue: (r) => r.ref,
+      cell: (r) => (
+        <Link to={ROUTES.expenseCard.replace(':id', r.templateId)} className="font-semibold text-brand hover:underline">
+          {r.ref}
+        </Link>
+      ),
+    },
+    { key: 'frequency', header: 'Frequency', sortValue: (r) => r.frequency, cell: (r) => r.frequency },
+    { key: 'start', header: 'Start', sortValue: (r) => r.start, cell: (r) => r.start },
+    { key: 'end', header: 'End', sortValue: (r) => r.end, cell: (r) => r.end },
+    { key: 'next', header: 'Next Run', sortValue: (r) => r.nextRun, cell: (r) => r.nextRun },
+    {
+      key: 'auto',
+      header: 'Auto Create',
+      sortValue: (r) => r.autoCreate,
+      cell: (r) => (
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${r.autoCreate === 'Yes' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>{r.autoCreate}</span>
+      ),
+    },
+    {
+      key: 'active',
+      header: 'Active',
+      sortValue: (r) => r.active,
+      cell: (r) => <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${r.active === 'Active' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>{r.active}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'center',
+      cell: (r) =>
+        r.toggle && (
           <button
             type="button"
-            onClick={submit}
-            disabled={!templateId || !dateStart || createRecurring.isPending}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            disabled={toggle.isPending}
+            onClick={() => r.toggle && toggle.mutate({ rid: r.toggle.rid, active: r.toggle.active })}
+            className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-60 ${r.toggle.active === '0' ? 'border-warning-fg/50 text-warning-fg hover:bg-warning-bg' : 'border-success-fg/50 text-success-fg hover:bg-success-bg'}`}
           >
-            Create Recurring Expense
+            {r.toggle.active === '0' ? <Pause size={12} /> : <Play size={12} />} {r.toggle.label}
           </button>
-        </Card>
+        ),
+    },
+  ]
 
-        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-          <div className="flex-1 min-h-0 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-4 py-2.5">Template Ref</th>
-                  <th className="font-medium px-4 py-2.5">Frequency</th>
-                  <th className="font-medium px-4 py-2.5">Start</th>
-                  <th className="font-medium px-4 py-2.5">End</th>
-                  <th className="font-medium px-4 py-2.5">Next Run</th>
-                  <th className="font-medium px-4 py-2.5">Active</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
-                    No live listing API on this backend for existing recurring templates — recurring.php renders its table as server-side HTML with no JSON source.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+  return (
+    <div className="space-y-4">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+        <RefreshCw size={20} className="text-brand" /> Recurring Expenses
+      </h2>
+
+      {isLoading && <LegacyLoadingCard label="Loading recurring expenses…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the recurring expenses" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {toggle.isError && <FormProblem message={toggle.error instanceof Error ? toggle.error.message : 'Could not change the template.'} />}
+
+      {data && (
+        <>
+          {data.canCreate && (
+            <FormCard icon={<Plus size={15} />} title="Create Recurring Expense">
+              <form onSubmit={submit} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                <Field label="Template Expense Report" className="md:col-span-2">
+                  <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={`${controlCls} w-full`}>
+                    {data.templates.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Frequency">
+                  <select value={frequency ?? data.frequencies.find((f) => f.selected)?.value ?? ''} onChange={(e) => setFrequency(e.target.value)} className={`${controlCls} w-full`}>
+                    {data.frequencies.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Start Date">
+                  <div className="flex gap-2">
+                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className={`${controlCls} min-w-0 flex-1`} />
+                    <button type="button" onClick={() => setDateStart(iso(new Date()))} className="h-9 shrink-0 rounded-md border border-input-border px-3 text-sm text-text hover:bg-surface-hover">
+                      Now
+                    </button>
+                  </div>
+                </Field>
+                <Field label="End Date">
+                  <div className="flex gap-2">
+                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className={`${controlCls} min-w-0 flex-1`} />
+                    <button type="button" onClick={() => setDateEnd(iso(new Date()))} className="h-9 shrink-0 rounded-md border border-input-border px-3 text-sm text-text hover:bg-surface-hover">
+                      Now
+                    </button>
+                  </div>
+                </Field>
+                <Field label="Auto Create">
+                  <select value={autoCreate} onChange={(e) => setAutoCreate(e.target.value)} className={`${controlCls} w-full`}>
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                  </select>
+                </Field>
+                <div className="flex items-center gap-3 md:col-span-6">
+                  <button
+                    type="submit"
+                    disabled={create.isPending}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    <Save size={14} /> {create.isPending ? 'Creating…' : 'Create Recurring Expense'}
+                  </button>
+                  <FormProblem message={problem} />
+                </div>
+              </form>
+            </FormCard>
+          )}
+
+          <ExpenseTable
+            rows={data.rows}
+            columns={columns}
+            rowKey={(r) => `${r.n}-${r.templateId}`}
+            searchPlaceholder="Search recurring..."
+            searchText={(r) => [r.ref, r.frequency, r.start, r.end, r.nextRun, r.active].join(' ')}
+            defaultSort={{ key: 'start', dir: 'desc' }}
+            empty="No recurring expenses yet."
+          />
+        </>
+      )}
     </div>
   )
 }

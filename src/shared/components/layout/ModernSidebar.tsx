@@ -44,6 +44,7 @@ import { nav as expensesNav } from '../../../features/expenses/expenses.nav'
 import { nav as specialExpensesNav } from '../../../features/expenses/specialExpenses.nav'
 import { nav as budgetNav } from '../../../features/budget/budget.nav'
 import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
+import { nav as supplementNav } from '../../../features/kitchen/supplement.nav'
 import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
 import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
 import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
@@ -80,6 +81,7 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
   specialExpensesNav,
   budgetNav,
   kitchenNav,
+  supplementNav,
   fixedAssetNav,
   generalLedgerNav,
   ticketNav,
@@ -126,6 +128,8 @@ const PHOSPHOR_ICON: Record<string, PhosphorIcon> = {
 }
 
 function sectionContainsCurrent(section: NavSection, pathname: string): boolean {
+  // An expense's own card (/expenses/card/:id) is not a menu item but belongs to Expenses.
+  if (section.key === 'expenses' && pathname.startsWith('/expenses/card/')) return true
   return section.items.some((item) => itemContainsCurrent(item, pathname))
 }
 function isGroupItem(item: NavItem): item is { label: string; items: NavItem[] } {
@@ -149,19 +153,7 @@ function hasDescendantWithPath(item: { items: NavItem[] }, path: string | undefi
   return item.items.some((sub) => sub.path === path || (isGroupItem(sub) && hasDescendantWithPath(sub, path)))
 }
 
-function NavLeaf({
-  item,
-  depth = 0,
-  navigate,
-  location,
-  suppressCurrent = false,
-}: {
-  item: NavLeafItem
-  depth?: number
-  navigate: NavigateFunction
-  location: Location
-  suppressCurrent?: boolean
-}) {
+function NavLeaf({ item, depth = 0, navigate, location, suppressCurrent = false }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location; suppressCurrent?: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -187,7 +179,14 @@ function NavLeaf({
     <button
       type="button"
       disabled={!isLink || loading}
-      onClick={isLink ? () => { setLoading(true); navigate(item.path!) } : undefined}
+      onClick={
+        isLink
+          ? () => {
+              setLoading(true)
+              navigate(item.path!)
+            }
+          : undefined
+      }
       onMouseEnter={isLink ? () => prefetchRoute(item.path!) : undefined}
       style={{ paddingLeft: `${1.5 + depth * 0.5}rem` }}
       className={`w-full flex items-center gap-2 text-left pr-2.5 py-1.5 rounded-lg text-sm transition-colors ${
@@ -272,9 +271,7 @@ function NavGroup({
 // of nesting, without touching ancestors or descendants (those belong to a
 // different NavItemList instance entirely).
 function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; depth: number; navigate: NavigateFunction; location: Location }) {
-  const [openLabel, setOpenLabel] = useState<string | null>(
-    () => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname))?.label ?? null,
-  )
+  const [openLabel, setOpenLabel] = useState<string | null>(() => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname))?.label ?? null)
   // A real backend menu can legitimately list the same real page twice at
   // one level — a category heading whose own click target duplicates a
   // more specific sibling below it (Payroll's flat "Human Resource"/
@@ -356,11 +353,7 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
               <Icon size={19} weight="duotone" className={`shrink-0 ${isOpen || isCurrent ? 'text-white' : MODERN_ICON_REST_COLOR}`} />
               <span className="flex-1 text-left truncate">{section.label}</span>
               {section.items.length > 0 &&
-                (isOpen ? (
-                  <CaretDown size={14} weight="bold" className="shrink-0 text-white/50" />
-                ) : (
-                  <CaretRight size={14} weight="bold" className="shrink-0 text-white/50" />
-                ))}
+                (isOpen ? <CaretDown size={14} weight="bold" className="shrink-0 text-white/50" /> : <CaretRight size={14} weight="bold" className="shrink-0 text-white/50" />)}
             </button>
             {isOpen && (
               <div className="mt-0.5 mb-1 space-y-0.5">
@@ -472,9 +465,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
               type="button"
               onClick={onLogout}
               title="Log Out"
-              className={`flex items-center gap-2.5 rounded-xl text-white/60 hover:bg-white/10 hover:text-white transition-colors ${
-                expanded ? 'w-full px-3 py-2' : 'w-10 h-10 justify-center'
-              }`}
+              className={`flex items-center gap-2.5 rounded-xl text-white/60 hover:bg-white/10 hover:text-white transition-colors ${expanded ? 'w-full px-3 py-2' : 'w-10 h-10 justify-center'}`}
             >
               <SignOut size={19} weight="duotone" />
               {expanded && <span className="text-sm font-medium">Log Out</span>}

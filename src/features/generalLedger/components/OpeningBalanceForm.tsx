@@ -1,198 +1,225 @@
 import { useMemo, useState } from 'react'
-import { Landmark, Info, Plus, Trash2, Loader2, Check } from 'lucide-react'
-import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
+import { Link } from 'react-router-dom'
+import { Landmark, Loader2, Plus, X } from 'lucide-react'
+import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
-import { useLocalCollection, nextLocalRef, todayIso } from '../../../shared/localCollection'
-import { useChartOfAccountsTree, useSaveOpeningBalance, flattenCoaTree } from '../generalLedgerSetup.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { ROUTES } from '../../../routes'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { useOpeningBalance, useValidateOpeningBalance } from '../openingBalance.queries'
+import type { OpeningBalanceForm as OpeningBalanceData } from '../openingBalanceParser'
 
-interface DraftLine {
-  key: string
-  accountNumber: string
+const inputCls = 'h-10 w-full rounded-md border border-input-border bg-input-bg px-3 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
+const th = 'px-3 py-2.5 text-left text-xs font-bold text-text'
+
+interface Row {
+  key: number
+  account: string
   debit: string
   credit: string
 }
 
-interface SavedBatch {
-  ref: string
-  date: string
-  lines: { accountNumber: string; accountLabel: string; debit: string; credit: string }[]
+// Digits with one decimal point (the page's own boxes only take digits).
+const cleanAmount = (raw: string) => {
+  const [whole, ...rest] = raw.replace(/[^\d.]/g, '').split('.')
+  return rest.length ? `${whole}.${rest.join('')}` : whole
 }
+const num = (text: string) => Number(text) || 0
+const round4 = (n: number) => Math.round(n * 10000) / 10000
+const show = (n: number) => (n ? n.toLocaleString('en-US', { maximumFractionDigits: 4 }) : '')
 
-function newDraftLine(): DraftLine {
-  return { key: nextLocalRef('line'), accountNumber: '', debit: '', credit: '' }
-}
+function OpeningBalanceEditor({ form }: { form: OpeningBalanceData }) {
+  const confirm = useConfirm()
+  const validate = useValidateOpeningBalance()
+  const [date, setDate] = useState('')
+  const [rows, setRows] = useState<Row[]>([{ key: 0, account: '', debit: '', credit: '' }])
+  const [nextKey, setNextKey] = useState(1)
+  const [problem, setProblem] = useState<string | null>(null)
+  const [done, setDone] = useState<number | null>(null)
 
-export function OpeningBalanceForm() {
-  const { data: tree } = useChartOfAccountsTree()
-  const accounts = useMemo(() => flattenCoaTree(tree ?? []), [tree])
-  const accountOptions = useMemo(
-    () => accounts.map((a) => ({ value: a.text.split('-')[0] ?? '', label: a.text })),
-    [accounts],
-  )
+  const options = useMemo(() => [...form.accounts].sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true })), [form.accounts])
 
-  const [date, setDate] = useState(todayIso())
-  const [lines, setLines] = useState<DraftLine[]>([newDraftLine()])
-  const [error, setError] = useState('')
-  const [batches, updateBatches] = useLocalCollection<SavedBatch[]>(['generalLedger', 'openingBalanceBatches'], [])
-  const saveOpeningBalance = useSaveOpeningBalance()
+  const total = useMemo(() => {
+    const debit = round4(rows.reduce((s, r) => s + num(r.debit), 0))
+    const credit = round4(rows.reduce((s, r) => s + num(r.credit), 0))
+    // The adjustment account takes whichever side is short.
+    return { debit, credit, adjDebit: credit > debit ? round4(credit - debit) : 0, adjCredit: debit > credit ? round4(debit - credit) : 0, all: Math.max(debit, credit) }
+  }, [rows])
 
-  const totals = useMemo(() => {
-    let debit = 0
-    let credit = 0
-    for (const line of lines) {
-      debit += Number(line.debit) || 0
-      credit += Number(line.credit) || 0
-    }
-    return { debit, credit, difference: debit - credit }
-  }, [lines])
-
-  function updateLine(key: string, patch: Partial<DraftLine>) {
-    setLines((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+  // Editing anything clears the last message, which was about the previous try.
+  const patch = (key: number, change: Partial<Row>) => {
+    setProblem(null)
+    setRows((cur) => cur.map((r) => (r.key === key ? { ...r, ...change } : r)))
   }
 
-  function handleSave() {
-    setError('')
-    const valid = lines.filter((l) => l.accountNumber && (Number(l.debit) > 0 || Number(l.credit) > 0))
-    if (valid.length === 0) return setError('Add at least one account with a debit or credit amount.')
+  const submit = async () => {
+    setProblem(null)
+    setDone(null)
+    if (!date) return setProblem('Choose the migration date.')
+    const used = rows.filter((r) => r.account || num(r.debit) || num(r.credit))
+    if (used.length === 0 || !used[0].account) return setProblem('At least one accounting value is needed for the ledger.')
+    for (const r of used) {
+      if (!r.account) return setProblem('Choose an account for every line that has an amount.')
+      if (!num(r.debit) && !num(r.credit)) return setProblem('Enter a debit or a credit for every account line.')
+      if (num(r.debit) && num(r.credit)) return setProblem('A line cannot have both a debit and a credit.')
+    }
+    const lines = used.map((r) => ({ account: r.account, debit: num(r.debit) ? String(num(r.debit)) : '', credit: num(r.credit) ? String(num(r.credit)) : '' }))
+    // The page always posts its adjustment line; with nothing to adjust it would be a zero row.
+    if (total.adjDebit || total.adjCredit) lines.push({ account: form.adjustment.account, debit: total.adjDebit ? String(total.adjDebit) : '', credit: total.adjCredit ? String(total.adjCredit) : '' })
 
-    saveOpeningBalance.mutate(
-      { date, lines: valid.map((l) => ({ accountNumber: l.accountNumber, debit: l.debit, credit: l.credit })) },
+    const ok = await confirm({
+      title: 'Validate the opening balance?',
+      message: `Write ${lines.length} line${lines.length === 1 ? '' : 's'} to the ledger dated ${date}, as one transaction "Opening Balance".`,
+      warningTitle: 'This writes to the accounting books.',
+      warningMessage: 'The lines are recorded at once; correct them afterwards from the Journals list.',
+      variant: 'default',
+      confirmLabel: 'Validate Transaction',
+    })
+    if (!ok) return
+    validate.mutate(
+      { date, lines },
       {
         onSuccess: () => {
-          const labelFor = (num: string) => accounts.find((a) => a.text.startsWith(`${num}-`))?.text.split('-').slice(1).join('-') ?? ''
-          updateBatches((cur) => [
-            { ref: nextLocalRef('OB'), date, lines: valid.map((l) => ({ accountNumber: l.accountNumber, accountLabel: labelFor(l.accountNumber), debit: l.debit, credit: l.credit })) },
-            ...cur,
-          ])
-          setLines([newDraftLine()])
+          setDone(lines.length)
+          setRows([{ key: nextKey, account: '', debit: '', credit: '' }])
+          setNextKey((k) => k + 1)
+          setDate('')
         },
-        onError: (e) => setError(e instanceof Error ? e.message : 'Save failed.'),
+        onError: (e) => setProblem(e instanceof Error ? e.message : 'The request was refused.'),
       },
     )
   }
 
+  const currency = form.currency ? ` (${form.currency})` : ''
+
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Landmark size={20} className="text-brand" /> Opening Balance
-      </h2>
+      {done !== null && (
+        <div className="rounded-lg border border-success/40 bg-success-bg/50 px-4 py-3 text-sm text-success-fg">
+          Opening balance validated successfully — {done} line{done === 1 ? '' : 's'} written.{' '}
+          <Link to={ROUTES.ledgerList} className="underline">
+            View in Journals
+          </Link>
+        </div>
+      )}
+      {problem && (
+        <div role="alert" className="whitespace-pre-line rounded-lg border border-danger/40 bg-danger-bg/50 px-4 py-3 text-sm text-danger">
+          {problem}
+        </div>
+      )}
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">accountancy/admin/openingbalance.php</code>. Saving here genuinely writes real{' '}
-          <code className="font-mono">llx_accounting_bookkeeping</code> rows through <code className="font-mono">openingbalance_ajax.php</code> — the same
-          real write the classic page uses. There's no read API for entries already on the backend though, so the list below only reflects what's been
-          entered in this browser session.
-        </p>
-      </Card>
+      <Card className="!h-auto space-y-5">
+        <label className="flex flex-wrap items-center gap-3 text-sm text-text">
+          <span className="font-medium">Migration Date :</span>
+          <input type="date" value={date} onChange={(e) => {
+              setProblem(null)
+              setDate(e.target.value)
+            }} className="h-10 w-56 rounded-md border border-input-border bg-input-bg px-3 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30" aria-label="Migration date" />
+        </label>
 
-      <Card className="!h-auto space-y-3">
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-medium text-text-muted">
-            Date
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5" />
-          </label>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className={th}>Accounts</th>
+                <th className={`${th} w-56`}>Debit{currency}</th>
+                <th className={`${th} w-56`}>Credit{currency}</th>
+                <th className={`${th} w-24`}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.key} className="border-b border-border align-middle">
+                  <td className="min-w-72 px-2 py-2">
+                    <SearchableSelect value={r.account} onChange={(account) => patch(r.key, { account })} options={options} placeholder="Select Account" />
+                  </td>
+                  <td className="px-2 py-2">
+                    {/* A row has a debit or a credit, never both — typing in one clears the other, as the page does. */}
+                    <input value={r.debit} onChange={(e) => patch(r.key, { debit: cleanAmount(e.target.value), credit: '' })} inputMode="decimal" className={`${inputCls} text-right`} aria-label={`Debit line ${i + 1}`} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input value={r.credit} onChange={(e) => patch(r.key, { credit: cleanAmount(e.target.value), debit: '' })} inputMode="decimal" className={`${inputCls} text-right`} aria-label={`Credit line ${i + 1}`} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1.5">
+                      {i === rows.length - 1 && (
+                        <button
+                          type="button"
+                          title="Add a line"
+                          aria-label="Add a line"
+                          onClick={() => {
+                            setRows((cur) => [...cur, { key: nextKey, account: '', debit: '', credit: '' }])
+                            setNextKey((k) => k + 1)
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-md text-brand hover:bg-brand/10"
+                        >
+                          <Plus size={15} />
+                        </button>
+                      )}
+                      {rows.length > 1 && (
+                        <button type="button" title="Remove this line" aria-label={`Remove line ${i + 1}`} onClick={() => setRows((cur) => cur.filter((x) => x.key !== r.key))} className="grid h-8 w-8 place-items-center rounded-md text-danger hover:bg-danger-bg">
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-b border-border">
+                <th className={th}>Total</th>
+                <th className="px-3 py-2.5 text-right text-sm font-bold tabular-nums text-text">{show(total.debit)}</th>
+                <th className="px-3 py-2.5 text-right text-sm font-bold tabular-nums text-text">{show(total.credit)}</th>
+                <th />
+              </tr>
+              <tr className="border-b border-border align-middle">
+                <td className="px-3 py-3 text-sm font-semibold text-text">
+                  {form.adjustment.label}
+                  <div className="text-xs font-normal text-text-muted">{form.adjustment.note}</div>
+                </td>
+                <td className="px-2 py-2">
+                  <input value={show(total.adjDebit)} readOnly className={`${inputCls} text-right`} aria-label="Adjustment debit" />
+                </td>
+                <td className="px-2 py-2">
+                  <input value={show(total.adjCredit)} readOnly className={`${inputCls} text-right`} aria-label="Adjustment credit" />
+                </td>
+                <td />
+              </tr>
+              <tr>
+                <th className={th}>
+                  TOTAL AMOUNT
+                  <div className="text-xs font-normal text-text-muted">(Includes Opening Balance Adjustment account.)</div>
+                </th>
+                <th className="px-3 py-2.5 text-right text-sm font-bold tabular-nums text-text">{show(total.all)}</th>
+                <th className="px-3 py-2.5 text-right text-sm font-bold tabular-nums text-text">{show(total.all)}</th>
+                <th />
+              </tr>
+            </tfoot>
+          </table>
         </div>
 
-        <div className="space-y-2">
-          {lines.map((line) => (
-            <div key={line.key} className="flex flex-wrap items-center gap-2">
-              <div className="w-72">
-                <SearchableSelect value={line.accountNumber} onChange={(v) => updateLine(line.key, { accountNumber: v })} options={accountOptions} placeholder="Select account..." />
-              </div>
-              <input
-                type="number"
-                value={line.debit}
-                onChange={(e) => updateLine(line.key, { debit: e.target.value, credit: e.target.value ? '' : line.credit })}
-                placeholder="Debit"
-                className="w-32 text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-              />
-              <input
-                type="number"
-                value={line.credit}
-                onChange={(e) => updateLine(line.key, { credit: e.target.value, debit: e.target.value ? '' : line.debit })}
-                placeholder="Credit"
-                className="w-32 text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
-              />
-              <button
-                type="button"
-                onClick={() => setLines((cur) => (cur.length > 1 ? cur.filter((l) => l.key !== line.key) : cur))}
-                className="p-1.5 rounded-md text-danger hover:bg-danger-bg"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setLines((cur) => [...cur, newDraftLine()])}
-          className="flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
-        >
-          <Plus size={13} /> Add row
-        </button>
-
-        <div className="flex items-center justify-end gap-6 pt-2 border-t border-border text-sm">
-          <span className="text-text-muted">
-            Debit: <span className="font-semibold text-text! tabular-nums">{fmtZMW(totals.debit)}</span>
-          </span>
-          <span className="text-text-muted">
-            Credit: <span className="font-semibold text-text! tabular-nums">{fmtZMW(totals.credit)}</span>
-          </span>
-          <span className={`font-semibold tabular-nums ${totals.difference === 0 ? 'text-success-fg' : 'text-danger'}`}>
-            Difference: {fmtZMW(Math.abs(totals.difference))}
-          </span>
-        </div>
-
-        {error && <p className="text-xs text-danger">{error}</p>}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saveOpeningBalance.isPending}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-60"
-          >
-            {saveOpeningBalance.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
+        <div className="flex justify-center">
+          <button type="button" onClick={submit} disabled={validate.isPending} className="flex items-center gap-1.5 rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+            {validate.isPending && <Loader2 size={14} className="animate-spin" />} Validate Transaction
           </button>
         </div>
       </Card>
+    </div>
+  )
+}
 
-      {batches.length > 0 && (
-        <Card className="!p-0 overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">Entered this session</div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-3 py-2">Ref</th>
-                  <th className="font-medium px-3 py-2">Date</th>
-                  <th className="font-medium px-3 py-2">Account</th>
-                  <th className="font-medium px-3 py-2 text-right">Debit</th>
-                  <th className="font-medium px-3 py-2 text-right">Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batches.flatMap((batch) =>
-                  batch.lines.map((l, i) => (
-                    <tr key={`${batch.ref}-${i}`} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-text-faint">{i === 0 ? batch.ref : ''}</td>
-                      <td className="px-3 py-2 text-text-muted whitespace-nowrap">{i === 0 ? batch.date : ''}</td>
-                      <td className="px-3 py-2 text-text!">
-                        {l.accountNumber}
-                        {l.accountLabel ? `-${l.accountLabel}` : ''}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{l.debit ? fmtZMW(Number(l.debit)) : '-'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{l.credit ? fmtZMW(Number(l.credit)) : '-'}</td>
-                    </tr>
-                  )),
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+// The backend's own "Opening Balances" page (accountancy/admin/openingbalance.php).
+export function OpeningBalanceForm() {
+  const { data: form, isLoading, isError, error, refetch } = useOpeningBalance()
+  return (
+    <div className="space-y-4">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+        <Landmark size={20} className="text-brand" /> Opening Balances
+      </h2>
+      {isLoading && <LegacyLoadingCard label="Loading the opening balance form…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the opening balance form" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {form && <OpeningBalanceEditor form={form} />}
     </div>
   )
 }

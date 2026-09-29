@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { parseManageSalaryRows, type ManageSalaryRow } from './manageSalaryParser'
+import { PAYROLL_LIST_PAGES, payrollListQueryKey, type PayrollListKey } from './payrollLists.queries'
 
 // Real, live write endpoint for 8 of the Payroll module's Human Resource
 // pages — payroll/ajax.php (confirmed by reading it directly, not guessed).
@@ -31,6 +32,24 @@ async function postPayrollAjax(params: URLSearchParams): Promise<void> {
 // as this fixed real id.
 const SINGLE_ENTITY_ID = '1'
 
+// Deleting a record from one of the Payroll list pages — the same POST the page's
+// own delete button sends (payroll/ajax.php?<deleteParam>=<id>, answering 0 on
+// success). The list refreshes afterwards from the real page.
+export function useDeletePayrollRecord(key: PayrollListKey) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const deleteParam = PAYROLL_LIST_PAGES[key].deleteParam
+      if (!deleteParam) throw new Error('Records on this page cannot be deleted.')
+      const res = await fetch(`/payroll/ajax.php?${deleteParam}=${encodeURIComponent(id)}`, { method: 'POST', credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const code = (await res.text()).trim()
+      if (code !== '0') throw new Error('The legacy backend did not delete this record.')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey(key) }),
+  })
+}
+
 export interface NewHolidayInput {
   leaveName: string
   startDate: string // YYYY-MM-DD
@@ -39,6 +58,7 @@ export interface NewHolidayInput {
   createdByUserId: number
 }
 export function useCreateHoliday() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewHolidayInput) => {
       const params = new URLSearchParams({
@@ -51,6 +71,7 @@ export function useCreateHoliday() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('holiday') }),
   })
 }
 
@@ -64,6 +85,7 @@ export interface NewAwardInput {
   comments: string
 }
 export function useCreateAward() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewAwardInput) => {
       const params = new URLSearchParams({
@@ -77,6 +99,7 @@ export function useCreateAward() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('award') }),
   })
 }
 
@@ -86,6 +109,7 @@ export interface NewTransferInput {
   description: string
 }
 export function useCreateTransfer() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewTransferInput) => {
       const params = new URLSearchParams({
@@ -97,6 +121,7 @@ export function useCreateTransfer() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('transfers') }),
   })
 }
 
@@ -107,6 +132,7 @@ export interface NewResignationInput {
   reason: string
 }
 export function useCreateResignation() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewResignationInput) => {
       const params = new URLSearchParams({
@@ -117,6 +143,7 @@ export function useCreateResignation() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('resignations') }),
   })
 }
 
@@ -129,6 +156,7 @@ export interface NewTravelInput {
   description: string
 }
 export function useCreateTravel() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewTravelInput) => {
       const params = new URLSearchParams({
@@ -142,6 +170,7 @@ export function useCreateTravel() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('travel') }),
   })
 }
 
@@ -153,6 +182,7 @@ export interface NewComplaintInput {
   description: string
 }
 export function useCreateComplaint() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewComplaintInput) => {
       const params = new URLSearchParams({
@@ -165,6 +195,7 @@ export function useCreateComplaint() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('complaints') }),
   })
 }
 
@@ -176,6 +207,7 @@ export interface NewWarningInput {
   description: string
 }
 export function useCreateWarning() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewWarningInput) => {
       const params = new URLSearchParams({
@@ -188,6 +220,7 @@ export function useCreateWarning() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('warnings') }),
   })
 }
 
@@ -215,6 +248,7 @@ export interface NewTerminationInput {
   description: string
 }
 export function useCreateTermination() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewTerminationInput) => {
       const params = new URLSearchParams({
@@ -227,6 +261,7 @@ export function useCreateTermination() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('terminations') }),
   })
 }
 
@@ -242,6 +277,7 @@ export interface NewAdvanceInput {
   requestedByUserId: number
 }
 export function useCreateAdvance() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewAdvanceInput) => {
       const params = new URLSearchParams({
@@ -258,6 +294,7 @@ export function useCreateAdvance() {
       if (code === '2') throw new Error('This employee has no Salary Grade assigned yet (required before requesting an advance).')
       throw new Error('The legacy backend rejected the request.')
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('advance') }),
   })
 }
 
@@ -272,6 +309,7 @@ export interface NewLoanInput {
   reason: string
 }
 export function useCreateLoan() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewLoanInput) => {
       const params = new URLSearchParams({
@@ -284,6 +322,7 @@ export function useCreateLoan() {
       })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('loan') }),
   })
 }
 
@@ -294,11 +333,13 @@ export interface NewHourlyGradeInput {
   rate: string
 }
 export function useCreateHourlyGrade() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewHourlyGradeInput) => {
       const params = new URLSearchParams({ savehourly_grade: input.grade, hourly_rate: input.rate })
       await postPayrollAjax(params)
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('hourlyTemplate') }),
   })
 }
 
@@ -326,6 +367,7 @@ export interface NewShiftInput {
   sundayOut: string
 }
 export function useCreateShift() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewShiftInput) => {
       const params = new URLSearchParams({
@@ -358,6 +400,7 @@ export function useCreateShift() {
       if (code === '2') throw new Error('A shift with this name already exists.')
       throw new Error('The legacy backend rejected the request.')
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: payrollListQueryKey('shifts') }),
   })
 }
 
@@ -413,6 +456,7 @@ export interface NewSalaryAssignmentInput {
   leaveTypeIds: string[]
 }
 export function useCreateSalaryAssignment() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewSalaryAssignmentInput) => {
       const hasShift = input.primaryShift !== '0'
@@ -442,6 +486,10 @@ export function useCreateSalaryAssignment() {
       if (code === '0') return
       if (code === '3') throw new Error('This employee already has a shift assigned on that date.')
       throw new Error('The legacy backend rejected the request.')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: payrollListQueryKey('manageSalaryList') })
+      queryClient.invalidateQueries({ queryKey: ['payroll', 'manage-salary', 'employees'] })
     },
   })
 }

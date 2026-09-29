@@ -29,7 +29,7 @@ export function useLocalCollection<T>(key: readonly unknown[], initial: T) {
   return [data as T, update] as const
 }
 
-let sequence = 1
+let sequence = 1 
 // Local-only records need *some* stable id/ref for React keys and display
 // — this stands in for what a real backend's autoincrement/sequence would
 // assign.

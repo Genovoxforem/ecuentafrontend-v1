@@ -1,8 +1,8 @@
-import { useState, type ComponentType, type ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Camera, TrendingUp, User, CalendarCheck, Clock, FileText, CalendarX, Users2, Building2, Plus, X, Check, XCircle } from 'lucide-react'
+import { Camera, TrendingUp, User, CalendarCheck, Clock, FileText, CalendarX, Users2, Building2 } from 'lucide-react'
 import { Card, ActionGroupCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
-import { useCreateLeaveRequest, useSetLeaveRequestStatus, type PayrollSummary } from '../payroll.queries'
+import type { PayrollSummary } from '../payroll.queries'
 import { ROUTES } from '../../../routes'
 
 const ICON_COLORS = {
@@ -83,123 +83,12 @@ function MonthAmountCard({ label, value, caption, valueColor }: { label: string;
   )
 }
 
-function NewLeaveRequestForm({ onClose }: { onClose: () => void }) {
-  const createLeaveRequest = useCreateLeaveRequest()
-  const [employeeName, setEmployeeName] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [reason, setReason] = useState('')
-  const [error, setError] = useState('')
-
-  function handleSubmit() {
-    if (!employeeName.trim() || !fromDate || !toDate) {
-      setError('Employee, from date, and to date are all required.')
-      return
-    }
-    if (toDate < fromDate) {
-      setError('To date must be on or after the from date.')
-      return
-    }
-    createLeaveRequest({ employeeName, fromDate, toDate, reason })
-    onClose()
-  }
-
-  return (
-    <Card className="border-brand/40">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-text!">New Leave Request</h3>
-        <button type="button" onClick={onClose} className="p-1 rounded-md text-text-faint hover:bg-surface-hover">
-          <X size={16} />
-        </button>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">Employee</span>
-          <input type="text" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">From</span>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">To</span>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">Reason</span>
-          <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-        </label>
-      </div>
-      {error && <p className="text-sm text-danger mt-2">{error}</p>}
-      <div className="flex justify-end mt-3">
-        <button type="button" onClick={handleSubmit} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
-          <Plus size={14} /> Submit request
-        </button>
-      </div>
-    </Card>
-  )
-}
-
-function LeaveRequestsTable({ summary }: { summary: PayrollSummary }) {
-  const setStatus = useSetLeaveRequestStatus()
-  if (summary.leaveRequests.length === 0) return null
-  return (
-    <Card className="!p-0 overflow-hidden">
-      <div className="overflow-auto max-h-[60vh]">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10">
-            <tr className="text-left text-xs font-semibold text-text uppercase tracking-wide border-b border-border bg-surface">
-              <th className="px-4 py-3">Ref</th>
-              <th className="px-4 py-3">Employee</th>
-              <th className="px-4 py-3">From</th>
-              <th className="px-4 py-3">To</th>
-              <th className="px-4 py-3">Reason</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.leaveRequests.map((r) => (
-              <tr key={r.ref} className="border-t border-border">
-                <td className="px-4 py-3 text-brand">{r.ref}</td>
-                <td className="px-4 py-3 text-text!">{r.employeeName}</td>
-                <td className="px-4 py-3 text-text-muted">{r.fromDate}</td>
-                <td className="px-4 py-3 text-text-muted">{r.toDate}</td>
-                <td className="px-4 py-3 text-text-muted">{r.reason || '-'}</td>
-                <td className="px-4 py-3 text-text-muted">{r.status}</td>
-                <td className="px-4 py-3">
-                  {r.status === 'Pending' ? (
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setStatus(r.ref, 'Approved')} className="flex items-center gap-1 text-xs font-medium text-success hover:underline">
-                        <Check size={12} /> Approve
-                      </button>
-                      <button type="button" onClick={() => setStatus(r.ref, 'Rejected')} className="flex items-center gap-1 text-xs font-medium text-danger hover:underline">
-                        <XCircle size={12} /> Reject
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-text-faint">-</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  )
-}
-
 export function PayrollOverview({ summary }: { summary: PayrollSummary }) {
-  const [showLeaveForm, setShowLeaveForm] = useState(false)
-
   return (
     <div className="space-y-4">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
         <Camera size={20} className="text-brand" /> Payroll Area
       </h2>
-
-      {showLeaveForm && <NewLeaveRequestForm onClose={() => setShowLeaveForm(false)} />}
 
       <h3 className="flex items-center gap-2 font-semibold text-text-muted">
         <TrendingUp size={16} /> Payroll Statistics Overview
@@ -237,14 +126,12 @@ export function PayrollOverview({ summary }: { summary: PayrollSummary }) {
           value={summary.leaveRequestsThisMonth}
           label="Leave Requests (This Month)"
           links={
-            <button type="button" onClick={() => setShowLeaveForm((v) => !v)} className="flex items-center gap-1 text-brand hover:underline">
+            <Link to={ROUTES.payrollLeaveRequest} className="flex items-center gap-1 text-brand hover:underline">
               + Request
-            </button>
+            </Link>
           }
         />
       </div>
-
-      <LeaveRequestsTable summary={summary} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <MonthAmountCard label="YTD Amount (This Month)" value={summary.ytdAmountThisMonth} caption={summary.ytdAmountThisMonthLabel} />

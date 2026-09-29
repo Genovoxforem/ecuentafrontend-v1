@@ -20,6 +20,7 @@ import {
   useHotelToken,
   type HotelRoomAdmin,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const fieldCls = 'w-full h-10 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -141,6 +142,7 @@ function EditRoomPanel({
 // (r=rooms_admin, a=saveroom/delroom/zrasync). Edit opens a lighter inline
 // panel since only a handful of fields actually vary per room.
 export function HotelRoomListPage() {
+  const confirm = useConfirm()
   const { data: rooms, isLoading, isError, error, refetch } = useHotelRoomsAdmin()
   const { data: settings } = useHotelSettingsBundle()
   const { data: roomTypes } = useHotelRoomTypes()
@@ -173,8 +175,8 @@ export function HotelRoomListPage() {
   }, [rooms, search])
   const pageRows = filtered.slice((page - 1) * perPage, page * perPage)
 
-  function handleDelete(r: HotelRoomAdmin) {
-    if (!token || !confirm(`Delete room "${r.no}"?`)) return
+  async function handleDelete(r: HotelRoomAdmin) {
+    if (!token || !(await confirm(`Delete room "${r.no}"?`))) return
     setBusyId(r.id)
     del.mutate({ id: r.id, token }, { onSettled: () => setBusyId(null) })
   }

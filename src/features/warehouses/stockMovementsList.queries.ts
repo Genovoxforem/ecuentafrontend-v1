@@ -114,6 +114,8 @@ export interface StockMovementFilters {
   batch?: string
   inventoryCode?: string
   search?: string
+  // Rows to fetch; the full list page takes the API's page of 250.
+  limit?: number
 }
 
 function buildParams(filters: StockMovementFilters): URLSearchParams {
@@ -124,7 +126,7 @@ function buildParams(filters: StockMovementFilters): URLSearchParams {
   if (filters.batch) params.set('prod_lot', filters.batch)
   if (filters.inventoryCode) params.set('prod_invoice', filters.inventoryCode)
   if (filters.search) params.set('search_ref', filters.search)
-  params.set('limit', '250')
+  params.set('limit', String(filters.limit ?? 250))
   return params
 }
 

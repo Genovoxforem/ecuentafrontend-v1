@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fetchInvoicesSummary } from '../invoices/invoices.queries'
 import { useDashboardStatistics } from './dashboardStats'
 import { useZraSummary } from '../zra/zra.queries'
 import { useBankAccountsList } from '../banking/banking.queries'
 import { useContractsSummary } from '../contracts/contracts.queries'
 import { useCustomersSummary } from '../customers/customers.queries'
 import { useVendorInvoices } from '../vendorInvoices/vendorInvoices.queries'
+import type { InvoiceRow } from '../invoices/invoices.queries'
 
 export interface StatWithTrend {
   value: number
@@ -74,10 +75,12 @@ export interface DashboardSummary {
 
 const zeroStat = (value = 0): StatWithTrend => ({ value, lastYear: 0, percent: 0, up: true })
 
-// Confirmed against api/invoices/index.php on the real backend — see
-// invoices.queries.ts for the full field-by-field notes. type: 0 = standard
-// invoice, 2 = credit note (Dolibarr convention) — confirmed live, used to
-// separate salesBreakdown from totalRefund below.
+// Invoice shape this dashboard's maths below is written against. Rows come
+// from the same invoice_ajax_list.php source as the Sales Invoices list (see
+// invoices.queries.ts) — mapped to this shape by toDashboardInvoice(). type:
+// 0 = standard invoice, 2 = credit note; the list has no type column, but a
+// credit note is always the negative-total invoice (its CRV- refs are all
+// negative), which is how it is told apart here.
 interface RawInvoice {
   id: number
   ref: string
@@ -88,9 +91,8 @@ interface RawInvoice {
   type: number
 }
 
-interface InvoicesResponse {
-  success: boolean
-  invoices: RawInvoice[]
+function toDashboardInvoice(r: InvoiceRow): RawInvoice {
+  return { id: r.id, ref: r.ref, date: r.invoiceDate, thirdparty_name: r.thirdParty, total_ttc: r.amountInclTax, statut: r.rawStatut as 0 | 1 | 2 | 3, type: r.amountInclTax < 0 ? 2 : 0 }
 }
 
 // "Sep 2025" -> 2025. chartData only gives a short month name + numeric
@@ -131,12 +133,11 @@ export function useDashboardSummary() {
     enabled: !!stats,
     queryFn: async (): Promise<DashboardSummary> => {
       if (!stats) throw new Error('unreachable')
-      // limit: 500 comfortably covers this endpoint's real invoice count
-      // (confirmed live, well under 500) — needed because /api/dashboard/'s
+      // Every invoice row is needed because /api/dashboard/'s
       // own invoicesByStatus[].amount is always 0 (a real server-side bug,
       // confirmed live), so salesBreakdown/totalRefund below are computed
       // from these full rows instead of trusting that broken field.
-      const { data: invoicesData } = await api.get<InvoicesResponse>('/invoices/', { params: { status: 'all', limit: 500 } })
+      const invoicesData = { invoices: (await fetchInvoicesSummary()).rows.map(toDashboardInvoice) }
       const monthPoints = stats.chartData?.invoicesByMonth ?? []
       const months = monthPoints.map((p) => `${yearFromMonthName(p.monthName)}-${pad2(p.month)}`)
       const monthly = monthPoints.map((p, i) => ({ ym: months[i], income: p.amount, sales_count: p.count, customers: 0 }))

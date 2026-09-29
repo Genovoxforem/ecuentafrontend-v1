@@ -1,73 +1,94 @@
 import { type ComponentType } from 'react'
-import { CheckCircle2, RefreshCw, ReceiptText, FileText, Calculator, Percent, ShoppingCart, ListChecks, LayoutList } from 'lucide-react'
+import { Calculator, CalendarDays, FileText, ListChecks, LayoutList, Package, Percent, ReceiptText, RefreshCw, ShoppingCart } from 'lucide-react'
 import { formatMoney } from '../../../utils/format'
-import { useVsdcStatus, type ZraSummary, type ZraSyncDetailRow, type ZraSyncStat } from '../zra.queries'
-import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
+import { useZraManualSync } from '../zraActions.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { useZraServerStatus, type ZraSummary, type ZraSyncDetailRow, type ZraSyncStat } from '../zra.queries'
 
-const fmt = (n: number) => `ZMW ${formatMoney(n)}`
+// The backend prints a negative amount as "-ZMW 2,220.43".
+const fmt = (n: number) => `${n < 0 ? '-' : ''}ZMW ${formatMoney(Math.abs(n))}`
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-surface-alt border border-border rounded-xl p-4 ${className}`}>{children}</div>
-}
-
-const ICON_STYLES = {
-  blue: 'bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400',
-  cyan: 'bg-cyan-50 text-cyan-500 dark:bg-cyan-500/10 dark:text-cyan-400',
-  violet: 'bg-violet-50 text-violet-500 dark:bg-violet-500/10 dark:text-violet-400',
-  rose: 'bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400',
-  success: 'bg-success-bg text-success-fg',
+// One accent per card, as on the backend dashboard: a coloured top edge, a
+// matching label, and a tinted icon tile.
+const ACCENTS = {
+  blue: { edge: 'border-t-blue-500', label: 'text-blue-600 dark:text-blue-400', tile: 'bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400', meta: 'text-blue-600 dark:text-blue-400' },
+  cyan: { edge: 'border-t-cyan-500', label: 'text-cyan-600 dark:text-cyan-400', tile: 'bg-cyan-50 text-cyan-500 dark:bg-cyan-500/10 dark:text-cyan-400', meta: 'text-cyan-600 dark:text-cyan-400' },
+  violet: { edge: 'border-t-violet-500', label: 'text-violet-600 dark:text-violet-400', tile: 'bg-violet-50 text-violet-500 dark:bg-violet-500/10 dark:text-violet-400', meta: 'text-violet-600 dark:text-violet-400' },
+  amber: { edge: 'border-t-amber-500', label: 'text-amber-600 dark:text-amber-400', tile: 'bg-amber-50 text-amber-500 dark:bg-amber-500/10 dark:text-amber-400', meta: 'text-amber-600 dark:text-amber-400' },
+  green: { edge: 'border-t-emerald-500', label: 'text-emerald-600 dark:text-emerald-400', tile: 'bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-400', meta: 'text-emerald-600 dark:text-emerald-400' },
 } as const
+type Accent = keyof typeof ACCENTS
 
-function SyncStatCard({
+function StatCard({
   label,
-  stat,
+  accent,
   icon: Icon,
-  color,
-  totalLabel = 'Total',
+  metaIcon: MetaIcon,
+  meta,
+  children,
 }: {
   label: string
-  stat: ZraSyncStat
+  accent: Accent
   icon: ComponentType<{ size?: number }>
-  color: keyof typeof ICON_STYLES
-  totalLabel?: string
+  metaIcon: ComponentType<{ size?: number }>
+  meta: string
+  children: React.ReactNode
 }) {
+  const a = ACCENTS[accent]
   return (
-    <Card className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide truncate">{label}</p>
-        <p className="text-sm font-semibold text-text! mt-2">
-          {fmt(stat.succeededAmount)} <span className="text-success font-normal">✓ Succeeded</span>
-        </p>
-        <p className="text-sm font-semibold text-text!">
-          {fmt(stat.unsyncedAmount)} <span className="text-text-faint font-normal">Unsynced</span>
-        </p>
-        <p className="text-xs text-success mt-2">
-          {totalLabel}: {fmt(stat.totalAmount)}
-        </p>
+    <div className={`flex flex-col rounded-xl border border-border border-t-4 ${a.edge} bg-surface-alt p-4 shadow-sm`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className={`text-xs font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
+          <div className="mt-2.5 space-y-1">{children}</div>
+        </div>
+        <span className={`shrink-0 grid h-10 w-10 place-items-center rounded-lg ${a.tile}`}>
+          <Icon size={19} />
+        </span>
       </div>
-      <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-        <Icon size={18} />
-      </span>
-    </Card>
+      <p className={`mt-3 flex items-center gap-1.5 border-t border-dashed border-border pt-2.5 text-xs font-semibold ${a.meta}`}>
+        <MetaIcon size={12} /> {meta}
+      </p>
+    </div>
+  )
+}
+
+function SyncStatCard({ label, stat, accent, icon, metaIcon, totalLabel = 'Total' }: { label: string; stat: ZraSyncStat; accent: Accent; icon: ComponentType<{ size?: number }>; metaIcon: ComponentType<{ size?: number }>; totalLabel?: string }) {
+  return (
+    <StatCard label={label} accent={accent} icon={icon} metaIcon={metaIcon} meta={`${totalLabel}: ${fmt(stat.totalAmount)}`}>
+      <p className="text-[15px] font-bold text-text!">
+        {fmt(stat.succeededAmount)} <span className="text-success">✓ Succeeded</span>
+      </p>
+      <p className="text-[15px] font-bold text-text!">
+        {fmt(stat.unsyncedAmount)} <span className="font-semibold text-text-muted">Unsynced</span>
+      </p>
+    </StatCard>
+  )
+}
+
+// The combined card is set apart on the backend page: the succeeded amount is
+// the large green figure, the unsynced amount a lighter grey line.
+function IncomeCard({ stat }: { stat: ZraSyncStat }) {
+  return (
+    <StatCard label="Income" accent="violet" icon={Calculator} metaIcon={Calculator} meta={`Combined Total: ${fmt(stat.totalAmount)}`}>
+      <p className="text-xl font-bold leading-tight text-success">
+        {fmt(stat.succeededAmount)} <span className="text-sm">✓</span>
+      </p>
+      <p className="text-xs font-semibold text-success">Succeeded</p>
+      <p className="pt-1 text-base text-text-muted">
+        {fmt(stat.unsyncedAmount)} <span className="text-xs">Unsynced</span>
+      </p>
+    </StatCard>
   )
 }
 
 function PurchaseAmountCard({ amount }: { amount: number }) {
   return (
-    <Card className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide truncate">Purchase Amount</p>
-        <p className="text-sm font-semibold text-text! mt-2">
-          {fmt(amount)} <span className="text-success font-normal">✓ Complete</span>
-        </p>
-        <p className="text-xs text-success mt-2 flex items-center gap-1">
-          <ShoppingCart size={12} /> Supplier Invoices
-        </p>
-      </div>
-      <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES.success}`}>
-        <CheckCircle2 size={18} />
-      </span>
-    </Card>
+    <StatCard label="Purchase Amount" accent="green" icon={ShoppingCart} metaIcon={ShoppingCart} meta="Supplier Invoices">
+      <p className="text-[15px] font-bold text-text!">
+        {fmt(amount)} <span className="text-success">✓ Complete</span>
+      </p>
+    </StatCard>
   )
 }
 
@@ -78,22 +99,30 @@ const STATUS_BADGE: Record<ZraSyncDetailRow['status'], { label: string; cls: str
   complete: { label: 'COMPLETE', cls: 'bg-success-bg text-success-fg', symbol: '✓' },
 }
 
+const ROW_ICONS: Record<string, { icon: ComponentType<{ size?: number }>; tile: string }> = {
+  'Sales Invoices': { icon: ReceiptText, tile: ACCENTS.blue.tile },
+  'Credit Notes': { icon: FileText, tile: ACCENTS.cyan.tile },
+  'Stock Items': { icon: Package, tile: ACCENTS.amber.tile },
+  'Purchase Amount': { icon: ShoppingCart, tile: ACCENTS.green.tile },
+}
+
 const dash = (n: number | null) => (n === null ? '-' : String(n))
 
 // Years list matches zraindex.php's own generation exactly (current year
-// down to current year - 5) — real /api/zra/summary/ already accepts a
-// `year` param and filters by it, so this is a live filter, not decorative.
+// down to current year - 5) — the summary endpoint takes a `year` param and
+// filters by it, so this is a live filter, not decorative.
 const CURRENT_YEAR = new Date().getFullYear()
 const FILTER_YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i)
 
 function YearFilter({ value, onChange }: { value: number | null; onChange: (year: number | null) => void }) {
   return (
-    <label className="flex items-center gap-2 text-xs text-text-muted">
-      <span className="hidden @sm:inline">Filter by Year:</span>
+    <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+      <CalendarDays size={15} className="text-brand" />
+      <span>Year:</span>
       <select
         value={value ?? 'all'}
         onChange={(e) => onChange(e.target.value === 'all' ? null : Number(e.target.value))}
-        className="text-xs rounded-md border border-input-border bg-input-bg text-text px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand/30"
+        className="min-w-32 rounded-md border border-input-border bg-input-bg px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-text focus:outline-none focus:ring-2 focus:ring-brand/30"
       >
         <option value="all">All Years</option>
         {FILTER_YEARS.map((y) => (
@@ -106,75 +135,88 @@ function YearFilter({ value, onChange }: { value: number | null; onChange: (year
   )
 }
 
-// Ports zraindex.php's checkZRAApiStatus()/fetchZRAContent() (VSDC version
-// banner, service time, pending-invoice count) and quicklinks_ajax.php's
-// 'getzraresponse' action (branch sync status code/message) — real, live
-// gateway checks, not derived from local DB data (see useVsdcStatus).
-function VsdcStatusBar() {
-  const { data, isFetching, isError, error, dataUpdatedAt, refetch } = useVsdcStatus()
+// The dashboard's "Manual Sync": runs the full ZRA synchronization now
+// (custom/zra/zra_run_sync.php) and reports how long it took.
+function ManualSyncButton() {
+  const sync = useZraManualSync()
+  const confirm = useConfirm()
 
-  // GET /api/zra/vsdc-status/ 404s on this backend (see BackendUnavailable.tsx). Without
-  // this distinction, isError just leaves `data` undefined forever and both lines below
-  // would show "Checking…" indefinitely — implying a check still in progress rather than
-  // one that already failed.
-  const unavailable = isError && isBackendUnavailable(error)
-  const stillChecking = data === undefined && !isError
+  const run = async () => {
+    const ok = await confirm({
+      title: 'Run the ZRA synchronization now?',
+      message: 'This runs the full synchronization with the ZRA gateway and can take a while.',
+      warningTitle: 'This talks to the live ZRA gateway.',
+      warningMessage: 'Pending documents are exchanged with ZRA as part of the sync.',
+      variant: 'default',
+      confirmLabel: 'Run sync',
+    })
+    if (ok) sync.mutate()
+  }
 
   return (
-    <div className="flex flex-col lg:flex-row lg:items-center gap-4 text-sm border-b border-border pb-4">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {data?.vsdc?.logoUrl && <img src={data.vsdc.logoUrl} alt="" className="h-20 w-auto shrink-0" />}
-        <div className="min-w-0">
-          {data?.vsdc?.title && <h4 className="font-semibold text-text! truncate">{data.vsdc.title}</h4>}
-          {data?.vsdc?.serviceTime && <p className="text-text-muted text-xs truncate">{data.vsdc.serviceTime}</p>}
-          {data?.vsdc?.pendingLine && <p className="text-text-muted text-xs truncate">{data.vsdc.pendingLine}</p>}
-        </div>
-      </div>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={run}
+        disabled={sync.isPending}
+        title="Run full ZRA synchronization now"
+        className="flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+      >
+        <RefreshCw size={14} className={sync.isPending ? 'animate-spin' : ''} /> {sync.isPending ? 'Syncing…' : 'Manual Sync'}
+      </button>
+      {sync.isPending && <span className="text-xs text-text-faint">Running ZRA sync…</span>}
+      {sync.isSuccess && <span className="text-xs font-medium text-success">✓ Sync completed ({sync.data.durationSec}s)</span>}
+      {sync.isError && <span className="max-w-64 text-xs font-medium text-danger">{sync.error instanceof Error ? sync.error.message : 'Sync failed'}</span>}
+    </div>
+  )
+}
 
-      <div className="flex flex-col gap-1.5">
-        <span className="flex items-center gap-1.5">
-          <span className="text-text-muted">ZRA Server Api Status :</span>
-          {stillChecking ? (
-            <span className="text-text-faint">Checking…</span>
-          ) : unavailable ? (
-            <span className="text-text-faint">Not available on this backend yet</span>
-          ) : data === undefined ? (
-            <span className="text-danger font-medium">Could not check ZRA API status.</span>
-          ) : data.apiOnline ? (
-            <span className="flex items-center gap-1 text-success font-medium">
-              <CheckCircle2 size={14} /> ZRA API Online
-            </span>
+// The dashboard's "ZRA Server Synchronization Status": the backend asks the ZRA
+// gateway for the branch sync status (quicklinks_ajax.php, type=getzraresponse)
+// and prints the answer, e.g. "000 - It is succeeded" or "901 - It is not valid
+// device", with when it was checked. The refresh button asks again.
+function ZraStatusBox() {
+  const { data, isFetching, isError, error, dataUpdatedAt, refetch } = useZraServerStatus()
+
+  const tone = data ? (data.ok ? 'border-success/40 bg-success-bg text-success-fg' : 'border-warning/40 bg-warning-bg text-warning-fg') : isError ? 'border-danger/40 bg-danger-bg text-danger-fg' : 'border-border bg-surface text-text-faint'
+
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">ZRA Server Synchronization Status</p>
+      <div className="flex items-center gap-2">
+        <div className={`min-w-64 rounded-md border px-4 py-1.5 text-center text-sm font-medium leading-snug ${tone}`}>
+          {data ? (
+            <>
+              {data.code ? `${data.code} - ` : ''}
+              {data.message}
+              {dataUpdatedAt > 0 && !isFetching && (
+                <span className="block text-[11px] font-normal text-success">
+                  ✓ Live data - Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()} ({data.responseTimeMs}ms)
+                </span>
+              )}
+            </>
+          ) : isError ? (
+            <>❌ {error instanceof Error ? error.message : 'Connection failed'}</>
           ) : (
-            <span className="text-danger font-medium">❌ ZRA API Connection Failed</span>
+            'Checking…'
           )}
-        </span>
-        <span className="flex items-center gap-2 flex-wrap">
-          <span className="text-text-muted">ZRA Server Synchronization Status :</span>
-          {data?.syncStatus ? (
-            <span className="inline-flex items-center rounded-full bg-warning-bg text-warning-fg text-xs font-medium px-2.5 py-1">
-              {data.syncStatus.code} - {data.syncStatus.message}
-            </span>
-          ) : (
-            <span className="text-text-faint text-xs">{stillChecking ? 'Checking…' : unavailable ? 'Not available on this backend yet' : 'Unavailable'}</span>
-          )}
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            title="Refresh ZRA Status"
-            className="p-1 rounded-md text-brand hover:bg-surface-alt disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
-          </button>
-          {dataUpdatedAt > 0 && !isFetching && (
-            <span className="text-success text-xs">
-              ✓ Live data - Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()} ({data?.responseTimeMs}ms)
-            </span>
-          )}
-        </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title="Refresh ZRA Status"
+          className="grid h-9 w-9 place-items-center rounded-md border border-success/50 text-success hover:bg-success-bg disabled:opacity-50"
+        >
+          <RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />
+        </button>
       </div>
     </div>
   )
+}
+
+function Banner({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-surface-alt px-5 py-4">{children}</div>
 }
 
 export function ZraOverview({
@@ -187,55 +229,66 @@ export function ZraOverview({
   onYearChange: (year: number | null) => void
 }) {
   return (
-    <div className="space-y-4">
-      <VsdcStatusBar />
-
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 font-semibold text-text!">
-          <LayoutList size={16} className="text-brand" /> ZRA Synchronization Overview
+    <div className="space-y-5">
+      <Banner>
+        <h3 className="flex items-center gap-2.5 text-lg font-bold text-text!">
+          <LayoutList size={20} className="text-brand" /> ZRA Synchronization Overview
         </h3>
+        <ZraStatusBox />
         <YearFilter value={year} onChange={onYearChange} />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <SyncStatCard label="Sales Invoices" stat={summary.salesInvoices} icon={ReceiptText} color="blue" />
-        <SyncStatCard label="Credit Notes" stat={summary.creditNotes} icon={FileText} color="cyan" />
-        <SyncStatCard label="Income" stat={summary.income} icon={Calculator} color="violet" totalLabel="Combined Total" />
-        <SyncStatCard label="VAT Amount" stat={summary.vatAmount} icon={Percent} color="rose" />
+      </Banner>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SyncStatCard label="Sales Invoices" stat={summary.salesInvoices} accent="blue" icon={ReceiptText} metaIcon={ReceiptText} />
+        <SyncStatCard label="Credit Notes" stat={summary.creditNotes} accent="cyan" icon={FileText} metaIcon={FileText} />
+        <IncomeCard stat={summary.income} />
+        <SyncStatCard label="VAT Amount" stat={summary.vatAmount} accent="amber" icon={Percent} metaIcon={Percent} />
         <PurchaseAmountCard amount={summary.purchaseAmount.amount} />
       </div>
 
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 font-semibold text-text!">
-          <ListChecks size={16} className="text-brand" /> ZRA Synchronization Details
+      <Banner>
+        <h3 className="flex items-center gap-2.5 text-lg font-bold text-text!">
+          <ListChecks size={20} className="text-brand" /> ZRA Synchronization Details
         </h3>
-        <YearFilter value={year} onChange={onYearChange} />
-      </div>
-      <Card className="!p-0 overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-4">
+          <ManualSyncButton />
+          <YearFilter value={year} onChange={onYearChange} />
+        </div>
+      </Banner>
+
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface-alt">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-4 py-3">Category</th>
-              <th className="font-medium px-4 py-3">Total Count</th>
-              <th className="font-medium px-4 py-3">Succeeded</th>
-              <th className="font-medium px-4 py-3">Unsynced</th>
-              <th className="font-medium px-4 py-3">Succeeded Amount</th>
-              <th className="font-medium px-4 py-3">Unsynced Amount</th>
-              <th className="font-medium px-4 py-3">Status</th>
+            <tr className="border-b border-border text-xs font-bold text-text">
+              <th className="px-5 py-4 text-left">Category</th>
+              <th className="px-5 py-4 text-center">Total Count</th>
+              <th className="px-5 py-4 text-center">Succeeded</th>
+              <th className="px-5 py-4 text-center">Unsynced</th>
+              <th className="px-5 py-4 text-center">Status</th>
             </tr>
           </thead>
           <tbody>
             {summary.details.map((row) => {
               const badge = STATUS_BADGE[row.status]
+              const rowIcon = ROW_ICONS[row.category]
+              const RowIcon = rowIcon?.icon
               return (
                 <tr key={row.category} className="border-t border-border">
-                  <td className="px-4 py-3 text-brand font-medium">{row.category}</td>
-                  <td className="px-4 py-3 text-text-muted">{dash(row.totalCount)}</td>
-                  <td className="px-4 py-3 text-success font-medium">{dash(row.succeeded)}</td>
-                  <td className="px-4 py-3 text-danger font-medium">{dash(row.unsynced)}</td>
-                  <td className="px-4 py-3 text-success font-medium whitespace-nowrap">{row.succeededAmount === null ? '-' : fmt(row.succeededAmount)}</td>
-                  <td className="px-4 py-3 text-danger font-medium whitespace-nowrap">{row.unsyncedAmount === null ? '-' : fmt(row.unsyncedAmount)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${badge.cls}`}>
+                  <td className="px-5 py-4">
+                    <span className="flex items-center gap-3 font-semibold text-brand">
+                      {RowIcon && (
+                        <span className={`grid h-8 w-8 place-items-center rounded-md ${rowIcon.tile}`}>
+                          <RowIcon size={15} />
+                        </span>
+                      )}
+                      {row.category}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 text-center font-semibold text-brand tabular-nums">{dash(row.totalCount)}</td>
+                  <td className="px-5 py-4 text-center font-bold text-success tabular-nums">{dash(row.succeeded)}</td>
+                  <td className="px-5 py-4 text-center font-bold text-danger tabular-nums">{dash(row.unsynced)}</td>
+                  <td className="px-5 py-4 text-center">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${badge.cls}`}>
                       {badge.symbol} {badge.label}
                     </span>
                   </td>
@@ -244,7 +297,7 @@ export function ZraOverview({
             })}
           </tbody>
         </table>
-      </Card>
+      </div>
     </div>
   )
 }

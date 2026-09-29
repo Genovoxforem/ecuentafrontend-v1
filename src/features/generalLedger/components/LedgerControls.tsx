@@ -1,4 +1,4 @@
-import { type FormEvent } from 'react'
+import { type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, X as XIcon, Loader2, Plus, ChevronLeft, ChevronRight, Rows3, ListTree, Layers } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -11,7 +11,7 @@ import type { LedgerMeta } from '../ledgerHtmlParser'
 // three separate real routes rather than one page silently switching modes,
 // matching both the legacy structure and this app's own pre-existing route
 // reservations (ledgerList/ledgerDashboard/ledgerSubledger).
-export function LedgerToolbar({ active }: { active: 'flat' | 'account' | 'subledger' }) {
+export function LedgerToolbar({ active, extra }: { active: 'flat' | 'account' | 'subledger'; extra?: ReactNode }) {
   const pill = (key: typeof active) =>
     `flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap ${
       active === key ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted border border-border hover:bg-surface-hover hover:text-text!'
@@ -27,9 +27,12 @@ export function LedgerToolbar({ active }: { active: 'flat' | 'account' | 'subled
       <Link to={ROUTES.ledgerSubledger} className={pill('subledger')}>
         <ListTree size={14} /> Group By Subledger Account
       </Link>
-      <Link to={ROUTES.ledgerCreate} className="ml-auto flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover whitespace-nowrap">
-        <Plus size={14} /> New Transaction
-      </Link>
+      <div className="ml-auto flex flex-wrap items-center gap-3">
+        {extra}
+        <Link to={ROUTES.ledgerCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover whitespace-nowrap">
+          <Plus size={14} /> New Transaction
+        </Link>
+      </div>
     </div>
   )
 }

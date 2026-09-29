@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { useLogActivity } from '../agenda/agenda.queries'
-import { useAuth } from '../auth/AuthContext'
 import { parseCustomerGroupListDocument, looksLikeGroupListLoginPage, type CustomerGroupListRow } from './customerGroupListParser'
 
 // discountType/discountMethod are the exact int codes societe/new_card.php's
@@ -67,8 +65,6 @@ export function formatDiscountMethod(row: Pick<CustomerGroupRow, 'discountMethod
 
 export function useCreateCustomerGroup() {
   const queryClient = useQueryClient()
-  const { user } = useAuth()
-  const logActivity = useLogActivity()
   return useMutation({
     mutationFn: async (input: CustomerGroupInput) => {
       const form = new URLSearchParams()
@@ -86,10 +82,8 @@ export function useCreateCustomerGroup() {
       if (!data.success || !data.cust_group_id) throw new Error(data.message ?? 'Failed to create customer group.')
       return { id: data.cust_group_id }
     },
-    onSuccess: (_result, input) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `New customer group ${input.label} added`, category: 'other', authorName })
     },
   })
 }

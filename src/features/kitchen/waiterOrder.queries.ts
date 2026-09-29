@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
 
 // Real backing for "Kitchen > Create Orders" (the real legacy page is
 // takeposnew/waiter_order.php). Confirmed live by reading these files
@@ -24,18 +25,83 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // payment/checkout, cash drawer, modifiers, barcode scanning, offline sync.
 // This mirrors this session's own earlier placeholder's scoping note.
 //
-// TERMINAL_ID: the real page reads this from $_SESSION['takeposterminal'],
-// defaulting to 1 when unset — there's no JSON way to discover it, and this
-// deployment (like the rest of this app's "single entity" pattern) only
-// ever runs one POS terminal, so 1 is hardcoded here, matching the same
-// real default the legacy page itself falls back to.
-export const TERMINAL_ID = 1
-const DEFAULT_FLOOR = 1
+// The POS terminal and the currency are not constants: the real page prints
+// them in its own WAITER_CONFIG block (terminal from the session, currency from
+// the company setup), so they are read from there (useWaiterConfig) instead of
+// being written into the app.
+
+async function fetchLegacyJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  return res.json()
+}
 
 async function postForm<T>(url: string, body: Record<string, string>): Promise<T> {
   const res = await fetch(url, { method: 'POST', credentials: 'same-origin', body: new URLSearchParams(body) })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
   return res.json()
+}
+
+export interface WaiterCategory {
+  id: number
+  label: string
+  level: number
+}
+
+export interface WaiterConfig {
+  terminal: number
+  currency: string
+  transports: { mode: number; label: string }[] // the order-type tabs (Dine In / TakeAway)
+  categories: WaiterCategory[] // top-level product categories
+  subcategories: Record<number, WaiterCategory[]> // children per category
+}
+
+interface RawConfigCategory {
+  id: string | number
+  label: string
+  level?: string | number
+}
+
+const toCategory = (c: RawConfigCategory): WaiterCategory => ({ id: Number(c.id), label: c.label, level: Number(c.level) || 0 })
+
+// The real page prints its WAITER_CONFIG as one `key: value,` line per entry
+// (terminal, currency, the category list and the sub-category map) and its
+// order-type tabs as .transport-tab buttons. Everything the page needs about
+// the POS set-up is read from there instead of being written into the app.
+function configLine(lines: string[], key: string): string | undefined {
+  const line = lines.find((l) => l.trim().startsWith(`${key}:`))
+  return line?.trim().slice(key.length + 1).trim().replace(/,$/, '')
+}
+
+export function useWaiterConfig() {
+  return useQuery({
+    queryKey: ['waiterOrder', 'config'],
+    queryFn: async (): Promise<WaiterConfig> => {
+      const html = await fetchLegacyText('/takeposnew/waiter_order.php')
+      const lines = html.split('\n')
+      const terminal = Number(configLine(lines, 'terminal'))
+      const currency = (configLine(lines, 'currency') ?? '').replace(/^'|'$/g, '')
+      if (!terminal || !currency) throw new Error('Could not read the POS terminal and currency from the waiter order page.')
+
+      let categories: WaiterCategory[] = []
+      let subcategories: Record<number, WaiterCategory[]> = {}
+      try {
+        categories = (JSON.parse(configLine(lines, 'categories') ?? '[]') as RawConfigCategory[]).map(toCategory)
+        const map = JSON.parse(configLine(lines, 'subcategoryMap') ?? '{}') as Record<string, RawConfigCategory[]>
+        subcategories = Object.fromEntries(Object.entries(map).map(([parent, children]) => [Number(parent), children.map(toCategory)]))
+      } catch {
+        throw new Error('Could not read the product categories from the waiter order page.')
+      }
+
+      const doc = new DOMParser().parseFromString(html, 'text/html')
+      const transports = Array.from(doc.querySelectorAll<HTMLElement>('.transport-tab')).map((b) => ({
+        mode: Number(b.dataset.mode),
+        label: (b.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      }))
+      return { terminal, currency, transports, categories, subcategories }
+    },
+    staleTime: 10 * 60_000,
+  })
 }
 
 export interface WaiterTable {
@@ -47,43 +113,26 @@ export interface WaiterTable {
   totalTtc: number | null
 }
 
-export function useWaiterTables(floor: number = DEFAULT_FLOOR) {
+// tables.php?action=list is what the real page loads: every table of every
+// floor (getTables&floor=N returns one floor only, so a fixed floor hid the rest).
+export function useWaiterTables() {
   return useQuery({
-    queryKey: ['waiterOrder', 'tables', floor],
+    queryKey: ['waiterOrder', 'tables'],
     queryFn: async (): Promise<WaiterTable[]> => {
-      const data = await postForm<{ success: boolean; tables: Array<{ rowid: number; label: string; floor: number; occupied: boolean; invoice_id?: number; total_ttc?: number }> }>(
-        '/takeposnew/api/tables.php',
-        { action: 'getTables', floor: String(floor) },
+      const data = await fetchLegacyJson<{ success: boolean; tables: Array<{ rowid: number; label: string; floor: number | string; status?: string; invoice_id?: number; total_ttc?: number }> }>(
+        '/takeposnew/api/tables.php?action=list',
       )
       if (!data.success) throw new Error('Could not load tables.')
       return data.tables.map((t) => ({
         id: t.rowid,
         label: t.label,
-        floor: t.floor,
-        occupied: !!t.occupied,
-        invoiceId: t.invoice_id ?? null,
-        totalTtc: t.total_ttc ?? null,
+        floor: Number(t.floor) || 0,
+        occupied: t.status === 'occupied',
+        invoiceId: t.invoice_id || null,
+        totalTtc: t.total_ttc || null,
       }))
     },
     refetchInterval: 20_000,
-  })
-}
-
-export interface WaiterCategory {
-  id: number
-  label: string
-  level: number
-}
-
-export function useWaiterCategories() {
-  return useQuery({
-    queryKey: ['waiterOrder', 'categories'],
-    queryFn: async (): Promise<WaiterCategory[]> => {
-      const data = await postForm<{ success: boolean; data: { main: WaiterCategory[] } }>('/takeposnew/ajax/ajax.php', { action: 'getCategories' })
-      if (!data.success) throw new Error('Could not load categories.')
-      return data.data.main
-    },
-    staleTime: 5 * 60_000,
   })
 }
 
@@ -145,7 +194,8 @@ export function useWaiterProducts(categoryId: number | null, search: string) {
       const data = await postForm<{ success: boolean; data: RawWaiterProduct[] }>('/takeposnew/ajax/ajax.php', {
         action: 'getProducts',
         category: String(categoryId ?? 0),
-        limit: '250',
+        // the real page loads the whole catalogue (limit 1000) — 250 cut a 510-product list in half
+        limit: '1000',
       })
       if (!data.success) throw new Error('Could not load products.')
       return data.data.map(mapProduct)
@@ -168,15 +218,15 @@ export interface WaiterOrderLine {
 // Loads whatever draft order already exists for a table (e.g. reopening a
 // table someone else started) — real via waiter_ajax.php's own getInvoice
 // action. Returns null lines/invoice when the table has no active order.
-export function useWaiterTableInvoice(place: number | null) {
+export function useWaiterTableInvoice(place: number | null, terminal: number | null) {
   return useQuery({
-    queryKey: ['waiterOrder', 'invoice', place],
+    queryKey: ['waiterOrder', 'invoice', place, terminal],
     queryFn: async (): Promise<{ invoiceId: number | null; lines: WaiterOrderLine[] }> => {
       const data = await postForm<{
         success: boolean
         invoice: { id: number } | null
         lines: Array<{ id: number; product_id: number; label: string; qty: number; price_ht: number; price_ttc: number; tva_tx: string; kotstatus: string }>
-      }>('/takeposnew/ajax/waiter_ajax.php', { action: 'getInvoice', place: String(place), terminal: String(TERMINAL_ID) })
+      }>('/takeposnew/ajax/waiter_ajax.php', { action: 'getInvoice', place: String(place), terminal: String(terminal) })
       if (!data.success) throw new Error('Could not load this table’s order.')
       return {
         invoiceId: data.invoice?.id ?? null,
@@ -192,7 +242,7 @@ export function useWaiterTableInvoice(place: number | null) {
         })),
       }
     },
-    enabled: place != null,
+    enabled: place != null && terminal != null,
     // Seeded once into local cart state and edited there — a background
     // refetch (e.g. on window refocus) must not silently overwrite
     // in-progress edits before the waiter has placed the order.
@@ -217,12 +267,12 @@ export interface WaiterCartItem {
 export function usePlaceWaiterOrder() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ place, transportMode, cart }: { place: number; transportMode: 0 | 1; cart: WaiterCartItem[] }) => {
+    mutationFn: async ({ place, terminal, transportMode, cart }: { place: number; terminal: number; transportMode: 0 | 1; cart: WaiterCartItem[] }) => {
       const cartPayload = cart.map((c) => ({ product_id: c.productId, qty: c.qty, label: c.label, tva_tx: c.tvaTx, vat_src_code: c.vatSrcCode }))
       const data = await postForm<{ success: boolean; error?: string; invoice?: { id: number; ref: string; total_ttc: number } }>('/takeposnew/ajax/waiter_ajax.php', {
         action: 'submitCartAsDraft',
         place: String(place),
-        terminal: String(TERMINAL_ID),
+        terminal: String(terminal),
         transport_mode: String(transportMode),
         cart: JSON.stringify(cartPayload),
       })

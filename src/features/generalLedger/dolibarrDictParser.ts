@@ -32,7 +32,7 @@ export function parseDictRows(html: string): DictRow[] {
     .map((tr) => {
       const cells = Array.from(tr.querySelectorAll('td.tddict')).map((td) => (td.textContent ?? '').trim())
       const disableLink = tr.querySelector<HTMLAnchorElement>('a[href*="action=disable"]')
-      const enableLink = tr.querySelector<HTMLAnchorElement>('a[href*="action=enable"]')
+      const enableLink = tr.querySelector<HTMLAnchorElement>('a[href*="action=enable"], a[href*="action=activate"]')
       const deleteLink = tr.querySelector<HTMLAnchorElement>('a[href*="action=delete"]')
       const toggleHref = (disableLink ?? enableLink)?.getAttribute('href') ?? null
       const deleteHref = deleteLink?.getAttribute('href') ?? null

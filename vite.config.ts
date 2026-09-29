@@ -18,6 +18,10 @@ const BACKEND_OWNED_PATHS = [
   '/takepos',
   '/index.php',
   '/quicklinks_ajax.php',
+  '/viewimage.php',
+  '/notification_count_ajax.php',
+  '/notification_ajax_modern.php',
+  '/ticket_chat_ajax.php',
   '/accountancy',
   '/product',
   '/variants',
@@ -32,6 +36,9 @@ const BACKEND_OWNED_PATHS = [
   '/contact',
   '/commande',
   '/compta',
+  '/don',
+  '/holiday',
+  '/salaries',
   '/fichinter',
   '/userprofile',
   '/expensereport',
@@ -61,12 +68,22 @@ const BACKEND_OWNED_PATHS = [
 // requests to /api/*, /custom/*, etc. keep falling through to the real PHP
 // files already sitting there instead of being swallowed by the SPA
 // fallback.
+// Backend directories that the React app also has routes under: only the PHP files in
+// them are the backend's (dev proxy and production rewrite rules alike).
+const SPA_SHARES_DIRECTORY = new Set(['/payroll'])
+
 function htaccessPlugin(): Plugin {
   return {
     name: 'generate-production-htaccess',
     apply: 'build',
     closeBundle() {
-      const excludeFromSpaFallback = BACKEND_OWNED_PATHS.map((p) => p.replace('.', '\\.').replace(/^\//, '')).join('|')
+      // Each owned path matches as a whole path segment ("product" must not swallow the
+      // app's own /products/... or /tickets/... routes), and a directory the app also has
+      // routes under (/payroll/...) only claims its PHP files.
+      const excludeFromSpaFallback = BACKEND_OWNED_PATHS.map((p) => {
+        const escaped = p.replace(/^\//, '').replace(/\./g, '\\.')
+        return SPA_SHARES_DIRECTORY.has(p) ? `${escaped}/[^/]+\\.php` : `${escaped}(/|$)`
+      }).join('|')
 
       const htaccess = `# Auto-generated at build time by vite.config.ts — do not hand-edit.
 # This file assumes dist/ is deployed onto the backend's own origin
@@ -199,17 +216,30 @@ export default defineConfig({
       // Dolibarr's own classic login controller — see legacySession.ts. This
       // app has no route of its own at this path, so carving it out here is
       // safe the same way '/custom' and '/takeposnew' already are.
-      '^/index\\.php$': proxyConfig(BACKEND_URL),
+      //
+      // This and the three root-level PHP files below match "the file, with or
+      // without a ?query": Vite tests a ^...$ key against the whole URL including
+      // the query string, so a bare ^/x\.php$ never matched a request carrying
+      // parameters and those fell through to the SPA's index.html.
+      '^/index\\.php(\\?|$)': proxyConfig(BACKEND_URL),
       // Real AJAX handler behind the legacy "New Warehouse" quick-create
       // form (POST type=savewarehouse, INSERT INTO llx_entrepot — confirmed
       // by reading quicklinks_ajax.php directly) — a root-level PHP file
       // this app has no route of its own at, same as index.php above.
-      '^/quicklinks_ajax\\.php$': proxyConfig(BACKEND_URL),
+      '^/quicklinks_ajax\\.php(\\?|$)': proxyConfig(BACKEND_URL),
       // Real generated-document download links (FormFile::getDocumentsLink()'s
       // own href target, e.g. the Quotations list's per-row PDF download
       // icon) — a root-level PHP file this app has no route of its own at,
       // same as index.php above.
-      '^/document\\.php$': proxyConfig(BACKEND_URL),
+      '^/document\\.php(\\?|$)': proxyConfig(BACKEND_URL),
+      // Company logo (viewimage.php?modulepart=mycompany) — the navbar fetches it
+      // to cache it, which needs it same-origin.
+      '^/viewimage\\.php(\\?|$)': proxyConfig(BACKEND_URL),
+      // The navbar bell's own endpoints (notification count + list + dismiss, and
+      // the ticket chat list) — root-level PHP files, same as index.php above.
+      '^/notification_count_ajax\\.php(\\?|$)': proxyConfig(BACKEND_URL),
+      '^/notification_ajax_modern\\.php(\\?|$)': proxyConfig(BACKEND_URL),
+      '^/ticket_chat_ajax\\.php(\\?|$)': proxyConfig(BACKEND_URL),
       // Legacy accounting/bookkeeping reports (Ledger, Journals) have no
       // REST API — generalLedger.queries.ts fetches these PHP-rendered pages
       // directly (same-origin, DOLSESSID-cookie-authenticated via
@@ -285,6 +315,15 @@ export default defineConfig({
       '^/contact(/|$)': proxyConfig(BACKEND_URL),
       '^/commande(/|$)': proxyConfig(BACKEND_URL),
       '^/compta(/|$)': proxyConfig(BACKEND_URL),
+      // Donations (don/card.php create form) — anchored so it never matches the
+      // app's own /donations-style routes.
+      '^/don(/|$)': proxyConfig(BACKEND_URL),
+      // Leave requests (holiday/ajax_holiday_list.php) — anchored so it never matches
+      // the app's own /holidays-style routes.
+      '^/holiday(/|$)': proxyConfig(BACKEND_URL),
+      // Salary payments (salaries/list.php, card.php) — anchored so it never matches
+      // the app's own /salary-style routes.
+      '^/salaries(/|$)': proxyConfig(BACKEND_URL),
       '^/fichinter(/|$)': proxyConfig(BACKEND_URL),
       // Real per-user Permissions/User-info API (userprofile/api/*), found
       // by watching userprofile/index.php?id=X's own network traffic — see
@@ -300,11 +339,12 @@ export default defineConfig({
       // Payroll — attendance_rip_ajax.php (real JSON read, Date Wise
       // Attendance) and saveAttendance.php (real JSON write, Mark
       // Attendance — its own hasRight() check is commented out server-side,
-      // a real live bug reported not fixed per frontend-only scope) — see
-      // payrollAttendance.queries.ts. No React route starts with bare
-      // /payroll (this app's own route is /payroll-dashboard), so a plain
-      // prefix is safe, but anchored anyway.
-      '^/payroll(/|$)': proxyConfig(BACKEND_URL),
+      // a real live bug reported not fixed per frontend-only scope), the
+      // list pages and ajax.php — see payrollAttendance.queries.ts and
+      // payrollLists.queries.ts. The app also has its own routes under
+      // /payroll/ (/payroll/employee-award, …), so only the backend's PHP files
+      // there are proxied — a browser refresh of an app route must reach the app.
+      '^/payroll/[^/?]+\\.php(\\?|$)': proxyConfig(BACKEND_URL),
       // Banking — loan/loan-sidebar-list-ajax.php (real JSON, Loan List) —
       // see banking.queries.ts. No React route starts with /loan, so a
       // plain prefix is safe, but anchored anyway.

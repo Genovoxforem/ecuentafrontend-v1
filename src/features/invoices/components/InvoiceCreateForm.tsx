@@ -11,7 +11,7 @@ import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCreateInvoice, type NewInvoiceLine } from '../invoiceCreate.queries'
 import { formatMoney } from '../../../utils/format'
-import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
+import { useWarehouseList } from '../../warehouses/warehouseExtras.queries'
 
 const INVOICE_TYPES = ['Standard invoice', 'Lpo', 'Export', 'Template invoice', 'Credit note']
 
@@ -41,7 +41,7 @@ function newLine(): LineState {
   return { key: lineKeySeq++, productId: '', label: '', qty: 1, unitPriceHt: 0, vatRate: 0 }
 }
 
-// Real POST /api/invoices/list/ create (see invoiceCreate.queries.ts)
+// Saves through the classic page's own JSON endpoint (see invoiceCreate.queries.ts)
 // against llx_facture/llx_facturedet. Type buttons, Payment Terms, Bank
 // account, Project, Incoterms, Doc template and Currency stay decorative —
 // the backend only accepts customer/date/ref.customer/payment type/note/
@@ -61,6 +61,9 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
   const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   const { data: products } = useProductOptions()
   const createInvoice = useCreateInvoice()
+  const { warehouses } = useWarehouseList()
+  // Like the classic page, the first open warehouse is the default.
+  const warehouseId = String(warehouses.find((w) => !/closed/i.test(w.statusLabel))?.id ?? warehouses[0]?.id ?? '')
   const navigate = useNavigate()
   const listLink = backTo ?? ROUTES.invoiceList
 
@@ -102,15 +105,12 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
         date,
         refClient,
         paymentModeCode,
+        warehouseId,
         lines: lines.filter((l) => l.label.trim() && l.qty > 0).map(({ key: _key, ...l }) => l),
       },
       {
         onSuccess: () => navigate(listLink),
-        // POST /api/invoices/list/ doesn't exist on the current backend (see
-        // BackendUnavailable.tsx) — this create draft action gets the honest "not available"
-        // message instead of the generic retry-suggesting one.
-        onError: (err) =>
-          setFormError(isBackendUnavailable(err) ? "Creating an invoice isn't available on this backend yet." : 'Could not create this invoice — please try again.'),
+        onError: (err) => setFormError(err instanceof Error ? err.message : 'Could not create this invoice — please try again.'),
       },
     )
   }

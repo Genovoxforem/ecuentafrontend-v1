@@ -1,50 +1,41 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, FileSpreadsheet, Info, Plus, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, FileSpreadsheet, Info, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
-import { useAuth } from '../../auth/AuthContext'
-import { useRecordSalaryTemplate, useSalaryFeeTypes } from '../payrollLists.queries'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import {
+  lineAmount,
+  salaryTemplateTotals,
+  useCreateSalaryTemplate,
+  useSalaryTemplateCalculation,
+  useSalaryTemplatePage,
+  type SalaryTemplateInput,
+  type SalaryTemplateLine,
+  type SalaryTemplateValueType,
+} from '../salaryTemplate.queries'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 outline-none focus:ring-2 focus:ring-brand/30'
 
-// Confirmed real reference values for this deployment — NAPSA Limit from
-// Payroll Setup's own Settings tab, NAPSA/NHIMA rates from the live
-// Attendance/contribution rows seen this session ("Napsa 1% (employee)",
-// "Nhima 5% (employee)"). The real contribution table (llx_payroll_deduct)
-// and PAYE bracket table (llx_payee_tax) have no JSON API — only reachable
-// via payroll/loadcalculation.php's HTML fragment — so these are hardcoded
-// reference constants, not fetched; they'd need updating here if this
-// deployment's real rates ever change. PAYE tax itself isn't auto-computed
-// even by the real page's own calculation endpoint (it's a pre-known value
-// passed in from elsewhere), so it stays a manual entry here too.
-const NAPSA_RATE = 0.01
-const NAPSA_LIMIT = 1700
-const NHIMA_RATE = 0.05
-
-// Real shape (payroll/salary_temp.php, confirmed live): each row is a real
-// fee-type pick (a_label[]/d_label[] — the same llx_c_type_fees dictionary
-// for both tabs, see salaryTemplateParser.ts), a Fixed/% percentage type
-// (a_type[]/d_type[]), an entered Value (a_value[]/d_value[]), and a
-// READ-ONLY computed Amount (a_amt[]/d_amt[]) — Fixed just copies Value,
-// percentage is (Basic Salary / 100) * Value (the real page's own
-// allowvale()/dvalue() JS formula). Amount was previously a second free-text
-// input here; it's derived now, matching the real page exactly.
-type ValueType = 'Fixed' | 'percentage'
-interface LineItem {
+// Real shape (payroll/salary_temp.php): each row is a fee-type pick
+// (a_label[]/d_label[] — the same dictionary for both tabs), a Fixed/% percentage
+// type, an entered Value, and a READ-ONLY computed Amount — Fixed copies Value,
+// percentage is (Basic Salary / 100) * Value (the page's own allowvale()/dvalue()).
+interface LineItem extends SalaryTemplateLine {
   id: number
-  feeTypeId: string
-  valueType: ValueType
-  value: string
 }
 let lineItemSeq = 1
 function newLineItem(): LineItem {
   return { id: lineItemSeq++, feeTypeId: '', valueType: 'Fixed', value: '' }
 }
 
-function computeAmount(item: LineItem, basicSalary: number): number {
-  const v = Number(item.value) || 0
-  return item.valueType === 'percentage' ? (basicSalary / 100) * v : v
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return debounced
 }
 
 function LineItemBuilder({
@@ -54,7 +45,6 @@ function LineItemBuilder({
   items,
   onChange,
   feeTypeOptions,
-  feeTypesLoading,
   basicSalary,
 }: {
   title: string
@@ -63,7 +53,6 @@ function LineItemBuilder({
   items: LineItem[]
   onChange: (items: LineItem[]) => void
   feeTypeOptions: { value: string; label: string }[]
-  feeTypesLoading: boolean
   basicSalary: number
 }) {
   function updateItem(id: number, patch: Partial<LineItem>) {
@@ -76,11 +65,7 @@ function LineItemBuilder({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-text!">{title}</h3>
-        <button
-          type="button"
-          onClick={() => onChange([...items, newLineItem()])}
-          className="flex items-center gap-1 text-xs font-medium text-brand hover:underline"
-        >
+        <button type="button" onClick={() => onChange([...items, newLineItem()])} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
           <Plus size={13} /> {addLabel}
         </button>
       </div>
@@ -91,7 +76,7 @@ function LineItemBuilder({
           {items.map((it) => (
             <div key={it.id} className="flex flex-wrap items-center gap-1.5">
               <select value={it.feeTypeId} onChange={(e) => updateItem(it.id, { feeTypeId: e.target.value })} className={`${inputCls} flex-1 min-w-[160px]`}>
-                <option value="">{feeTypesLoading ? 'Loading…' : selectPlaceholder}</option>
+                <option value="">{selectPlaceholder}</option>
                 {feeTypeOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -99,18 +84,12 @@ function LineItemBuilder({
                 ))}
               </select>
               <span className="text-text-faint text-xs">:</span>
-              <select value={it.valueType} onChange={(e) => updateItem(it.id, { valueType: e.target.value as ValueType })} className={`${inputCls} w-24`}>
+              <select value={it.valueType} onChange={(e) => updateItem(it.id, { valueType: e.target.value as SalaryTemplateValueType })} className={`${inputCls} w-24`}>
                 <option value="Fixed">Fixed</option>
                 <option value="percentage">% percentage</option>
               </select>
-              <input
-                value={it.value}
-                onChange={(e) => updateItem(it.id, { value: e.target.value })}
-                placeholder="Enter Value"
-                inputMode="decimal"
-                className={`${inputCls} w-24`}
-              />
-              <input value={computeAmount(it, basicSalary).toFixed(2)} readOnly placeholder="Amount" className={`${inputCls} w-24 bg-surface-alt cursor-not-allowed`} />
+              <input value={it.value} onChange={(e) => updateItem(it.id, { value: e.target.value })} placeholder="Enter Value" inputMode="decimal" className={`${inputCls} w-24`} />
+              <input value={lineAmount(it, basicSalary).toFixed(2)} readOnly placeholder="Amount" className={`${inputCls} w-24 bg-surface-alt cursor-not-allowed`} />
               <button type="button" onClick={() => removeItem(it.id)} className="p-1.5 text-text-faint hover:text-danger">
                 <Trash2 size={14} />
               </button>
@@ -122,37 +101,47 @@ function LineItemBuilder({
   )
 }
 
-function sumAmounts(items: LineItem[], basicSalary: number) {
-  return items.reduce((sum, it) => sum + computeAmount(it, basicSalary), 0)
-}
-
-// The real page: payroll/salary_temp.php. Its live NAPSA/NHIMA/Net Salary
-// panel is genuinely ported below (see NAPSA_RATE/NAPSA_LIMIT/NHIMA_RATE
-// above and payroll/loadcalculation.php's real formula) — but Save stays
-// session-local: the real write (payroll/ajax.php?saveTemplate) needs
-// internal llx_payroll_deduct/llx_c_type_fees row ids this frontend has no
-// way to look up (no JSON API for either table), and its own success
-// signal is an embedded `<script>` redirect tag rather than JSON or a
-// status code — not a contract this can target safely.
+// The real page: payroll/salary_temp.php. The panel on the right is the backend's
+// own calculation (payroll/loadcalculation.php — contribution rows, totals and the
+// "allocation is successful" check, all per installation) and Save sends the same
+// POST the page's form does. PAYE tax is not offered: the page works its bracket
+// table out in the browser, so a template that needs PAYE is made on the backend.
 export function SalaryTemplateForm() {
-  const { user } = useAuth()
-  const recordSalaryTemplate = useRecordSalaryTemplate()
-  const { data: feeTypes, isLoading: feeTypesLoading } = useSalaryFeeTypes()
+  const navigate = useNavigate()
+  const { data: page, isLoading, isError, error: pageError, refetch } = useSalaryTemplatePage()
+  const createTemplate = useCreateSalaryTemplate()
 
   const [salaryGrade, setSalaryGrade] = useState('')
+  const [currency, setCurrency] = useState('')
   const [grossSalary, setGrossSalary] = useState('')
   const [basicPercent, setBasicPercent] = useState('')
   const [basicSalary, setBasicSalary] = useState('')
   const [overtimeMode, setOvertimeMode] = useState<'hourly' | 'premium'>('hourly')
   const [overtimeValue, setOvertimeValue] = useState('')
   const [monthlyLeaves, setMonthlyLeaves] = useState('0')
-  const [payeEnabled, setPayeEnabled] = useState(false)
-  const [payeAmount, setPayeAmount] = useState('')
   const [allowances, setAllowances] = useState<LineItem[]>([])
   const [deductions, setDeductions] = useState<LineItem[]>([])
   const [activeTab, setActiveTab] = useState<'allowances' | 'deductions'>('allowances')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+
+  const input: SalaryTemplateInput = useMemo(
+    () => ({
+      salaryGrade,
+      grossSalary,
+      basicPercent,
+      basicSalary,
+      overtimeMode,
+      overtimeValue,
+      permittedLeave: monthlyLeaves,
+      allowances: allowances.map(({ feeTypeId, valueType, value }) => ({ feeTypeId, valueType, value })),
+      deductions: deductions.map(({ feeTypeId, valueType, value }) => ({ feeTypeId, valueType, value })),
+    }),
+    [salaryGrade, grossSalary, basicPercent, basicSalary, overtimeMode, overtimeValue, monthlyLeaves, allowances, deductions],
+  )
+  const debouncedInput = useDebounced(input, 500)
+  const activeCurrency = currency || page?.defaultCurrency || ''
+  const calc = useSalaryTemplateCalculation(debouncedInput, page, activeCurrency)
 
   function handleBasicPercentChange(value: string) {
     setBasicPercent(value)
@@ -162,40 +151,31 @@ export function SalaryTemplateForm() {
   }
 
   const basicSalaryNum = Number(basicSalary) || 0
-  const totalAllowances = useMemo(() => sumAmounts(allowances, basicSalaryNum), [allowances, basicSalaryNum])
-  const totalDeductionsManual = useMemo(() => sumAmounts(deductions, basicSalaryNum), [deductions, basicSalaryNum])
-
-  const napsa = useMemo(() => Math.min((Number(grossSalary) || 0) * NAPSA_RATE, NAPSA_LIMIT), [grossSalary])
-  const nhima = useMemo(() => (Number(grossSalary) || 0) * NHIMA_RATE, [grossSalary])
-  const totalContributions = napsa + nhima
-  const payeTax = payeEnabled ? Number(payeAmount) || 0 : 0
-  const totalDeductions = totalDeductionsManual + totalContributions + payeTax
-
-  const optGross = (Number(basicSalary) || 0) + totalAllowances
-  const netSalary = optGross - totalContributions - totalDeductionsManual - payeTax
-  const gross = Number(grossSalary) || 0
-  const pendingAmount = gross - optGross
-  const isBalanced = gross !== 0 && Math.round(pendingAmount * 100) === 0
+  const totals = salaryTemplateTotals(input)
+  const inSync = debouncedInput === input
+  const balanced = !!calc.data?.balanced && inSync
 
   function handleSubmit() {
+    if (!page) return
     setError('')
-    if (!salaryGrade.trim()) return setError('Enter a salary grade name.')
-    if (!grossSalary) return setError('Enter a gross salary.')
-    if (!basicSalary) return setError('Enter a basic salary.')
-    if (!isBalanced) return setError(`Adjust the payment to equalize gross pay — pending ${pendingAmount.toFixed(2)} ZMW.`)
+    if (!salaryGrade.trim()) return setError('Please select a salary grade.')
+    if (!basicSalary) return setError('Please enter the basic salary.')
+    if (overtimeValue.trim() && !(Number(overtimeValue) > 0)) return setError('Overtime Value must be greater than 0.')
+    createTemplate.mutate(
+      { input, page, currency: activeCurrency },
+      {
+        onSuccess: () => {
+          setSuccess(true)
+          setTimeout(() => navigate(ROUTES.payrollSalaryTemplate), 800)
+        },
+        onError: (e) => setError(e instanceof Error ? e.message : 'The salary template could not be saved.'),
+      },
+    )
+  }
 
-    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    recordSalaryTemplate.add({
-      createdBy,
-      salaryGrade,
-      currency: 'ZMW',
-      grossSalary: gross,
-      basicSalary: Number(basicSalary) || 0,
-      overtimeValue: Number(overtimeValue) || 0,
-      payeTaxEnabled: payeEnabled,
-      netSalary,
-    })
-    setSuccess(true)
+  if (isLoading) return <LegacyLoadingCard label="Loading salary template form…" />
+  if (isError || !page) {
+    return <LegacyErrorCard title="Couldn't load the salary template form" message={pageError instanceof Error ? pageError.message : 'Unknown error.'} onRetry={() => refetch()} />
   }
 
   return (
@@ -212,14 +192,21 @@ export function SalaryTemplateForm() {
       <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
         <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
         <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">payroll/salary_temp.php</code>. The NAPSA/NHIMA/Net Salary numbers below are a real calculation (see
-          this file's own comment for the confirmed reference rates), but Save stays local to this session — the real write needs internal database row
-          ids this frontend has no way to look up safely, and PAYE tax stays a manual entry since its bracket table isn't reachable either.
+          Contributions, totals and the net salary below are worked out by the backend as you type. PAYE tax isn't offered here — the backend builds its tax
+          bracket table in the browser — so a template that needs PAYE has to be created on the backend.
         </p>
       </Card>
 
-      {success && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Salary template saved to this session's list.</Card>}
-      {error && <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">{error}</Card>}
+      {success && (
+        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
+          <p role="status">Salary template saved — redirecting…</p>
+        </Card>
+      )}
+      {error && (
+        <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
+          <p role="alert">{error}</p>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4">
         <Card className="!h-auto space-y-3">
@@ -229,7 +216,13 @@ export function SalaryTemplateForm() {
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-faint">Currency</span>
-            <input value="Zambian Kwacha (ZMW)" disabled className={`${inputCls} cursor-not-allowed opacity-70`} />
+            <select value={activeCurrency} onChange={(e) => setCurrency(e.target.value)} className={inputCls}>
+              {page.currencies.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-danger">Gross Salary *</span>
@@ -245,16 +238,6 @@ export function SalaryTemplateForm() {
               <input value={basicSalary} onChange={(e) => setBasicSalary(e.target.value)} placeholder="Enter Basic Salary" inputMode="decimal" className={inputCls} />
             </label>
           </div>
-          <label className="flex items-center gap-2 text-sm text-text-muted">
-            <input type="checkbox" checked={payeEnabled} onChange={(e) => setPayeEnabled(e.target.checked)} className="rounded border-input-border text-brand focus:ring-brand/30" />
-            Click To Add PAYE Tax
-          </label>
-          {payeEnabled && (
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-faint">PAYE Tax Amount</span>
-              <input value={payeAmount} onChange={(e) => setPayeAmount(e.target.value)} inputMode="decimal" className={inputCls} />
-            </label>
-          )}
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-faint">Overtime</span>
             <div className="flex items-center gap-4">
@@ -276,7 +259,6 @@ export function SalaryTemplateForm() {
             <span className="text-xs font-medium text-text-faint">Monthly Permitted Leaves</span>
             <input value={monthlyLeaves} onChange={(e) => setMonthlyLeaves(e.target.value)} inputMode="numeric" className={inputCls} />
           </label>
-
         </Card>
 
         <Card className="!h-auto space-y-4">
@@ -304,8 +286,7 @@ export function SalaryTemplateForm() {
               selectPlaceholder="Select Allowances"
               items={allowances}
               onChange={setAllowances}
-              feeTypeOptions={feeTypes ?? []}
-              feeTypesLoading={feeTypesLoading}
+              feeTypeOptions={page.feeTypes}
               basicSalary={basicSalaryNum}
             />
           ) : (
@@ -315,56 +296,67 @@ export function SalaryTemplateForm() {
               selectPlaceholder="Select Deductions"
               items={deductions}
               onChange={setDeductions}
-              feeTypeOptions={feeTypes ?? []}
-              feeTypesLoading={feeTypesLoading}
+              feeTypeOptions={page.feeTypes}
               basicSalary={basicSalaryNum}
             />
           )}
 
-          <p className={`text-xs font-medium border-t border-border pt-3 ${isBalanced ? 'text-success-fg' : 'text-danger'}`}>
-            {isBalanced
-              ? '* Salary Allocation is Successful'
-              : `* Adjust The Payment To Equalize Gross Pay, Pending Amount ${pendingAmount.toFixed(2)} ZMW`}
-          </p>
+          <div className="border-t border-border pt-3 space-y-2">
+            {calc.isError ? (
+              <p className="text-xs font-medium text-danger">{calc.error instanceof Error ? calc.error.message : 'Could not calculate.'}</p>
+            ) : calc.data ? (
+              <p className={`text-xs font-medium ${calc.data.balanced ? 'text-success-fg' : 'text-danger'}`}>* {calc.data.message}</p>
+            ) : (
+              <p className="text-xs text-text-faint">Enter the gross and basic salary to see the backend's calculation.</p>
+            )}
+            {calc.isFetching && (
+              <p className="flex items-center gap-1.5 text-xs text-text-faint">
+                <Loader2 size={12} className="animate-spin" /> Calculating…
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center justify-between text-sm">
             <span className="text-text-muted">Total Allowances</span>
-            <span className="text-text! font-medium">{totalAllowances.toFixed(2)}</span>
+            <span className="text-text! font-medium">{totals.allowances.toFixed(2)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-muted">Napsa {(NAPSA_RATE * 100).toFixed(0)}% (employee)</span>
-            <span className="text-text! font-medium">{napsa.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-muted">Nhima {(NHIMA_RATE * 100).toFixed(0)}% (employee)</span>
-            <span className="text-text! font-medium">{nhima.toFixed(2)}</span>
-          </div>
+          {calc.data?.contributions.map((c) => (
+            <div key={c.label} className="flex items-center justify-between text-sm">
+              <span className="text-text-muted">{c.label}</span>
+              <span className="text-text! font-medium">{c.amount}</span>
+            </div>
+          ))}
           <div className="flex items-center justify-between text-sm border-t border-border pt-2">
             <span className="text-text-muted">Total Contributions</span>
-            <span className="text-text! font-medium">{totalContributions.toFixed(2)}</span>
+            <span className="text-text! font-medium">{calc.data?.totalContributions || '—'}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-text-muted">Paye Tax</span>
-            <span className="text-text! font-medium">{payeTax.toFixed(2)}</span>
+            <span className="text-text! font-medium">{calc.data?.payeTax || '—'}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-text-muted">Total Deductions</span>
-            <span className="text-text! font-medium">{totalDeductions.toFixed(2)}</span>
+            <span className="text-text! font-medium">{calc.data?.totalDeductions || '—'}</span>
           </div>
           <div className="flex items-center justify-between text-base font-bold border-t border-border pt-2">
             <span className="text-text!">Net Salary</span>
-            <span className="text-brand">{netSalary.toFixed(2)}</span>
+            <span className="text-brand">{calc.data?.netSalary || '—'}</span>
           </div>
         </Card>
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <Link
-          to={ROUTES.payrollSalaryTemplate}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
-        >
+        <Link to={ROUTES.payrollSalaryTemplate} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel
         </Link>
-        <button type="button" onClick={handleSubmit} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={createTemplate.isPending || success || !balanced}
+          title={balanced ? undefined : 'The allocation has to equal the gross pay first'}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          {createTemplate.isPending && <Loader2 size={14} className="animate-spin" />}
           Save
         </button>
       </div>

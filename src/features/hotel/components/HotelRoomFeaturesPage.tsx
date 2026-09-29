@@ -3,6 +3,7 @@ import { Sparkles, LoaderCircle, Trash2, X, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelFeatures, useHotelSaveFeatureFull, useHotelDelFeature, useHotelDelService, useHotelToken, type SaveFeatureFullInput } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'w-full h-10 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const FEATURE_TYPES: { value: SaveFeatureFullInput['featureType']; label: string }[] = [
@@ -86,6 +87,7 @@ function AddFeaturePanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
 // r=features + save_features (create) + a=delfeature/delservice (delete).
 // Chargeable services (src='prod') are real Dolibarr products.
 export function HotelRoomFeaturesPage() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: features, isLoading, isError, error, refetch } = useHotelFeatures()
   const delFeature = useHotelDelFeature()
@@ -93,8 +95,8 @@ export function HotelRoomFeaturesPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  function handleDelete(id: string, isService: boolean) {
-    if (!token || !confirm('Delete this?')) return
+  async function handleDelete(id: string, isService: boolean) {
+    if (!token || !(await confirm('Delete this?'))) return
     setBusyId(id)
     const mutate = isService ? delService : delFeature
     mutate.mutate({ id, token }, { onSettled: () => setBusyId(null) })
