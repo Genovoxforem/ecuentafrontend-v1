@@ -36,6 +36,14 @@ function computeSuppressedIndices(items: NavItem[]): Set<number> {
   return suppressed
 }
 
+function pathMatchesLocation(path: string | undefined, pathname: string, currentSearch: string): boolean {
+  if (!path) return false
+  const queryIndex = path.indexOf('?')
+  const itemPathname = queryIndex < 0 ? path : path.slice(0, queryIndex)
+  const search = queryIndex < 0 ? '' : path.slice(queryIndex)
+  return pathname === itemPathname && (!search || currentSearch === search)
+}
+
 function SidebarLeaf({ item, depth, navigate, location, suppressCurrent = false }: { item: NavLeafItem; depth: number; navigate: NavigateFunction; location: Location; suppressCurrent?: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
@@ -45,13 +53,12 @@ function SidebarLeaf({ item, depth, navigate, location, suppressCurrent = false 
   // the search string — which left every one of them permanently "loading"
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
-  const currentUrl = location.pathname + location.search
-  const isCurrent = isLink && currentUrl === item.path && !suppressCurrent
+  const isCurrent = isLink && pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (loading && currentUrl === item.path) setLoading(false)
-  }, [currentUrl, loading, item.path])
+    if (loading && pathMatchesLocation(item.path, location.pathname, location.search)) setLoading(false)
+  }, [location.pathname, location.search, loading, item.path])
 
   return (
     <button
@@ -124,8 +131,8 @@ function SidebarNavItem({
   // Holiday Management/All Leave Request page). currentUrl mirrors
   // SidebarLeaf's own comment: compared with the search string included
   // since a group's path can carry one too.
-  const currentUrl = location.pathname + location.search
-  const isCurrent = Boolean(item.path) && currentUrl === item.path && !suppressCurrent
+  const hasActiveDescendant = item.items.some((sub) => itemContainsPath(sub, location))
+  const isCurrent = pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
   // Not memoized: item.items is small (a handful of sidebar rows) and this
   // component is already an early-return above hooks, so a useMemo here
   // would run conditionally and violate the Rules of Hooks.
@@ -165,7 +172,7 @@ function SidebarNavItem({
           }}
           onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
           style={{ paddingLeft: `${depth * 0.75 + 0.25}rem` }}
-          className={`flex-1 min-w-0 text-left py-1.5 rounded-md text-[13px] font-semibold transition-colors ${isCurrent || isPinned ? 'text-brand' : 'text-text-muted hover:text-text'}`}
+          className={`flex-1 min-w-0 text-left py-1.5 rounded-md text-[13px] font-semibold transition-colors ${isCurrent || hasActiveDescendant ? 'bg-brand/10 text-brand' : isPinned ? 'text-brand' : 'text-text-muted hover:text-text'}`}
         >
           <span className="truncate">{item.label}</span>
         </button>
@@ -206,9 +213,9 @@ function SidebarNavItem({
   )
 }
 
-function itemContainsPath(item: NavItem, pathname: string): boolean {
-  if ('items' in item) return item.items.some((sub) => itemContainsPath(sub, pathname))
-  return item.path === pathname
+function itemContainsPath(item: NavItem, location: Location): boolean {
+  if ('items' in item) return pathMatchesLocation(item.path, location.pathname, location.search) || item.items.some((sub) => itemContainsPath(sub, location))
+  return pathMatchesLocation(item.path, location.pathname, location.search)
 }
 
 export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onClose?: () => void; onOpen?: () => void }) {
@@ -250,13 +257,13 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
     // A ledger detail page (a transaction, an account card) is not a menu item of its own, but it
     // belongs to General Ledger — also when the page is opened by its address.
     const currentSection =
-      SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, location.pathname))) ??
+      SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, location))) ??
       (location.pathname.startsWith('/ledger/') ? SECTIONS.find((section) => section.key === 'general-ledger') : undefined) ??
       // Same for an expense's own card (/expenses/card/:id), which is opened from the Expenses pages.
       (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined)
     if (currentSection) setActiveKey(currentSection.key)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [SECTIONS, location.pathname])
+  }, [SECTIONS, location.pathname, location.search])
 
   // Whichever chain of groups holds the current page gets pinned open (same
   // as clicking each header down the chain) — covers both clicking a
@@ -266,7 +273,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
     function findOpenChain(items: NavItem[], parentKey: string): string[] | null {
       for (const item of items) {
         if (!('items' in item) || !item.items) continue
-        if (itemContainsPath(item, location.pathname)) {
+        if (itemContainsPath(item, location)) {
           const groupKey = `${parentKey}>${item.label}`
           const nested = findOpenChain(item.items, groupKey)
           return nested ? [groupKey, ...nested] : [groupKey]
@@ -279,7 +286,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       setOpenGroups(Object.fromEntries(chain.map((k) => [k, true])))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, location.pathname])
+  }, [active, location.pathname, location.search])
 
   // Accordion: opening groupKey closes every OTHER currently-open key that
   // shares its immediate parent (a true sibling), while leaving ancestors,
@@ -311,7 +318,8 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   return (
     <div className="relative flex h-full shrink-0 bg-rail-bg" onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
-        <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2">
+        {/* <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2"> */}
+          <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
           {SECTIONS.map((section) => {
             const Icon = section.icon
             const isActive = section.key === activeKey
