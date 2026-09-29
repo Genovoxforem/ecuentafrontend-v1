@@ -318,40 +318,41 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   return (
     <div className="relative flex h-full shrink-0 bg-rail-bg" onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
-        {/* <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2"> */}
-          <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
-          {SECTIONS.map((section) => {
-            const Icon = section.icon
-            const isActive = section.key === activeKey
-            return (
-              <button
-                key={section.key}
-                type="button"
-                title={section.label}
-                onClick={() => {
-                  setActiveKey(section.key)
-                  setOpenGroups({})
-                  setHoverGroup(new Set())
-                  if (!open && onOpen) onOpen()
-                  if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
-                }}
-                className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
-                  isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
-                }`}
-              >
-                <span className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${isActive ? 'bg-brand text-white shadow-md shadow-brand/25' : 'group-hover/rail:bg-brand/10'}`}>
-                  <Icon size={20} strokeWidth={1.8} />
-                </span>
-                <span className="w-full truncate text-center">{section.label}</span>
-              </button>
-            )
-          })}
+        <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
+        {SECTIONS.map((section) => {
+          const Icon = section.icon
+          const isActive = section.key === activeKey
+          return (
+            <button
+              key={section.key}
+              type="button"
+              title={section.label}
+              onClick={() => {
+                setActiveKey(section.key)
+                setOpenGroups({})
+                setHoverGroup(new Set())
+                if (!open && onOpen) onOpen()
+                if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
+              }}
+              className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
+                isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
+              }`}
+            >
+              <span className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
+                isActive ? 'bg-brand text-white shadow-md shadow-brand/25' : 'group-hover/rail:bg-brand/10'
+              }`}>
+                <Icon size={20} strokeWidth={1.8} />
+              </span>
+              <span className="w-full truncate text-center">{section.label}</span>
+            </button>
+          )
+        })}
         </div>
       </aside>
 
       <div
-        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-all duration-300 ease-in-out translate-x-0 z-[1] rounded-tl-2xl ${
-          open ? 'relative w-64 flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 z-30 shadow-xl ${expanded ? 'w-64' : 'w-0'}`
+        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scrollbar-none transition-all duration-300 ease-in-out translate-x-0 z-999 ${
+          open ? 'relative w-64 flex-1 rounded-tl-2xl' : `  ${RAIL_WIDTH_OFFSET_CLASS} border-r border-border top-0 shadow-xl ${expanded ? 'w-64 rounded-tl-2xl' : 'w-0 border-0'}`
         }`}
         onMouseEnter={() => !open && setHovering(true)}
         onMouseLeave={() => setHovering(false)}
