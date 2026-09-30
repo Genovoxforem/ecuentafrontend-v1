@@ -3,7 +3,7 @@ import { CreditCard, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { useUsersSummary } from '../../users/users.queries'
-import { useSalaryAssignmentRecords } from '../payrollLists.queries'
+import { usePayrollLegacyList } from '../payrollLists.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -24,9 +24,8 @@ function formatMonthLabel(value: string) {
 // payroll/payment.php's employee/status table comes from
 // payroll/ajax_search.php?entityEmpPay=1 as an HTML fragment — not scraped
 // here. Its Salary Type/Basic Salary columns are instead resolved from this
-// session's own real Manage Salary assignments (see
-// useSalaryAssignmentRecords), matching the real page's own "Salary Did Not
-// Set Yet" fallback for anyone unassigned. Payable Salary and the actual
+// real Manage Salary List (payroll/manage_salary_list.php), matching the real
+// page's own "Salary Did Not Set Yet" fallback for anyone unassigned. Payable Salary and the actual
 // Generate Payroll/Pay All writes are NOT reproduced: the real
 // payroll/ajax.php?savePayment write needs ~20 pre-computed values (worked
 // hours from real attendance, approved advance/loan deductions, allowances,
@@ -35,18 +34,27 @@ function formatMonthLabel(value: string) {
 // likely disagree with the real page's own figure.
 export function MakePaymentForm() {
   const { data: users } = useUsersSummary()
-  const assignments = useSalaryAssignmentRecords()
+  const { data: salaryList } = usePayrollLegacyList('manageSalaryList')
 
   const [month, setMonth] = useState(currentMonthIso())
   const [hasGenerated, setHasGenerated] = useState(false)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
 
-  const assignmentByEmployee = useMemo(() => {
-    const map = new Map<number, (typeof assignments)[number]>()
-    for (const a of assignments) if (!map.has(a.employeeId)) map.set(a.employeeId, a)
+  // The real list names employees by their display name, not id.
+  const assignmentByName = useMemo(() => {
+    const map = new Map<string, { salaryType: string; basicSalary: string }>()
+    if (!salaryList) return map
+    const col = (label: string) => salaryList.headers.findIndex((h) => h.toLowerCase() === label)
+    const nameCol = col('employee name')
+    const typeCol = col('salary type')
+    const basicCol = col('basic salary')
+    for (const row of salaryList.rows) {
+      const key = (row.cells[nameCol] ?? '').toLowerCase()
+      if (key && !map.has(key)) map.set(key, { salaryType: row.cells[typeCol] ?? '', basicSalary: row.cells[basicCol] ?? '' })
+    }
     return map
-  }, [assignments])
+  }, [salaryList])
 
   const rows = users?.users ?? []
   const pageRows = rows.slice((page - 1) * perPage, page * perPage)
@@ -73,8 +81,8 @@ export function MakePaymentForm() {
         <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
           <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
           <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">payroll/payment.php</code>. Employee/Salary Type/Basic Salary below reflect this session's own real
-            Manage Salary assignments. Payable Salary and Generate Payroll/Pay All aren't wired to a real write — the real computation chains attendance,
+            Backend page: <code className="font-mono">payroll/payment.php</code>. Employee/Salary Type/Basic Salary below come from the real
+            Manage Salary List. Payable Salary and Generate Payroll/Pay All aren't wired to a real write — the real computation chains attendance,
             approved advances/loans, allowances and PAYE tax in a way that can't be reproduced honestly here (see this file's own comment).
           </p>
         </Card>
@@ -137,7 +145,7 @@ export function MakePaymentForm() {
                 </thead>
                 <tbody>
                   {pageRows.map((u) => {
-                    const assignment = assignmentByEmployee.get(u.id)
+                    const assignment = assignmentByName.get((u.name || u.login).toLowerCase())
                     return (
                       <tr key={u.id} className="border-b border-border last:border-0">
                         <td className="px-3 py-2">
@@ -147,13 +155,13 @@ export function MakePaymentForm() {
                         <td className="px-3 py-2 text-text-muted whitespace-nowrap">{formatMonthLabel(month)}</td>
                         <td className="px-3 py-2">
                           {assignment ? (
-                            <span className="text-text-muted">{assignment.salaryType} (Monthly)</span>
+                            <span className="text-text-muted">{assignment.salaryType}</span>
                           ) : (
                             <span className="text-danger">Salary Did Not Set Yet</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-text-muted">ZMW</td>
-                        <td className="px-3 py-2 text-text-muted">{assignment ? assignment.basicSalary.toFixed(2) : '0.00'}</td>
+                        <td className="px-3 py-2 text-text-muted">{assignment ? assignment.basicSalary || '0.00' : '0.00'}</td>
                         <td className="px-3 py-2 text-text-faint" title="Not computed — see the banner above">
                           —
                         </td>

@@ -41,6 +41,7 @@ import {
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
 import { isBackendUnavailable, isBackendActionUnavailable, BackendUnavailableCard } from '../../../shared/components/BackendUnavailable'
@@ -218,6 +219,7 @@ function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPric
 function SellingPricesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductPriceOverview(id)
   const deleteLog = useDeletePriceLog()
+  const confirm = useConfirm()
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(20)
   const [showModal, setShowModal] = useState(false)
@@ -226,8 +228,8 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
   if (isError) return <LegacyErrorCard title="Couldn't load selling prices" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
-  function handleDeleteLog(rowid: number) {
-    if (!window.confirm('Delete this price log entry?')) return
+  async function handleDeleteLog(rowid: number) {
+    if (!(await confirm({ title: 'Delete Price Log Entry?', message: 'Are you sure you want to delete this price log entry?' }))) return
     deleteLog.mutate({ id: id!, lineId: rowid })
   }
 
@@ -409,9 +411,21 @@ function StockNumberField({ label, value, editable, onSave }: { label: string; v
   )
 }
 
-function CorrectStockModal({ id, warehouseOptions, hasBatch, onClose }: { id: string; warehouseOptions: { value: string; label: string }[]; hasBatch: boolean; onClose: () => void }) {
+function CorrectStockModal({
+  id,
+  warehouseOptions,
+  hasBatch,
+  initialWarehouseId,
+  onClose,
+}: {
+  id: string
+  warehouseOptions: { value: string; label: string }[]
+  hasBatch: boolean
+  initialWarehouseId?: string
+  onClose: () => void
+}) {
   const correctStock = useCorrectStock()
-  const [warehouseId, setWarehouseId] = useState('')
+  const [warehouseId, setWarehouseId] = useState(initialWarehouseId ?? '')
   const [mouvement, setMouvement] = useState<'0' | '1'>('0')
   const [qty, setQty] = useState('')
   const [label, setLabel] = useState('')
@@ -477,9 +491,21 @@ function CorrectStockModal({ id, warehouseOptions, hasBatch, onClose }: { id: st
   )
 }
 
-function TransferStockModal({ id, warehouseOptions, hasBatch, onClose }: { id: string; warehouseOptions: { value: string; label: string }[]; hasBatch: boolean; onClose: () => void }) {
+function TransferStockModal({
+  id,
+  warehouseOptions,
+  hasBatch,
+  initialWarehouseId,
+  onClose,
+}: {
+  id: string
+  warehouseOptions: { value: string; label: string }[]
+  hasBatch: boolean
+  initialWarehouseId?: string
+  onClose: () => void
+}) {
   const transferStock = useTransferStock()
-  const [warehouseFrom, setWarehouseFrom] = useState('')
+  const [warehouseFrom, setWarehouseFrom] = useState(initialWarehouseId ?? '')
   const [warehouseTo, setWarehouseTo] = useState('')
   const [qty, setQty] = useState('')
   const [label, setLabel] = useState('')
@@ -542,6 +568,36 @@ function TransferStockModal({ id, warehouseOptions, hasBatch, onClose }: { id: s
         </ModalField>
       )}
       {error && <p className="text-sm font-medium text-danger">{error}</p>}
+    </ModalShell>
+  )
+}
+
+// The same Correct Stock / Transfer Stock dialogs the Stock tab opens, for a
+// caller that only has a product id — the Warehouse detail's per-product
+// "Stock Movement" / "Stock Correction" actions. The dialogs need the product's
+// warehouse list and batch flag, which the stock overview already carries;
+// the warehouse the action was started from comes pre-selected.
+export function ProductStockActionModal({ kind, productId, warehouseId, onClose }: { kind: 'correct' | 'transfer'; productId: string; warehouseId: string; onClose: () => void }) {
+  const { data, isLoading, isError, error } = useProductStockOverview(productId)
+  if (data) {
+    const Modal = kind === 'correct' ? CorrectStockModal : TransferStockModal
+    return <Modal id={productId} warehouseOptions={data.warehouseOptions} hasBatch={data.hasBatch} initialWarehouseId={warehouseId} onClose={onClose} />
+  }
+  return (
+    <ModalShell
+      title={kind === 'correct' ? 'Correct Stock' : 'Transfer Stock'}
+      onClose={onClose}
+      footer={
+        <button type="button" onClick={onClose} className="px-4 py-2 rounded-md text-sm font-medium border border-border text-text-muted hover:bg-surface-alt">
+          Close
+        </button>
+      }
+    >
+      {isLoading ? (
+        <p className="text-sm text-text-muted">Loading stock details…</p>
+      ) : (
+        <p className="text-sm font-medium text-danger">{isError && error instanceof Error ? error.message : "Couldn't load this product's stock details."}</p>
+      )}
     </ModalShell>
   )
 }
@@ -822,6 +878,7 @@ function NewCombinationModal({ id, attributes, onClose }: { id: string; attribut
 function ProductCombinationsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductVariantOverview(id)
   const deleteCombination = useDeleteCombination()
+  const confirm = useConfirm()
   const [showNew, setShowNew] = useState(false)
 
   if (isLoading) return <LegacyLoadingCard label="Loading variants..." />
@@ -829,8 +886,16 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
   if (isError) return <LegacyErrorCard title="Couldn't load variants" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
-  function handleDelete(combinationId: number, label: string) {
-    if (!window.confirm(`Delete combination "${label}"? This can't be undone.`)) return
+  async function handleDelete(combinationId: number, label: string) {
+    const ok = await confirm({
+      title: 'Delete Combination?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{label}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     deleteCombination.mutate({ id: id!, combinationId })
   }
 
@@ -1154,6 +1219,7 @@ function UomConversionModal({
 function UomSettingsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductUomOverview(id)
   const deleteConversion = useDeleteUomConversion()
+  const confirm = useConfirm()
   const saveBarcode = useSaveProductBarcode()
   const generateBarcode = useGenerateProductBarcode()
   const [barcodeDraft, setBarcodeDraft] = useState('')
@@ -1166,8 +1232,8 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
   if (isError) return <LegacyErrorCard title="Couldn't load UOM settings" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
-  function handleDeleteConversion(convId: number) {
-    if (!window.confirm('Delete this UOM conversion?')) return
+  async function handleDeleteConversion(convId: number) {
+    if (!(await confirm({ title: 'Delete UOM Conversion?', message: 'Are you sure you want to delete this UOM conversion?' }))) return
     deleteConversion.mutate({ id: id!, convId })
   }
 
@@ -1495,6 +1561,7 @@ function AddSubproductPanel({ id, onClose }: { id: string; onClose: () => void }
 function AssociatedProductsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductCompositionOverview(id)
   const deleteSubproduct = useDeleteSubproduct()
+  const confirm = useConfirm()
   const [showAdd, setShowAdd] = useState(false)
 
   if (isLoading) return <LegacyLoadingCard label="Loading composition..." />
@@ -1502,8 +1569,16 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
   if (isError) return <LegacyErrorCard title="Couldn't load composition" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
-  function handleDelete(childId: number, label: string) {
-    if (!window.confirm(`Remove "${label}" from this composition?`)) return
+  async function handleDelete(childId: number, label: string) {
+    const ok = await confirm({
+      title: 'Remove Product?',
+      message: (
+        <>
+          Remove <strong className="text-text!">{label}</strong> from this composition?
+        </>
+      ),
+    })
+    if (!ok) return
     deleteSubproduct.mutate({ id: id!, childId })
   }
 
@@ -1839,6 +1914,7 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductDocuments(id)
   const uploadDocument = useUploadProductDocument()
   const deleteDocument = useDeleteProductDocument()
+  const confirm = useConfirm()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadError, setUploadError] = useState('')
 
@@ -1853,9 +1929,17 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
     uploadDocument.mutate({ id, file }, { onError: (err) => setUploadError(err instanceof Error ? err.message : 'Upload failed.') })
   }
 
-  function handleDelete(filename: string) {
+  async function handleDelete(filename: string) {
     if (!id) return
-    if (!window.confirm(`Delete "${filename}"? This can't be undone.`)) return
+    const ok = await confirm({
+      title: 'Delete File?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{filename}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     deleteDocument.mutate({ id, filename })
   }
 

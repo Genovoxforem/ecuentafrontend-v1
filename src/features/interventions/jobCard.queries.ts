@@ -1,5 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { parseJobCardAccessories, type JobCardAccessory } from './jobCardAccessoriesParser'
 
 // fichinter/create.php — Dolibarr's core "Interventions" module (fichinter),
 // custom-branded "Job Card" in this skin, read directly. Its own header
@@ -96,12 +98,8 @@ export function useCreateJobCard() {
 
 // fichinter/add_gadget.php — real JSON write confirmed by reading it
 // directly (INSERT INTO llx_jobcardaccessories, responds
-// json_encode(['success','id','label'])). There is no matching JSON *read*
-// endpoint for the existing accessories list though — create.php's own page
-// queries `llx_jobcardaccessories` with plain inline SQL, not an API — so
-// the picker below starts empty and only grows with accessories created for
-// real in this session (see JobCardCreateForm.tsx), rather than scraping
-// create.php's HTML to pre-populate it.
+// json_encode(['success','id','label'])). The existing accessories are
+// read off create.php's own picker (see useJobCardAccessories).
 interface AddGadgetResponse {
   success: boolean
   id?: number
@@ -109,7 +107,20 @@ interface AddGadgetResponse {
   error?: string
 }
 
+export type { JobCardAccessory }
+
+// The accessories the Job Card create page offers — the active rows of
+// llx_jobcardaccessories, printed by create.php itself as toggles.
+export function useJobCardAccessories() {
+  return useQuery({
+    queryKey: ['interventions', 'accessories'],
+    queryFn: async (): Promise<JobCardAccessory[]> => parseJobCardAccessories(await fetchLegacyDocument('/fichinter/create.php')),
+    staleTime: 1000 * 60,
+  })
+}
+
 export function useCreateAccessory() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (label: string) => {
       const params = new URLSearchParams({ action: 'add_gadget', label })
@@ -119,6 +130,7 @@ export function useCreateAccessory() {
       if (!data.success) throw new Error(data.error ?? 'Failed to add accessory.')
       return { id: data.id as number, label: data.label as string }
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interventions', 'accessories'] }),
   })
 }
 

@@ -20,6 +20,7 @@ import {
   fetchHotelReceipt,
   type HotelReceipt,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const btn = 'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50'
 const fieldCls = 'h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-xs outline-none focus:ring-2 focus:ring-brand/30'
@@ -42,6 +43,7 @@ function Step({ ok, title, sub, action }: { ok: boolean; title: string; sub: str
 // (with force) survives as the emergency override at the bottom. This
 // backend has zero bookings, so re-verify each step once a real one exists.
 export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booking: string; guest: string; onClose: () => void; onDone: () => void }) {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: folio, refetch: refetchFolio } = useHotelFolio(booking)
   const { data: pay, refetch: refetchPay } = useHotelFolioPay(booking)
@@ -148,8 +150,8 @@ export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booki
               <button
                 type="button"
                 disabled={!token || !hasInv || finalize.isPending}
-                onClick={() => {
-                  if (token && confirm(`Finalize invoice for ${booking}? This VALIDATES and fiscalizes it via ZRA and cannot be undone.`)) {
+                onClick={async () => {
+                  if (token && (await confirm(`Finalize invoice for ${booking}? This VALIDATES and fiscalizes it via ZRA and cannot be undone.`))) {
                     finalize.mutate({ booking, token }, { onSuccess: refreshAll })
                   }
                 }}
@@ -171,8 +173,8 @@ export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booki
                 <button
                   type="button"
                   disabled={!token || !fin || unapplied <= 0.01 || applyCollected.isPending}
-                  onClick={() => {
-                    if (token && confirm('Apply all collected payments to this booking invoice?\n\nThe invoice must be finalized first.')) {
+                  onClick={async () => {
+                    if (token && (await confirm('Apply all collected payments to this booking invoice?\n\nThe invoice must be finalized first.'))) {
                       applyCollected.mutate({ booking, token }, { onSuccess: refreshAll })
                     }
                   }}
@@ -305,8 +307,8 @@ export function HotelCheckoutWizard({ booking, guest, onClose, onDone }: { booki
             <button
               type="button"
               disabled={!token || checkOut.isPending}
-              onClick={() => {
-                if (token && confirm(`Force check out ${booking} without completing the above steps?`)) {
+              onClick={async () => {
+                if (token && (await confirm(`Force check out ${booking} without completing the above steps?`))) {
                   checkOut.mutate({ booking, force: true, token }, { onSuccess: onDone })
                 }
               }}
@@ -416,6 +418,7 @@ function RoomChargePanel({ booking, token, onChanged }: { booking: string; token
 }
 
 function EditRoomsPanel({ booking, token, onChanged }: { booking: string; token: string | undefined; onChanged: () => void }) {
+  const confirm = useConfirm()
   const { data: rooms, refetch } = useHotelBookingRooms(booking)
   const today = new Date().toISOString().slice(0, 10)
   const { data: available } = useHotelAvailable(today, today)
@@ -436,8 +439,8 @@ function EditRoomsPanel({ booking, token, onChanged }: { booking: string; token:
             <button
               type="button"
               disabled={!token || removeRoom.isPending}
-              onClick={() => {
-                if (token && confirm('Remove this suite from the booking?')) {
+              onClick={async () => {
+                if (token && (await confirm('Remove this suite from the booking?'))) {
                   removeRoom.mutate({ booking, brid: r.brid, token }, { onSuccess: () => (refetch(), onChanged()) })
                 }
               }}

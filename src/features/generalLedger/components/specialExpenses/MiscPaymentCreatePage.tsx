@@ -1,29 +1,32 @@
 import { Coins } from 'lucide-react'
-import { DisabledFormPage } from '../../../../shared/components/forms/DisabledFormPage'
+import { ROUTES } from '../../../../routes'
+import { LegacyFormPage } from '../LegacyFormPage'
 
-// compta/bank/various_payment/card.php?action=create — classic form-POST,
-// full-page reload, no JSON. The "direction" field is a hardcoded literal
-// 0=Debit/1=Credit dropdown on the real page.
+// compta/bank/various_payment/card.php?action=create — the real "New
+// miscellaneous payment" form; Save posts action=add and the backend
+// redirects to the new payment.
 export function MiscPaymentCreatePage() {
   return (
-    <DisabledFormPage
+    <LegacyFormPage
       icon={Coins}
-      title="New Miscellaneous Payments"
-      sourcePath="compta/bank/various_payment/card.php?action=create"
-      sections={[
-        {
-          fields: [
-            { label: 'Date Payment', type: 'date', required: true },
-            { label: 'Date Value', type: 'date' },
-            { label: 'Amount', required: true },
-            { label: 'Direction', type: 'select', options: ['Debit', 'Credit'] },
-            { label: 'Bank Account', type: 'select', required: true },
-            { label: 'Payment Mode', type: 'select' },
-            { label: 'Accountancy Code', type: 'select' },
-            { label: 'Subledger Account', type: 'select' },
-            { label: 'Project', type: 'select' },
-          ],
-        },
+      title="New Miscellaneous Payment"
+      path="/compta/bank/various_payment/card.php"
+      query={{ action: 'create' }}
+      anchor="sens"
+      redirectTo={ROUTES.ledgerMiscPaymentsList}
+      fields={[
+        { name: 'datep', label: 'Date of payment', kind: 'date', required: true },
+        { name: 'datev', label: 'Value date', kind: 'date' },
+        { name: 'label', label: 'Label', required: true },
+        { name: 'amount', label: 'Amount', required: true },
+        { name: 'accountid', label: 'Bank account', required: true },
+        { name: 'multicurrency_code', label: 'Currency' },
+        { name: 'paymenttype', label: 'Payment type', required: true },
+        { name: 'num_payment', label: 'Number' },
+        { name: 'accountancy_code', label: 'Account' },
+        { name: 'subledger_account', label: 'Subledger account' },
+        { name: 'sens', label: 'Direction', required: true },
+        { name: 'fk_project', label: 'Project' },
       ]}
     />
   )

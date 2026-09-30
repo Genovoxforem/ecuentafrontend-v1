@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import axios from 'axios'
+import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { toastMessages } from '../generalLedger/bindLines.queries'
 
 // 1=vendor/supplier (Categorie::TYPE_SUPPLIER), 2=customer, 4=contact.
 export type CategoryType = 1 | 2 | 4
@@ -7,40 +9,95 @@ export type CategoryType = 1 | 2 | 4
 export interface CategoryRow {
   id: number
   label: string
+  fullLabel: string
   description: string | null
   color: string | null
   parentId: number
   itemCount: number
 }
 
-interface WebEnvelope<T> {
+// The classic tags/categories page (categories/index.php?type=customer|contact|
+// supplier) loads its tree from categories/api/index.php — confirmed live on
+// 172.16.5.10 (session-cookie auth, read-only: actions tree / search /
+// products). The names below are that page's own `type` values.
+const TYPE_NAME: Record<CategoryType, 'supplier' | 'customer' | 'contact'> = { 1: 'supplier', 2: 'customer', 4: 'contact' }
+
+interface TreeResponse {
   success: boolean
-  data: T
+  error?: string
+  categories?: { id: number; fk_parent: number; label: string; fulllabel?: string; description?: string; color?: string | null; count?: number }[]
 }
 
-// GET/POST /api/categories/ (api/categories/index.php) — real, reads/writes
-// llx_categorie. type mirrors Dolibarr's Categorie::TYPE_SUPPLIER=1 /
-// TYPE_CUSTOMER=2 / TYPE_CONTACT=4, matching how the legacy page is reached
-// via categories/index.php?type=1|2|4. The backend's own item-count join
-// already treats type=1 the same as type=2 (both link via
-// llx_categorie_societe/fk_soc — Dolibarr shares one junction table across
-// customer and vendor company categories), confirmed live.
+// GET categories/api/index.php?action=tree&type=… — replaces GET
+// /api/categories/, which does not exist on the backend (404). The whole tree
+// comes back in one response; the name filter runs client-side, and rows are
+// ordered so children follow their parent.
 export function useCategories(type: CategoryType, search = '') {
   return useQuery({
-    queryKey: ['categories', type, search],
+    queryKey: ['categories', type],
     queryFn: async (): Promise<{ items: CategoryRow[]; total: number }> => {
-      const { data } = await api.get<WebEnvelope<{ items: CategoryRow[]; total: number }>>('/categories/', { params: { type, search: search || undefined } })
-      return data.data
+      const { data } = await axios.get<TreeResponse>('/categories/api/index.php', { params: { action: 'tree', type: TYPE_NAME[type] } })
+      if (!data.success) throw new Error(data.error ?? 'Could not load tags/categories.')
+      const items = (data.categories ?? []).map(
+        (c): CategoryRow => ({
+          id: c.id,
+          label: c.label,
+          fullLabel: c.fulllabel || c.label,
+          description: c.description || null,
+          color: c.color || null,
+          parentId: c.fk_parent || 0,
+          itemCount: c.count ?? 0,
+        }),
+      )
+      return { items, total: items.length }
+    },
+    select: (d) => {
+      const q = search.trim().toLowerCase()
+      const items = q ? d.items.filter((c) => c.fullLabel.toLowerCase().includes(q)) : d.items
+      return { items, total: items.length }
     },
   })
 }
 
+// The classic "New tag/category" form (categories/card.php?action=create&type=…)
+// — read for its fresh CSRF token, then posted the way the page itself does:
+// token, action=add, addcat, type, type_id, label, description, color, parent
+// (-1 = no parent). A successful add redirects to categories/index.php; a
+// refusal re-renders the form with a showToast(…, "error") message.
 export function useCreateCategory(type: CategoryType) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { label: string; description?: string }) => {
-      const { data } = await api.post<WebEnvelope<{ id: number }>>('/categories/', { type, ...input })
-      return data.data
+    mutationFn: async (input: { label: string; description?: string; color?: string; parentId?: number }) => {
+      const name = TYPE_NAME[type]
+      const doc = await fetchLegacyDocument('/categories/card.php', new URLSearchParams({ action: 'create', type: name, type_id: String(type) }))
+      const token = doc.querySelector<HTMLInputElement>('form input[name="action"][value="add"]')?.form?.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
+      if (!token) throw new Error('Could not open the new tag form.')
+      const body = new URLSearchParams({
+        token,
+        action: 'add',
+        addcat: 'addcat',
+        id: '',
+        type: name,
+        type_id: String(type),
+        backtopage: '',
+        urlfrom: '',
+        label: input.label,
+        description: input.description ?? '',
+        color: (input.color ?? '').replace('#', ''),
+        parent: String(input.parentId ?? -1),
+      })
+      const res = await fetch(`/categories/card.php?type=${name}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const err = toastMessages(html).find((m) => m.type === 'error')
+      if (err) throw new Error(err.message)
+      return { ok: true }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),
   })

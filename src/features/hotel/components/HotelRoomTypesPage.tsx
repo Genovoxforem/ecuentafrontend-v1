@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Tag, Plus, Pencil, Trash2, X, LoaderCircle, Search, PackagePlus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useHotelSettingsBundle, useHotelRoomTypes, useHotelSaveType, useHotelDelType, useHotelSaveSuite, useHotelVatRates, useHotelUnits, useHotelToken } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -15,6 +16,7 @@ const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 // Table 'bazaudye.llx_room_types' doesn't exist" — kept wired with that
 // error surfaced honestly.
 export function HotelRoomTypesPage() {
+  const confirm = useConfirm()
   const { data: settings } = useHotelSettingsBundle()
   const { data: roomTypes } = useHotelRoomTypes()
   const { data: token } = useHotelToken()
@@ -195,7 +197,7 @@ export function HotelRoomTypesPage() {
                       <button
                         type="button"
                         disabled={!token}
-                        onClick={() => token && confirm(`Delete "${r.name}"?`) && del.mutate({ kind: 'roomtype', id: r.id, token })}
+                        onClick={async () => token && (await confirm(`Delete "${r.name}"?`)) && del.mutate({ kind: 'roomtype', id: r.id, token })}
                         className="p-1.5 rounded-md text-danger hover:bg-surface-hover"
                       >
                         <Trash2 size={13} />

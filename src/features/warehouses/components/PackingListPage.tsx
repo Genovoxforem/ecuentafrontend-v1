@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Package, Trash2, Eye, LoaderCircle, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { usePackingList, useUpdatePackingDeliveryStatus, useDeletePacking, DELIVERY_STATUS_LABEL, type PackingRow } from '../packingList.queries'
 
 const COLUMNS = ['Sl.No', 'Ref.Id', 'Order Status', 'Packing Date', 'Update Delivery Status', 'Action']
@@ -37,10 +38,11 @@ function StatusSelect({ row }: { row: PackingRow }) {
 export function PackingListPage() {
   const { data: rows, isLoading, isError, error } = usePackingList()
   const deletePacking = useDeletePacking()
+  const confirm = useConfirm()
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
-  function handleDelete(packId: number) {
-    if (!window.confirm('Delete this packing record? This cannot be undone.')) return
+  async function handleDelete(packId: number) {
+    if (!(await confirm({ title: 'Delete Packing Record?', message: 'Are you sure you want to delete this packing record?' }))) return
     setDeletingId(packId)
     deletePacking.mutate(packId, { onSettled: () => setDeletingId(null) })
   }

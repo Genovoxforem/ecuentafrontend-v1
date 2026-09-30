@@ -57,7 +57,7 @@ export const nav: NavSection = {
       items: [
         { label: 'Movements - Full List', path: ROUTES.stockMovementsList },
         { label: 'Box Break', path: ROUTES.boxBreak },
-        { label: 'UOM Manager' },
+        { label: 'UOM Manager', path: ROUTES.uomManager },
         { label: 'Stock Manager', path: ROUTES.minMaxStock },
         { label: 'FEFO Dashboard', path: ROUTES.fefoDashboard },
         { label: 'Stock Correction', path: ROUTES.stockCorrection },

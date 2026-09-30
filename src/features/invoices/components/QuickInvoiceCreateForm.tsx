@@ -16,7 +16,7 @@ import { useCreateInvoice, useCreateAndValidateInvoice, type NewInvoiceLine } fr
 import { usePaymentModes, usePaymentTerms, useBankAccountOptions, useCustomerInvoiceDefaults } from '../invoiceFormOptions.queries'
 import { useGeneralSettings } from '../../settings/settings.queries'
 import { formatMoney } from '../../../utils/format'
-import { isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
+import { useWarehouseList } from '../../warehouses/warehouseExtras.queries'
 
 // Invoice types matching the PHP invoice.php's <select id="inv_type">:
 // 0 = Normal/Standard, 6 = LPO, 7 = Export
@@ -85,6 +85,10 @@ export function QuickInvoiceCreateForm() {
   const [currencyRate, setCurrencyRate] = useState(1)
   const [lines, setLines] = useState<InvoiceLineState[]>([createEmptyLine()])
   const [bankAccountId, setBankAccountId] = useState('')
+  const { warehouses } = useWarehouseList()
+  const [warehouseChoice, setWarehouseChoice] = useState('')
+  // Like the classic page, default to the first open warehouse.
+  const warehouseId = warehouseChoice || String(warehouses.find((w) => !/closed/i.test(w.statusLabel))?.id ?? warehouses[0]?.id ?? '')
   const [paymentModeCode, setPaymentModeCode] = useState('')
   const [paymentTermId, setPaymentTermId] = useState('')
   const [paymentDate, setPaymentDate] = useState(today)
@@ -202,6 +206,7 @@ export function QuickInvoiceCreateForm() {
       paymentModeCode,
       paymentTermId,
       bankAccountId,
+      warehouseId,
       note: paymentNote,
       notePublic,
       notePrivate,
@@ -225,8 +230,7 @@ export function QuickInvoiceCreateForm() {
     if (err) { setFormError(err); return }
     createInvoice.mutate(buildInput(), {
       onSuccess: () => navigate(ROUTES.invoiceList),
-      onError: (err) =>
-        setFormError(isBackendUnavailable(err) ? "Creating an invoice isn't available on this backend yet." : 'Could not create this invoice — please try again.'),
+      onError: (err) => setFormError(err instanceof Error ? err.message : 'Could not create this invoice — please try again.'),
     })
   }
 
@@ -236,8 +240,7 @@ export function QuickInvoiceCreateForm() {
     if (err) { setFormError(err); return }
     createAndValidate.mutate(buildInput(), {
       onSuccess: () => navigate(ROUTES.invoiceList),
-      onError: (err) =>
-        setFormError(isBackendUnavailable(err) ? "Creating an invoice isn't available on this backend yet." : 'Could not create this invoice — please try again.'),
+      onError: (err) => setFormError(err instanceof Error ? err.message : 'Could not create this invoice — please try again.'),
     })
   }
 
@@ -269,14 +272,12 @@ export function QuickInvoiceCreateForm() {
     setActionNotice('')
   }
 
-  // Real: "Mail Invoice" and "Online Payment" both POST the full invoice
-  // form to api/unified_invoice_api.php (action=send_email / a Lenco
-  // payment-gateway modal) — an undocumented legacy AJAX endpoint this app
-  // has no confirmed, safe JSON equivalent for yet (unlike Save Draft/Save &
-  // Print, which go through the app's own verified /api/invoices/ REST
-  // endpoint). Rather than guess at that endpoint's full field list, this
-  // surfaces the same honest "not available yet" state the rest of the app
-  // uses for backend gaps instead of a silent no-op or a fabricated success.
+  // "Mail Invoice" (action=send_email — the endpoint only returns the data
+  // for an email modal, it sends nothing itself) and "Online Payment" (a Lenco
+  // payment-gateway modal) are not built here. Save Draft / Save & Print use
+  // the same endpoint's draft / validate_cash actions — see
+  // invoiceCreate.queries.ts. These two surface an honest "not available yet"
+  // state instead of a silent no-op or a fabricated success.
   function handleMailInvoice() {
     setActionNotice("Mailing invoices directly from this form isn't available yet — save the invoice, then send it from the invoice list.")
   }
@@ -574,6 +575,9 @@ export function QuickInvoiceCreateForm() {
                 options={bankOptions}
                 placeholder="Select bank account"
               />
+            </Field>
+            <Field label="Warehouse">
+              <SearchableSelect value={warehouseId} onChange={setWarehouseChoice} options={warehouses.map((w) => ({ value: String(w.id), label: w.ref }))} placeholder="Select warehouse" />
             </Field>
             <Field label="Payment Date" required>
               <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClasses} />

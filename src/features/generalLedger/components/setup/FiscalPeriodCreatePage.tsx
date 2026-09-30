@@ -1,23 +1,23 @@
 import { CalendarRange } from 'lucide-react'
-import { DisabledFormPage } from '../../../../shared/components/forms/DisabledFormPage'
+import { ROUTES } from '../../../../routes'
+import { LegacyFormPage } from '../LegacyFormPage'
 
-// accountancy/admin/fiscalyear_card.php?action=create — classic form-POST
-// (create() then redirect), no JSON.
+// accountancy/admin/fiscalyear_card.php?action=create — the real "New fiscal
+// period" form; Save posts action=add and the backend redirects to the new period.
 export function FiscalPeriodCreatePage() {
   return (
-    <DisabledFormPage
+    <LegacyFormPage
       icon={CalendarRange}
       title="New Fiscal Period"
-      sourcePath="accountancy/admin/fiscalyear_card.php?action=create"
-      sections={[
-        {
-          fields: [
-            { label: 'Label', required: true },
-            { label: 'Date Start', type: 'date', required: true },
-            { label: 'Date End', type: 'date', required: true },
-            { label: 'Status', type: 'select', options: ['Open', 'Close'] },
-          ],
-        },
+      path="/accountancy/admin/fiscalyear_card.php"
+      query={{ action: 'create' }}
+      anchor="label"
+      redirectTo={ROUTES.ledgerFiscalPeriod}
+      fields={[
+        { name: 'label', label: 'Label', required: true },
+        { name: 'fiscalyear', label: 'Start date', kind: 'date', required: true },
+        { name: 'fiscalyearend', label: 'End date', kind: 'date', required: true },
+        { name: 'statut', label: 'Status' },
       ]}
     />
   )

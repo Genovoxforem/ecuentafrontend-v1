@@ -19,7 +19,7 @@ export function Avatar({
 }: {
   photo?: string
   name: string
-  size?: number
+  size?: number 
   rounded?: 'full' | 'lg'
   className?: string
   // Tailwind bg-* class for the initials-fallback badge, e.g. for giving

@@ -1,23 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-// Full module audit (2 passes): the real backend at expense/ is a
-// custom-built SPA — 11 tabs, each its own PHP page, routed client-side via
-// expense/js/expense-spa.js's hash router and fetched through
+// The real backend at expense/ is a custom-built SPA — 11 tabs, each its own PHP page, routed client-side
+// via expense/js/expense-spa.js's hash router and fetched through
 // expense/api/expense_content.php (action=<tab>&ajax=1 → {success, html}).
-// Every tab is 100% server-rendered PHP+SQL — there is NO JSON read/list
-// endpoint for most of them (Dashboard, Approvals, Payments, Advances,
-// Reimbursements, Repayments, Recurring, Reports, Analytics all build their
-// tables/charts from inline SQL baked into the returned HTML fragment, not
-// a fetchable API). Per this app's standing rule (only integrate against a
-// real JSON API, never scrape a legacy HTML fragment), none of those lists
-// are read from here.
+// Most tabs are server-rendered PHP+SQL with no JSON read endpoint. The ones this app shows natively
+// (Dashboard, Approvals, Payments and the New Expense form's dropdowns) are read from those fragments —
+// see expensePagesParser.ts / expensePages.queries.ts. The others (Advances, Reimbursements, Repayments,
+// Recurring, Reports, Analytics) still build on the JSON below.
 //
 // What IS real and JSON: (1) expense/ajax/expense_list.php — a genuine,
 // permission-checked (hasRight('expensereport','lire')), filterable,
 // sortable, real-child-user-scoped DataTables endpoint against
 // llx_expensereport, confirmed to return every matching row unpaginated
 // when `length=-1` (`if ($rowperpage > 0) plimit(...)`) — reused below by
-// several screens (Dashboard/Approvals/Payments/Reports/Analytics, plus
+// several screens (Reports/Analytics, the List, plus
 // the Create/Reimbursement/Repayment/Recurring forms' own report-picker
 // dropdowns) instead of scraping each tab's own broken/absent list.
 // (2) expense/api/expense_types.php + expense/ajax/entity_search.php —
@@ -61,6 +57,9 @@ export interface ExpenseReportRow {
   status: string
   paid: boolean
   notes: string
+  // The user / linked-to cells as the backend prints them (link, photo, hover card); parse with parseParty.
+  userHtml: string
+  linkedHtml: string
 }
 interface RawExpenseListResponse {
   draw: number
@@ -88,6 +87,11 @@ export interface ExpenseListFilters {
   status: string
   dateFrom: string
   dateTo: string
+  // Server-side, like the backend's own table: the search box, and one sortable column (a key of the
+  // endpoint's `columns[].data`, e.g. 'date_create') with its direction.
+  search?: string
+  orderBy?: string
+  orderDir?: 'asc' | 'desc'
 }
 
 export function useExpenseReportsList(filters: ExpenseListFilters, page: number, length: number) {
@@ -98,6 +102,12 @@ export function useExpenseReportsList(filters: ExpenseListFilters, page: number,
       if (filters.status) body.set('filter_status', filters.status)
       if (filters.dateFrom) body.set('filter_date_from', filters.dateFrom)
       if (filters.dateTo) body.set('filter_date_to', filters.dateTo)
+      if (filters.search) body.set('search[value]', filters.search)
+      if (filters.orderBy) {
+        body.set('order[0][column]', '0')
+        body.set('order[0][dir]', filters.orderDir ?? 'desc')
+        body.set('columns[0][data]', filters.orderBy)
+      }
       const res = await fetch('/expense/ajax/expense_list.php', { method: 'POST', credentials: 'same-origin', body })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data: RawExpenseListResponse = await res.json()
@@ -117,6 +127,8 @@ export function useExpenseReportsList(filters: ExpenseListFilters, page: number,
           status: stripTags(r.status),
           paid: stripTags(r.paid).toLowerCase() === 'paid',
           notes: r.notes,
+          userHtml: r.user,
+          linkedHtml: r.linked_to,
         })),
         total: data.recordsTotal,
         filtered: data.recordsFiltered,
@@ -181,13 +193,13 @@ function toEpochSeconds(dateStr: string): number {
   return Math.floor(new Date(`${dateStr}T00:00:00`).getTime() / 1000)
 }
 
-interface RawActionResponse {
+export interface RawActionResponse {
   success: boolean
   message?: string
   data?: Record<string, unknown>
 }
 
-async function postExpenseAction(action: string, params: Record<string, string>): Promise<RawActionResponse> {
+export async function postExpenseAction(action: string, params: Record<string, string>): Promise<RawActionResponse> {
   const body = new URLSearchParams({ action, ...params })
   const res = await fetch('/expense/api/expense.php', { method: 'POST', credentials: 'same-origin', body })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
@@ -214,7 +226,7 @@ export interface CreateExpenseDraftInput {
   projectId?: number
   notePublic?: string
   notePrivate?: string
-  expenseType: 'internal' | 'user' | 'customer' | 'vendor'
+  expenseType: 'internal' | 'employee' | 'customer' | 'vendor'
   socid?: number
   employeeId?: number
 }
@@ -374,117 +386,5 @@ export function useBankAccounts() {
       return data.results ?? []
     },
     staleTime: 1000 * 60 * 10,
-  })
-}
-
-// Real via action=create_advance — genuine INSERT into llx_expense_advance.
-export interface CreateExpenseAdvanceInput {
-  userId: number
-  amount: number
-  method: 'cash' | 'bank' | 'cheque' | 'salary'
-  date: string
-  note?: string
-}
-export function useCreateExpenseAdvance() {
-  return useMutation({
-    mutationFn: async (input: CreateExpenseAdvanceInput) => {
-      const json = await postExpenseAction('create_advance', {
-        fk_user: String(input.userId),
-        amount: String(input.amount),
-        method: input.method,
-        date_advance: input.date,
-        note: input.note ?? '',
-      })
-      if (!json.success) throw new Error(json.message || 'Could not create the advance payment.')
-      return json.data
-    },
-  })
-}
-
-// Real via action=create_reimburse — genuine INSERT into
-// llx_expense_reimbursement, requires an Approved (fk_statut=5) report.
-export interface CreateExpenseReimbursementInput {
-  expenseReportId: number
-  recipientId: number
-  recipientType: 'employee' | 'customer'
-  claimAmount: number
-}
-export function useCreateExpenseReimbursement() {
-  return useMutation({
-    mutationFn: async (input: CreateExpenseReimbursementInput) => {
-      const json = await postExpenseAction('create_reimburse', {
-        fk_expensereport: String(input.expenseReportId),
-        fk_user_employee: String(input.recipientId),
-        recipient_type: input.recipientType,
-        claim_amount: String(input.claimAmount),
-      })
-      if (!json.success) throw new Error(json.message || 'Could not create the reimbursement.')
-      return json.data
-    },
-  })
-}
-
-// Real via action=create_repayment — writes advance_amount/repay_method/
-// repay_settled directly onto llx_expensereport (confirmed: there is no
-// separate repayment table in real use).
-export interface CreateExpenseRepaymentInput {
-  expenseReportId: number
-  advanceAmount: number
-  method: string
-  settleAmount?: number
-}
-export function useCreateExpenseRepayment() {
-  return useMutation({
-    mutationFn: async (input: CreateExpenseRepaymentInput) => {
-      const json = await postExpenseAction('create_repayment', {
-        fk_expensereport: String(input.expenseReportId),
-        advance_amount: String(input.advanceAmount),
-        method: input.method || 'cash',
-        settle_amount: String(input.settleAmount ?? 0),
-      })
-      if (!json.success) throw new Error(json.message || 'Could not save the repayment.')
-      return json.data
-    },
-  })
-}
-
-// Real via action=approve_repayment — repay_status 0→1, only then does the
-// repayment appear in the real Payments tab's negative-net rows.
-export function useApproveExpenseRepayment() {
-  return useMutation({
-    mutationFn: async (expenseReportId: number) => {
-      const json = await postExpenseAction('approve_repayment', { fk_expensereport: String(expenseReportId) })
-      if (!json.success) throw new Error(json.message || 'Could not approve the repayment.')
-      return json.data
-    },
-  })
-}
-
-// Real via action=create_recurring — genuine INSERT into
-// llx_expense_recurring. Note (confirmed by reading the whole module): no
-// cron/executor anywhere ever reads next_run/auto_create to actually create
-// a new expense report — this template is real and saved, but inert on
-// this backend.
-export interface CreateRecurringExpenseInput {
-  templateId: number
-  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
-  dateStart: string
-  dateEnd?: string
-  autoCreate: boolean
-}
-export function useCreateRecurringExpense() {
-  return useMutation({
-    mutationFn: async (input: CreateRecurringExpenseInput) => {
-      const json = await postExpenseAction('create_recurring', {
-        fk_expensereport_tpl: String(input.templateId),
-        frequency: input.frequency,
-        date_start: input.dateStart,
-        date_end: input.dateEnd ?? '',
-        auto_create: input.autoCreate ? '1' : '0',
-        active: '1',
-      })
-      if (!json.success) throw new Error(json.message || 'Could not create the recurring template.')
-      return json.data
-    },
   })
 }

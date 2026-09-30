@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -136,39 +137,79 @@ export function OrderDetail() {
   const classifyDelivered = useClassifyOrderDelivered(id)
   const setBilled = useSetOrderBilled(id)
   const cancelOrder = useCancelOrder(id)
+  const confirm = useConfirm()
 
-  function handleModify() {
-    if (!window.confirm(`Are you sure you want to restore order ${data?.ref ?? ''} to draft status?`)) return
+  async function handleModify() {
+    const ok = await confirm({
+      title: 'Restore to Draft?',
+      message: `Are you sure you want to restore order ${data?.ref ?? ''} to draft status?`,
+      variant: 'default',
+      confirmLabel: 'Restore',
+    })
+    if (!ok) return
     restoreToDraft.mutate()
   }
-  function handleValidate() {
-    if (!window.confirm(`Are you sure you want to validate this order under name ${data?.ref ?? ''}?`)) return
+  async function handleValidate() {
+    const ok = await confirm({
+      title: 'Validate Order?',
+      message: `Are you sure you want to validate this order under name ${data?.ref ?? ''}?`,
+      variant: 'default',
+      confirmLabel: 'Validate',
+    })
+    if (!ok) return
     validateOrder.mutate()
   }
   function handleReopen() {
     reopenOrder.mutate()
   }
-  function handleClone() {
-    if (!window.confirm(`Clone order ${data?.ref ?? ''} into a new draft?`)) return
+  async function handleClone() {
+    const ok = await confirm({ title: 'Clone Order?', message: `Clone order ${data?.ref ?? ''} into a new draft?`, variant: 'default', confirmLabel: 'Clone' })
+    if (!ok) return
     cloneOrder.mutate(data?.thirdPartySocid ?? null, {
       onSuccess: (newId) => newId && navigate(ROUTES.orderDetail.replace(':id', newId)),
     })
   }
-  function handleDelete() {
-    if (!window.confirm(`Delete order ${data?.ref ?? ''}? This cannot be undone.`)) return
+  async function handleDelete() {
+    const ok = await confirm({
+      title: 'Delete Order?',
+      message: (
+        <>
+          Are you sure you want to delete order <strong className="text-text!">{data?.ref ?? ''}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     deleteOrder.mutate(undefined, { onSuccess: () => navigate(ROUTES.orderList) })
   }
-  function handleClassifyDelivered() {
-    if (!window.confirm(`Are you sure you want to set this order to delivered? Once an order is delivered, it can be set to billed.`)) return
+  async function handleClassifyDelivered() {
+    const ok = await confirm({
+      title: 'Set to Delivered?',
+      message: 'Are you sure you want to set this order to delivered? Once an order is delivered, it can be set to billed.',
+      variant: 'default',
+      confirmLabel: 'Set Delivered',
+    })
+    if (!ok) return
     classifyDelivered.mutate()
   }
-  function handleSetBilled(billed: boolean) {
-    if (billed && !window.confirm(`Classify order ${data?.ref ?? ''} as billed?`)) return
-    if (!billed && !window.confirm(`Classify order ${data?.ref ?? ''} as unbilled?`)) return
+  async function handleSetBilled(billed: boolean) {
+    const ok = await confirm({
+      title: billed ? 'Classify as Billed?' : 'Classify as Unbilled?',
+      message: `Classify order ${data?.ref ?? ''} as ${billed ? 'billed' : 'unbilled'}?`,
+      variant: 'default',
+      confirmLabel: 'Classify',
+    })
+    if (!ok) return
     setBilled.mutate(billed)
   }
-  function handleCancel() {
-    if (!window.confirm('Are you sure you want to cancel')) return
+  async function handleCancel() {
+    const ok = await confirm({
+      title: 'Cancel Order?',
+      message: `Are you sure you want to cancel order ${data?.ref ?? ''}?`,
+      variant: 'default',
+      confirmLabel: 'Cancel Order',
+      cancelLabel: 'Keep',
+    })
+    if (!ok) return
     cancelOrder.mutate()
   }
 
@@ -758,11 +799,9 @@ function DetailsTab({
                 {data.linkedEvents.map((event, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
                     {/* No link out to the real event's PHP page here — this
-                        app's own Agenda area (see agenda.queries.ts) is a
-                        local-only mock with no real events behind it, so
-                        linking there would show a page that doesn't
-                        actually contain the real event being referenced.
-                        Honest plain text beats a link to the wrong place. */}
+                        app has no page for a single Agenda event, and a
+                        link to the backend's own event page would break the
+                        no-backend-links rule. Plain text it is. */}
                     <td className="py-2 px-4 text-text!">{event.ref}</td>
                     <td className="py-2 px-3 text-text-muted whitespace-nowrap">{event.date}</td>
                     <td className="py-2 px-3 text-text-muted">
@@ -783,6 +822,7 @@ function DetailsTab({
 function LinkedFilesCard({ id, data }: { id: string | undefined; data: OrderDetailData }) {
   const { data: docs, isLoading, isError, error, refetch } = useOrderDocuments(id)
   const generateDoc = useGenerateOrderDoc(id)
+  const confirm = useConfirm()
   const { docGenOptions } = data
   const [model, setModel] = useState(docGenOptions.modelOptions[0]?.value ?? '')
   const [langId, setLangId] = useState(docGenOptions.defaultLang)
@@ -852,7 +892,7 @@ function LinkedFilesCard({ id, data }: { id: string | undefined; data: OrderDeta
                     <Eye size={13} />
                   </a>
                   {doc.deleteUrl && (
-                    <button type="button" title="Delete" onClick={() => deleteOrderDocument(doc.deleteUrl, doc.name, refetch)} className="text-text-faint hover:text-danger">
+                    <button type="button" title="Delete" onClick={() => deleteOrderDocument(doc.deleteUrl, doc.name, refetch, confirm)} className="text-text-faint hover:text-danger">
                       <Trash2 size={13} />
                     </button>
                   )}

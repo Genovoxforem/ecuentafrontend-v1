@@ -8,6 +8,7 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { formatDate } from '../../../utils/format'
 import { useTasksList, useDeleteTask, type TaskRow } from '../tasks.queries'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 function formatWorkload(seconds: number | null) {
   if (!seconds) return '—'
@@ -81,6 +82,7 @@ function matchesSearch(t: TaskRow, query: string) {
 export function TasksListPage() {
   const { data, isLoading, isError, error } = useTasksList()
   const deleteTask = useDeleteTask()
+  const confirm = useConfirm()
   const [pendingId, setPendingId] = useState<number | null>(null)
   const [rowError, setRowError] = useState('')
   const [page, setPage] = useState(1)
@@ -101,8 +103,16 @@ export function TasksListPage() {
     setPage(1)
   }
 
-  function handleDelete(id: number, ref: string | null) {
-    if (!window.confirm(`Delete task ${ref || `#${id}`}? This cannot be undone.`)) return
+  async function handleDelete(id: number, ref: string | null) {
+    const ok = await confirm({
+      title: 'Delete Task?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{ref || `#${id}`}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     setRowError('')
     setPendingId(id)
     deleteTask.mutate(id, {

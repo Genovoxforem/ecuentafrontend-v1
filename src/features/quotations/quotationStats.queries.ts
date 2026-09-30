@@ -1,22 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { parseLegacyStats } from '../salesOrders/legacyStatsParser'
 import type { MonthlyStats } from '../salesOrders/orderStats.queries'
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
-
-// GET /api/quotations/stats/ (api/quotations/stats/index.php) — real,
-// mirrors api/orders/stats/ against llx_propal (see that endpoint's header
-// comment for the exact legacy PropaleStats fields it was matched to).
+// comm/propal/stats/index.php — the classic quotation statistics page, read
+// through the shared legacyStatsParser.ts. Replaces GET /api/quotations/stats/,
+// which does not exist on the backend (404).
 export function useQuotationStats(year: number) {
   return useQuery({
     queryKey: ['quotations', 'stats', year],
-    queryFn: async (): Promise<MonthlyStats> => {
-      const { data } = await api.get<WebEnvelope<MonthlyStats>>('/quotations/stats/', { params: { year } })
-      return data.data
-    },
+    queryFn: async (): Promise<MonthlyStats> => parseLegacyStats(await fetchLegacyDocument('/comm/propal/stats/index.php', new URLSearchParams({ year: String(year) })), year),
     placeholderData: (prev) => prev,
   })
 }

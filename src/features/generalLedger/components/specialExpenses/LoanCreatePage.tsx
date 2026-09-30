@@ -1,32 +1,36 @@
 import { HandCoins } from 'lucide-react'
-import { DisabledFormPage } from '../../../../shared/components/forms/DisabledFormPage'
+import { ROUTES } from '../../../../routes'
+import { LegacyFormPage } from '../LegacyFormPage'
 
-// loan/card.php?action=create — classic form-POST, full-page reload, no
-// JSON create endpoint. The real page does have a genuine JSON calculator
-// (loan/calcmens.php, a live amortization-schedule preview) for UI feedback
-// only — not persistence — left for a future pass since it needs care to
-// call correctly (its first row is a special zero-interest anchor entry).
+// loan/card.php?action=create — the real "New loan" form; Save posts
+// action=add and the backend redirects to the new loan.
 export function LoanCreatePage() {
   return (
-    <DisabledFormPage
+    <LegacyFormPage
       icon={HandCoins}
-      title="New Loans"
-      sourcePath="loan/card.php?action=create"
-      sections={[
-        {
-          fields: [
-            { label: 'Label', required: true },
-            { label: 'Capital', required: true },
-            { label: 'Number Of Terms', required: true },
-            { label: 'Rate' },
-            { label: 'Rate Type', type: 'select', options: ['Percentage', 'Total Sum'] },
-            { label: 'Date Start', type: 'date', required: true },
-            { label: 'Date End', type: 'date' },
-            { label: 'Capital Account', type: 'select' },
-            { label: 'Insurance Account', type: 'select' },
-            { label: 'Interest Account', type: 'select' },
-          ],
-        },
+      title="New Loan"
+      path="/loan/card.php"
+      query={{ action: 'create' }}
+      anchor="capital"
+      redirectTo={ROUTES.ledgerEmployeeLoansList}
+      fields={[
+        { name: 'label', label: 'Label', required: true },
+        { name: 'accountid', label: 'Bank account', required: true },
+        { name: 'capital', label: 'Principal amount', required: true },
+        { name: 'nbterm', label: 'Number of terms', required: true },
+        { name: 'start', label: 'Start date', kind: 'date', required: true },
+        { name: 'end', label: 'Validation date', kind: 'date' },
+        { name: 'ratetype', label: 'Interest type', kind: 'radio' },
+        { name: 'rate', label: 'Percentage / total sum' },
+        { name: 'slot', label: 'Slot' },
+        { name: 'receipt', label: 'Receipt' },
+        { name: 'projectid', label: 'Project' },
+        { name: 'insurance_amount', label: 'Insurance / additional charges' },
+        { name: 'accountancy_account_capital', label: 'Accounting account capital' },
+        { name: 'accountancy_account_insurance', label: 'Accounting account insurance' },
+        { name: 'accountancy_account_interest', label: 'Accounting account interest' },
+        { name: 'note_private', label: 'Note (private)', kind: 'textarea' },
+        { name: 'note_public', label: 'Note (public)', kind: 'textarea' },
       ]}
     />
   )

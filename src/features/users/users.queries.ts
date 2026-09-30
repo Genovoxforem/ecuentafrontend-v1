@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { formatDateTimeAmPm } from '../../utils/format'
-import { useLogActivity } from '../agenda/agenda.queries'
-import { useAuth } from '../auth/AuthContext'
 import { fetchSocieteFormContext } from '../customers/thirdPartyOptions.queries'
 
 export interface LanguageOption {
@@ -622,8 +620,6 @@ interface CreateUserResponse {
 // currentToken()/newToken() pair, not a page-specific token.
 export function useCreateUserReal() {
   const queryClient = useQueryClient()
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
   return useMutation({
     mutationFn: async (input: NewUserInput) => {
       const { token } = await fetchSocieteFormContext()
@@ -676,10 +672,8 @@ export function useCreateUserReal() {
       if (!data.ok) throw new Error(data.error || 'Failed to create user')
       return data
     },
-    onSuccess: (data, input) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `New user ${input.firstname} ${input.lastname} (${data.login}) added`, category: 'other', authorName })
     },
   })
 }

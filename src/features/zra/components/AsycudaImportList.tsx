@@ -400,7 +400,8 @@ export function AsycudaImportList() {
                           />
                           <button
                             type="button"
-                            onClick={() => setCreateProductTaskCode(parseRowFields(row).taskCode)}
+                            // The backend's own row button passes "<task code>_<item seq>" (fnaddnewproducts).
+                            onClick={() => setCreateProductTaskCode(`${actions.updateItem.taskCd}_${actions.updateItem.itemSeq}`)}
                             className={btnCls.primary}
                           >
                             <PackagePlus size={12} /> Create product

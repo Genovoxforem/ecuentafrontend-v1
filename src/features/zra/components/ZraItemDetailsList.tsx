@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Package } from 'lucide-react'
 import { useZraItemDetails, type ZraItemDetail } from '../zra.queries'
-import { ListHeader, EmptyRow, PER_PAGE } from './ZraListChrome'
+import { ListHeader, EmptyRow, PER_PAGE, SearchBox } from './ZraListChrome'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -70,7 +70,12 @@ export function ZraItemDetailsList() {
   const items = data?.items ?? []
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(PER_PAGE)
-  const { sorted: sortedItems, sort, toggleSort } = useSortableRows<ZraItemDetail, SortKey>(items, sortValue)
+  // The backend's own table has a search box (DataTables); the whole gateway list is already here, so it filters client-side.
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const query = search.toLowerCase()
+  const visibleItems = query ? items.filter((it) => Object.values(it).some((v) => String(v ?? '').toLowerCase().includes(query))) : items
+  const { sorted: sortedItems, sort, toggleSort } = useSortableRows<ZraItemDetail, SortKey>(visibleItems, sortValue)
   const pageItems = sortedItems.slice((page - 1) * perPage, page * perPage)
 
   function getExportData() {
@@ -121,6 +126,17 @@ export function ZraItemDetailsList() {
             </button>
           </div>
           <div className="flex items-center gap-3">
+            <div className="w-56">
+              <SearchBox
+                value={searchInput}
+                onChange={setSearchInput}
+                onSubmit={() => {
+                  setPage(1)
+                  setSearch(searchInput.trim())
+                }}
+                placeholder="Search…"
+              />
+            </div>
             <select
               value={perPage}
               onChange={(e) => {
@@ -172,7 +188,7 @@ export function ZraItemDetailsList() {
               isLoading={isLoading}
               isError={isError}
               error={error}
-              isEmpty={items.length === 0}
+              isEmpty={visibleItems.length === 0}
               emptyLabel="No items found."
               feature="Item Details"
             />
@@ -198,7 +214,7 @@ export function ZraItemDetailsList() {
         </table>
       </div>
 
-      <ListPagination page={page} perPage={perPage} total={items.length} onPageChange={setPage} />
+      <ListPagination page={page} perPage={perPage} total={visibleItems.length} onPageChange={setPage} />
     </div>
   )
 }

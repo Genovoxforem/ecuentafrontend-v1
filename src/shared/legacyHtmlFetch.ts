@@ -16,11 +16,20 @@ export function looksLikeLegacyLoginPageText(html: string): boolean {
   return html.includes('name="password"') && html.includes('actionlogin')
 }
 
+// Bug found live (Expense Report detail page, 172.16.5.10): a real session
+// expiry mid-testing made this silently return the login page's own HTML —
+// every selector in the caller's parser simply matched nothing, so the page
+// rendered with blank fields/tabs instead of a clear error, and nothing
+// here or in the caller could tell the difference. fetchLegacyText already
+// guards against this (looksLikeLegacyLoginPageText); this was the one gap
+// — every parser going through fetchLegacyDocument instead had no such
+// check.
 export async function fetchLegacyDocument(path: string, params?: URLSearchParams): Promise<Document> {
   const url = params ? `${path}?${params.toString()}` : path
   const res = await fetch(url, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
   const html = await res.text()
+  if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
   return new DOMParser().parseFromString(html, 'text/html')
 }
 
@@ -47,4 +56,31 @@ export async function parseLegacyJson<T>(res: Response): Promise<T> {
   const text = await res.text()
   if (looksLikeLegacyLoginPageText(text)) throw new Error(NOT_SIGNED_IN_MESSAGE)
   return JSON.parse(text) as T
+}
+
+// A backend page that refuses to open — a module switched off in setup, a
+// missing permission — prints toastr.error("…") and redirects to the home
+// page, so the page the caller asked for never arrives. Those messages are
+// the backend's own explanation ("Value Credit Notes are not enabled. …");
+// reading them lets a native page say the same instead of "not recognised".
+const TOASTR_ERROR = /toastr\.error\("((?:[^"\\]|\\.)*)"\)/g
+
+function unescapeToast(raw: string): string {
+  return raw
+    .replace(/\\\//g, '/')
+    .replace(/\\(["'\\])/g, '$1')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .trim()
+}
+
+export function legacyRefusalMessages(source: string | Document): string[] {
+  const text = typeof source === 'string' ? source : Array.from(source.scripts, (s) => s.textContent ?? '').join('\n')
+  return Array.from(text.matchAll(TOASTR_ERROR), (m) => unescapeToast(m[1])).filter(Boolean)
+}
+
+// The message to show when a page's expected content is missing: the
+// backend's own refusal when it gave one, otherwise the caller's fallback.
+export function legacyMissingContentError(source: string | Document, fallback: string): Error {
+  return new Error(legacyRefusalMessages(source)[0] ?? fallback)
 }

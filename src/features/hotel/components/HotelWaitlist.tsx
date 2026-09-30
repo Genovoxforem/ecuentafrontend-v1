@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LoaderCircle, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelWaitlist, useHotelRoomTypes, useHotelSaveWait, useHotelWaitStatus, useHotelToken, type HotelWaitlistEntry } from '../hotel.queries'
 
@@ -85,12 +86,13 @@ export function HotelWaitlist() {
   const { data: token } = useHotelToken()
   const { data: rows, isLoading, isError, error, refetch } = useHotelWaitlist()
   const status = useHotelWaitStatus()
+  const confirm = useConfirm()
   const [modal, setModal] = useState<{ entry: HotelWaitlistEntry | null } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  function handleStatus(id: string, to: string, confirmMsg?: string) {
+  async function handleStatus(id: string, to: string, confirmMsg?: string) {
     if (!token) return
-    if (confirmMsg && !confirm(confirmMsg)) return
+    if (confirmMsg && !(await confirm(confirmMsg))) return
     setBusyId(id)
     status.mutate({ id, to, token }, { onSettled: () => setBusyId(null) })
   }

@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ListTree, ChevronRight, ChevronDown, Pencil, Trash2, Plus, Check, X as XIcon, Loader2, Info, AlertTriangle } from 'lucide-react'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { ROUTES } from '../../../routes'
 import {
   useChartOfAccountsTree,
   useCreateAccount,
@@ -83,6 +86,7 @@ function TreeNode({ node, depth }: { node: CoaNode; depth: number }) {
   const [error, setError] = useState('')
   const updateLabel = useUpdateAccountLabel()
   const deleteAccount = useDeleteAccount()
+  const confirm = useConfirm()
   const { accountNumber, label } = splitText(node.text)
   const hasChildren = !!node.items?.length
 
@@ -93,8 +97,16 @@ function TreeNode({ node, depth }: { node: CoaNode; depth: number }) {
     )
   }
 
-  function handleDelete() {
-    if (!window.confirm(`Delete account ${accountNumber}-${label}?`)) return
+  async function handleDelete() {
+    const ok = await confirm({
+      title: 'Delete Account?',
+      message: (
+        <>
+          Are you sure you want to delete <strong className="text-text!">{`${accountNumber}-${label}`}</strong>?
+        </>
+      ),
+    })
+    if (!ok) return
     deleteAccount.mutate(node.id, { onError: (e) => setError(e instanceof Error ? e.message : 'Delete failed.') })
   }
 
@@ -126,7 +138,10 @@ function TreeNode({ node, depth }: { node: CoaNode; depth: number }) {
           </>
         ) : (
           <>
-            <span className="text-sm text-text! font-mono">{accountNumber}</span>
+            {/* The number opens the account's own card (label, groups, Modify, Delete). */}
+            <Link to={ROUTES.ledgerAccountCard.replace(':id', String(node.id))} title="Open the account card" className="text-sm font-mono text-brand hover:underline">
+              {accountNumber}
+            </Link>
             <span className="text-sm text-text-muted flex-1 truncate">{label}</span>
             <span className="text-xs tabular-nums text-text-faint mr-2">{node.formatted_amount}</span>
             <div className="hidden group-hover:flex items-center gap-1">

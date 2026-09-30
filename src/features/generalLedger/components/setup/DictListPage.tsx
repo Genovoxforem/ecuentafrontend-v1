@@ -2,6 +2,7 @@ import { useMemo, useState, type ComponentType } from 'react'
 import { Loader2, Plus, Power, Trash2 } from 'lucide-react'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../../shared/components/ListPagination'
+import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { useDictList, useToggleDictStatus, useDeleteDictRow } from '../../dolibarrDict.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -25,6 +26,7 @@ export function DictListPage({
   const { data: rows, isLoading, isError, error, refetch } = useDictList(path)
   const toggle = useToggleDictStatus(path)
   const del = useDeleteDictRow(path)
+  const confirm = useConfirm()
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -149,8 +151,8 @@ export function DictListPage({
                           <button
                             type="button"
                             disabled={!r.deleteUrl || del.isPending}
-                            onClick={() => {
-                              if (r.deleteUrl && window.confirm('Delete this entry on the real backend? This cannot be undone.')) del.mutate(r.deleteUrl)
+                            onClick={async () => {
+                              if (r.deleteUrl && (await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) del.mutate(r.deleteUrl)
                             }}
                             title="Delete"
                             className="text-danger hover:text-danger-fg disabled:opacity-40"

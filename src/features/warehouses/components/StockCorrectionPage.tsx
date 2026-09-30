@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { FilePenLine } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useProductOptions } from '../../products/products.queries'
-import { useWarehouses, todayIso } from '../warehouseExtras.queries'
-import { useRecordStockMovement } from '../warehouses.queries'
+import { useCorrectStock, useProductOptions, useProductStockOverview } from '../../products/products.queries'
+import { useWarehouses } from '../warehouseExtras.queries'
 import { StockMovementsListPage } from './StockMovementsListPage'
 
-const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60'
 const selectCls = inputCls + ' appearance-none'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
@@ -21,50 +21,64 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-// No backend endpoint exists for stock corrections (see
-// warehouses.queries.ts) — recording one writes into the same local,
-// session-scoped movement ledger Stock Transfer/Mass Stock Transfer/Box
-// Break also feed, which the "Movements - Full List" page (rendered below,
-// same as the legacy page's own layout) reads back from. It genuinely
-// changes the effective stock shown elsewhere in this app (Warehouse
-// dashboard, Product Stocks), it just never reaches the real database.
+// Stock correction — a real write through productinfo/api/stock_api.php
+// (`correct_stock`, the same call the product's Stock tab makes), so the
+// movement shows up in the list below and in every stock figure. Only the
+// fields that call accepts are offered: warehouse, product, add/remove, units,
+// unit purchase price (adds only, like the legacy form), label, and a batch
+// number for lot/serial-tracked products.
 export function StockCorrectionPage() {
+  const queryClient = useQueryClient()
   const { data: products } = useProductOptions()
   const warehouses = useWarehouses()
-  const recordMovement = useRecordStockMovement()
+  const correctStock = useCorrectStock()
 
-  const [warehouseRef, setWarehouseRef] = useState('')
-  const [productRef, setProductRef] = useState('')
+  const [warehouseId, setWarehouseId] = useState('')
+  const [productId, setProductId] = useState('')
+  const [mouvement, setMouvement] = useState<'0' | '1'>('0')
   const [units, setUnits] = useState('')
-  const [date, setDate] = useState(todayIso())
-  const [lotSerial, setLotSerial] = useState('')
-  const [eatBy, setEatBy] = useState('')
-  const [sellBy, setSellBy] = useState('')
   const [unitPrice, setUnitPrice] = useState('')
-  const [label, setLabel] = useState('Stock correction for product')
-  const [movementCode, setMovementCode] = useState('')
+  const [batchNumber, setBatchNumber] = useState('')
+  const [label, setLabel] = useState('')
   const [error, setError] = useState('')
+  const [saved, setSaved] = useState('')
 
-  const selectedProduct = (products ?? []).find((p) => p.ref === productRef)
+  const stock = useProductStockOverview(productId || undefined)
+  const hasBatch = stock.data?.hasBatch ?? false
+  const selectedProduct = (products ?? []).find((p) => String(p.id) === productId)
 
   function handleSave() {
-    if (!warehouseRef) return setError('Warehouse is required.')
+    setSaved('')
+    if (!warehouseId) return setError('Warehouse is required.')
     if (!selectedProduct) return setError('Product is required.')
-    const qty = Number(units)
-    if (!units || Number.isNaN(qty) || qty === 0) return setError('Number of units must be a non-zero number.')
+    if (!units || !(Number(units) > 0)) return setError('Number of units must be a positive number.')
+    if (hasBatch && !batchNumber.trim()) return setError('Batch number is required for lot/serial tracked products.')
     setError('')
-    recordMovement({
-      productRef: selectedProduct.ref,
-      productLabel: selectedProduct.label,
-      delta: qty,
-      reason: label || 'Stock correction for product',
-      warehouseRef,
-      lotSerial: lotSerial || undefined,
-      type: 'Correction',
-    })
+    correctStock.mutate(
+      { id: productId, warehouseId, qty: units, mouvement, label, unitPrice: mouvement === '0' ? unitPrice : '', batchNumber: batchNumber.trim() },
+      {
+        onSuccess: () => {
+          setSaved(`Stock corrected: ${mouvement === '0' ? 'added' : 'removed'} ${units} × ${selectedProduct.ref}.`)
+          setUnits('')
+          setUnitPrice('')
+          setBatchNumber('')
+          setLabel('')
+          // The list below, the warehouse pages and the product stock figures all read the real movements.
+          queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+          queryClient.invalidateQueries({ queryKey: ['products'] })
+        },
+        onError: (err) => setError(err instanceof Error ? err.message : 'The stock correction failed.'),
+      },
+    )
+  }
+
+  function handleCancel() {
+    setError('')
+    setSaved('')
     setUnits('')
-    setLotSerial('')
-    setMovementCode('')
+    setUnitPrice('')
+    setBatchNumber('')
+    setLabel('')
   }
 
   return (
@@ -74,70 +88,77 @@ export function StockCorrectionPage() {
       </h2>
 
       <Card className="!h-auto">
-        {error && <p className="text-sm font-medium text-danger mb-3">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm font-medium text-danger mb-3">
+            {error}
+          </p>
+        )}
+        {saved && (
+          <p role="status" className="text-sm font-medium text-success mb-3">
+            {saved}
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
           <Field label="Warehouse" required>
-            <select value={warehouseRef} onChange={(e) => setWarehouseRef(e.target.value)} className={selectCls}>
+            <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={selectCls}>
               <option value="">Select a warehouse</option>
               {warehouses.map((w) => (
-                <option key={w.ref} value={w.ref}>
+                <option key={w.id} value={String(w.id)}>
                   {w.shortName || w.ref}
                 </option>
               ))}
             </select>
           </Field>
           <Field label="Product" required>
-            <select value={productRef} onChange={(e) => setProductRef(e.target.value)} className={selectCls}>
+            <select value={productId} onChange={(e) => setProductId(e.target.value)} className={selectCls}>
               <option value="">Select Predefined Product/services</option>
-              {(products ?? []).map((p) => (
-                <option key={p.id} value={p.ref}>
-                  {p.ref} — {p.label}
-                </option>
-              ))}
+              {(products ?? [])
+                .filter((p) => p.type === 'product')
+                .map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.ref} — {p.label}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <Field label="Movement" required>
+            <select value={mouvement} onChange={(e) => setMouvement(e.target.value as '0' | '1')} className={selectCls}>
+              <option value="0">Add stock</option>
+              <option value="1">Remove stock</option>
             </select>
           </Field>
           <Field label="Number of units" required>
-            <input type="number" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Positive to add, negative to remove" className={inputCls} />
-          </Field>
-          <Field label="Date" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label="Lot/Serial number">
-            <input value={lotSerial} onChange={(e) => setLotSerial(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label="Eat-by date">
-            <input type="date" value={eatBy} onChange={(e) => setEatBy(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label="Sell-by date">
-            <input type="date" value={sellBy} onChange={(e) => setSellBy(e.target.value)} className={inputCls} />
+            <input type="number" min={0} value={units} onChange={(e) => setUnits(e.target.value)} className={inputCls} />
           </Field>
           <Field label="Unit purchase price">
-            <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={inputCls} />
+            <input type="number" min={0} value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} disabled={mouvement === '1'} className={inputCls} />
           </Field>
-          <Field label="Project">
-            <select className={selectCls} disabled>
-              <option>Select a project</option>
-            </select>
-          </Field>
+          {hasBatch && (
+            <Field label="Lot/Serial number" required>
+              <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="e.g. LOT-001" className={inputCls} />
+            </Field>
+          )}
           <Field label="Label of movement">
-            <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
-          </Field>
-          <Field label="Movement or inventory code">
-            <input value={movementCode} onChange={(e) => setMovementCode(e.target.value)} className={inputCls} />
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Stock correction for product" className={inputCls} />
           </Field>
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
-          <button type="button" onClick={() => setError('')} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
+          <button type="button" onClick={handleCancel} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
             Cancel
           </button>
-          <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-            Save
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={correctStock.isPending}
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          >
+            {correctStock.isPending ? 'Saving…' : 'Save'}
           </button>
         </div>
       </Card>
 
-      <StockMovementsListPage />
+      <StockMovementsListPage embedded />
     </div>
   )
 }

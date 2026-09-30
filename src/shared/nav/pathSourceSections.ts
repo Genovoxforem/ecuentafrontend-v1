@@ -14,6 +14,7 @@ import { nav as expensesNav } from '../../features/expenses/expenses.nav'
 import { nav as specialExpensesNav } from '../../features/expenses/specialExpenses.nav'
 import { nav as budgetNav } from '../../features/budget/budget.nav'
 import { nav as kitchenNav } from '../../features/kitchen/kitchen.nav'
+import { nav as supplementNav } from '../../features/kitchen/supplement.nav'
 import { nav as fixedAssetNav } from '../../features/fixedAsset/fixedAsset.nav'
 import { nav as generalLedgerNav } from '../../features/generalLedger/generalLedger.nav'
 import { nav as ticketNav } from '../../features/ticket/ticket.nav'
@@ -59,6 +60,7 @@ export const PATH_SOURCE_SECTIONS: NavSection[] = [
   specialExpensesNav,
   budgetNav,
   kitchenNav,
+  supplementNav,
   fixedAssetNav,
   generalLedgerNav,
   ticketNav,

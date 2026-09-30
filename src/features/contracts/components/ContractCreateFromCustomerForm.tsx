@@ -113,7 +113,6 @@ export function ContractCreateFromCustomerForm() {
   const { data: usersSummary, isLoading: usersLoading } = useUsersSummary()
   const createContract = useCreateContract()
   const navigate = useNavigate()
-  const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
   const backLink = socid ? `${ROUTES.customerDetail.replace(':id', socid)}?tab=contracts` : ROUTES.customerList
 
   const [refCustomer, setRefCustomer] = useState('')
@@ -178,7 +177,6 @@ export function ContractCreateFromCustomerForm() {
           lines: [],
           validate,
         },
-        authorName,
       )
       void created
       navigate(backLink)

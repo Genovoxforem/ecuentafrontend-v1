@@ -27,6 +27,8 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
 import {
   usePurchaseOrderCard,
   useReopenPurchaseOrder,
@@ -77,6 +79,7 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
   const classifyBilled = useClassifyBilledPurchaseOrder()
   const clone = useClonePurchaseOrder()
   const del = useDeletePurchaseOrder()
+  const confirm = useConfirm()
   const { data } = usePurchaseOrderCard(id)
   const actions = data?.actions
   const [showSendEmail, setShowSendEmail] = useState(false)
@@ -123,8 +126,9 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         <button
           type="button"
           disabled={clone.isPending}
-          onClick={() => {
-            if (!window.confirm('Clone this purchase order into a new draft?')) return
+          onClick={async () => {
+            const ok = await confirm({ title: 'Clone Purchase Order?', message: 'Clone this purchase order into a new draft?', variant: 'default', confirmLabel: 'Clone' })
+            if (!ok) return
             clone.mutate(
               { id, socid },
               { onSuccess: (newId) => newId && navigate(ROUTES.purchaseOrderDetail.replace(':id', newId)) },
@@ -139,8 +143,9 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         <button
           type="button"
           disabled={del.isPending}
-          onClick={() => {
-            if (!window.confirm('Delete this purchase order? This cannot be undone.')) return
+          onClick={async () => {
+            const ok = await confirm({ title: 'Delete Purchase Order?', message: 'Are you sure you want to delete this purchase order?' })
+            if (!ok) return
             del.mutate(id, { onSuccess: () => navigate(ROUTES.purchaseOrderList) })
           }}
           className={dangerCls}
@@ -451,13 +456,7 @@ function ReceiptsTab({ id }: { id: string }) {
                 data.receipts.map((r, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
                     <td className="px-4 py-2.5">
-                      {r.receptionUrl ? (
-                        <a href={stripBackendPrefix(r.receptionUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {r.receptionRef}
-                        </a>
-                      ) : (
-                        r.receptionRef
-                      )}
+                      <LegacyObjectLink url={r.receptionUrl}>{r.receptionRef}</LegacyObjectLink>
                     </td>
                     <td className="px-4 py-2.5 text-text!">
                       {r.productRef}
@@ -713,25 +712,13 @@ function AgendaTab({ id, socid }: { id: string; socid?: number }) {
                 data.events.map((e, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
                     <td className="px-4 py-2.5">
-                      {e.url ? (
-                        <a href={stripBackendPrefix(e.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {e.ref}
-                        </a>
-                      ) : (
-                        e.ref
-                      )}
+                      <LegacyObjectLink url={e.url}>{e.ref}</LegacyObjectLink>
                     </td>
                     <td className="px-4 py-2.5 text-text-muted">{e.date}</td>
                     <td className="px-4 py-2.5 text-text-muted">{e.owner}</td>
                     <td className="px-4 py-2.5 text-text!">{e.label}</td>
                     <td className="px-4 py-2.5">
-                      {e.relatedObjectUrl ? (
-                        <a href={stripBackendPrefix(e.relatedObjectUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {e.relatedObjectRef}
-                        </a>
-                      ) : (
-                        e.relatedObjectRef
-                      )}
+                      <LegacyObjectLink url={e.relatedObjectUrl}>{e.relatedObjectRef}</LegacyObjectLink>
                     </td>
                     <td className="px-4 py-2.5 text-text-muted">{e.statusLabel}</td>
                   </tr>

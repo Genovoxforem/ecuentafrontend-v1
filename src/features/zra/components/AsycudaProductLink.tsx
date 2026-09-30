@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { useAsycudaProductSearch, useAsycudaSaveImportProduct } from '../asycudaImport.queries'
 import type { LinkedProduct } from '../asycudaRowParser'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 // Reproduces the real zra-import.php page's own per-row "Search product..."
 // widget (product-search-input-main / selectMainProduct / fnRemoveMainProduct
@@ -13,6 +14,7 @@ import { ROUTES } from '../../../routes'
 // "Create product" / "Split" beside it: it links an ALREADY-EXISTING
 // product to this import row without creating anything new.
 export function AsycudaProductLink({ taskCd, itemSeq, initial }: { taskCd: string; itemSeq: string; initial: LinkedProduct | null }) {
+  const confirm = useConfirm()
   const [linked, setLinked] = useState(initial)
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
@@ -35,8 +37,8 @@ export function AsycudaProductLink({ taskCd, itemSeq, initial }: { taskCd: strin
     )
   }
 
-  function handleRemove() {
-    if (!confirm('Remove this product assignment?')) return
+  async function handleRemove() {
+    if (!(await confirm('Remove this product assignment?'))) return
     save.mutate({ taskCd, itemSeq, productId: null }, { onSuccess: (res) => res.success && setLinked(null) })
   }
 

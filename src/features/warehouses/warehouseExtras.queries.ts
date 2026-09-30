@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
-import { fetchLegacyDocument, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { todayIso } from '../../shared/localCollection'
+import { fetchLegacyDocument, legacyRefusalMessages, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { toastMessages } from '../generalLedger/bindLines.queries'
 import {
   parseWarehouseListDocument,
   parseInventoryListDocument,
-  parseLandedCostFormOptions,
   parseWarehouseCardDocument,
   parseInventoryCardDocument,
   parseMovementListApiResponse,
@@ -14,13 +14,13 @@ import {
   looksLikeLegacyLoginPage,
   type WarehouseListRow,
   type InventoryListRow,
-  type LandedCostFormOptions,
   type WarehouseCard,
   type InventoryCard,
   type WarehouseMovementsData,
   type WarehouseEventsData,
   type WarehouseEditFormData,
 } from './warehouseHtmlParser'
+import { parseLandedCostList, type LandedCostListData } from './landedCostListParser'
 
 // Warehouses and Inventories both turned out to have real backends after
 // all — product/stock/list.php and product/inventory/list.php (found by
@@ -34,10 +34,8 @@ import {
 // create page first, like societe/api/societes.php's mutations elsewhere).
 // Both confirmed live: a real row appears in the real list page afterward.
 //
-// Landed Costs and Racks/Shelves/Rack Assignments below stay local-only —
-// out of scope for this pass (only Warehouses/Inventories were checked),
-// and Racks specifically has its own already-documented reason (module not
-// enabled server-side).
+// Landed Costs are read from the real list page (useLandedCostList below);
+// Racks/Shelves/Rack Assignments live in racks.queries.ts.
 
 export type { WarehouseListRow, InventoryListRow }
 
@@ -390,6 +388,44 @@ export function useDeleteInventoryReal() {
   })
 }
 
+// Warehouse delete — product/stock/card.php, the same two-step GET as the
+// inventory delete above: the toolbar's own link is only `action=delete`
+// (Dolibarr's confirm box), and the box's "Yes" is `action=confirm_delete&
+// confirm=yes&token=…`. The confirm step is replaced by the app's own dialog
+// at the call site; the token is scraped fresh right before deleting.
+//
+// Success is judged by where the request ends up, not by the status code: the
+// backend redirects to the warehouse list after a delete and otherwise re-shows
+// the card (with its refusal in an inline toast) still returning HTTP 200 —
+// e.g. a warehouse that still holds stock. Landing back on card.php therefore
+// means nothing was deleted.
+//
+// NOT exercised against a real delete: the reachable dev backends only hold real
+// warehouses, so the confirm URL and the redirect-on-success behaviour rest on
+// the stock Dolibarr card.php flow, not on a live run.
+export function useDeleteWarehouse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const cardHtml = await (await fetch(`/product/stock/card.php?id=${id}`, { credentials: 'same-origin' })).text()
+      const tokenMatch = cardHtml.match(/name="token" value="([a-f0-9]+)"/)
+      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
+      const res = await fetch(`/product/stock/card.php?action=confirm_delete&confirm=yes&id=${id}&token=${tokenMatch[1]}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const html = await res.text()
+      const refusal = toastMessages(html).find((t) => t.type === 'error')?.message ?? legacyRefusalMessages(html)[0]
+      if (refusal) throw new Error(refusal)
+      if (/\/product\/stock\/card\.php/.test(new URL(res.url).pathname)) throw new Error('The backend did not delete this warehouse.')
+    },
+    // Only the list: the page showing the deleted warehouse is still mounted
+    // when this runs, and refetching its (now gone) card would flash an error
+    // before the caller navigates away.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: WAREHOUSE_LIST_KEY })
+    },
+  })
+}
+
 // Real "Back to Draft" is a two-step GET flow, same shape as Delete — the
 // toolbar's own href (`action=setdraft&confirm=yes&token=...`) looks like a
 // one-step call (it already carries confirm=yes) but is NOT: card.php's own
@@ -424,61 +460,18 @@ export function useSetInventoryToDraftReal() {
   })
 }
 
-// The create page's three real picker fields (Purchase Invoice, Landed Cost
-// Invoice, Landed Expense) all turned out to be bespoke modal/DataTable
-// widgets rather than plain dropdowns, and this pass couldn't find a plain
-// submit button anywhere in the 110KB+ form to safely confirm its real save
-// contract (unlike Warehouses/Inventory, verified live end-to-end earlier) —
-// see parseLandedCostFormOptions's own header comment. So the picker
-// *options* below are real (User, Purchase Invoice, and the full Landed
-// Cost Invoice list), but creating a record here still only writes to this
-// local, session-only collection rather than a confirmed-real backend
-// action, same honest local-only convention as Racks/Shelves below.
-export function useLandedCostFormOptions() {
+// fourn/facture/landedcostlist.php — the real List Landed Cost page (no JSON API behind it), read
+// with its own product filter (`?submitt=1&product_id=N`). See landedCostListParser.ts for the
+// backend page's PHP error that cuts the list short.
+export function useLandedCostList(productId: string) {
   return useQuery({
-    queryKey: ['warehouses', 'landedCostFormOptions'],
-    queryFn: async (): Promise<LandedCostFormOptions> => {
-      const res = await fetch('/expensereport/landedcostbilled.php?action=create', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      return parseLandedCostFormOptions(html)
+    queryKey: ['warehouses', 'landedCosts', productId],
+    queryFn: async (): Promise<LandedCostListData> => {
+      const params = productId ? new URLSearchParams({ submitt: '1', product_id: productId }) : undefined
+      return parseLandedCostList(await fetchLegacyDocument('/fourn/facture/landedcostlist.php', params))
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
   })
-}
-
-export interface LandedCostRecord {
-  ref: string
-  startDate: string
-  userName: string
-  purchaseInvoice: string
-  landedCostInvoice: string
-  landedExpense: string
-  note: string
-}
-const LANDED_COSTS_KEY = ['local', 'landed-costs'] as const
-
-export function useLandedCosts() {
-  const [costs] = useLocalCollection<LandedCostRecord[]>(LANDED_COSTS_KEY, [])
-  return costs
-}
-
-export interface NewLandedCostInput {
-  startDate: string
-  userName: string
-  purchaseInvoice: string
-  landedCostInvoice: string
-  landedExpense: string
-  note: string
-}
-
-export function useCreateLandedCost() {
-  const [, update] = useLocalCollection<LandedCostRecord[]>(LANDED_COSTS_KEY, [])
-  return (input: NewLandedCostInput) => {
-    const record: LandedCostRecord = { ref: nextLocalRef('LC'), ...input }
-    update((cur) => [record, ...cur])
-    return record
-  }
 }
 
 // Racks/Shelves/Assign-Products are now backed by the real custom/racks/

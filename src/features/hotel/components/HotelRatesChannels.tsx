@@ -13,6 +13,7 @@ import {
   type HotelChannel,
   type HotelRatePlanRow,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm'
 
@@ -135,6 +136,7 @@ function ChannelModal({ channel, onClose, onSaved }: { channel: HotelChannel | n
 // a=savechannel / a=delchannel — the Hotel Suite app's own Rates &
 // Channels view.
 export function HotelRatesChannels() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: ratePlans, isLoading, isError, error, refetch } = useHotelRatePlans()
   const { data: channels } = useHotelChannels()
@@ -241,7 +243,7 @@ export function HotelRatesChannels() {
                 <button
                   type="button"
                   disabled={!token}
-                  onClick={() => token && confirm('Remove this channel?') && delChannel.mutate({ id: c.id, token })}
+                  onClick={async () => token && (await confirm('Remove this channel?')) && delChannel.mutate({ id: c.id, token })}
                   className="text-xs text-danger hover:underline"
                 >
                   Del

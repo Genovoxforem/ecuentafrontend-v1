@@ -18,9 +18,9 @@ export const nav: NavSection = {
   label: 'Expenses',
   icon: Receipt,
   items: [
-    { label: 'Overview', path: ROUTES.expensesOverview },
+    { label: 'Dashboard', path: ROUTES.expensesOverview },
+    { label: 'New Expense', path: ROUTES.expensesCreate },
     { label: 'List', path: ROUTES.expensesList },
-    { label: 'Create', path: ROUTES.expensesCreate },
     { label: 'Approvals', path: ROUTES.expensesApprovals },
     { label: 'Payments', path: ROUTES.expensesPayments },
     { label: 'Advances', path: ROUTES.expensesAdvances },

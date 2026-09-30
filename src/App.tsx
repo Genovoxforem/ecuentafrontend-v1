@@ -10,6 +10,7 @@ import { SidebarStyleProvider } from './context/SidebarStyleContext'
 import { AuthProvider } from './features/auth/AuthContext'
 import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { ErrorBoundary } from './shared/components/ErrorBoundary'
+import { ConfirmDialogProvider } from './shared/components/ConfirmDialog'
 import { RouteFallback } from './shared/components/RouteFallback'
 import { LoginModule } from './modules/auth/LoginModule'
 import { ROUTES } from './routes'
@@ -96,6 +97,9 @@ const ReceptionStatisticsModule = lazy(() => import('./modules/warehouses/Recept
 const CreditNoteOrderListModule = lazy(() => import('./modules/warehouses/ReceptionModules').then((m) => ({ default: m.CreditNoteOrderListModule })))
 const StockMovementsListModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockMovementsListModule })))
 const BoxBreakModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.BoxBreakModule })))
+const UomManagerModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.UomManagerModule })))
+const RebateInvoicesModule = lazy(() => import('./modules/zra/ZraRebateModules').then((m) => ({ default: m.RebateInvoicesModule })))
+const CreateRebateInvoiceModule = lazy(() => import('./modules/zra/ZraRebateModules').then((m) => ({ default: m.CreateRebateInvoiceModule })))
 const MinMaxStockModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.MinMaxStockModule })))
 const FefoDashboardModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.FefoDashboardModule })))
 const StockCorrectionModule = lazy(() => import('./modules/warehouses/StockMovementModules').then((m) => ({ default: m.StockCorrectionModule })))
@@ -190,6 +194,7 @@ const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatis
 const TicketCreateModule = lazy(() => import('./modules/tickets/TicketCreateModule').then((m) => ({ default: m.TicketCreateModule })))
 const TicketPlaceholderModule = lazy(() => import('./modules/tickets/TicketPlaceholderModule').then((m) => ({ default: m.TicketPlaceholderModule })))
 const ExpenseReportsListModule = lazy(() => import('./modules/expenses/ExpenseReportsListModule').then((m) => ({ default: m.ExpenseReportsListModule })))
+const ExpenseReportsListPageModule = lazy(() => import('./modules/expenseReports/ExpenseReportsListPageModule').then((m) => ({ default: m.ExpenseReportsListPageModule })))
 const SpecialExpensesModule = lazy(() => import('./modules/expenses/SpecialExpensesModule').then((m) => ({ default: m.SpecialExpensesModule })))
 const ExpenseDashboardModule = lazy(() => import('./modules/expenses/ExpenseDashboardModule').then((m) => ({ default: m.ExpenseDashboardModule })))
 const ExpenseCreateModule = lazy(() => import('./modules/expenses/ExpenseCreateModule').then((m) => ({ default: m.ExpenseCreateModule })))
@@ -204,6 +209,7 @@ const ExpenseAnalyticsModule = lazy(() => import('./modules/expenses/ExpenseAnal
 const ExpenseBudgetsModule = lazy(() => import('./modules/expenses/ExpenseBudgetsModule').then((m) => ({ default: m.ExpenseBudgetsModule })))
 const LedgerModule = lazy(() => import('./modules/ledger/LedgerModule').then((m) => ({ default: m.LedgerModule })))
 const JournalsModule = lazy(() => import('./modules/ledger/JournalsModule').then((m) => ({ default: m.JournalsModule })))
+const AccountCardModule = lazy(() => import('./modules/ledger/AccountCardModule').then((m) => ({ default: m.AccountCardModule })))
 const PieceDetailModule = lazy(() => import('./modules/ledger/PieceDetailModule').then((m) => ({ default: m.PieceDetailModule })))
 const SubledgerModule = lazy(() => import('./modules/ledger/SubledgerModule').then((m) => ({ default: m.SubledgerModule })))
 const NewTransactionModule = lazy(() => import('./modules/ledger/NewTransactionModule').then((m) => ({ default: m.NewTransactionModule })))
@@ -211,6 +217,7 @@ const ChartOfAccountsModule = lazy(() => import('./modules/ledger/ChartOfAccount
 const OpeningBalanceModule = lazy(() => import('./modules/ledger/OpeningBalanceModule').then((m) => ({ default: m.OpeningBalanceModule })))
 const GeneralSettingsModule = lazy(() => import('./modules/ledger/GeneralSettingsModule').then((m) => ({ default: m.GeneralSettingsModule })))
 const AccountingJournalsModule = lazy(() => import('./modules/ledger/AccountingJournalsModule').then((m) => ({ default: m.AccountingJournalsModule })))
+const ChartOfAccountsModelsModule = lazy(() => import('./modules/ledger/ChartOfAccountsModelsModule').then((m) => ({ default: m.ChartOfAccountsModelsModule })))
 const PcgVersionModule = lazy(() => import('./modules/ledger/PcgVersionModule').then((m) => ({ default: m.PcgVersionModule })))
 const ChartOfIndividualAccountsModule = lazy(() => import('./modules/ledger/ChartOfIndividualAccountsModule').then((m) => ({ default: m.ChartOfIndividualAccountsModule })))
 const PersonalizedGroupsModule = lazy(() => import('./modules/ledger/PersonalizedGroupsModule').then((m) => ({ default: m.PersonalizedGroupsModule })))
@@ -281,6 +288,7 @@ const QuotationCreateInvoiceModule = lazy(() => import('./modules/quotations/Quo
 const CreateReceptionModule = lazy(() => import('./modules/purchaseOrders/CreateReceptionModule').then((m) => ({ default: m.CreateReceptionModule })))
 const TicketDetailModule = lazy(() => import('./modules/tickets/TicketDetailModule').then((m) => ({ default: m.TicketDetailModule })))
 const StockAtDateModule = lazy(() => import('./modules/products/StockAtDateModule').then((m) => ({ default: m.StockAtDateModule })))
+const ExpenseCardModule = lazy(() => import('./modules/expenses/ExpenseCardModule').then((m) => ({ default: m.ExpenseCardModule })))
 const ExpenseReportDetailModule = lazy(() => import('./modules/expenses/ExpenseReportDetailModule').then((m) => ({ default: m.ExpenseReportDetailModule })))
 const ConsumptionHistoryModule = lazy(() => import('./modules/quotations/ConsumptionHistoryModule').then((m) => ({ default: m.ConsumptionHistoryModule })))
 const MembersDashboardModule = lazy(() => import('./modules/members/MembersDashboardModule').then((m) => ({ default: m.MembersDashboardModule })))
@@ -400,7 +408,9 @@ const QuotationCreateFromCustomerModule = lazy(() => import('./modules/quotation
 const OrderCreateFromCustomerModule = lazy(() => import('./modules/salesOrders/OrderCreateFromCustomerModule').then((m) => ({ default: m.OrderCreateFromCustomerModule })))
 const InvoiceCreateFromCustomerModule = lazy(() => import('./modules/invoices/InvoiceCreateFromCustomerModule').then((m) => ({ default: m.InvoiceCreateFromCustomerModule })))
 const PurchaseOrderCreateFromCustomerModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrderCreateFromCustomerModule').then((m) => ({ default: m.PurchaseOrderCreateFromCustomerModule })))
-const SupplierProposalCreateFromCustomerModule = lazy(() => import('./modules/supplierProposals/SupplierProposalCreateFromCustomerModule').then((m) => ({ default: m.SupplierProposalCreateFromCustomerModule })))
+const SupplierProposalCreateFromCustomerModule = lazy(() =>
+  import('./modules/supplierProposals/SupplierProposalCreateFromCustomerModule').then((m) => ({ default: m.SupplierProposalCreateFromCustomerModule })),
+)
 const VendorInvoiceCreateFromCustomerModule = lazy(() => import('./modules/purchases/VendorInvoiceCreateFromCustomerModule').then((m) => ({ default: m.VendorInvoiceCreateFromCustomerModule })))
 const JobCardCreateModule = lazy(() => import('./modules/interventions/JobCardCreateModule').then((m) => ({ default: m.JobCardCreateModule })))
 const JobCardCreateFromCustomerModule = lazy(() => import('./modules/interventions/JobCardCreateFromCustomerModule').then((m) => ({ default: m.JobCardCreateFromCustomerModule })))
@@ -478,25 +488,61 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <SidebarStyleProvider>
-          <AuthProvider>
-            <BrowserRouter>
-              <Routes>
-                <Route path="/login" element={<RouteBoundary><LoginModule /></RouteBoundary>} />
-                <Route element={<ProtectedRoute />}>
-                {/* Full-bleed, own chrome (PosNavbar/PosSidebar) — not wrapped in
+            <ConfirmDialogProvider>
+              <AuthProvider>
+                <BrowserRouter>
+                  <Routes>
+                    <Route
+                      path="/login"
+                      element={
+                        <RouteBoundary>
+                          <LoginModule />
+                        </RouteBoundary>
+                      }
+                    />
+                    <Route element={<ProtectedRoute />}>
+                      {/* Full-bleed, own chrome (PosNavbar/PosSidebar) — not wrapped in
                     AppLayout's admin Navbar/Sidebar, same as pos_standalone was
                     full-screen on its own. See src/pos/layouts/DashboardLayout.jsx. */}
-                <Route path="/pos" element={<RouteBoundary><PosLayout /></RouteBoundary>}>
-                  <Route index element={<RouteBoundary><PosHome /></RouteBoundary>} />
-                  <Route path="products" element={<RouteBoundary><PosProductsPage /></RouteBoundary>} />
-                </Route>
-                {/* Standalone, own chrome — no navbar/sidebar, same pattern as
+                      <Route
+                        path="/pos"
+                        element={
+                          <RouteBoundary>
+                            <PosLayout />
+                          </RouteBoundary>
+                        }
+                      >
+                        <Route
+                          index
+                          element={
+                            <RouteBoundary>
+                              <PosHome />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path="products"
+                          element={
+                            <RouteBoundary>
+                              <PosProductsPage />
+                            </RouteBoundary>
+                          }
+                        />
+                      </Route>
+                      {/* Standalone, own chrome — no navbar/sidebar, same pattern as
                     /pos above (kept full-bleed since it's meant to run on its
                     own kitchen-side screen/tab), but styled with this app's
                     own Card/design tokens to match the rest of the Suite
                     rather than the real page's dark kiosk palette. */}
-                <Route path={ROUTES.hotelKitchenScreen} element={<RouteBoundary><HotelKitchenScreenModule /></RouteBoundary>} />
-                {/* Standalone, own chrome — no main app Navbar/Sidebar, same
+                      <Route
+                        path={ROUTES.hotelKitchenScreen}
+                        element={
+                          <RouteBoundary>
+                            <HotelKitchenScreenModule />
+                          </RouteBoundary>
+                        }
+                      />
+                      {/* Standalone, own chrome — no main app Navbar/Sidebar, same
                     pattern as /pos: the real Hotel Suite (custom/hotel/app.php)
                     is its own genuinely separate SPA-within-the-app (see
                     HotelSuiteLayout's own top comment), so it gets the same
@@ -505,445 +551,3440 @@ function App() {
                     (Room Status, Booking Management's own header, Home's
                     "Hotel Dashboard" link, the Suite's own Dashboard tab)
                     lands here directly. */}
-                <Route element={<HotelSuiteLayout />}>
-                  <Route path={ROUTES.bookingDashboard} element={<RouteBoundary><HotelModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRooms} element={<RouteBoundary><HotelRoomsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelFrontDesk} element={<RouteBoundary><HotelFrontDeskModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelSuiteNewBooking} element={<RouteBoundary><HotelSuiteNewBookingModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelGuests} element={<RouteBoundary><HotelGuestsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelHousekeeping} element={<RouteBoundary><HotelHousekeepingModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelMaintenance} element={<RouteBoundary><HotelMaintenanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelWaitlist} element={<RouteBoundary><HotelWaitlistModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomService} element={<RouteBoundary><HotelRoomServiceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelInventory} element={<RouteBoundary><HotelInventoryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelCalendar} element={<RouteBoundary><HotelCalendarModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomQr} element={<RouteBoundary><HotelRoomQRModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelReports} element={<RouteBoundary><HotelReportsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelSuiteConcierge} element={<RouteBoundary><HotelSuiteConciergeModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelSuiteReservations} element={<RouteBoundary><HotelSuiteReservationsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelQuotes} element={<RouteBoundary><HotelQuotesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelInvoices} element={<RouteBoundary><HotelInvoicesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRatesChannels} element={<RouteBoundary><HotelRatesChannelsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelSettings} element={<RouteBoundary><HotelSettingsModule /></RouteBoundary>} />
-                </Route>
-                <Route element={<AppLayout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<RouteBoundary><DashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.home} element={<RouteBoundary><DashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zra} element={<RouteBoundary><ZraModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraImport} element={<RouteBoundary><ZraImportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraAutomaticPurchase} element={<RouteBoundary><ZraAutomaticPurchaseModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraUnuploadedCustomers} element={<RouteBoundary><ZraUnuploadedCustomersModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraPendingSales} element={<RouteBoundary><ZraPendingSalesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraPendingPurchase} element={<RouteBoundary><ZraPendingPurchaseModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraUnuploadedStockMovements} element={<RouteBoundary><ZraUnuploadedStockModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraUnuploadedProducts} element={<RouteBoundary><ZraUnuploadProductsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraInvoiceDetails} element={<RouteBoundary><ZraSalesLookupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraCustomerInfo} element={<RouteBoundary><ZraCustomerInfoModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraItemDetails} element={<RouteBoundary><ZraItemDetailsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraRrpItemList} element={<RouteBoundary><ZraRrpItemListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraPrincipals} element={<RouteBoundary><ZraPrincipalsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.zraStockList} element={<RouteBoundary><ZraStockListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.asycudaPurchase} element={<RouteBoundary><AsycudaPurchaseInvoiceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.salesDashboard} element={<RouteBoundary><SalesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.purchasesDashboard} element={<RouteBoundary><PurchasesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.warehouseDashboard} element={<RouteBoundary><WarehousesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.warehouseCreate} element={<RouteBoundary><WarehouseCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.warehouseList} element={<RouteBoundary><WarehouseListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.warehouseDetail} element={<RouteBoundary><WarehouseDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.inventoryCreate} element={<RouteBoundary><InventoryCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.inventoryList} element={<RouteBoundary><InventoryListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.inventoryDetail} element={<RouteBoundary><InventoryDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.landedCostCreate} element={<RouteBoundary><LandedCostCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.landedCostList} element={<RouteBoundary><LandedCostListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.shipmentList} element={<RouteBoundary><ShipmentSearchModule /></RouteBoundary>} />
-                  <Route path={ROUTES.shipmentDraft} element={<RouteBoundary><ShipmentDraftModule /></RouteBoundary>} />
-                  <Route path={ROUTES.shipmentValidated} element={<RouteBoundary><ShipmentValidatedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.shipmentProcessed} element={<RouteBoundary><ShipmentProcessedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.shipmentStatistics} element={<RouteBoundary><StatisticsShipmentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.packingList} element={<RouteBoundary><PackingListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionsArea} element={<RouteBoundary><ReceptionsAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionCreate} element={<RouteBoundary><ReceptionCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionList} element={<RouteBoundary><ReceptionListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionDraft} element={<RouteBoundary><ReceptionDraftModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionValidated} element={<RouteBoundary><ReceptionValidatedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionProcessed} element={<RouteBoundary><ReceptionProcessedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.receptionStatistics} element={<RouteBoundary><ReceptionStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.creditNoteOrderList} element={<RouteBoundary><CreditNoteOrderListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.stockMovementsList} element={<RouteBoundary><StockMovementsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.boxBreak} element={<RouteBoundary><BoxBreakModule /></RouteBoundary>} />
-                  <Route path={ROUTES.minMaxStock} element={<RouteBoundary><MinMaxStockModule /></RouteBoundary>} />
-                  <Route path={ROUTES.fefoDashboard} element={<RouteBoundary><FefoDashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.stockCorrection} element={<RouteBoundary><StockCorrectionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.stockTransfer} element={<RouteBoundary><StockTransferModule /></RouteBoundary>} />
-                  <Route path={ROUTES.massStockTransfer} element={<RouteBoundary><MassStockTransferModule /></RouteBoundary>} />
-                  <Route path={ROUTES.replenishment} element={<RouteBoundary><ReplenishmentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.stockMovementReport} element={<RouteBoundary><StockMovementReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.racksArea} element={<RouteBoundary><RacksAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.shelvesList} element={<RouteBoundary><ShelvesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.racksList} element={<RouteBoundary><RacksListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productRackAssign} element={<RouteBoundary><ProductRackAssignModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollDashboard} element={<RouteBoundary><PayrollModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollDateWiseAttendance} element={<RouteBoundary><DateWiseAttendanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollMarkAttendance} element={<RouteBoundary><MarkAttendanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollCalendarHolidays} element={<RouteBoundary><HolidayModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollCalendarHolidaysCreate} element={<RouteBoundary><HolidayCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeAward} element={<RouteBoundary><AwardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeAwardCreate} element={<RouteBoundary><AwardCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeTransfers} element={<RouteBoundary><TransferModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeTransfersCreate} element={<RouteBoundary><TransferCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeResignation} element={<RouteBoundary><ResignationModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeResignationCreate} element={<RouteBoundary><ResignationCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeTravel} element={<RouteBoundary><TravelModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeTravelCreate} element={<RouteBoundary><TravelCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeComplaints} element={<RouteBoundary><ComplaintModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeComplaintsCreate} element={<RouteBoundary><ComplaintCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeWarnings} element={<RouteBoundary><WarningModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeWarningsCreate} element={<RouteBoundary><WarningCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeTerminations} element={<RouteBoundary><TerminationModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeTerminationsCreate} element={<RouteBoundary><TerminationCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeIndicator} element={<RouteBoundary><IndicatorModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeIndicatorCreate} element={<RouteBoundary><IndicatorCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeAppraisal} element={<RouteBoundary><AppraisalModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeAppraisalCreate} element={<RouteBoundary><AppraisalCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollAllLeaveRequest} element={<RouteBoundary><PayrollLeaveListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollLeaveRequest} element={<RouteBoundary><PayrollLeaveRequestModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollMarkSpecialShiftAttendance} element={<RouteBoundary><MarkSpecialShiftAttendanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollMarkHolidayAttendance} element={<RouteBoundary><MarkHolidayAttendanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollAdvanceSalary} element={<RouteBoundary><AdvanceSalaryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollAdvanceSalaryCreate} element={<RouteBoundary><AdvanceSalaryCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeLoan} element={<RouteBoundary><LoanModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollEmployeeLoanCreate} element={<RouteBoundary><PayrollLoanCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollAssignShifts} element={<RouteBoundary><ShiftModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollAssignShiftsCreate} element={<RouteBoundary><ShiftCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollSalaryTemplate} element={<RouteBoundary><SalaryTemplateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollSalaryTemplateCreate} element={<RouteBoundary><SalaryTemplateCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollHourlyTemplate} element={<RouteBoundary><HourlyTemplateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollHourlyTemplateCreate} element={<RouteBoundary><HourlyTemplateCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollManageSalary} element={<RouteBoundary><ManageSalaryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollManageSalaryList} element={<RouteBoundary><ManageSalaryListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollManageHolidaySalary} element={<RouteBoundary><ManageHolidaySalaryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollManageSpecialShiftSalary} element={<RouteBoundary><ManageSpecialShiftSalaryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollGenerateMakePayment} element={<RouteBoundary><MakePaymentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollGratuityPayment} element={<RouteBoundary><GratuityPaymentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollGeneratePayslip} element={<RouteBoundary><GeneratePayslipModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollYtdPayslip} element={<RouteBoundary><YtdPayslipModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollYtdSummary} element={<RouteBoundary><YtdPayrollSummaryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollYtdEarningsDeductions} element={<RouteBoundary><YtdEarningsDeductionsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollSummary} element={<RouteBoundary><PayrollSummaryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollMonthlyAllowanceDeduction} element={<RouteBoundary><PayDeductionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollReportMonthlyOverallAttendance} element={<RouteBoundary><OverallAttendanceReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollReportEmployeeWiseMonthlyAttendance} element={<RouteBoundary><EmployeeMonthlyReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.payrollSetup} element={<RouteBoundary><PayrollSetupModule /></RouteBoundary>} />
-                  {PAYROLL_PLACEHOLDERS.map((p) => (
-                    <Route key={p.path} path={p.path} element={<RouteBoundary><PayrollPlaceholderModule /></RouteBoundary>} />
-                  ))}
-                  <Route path={ROUTES.bankingAccounts} element={<RouteBoundary><BankAccountsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingAccountDetail} element={<RouteBoundary><BankAccountDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingList} element={<RouteBoundary><BankAccountsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingEntries} element={<RouteBoundary><BankEntriesListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingEntryDetail} element={<RouteBoundary><BankEntryDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingEntriesByCategory} element={<RouteBoundary><BankEntriesByCategoryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingInternalTransfer} element={<RouteBoundary><InternalTransferModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingTransactionTags} element={<RouteBoundary><BankTransactionTagsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingCategories} element={<RouteBoundary><BankAccountCategoriesListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingLoanList} element={<RouteBoundary><LoanListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingNewAccount} element={<RouteBoundary><BankAccountCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingNewLoan} element={<RouteBoundary><LoanCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingNewDeposit} element={<RouteBoundary><CheckDepositCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingDepositList} element={<RouteBoundary><CheckDepositListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingCheckDepositsArea} element={<RouteBoundary><CheckDepositsAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.bankingRevolut} element={<RouteBoundary><RevolutModule /></RouteBoundary>} />
-                  {BANKING_PLACEHOLDERS.map((p) => (
-                    <Route key={p.path} path={p.path} element={<RouteBoundary><BankingPlaceholderModule /></RouteBoundary>} />
-                  ))}
-                  <Route path={ROUTES.loanManagementList} element={<RouteBoundary><AllLoansListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.loanCalculator} element={<RouteBoundary><LoanCalculatorModule /></RouteBoundary>} />
-                  <Route path={ROUTES.loanProducts} element={<RouteBoundary><LoanProductsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.loanRepayment} element={<RouteBoundary><LoanRepaymentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.loanType} element={<RouteBoundary><LoanTypeListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.loanCustomerList} element={<RouteBoundary><LoanCustomerListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.loanCustomerCreate} element={<RouteBoundary><LoanCustomerCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.budget} element={<RouteBoundary><BudgetModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ticketList} element={<RouteBoundary><TicketsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ticketMyAssigned} element={<RouteBoundary><MyAssignedTicketsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ticketStatistics} element={<RouteBoundary><TicketStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ticketNew} element={<RouteBoundary><TicketCreateModule /></RouteBoundary>} />
-                  {TICKET_PLACEHOLDERS.map((p) => (
-                    <Route key={p.path} path={p.path} element={<RouteBoundary><TicketPlaceholderModule /></RouteBoundary>} />
-                  ))}
-                  <Route path={ROUTES.expensesList} element={<RouteBoundary><ExpenseReportsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.specialExpenses} element={<RouteBoundary><SpecialExpensesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesOverview} element={<RouteBoundary><ExpenseDashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesCreate} element={<RouteBoundary><ExpenseCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesApprovals} element={<RouteBoundary><ExpenseApprovalsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesPayments} element={<RouteBoundary><ExpensePaymentsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesAdvances} element={<RouteBoundary><ExpenseAdvancesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesReimbursements} element={<RouteBoundary><ExpenseReimbursementsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesRepayments} element={<RouteBoundary><ExpenseRepaymentsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesRecurring} element={<RouteBoundary><ExpenseRecurringModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesReports} element={<RouteBoundary><ExpenseReportsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesAnalytics} element={<RouteBoundary><ExpenseAnalyticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expensesBudgets} element={<RouteBoundary><ExpenseBudgetsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerDashboard} element={<RouteBoundary><LedgerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerList} element={<RouteBoundary><JournalsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerPieceDetail} element={<RouteBoundary><PieceDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSubledger} element={<RouteBoundary><SubledgerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerCreate} element={<RouteBoundary><NewTransactionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerChartOfAccounts} element={<RouteBoundary><ChartOfAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerOpeningBalance} element={<RouteBoundary><OpeningBalanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerGeneralSettings} element={<RouteBoundary><GeneralSettingsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerAccountingJournals} element={<RouteBoundary><AccountingJournalsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerPcgVersion} element={<RouteBoundary><PcgVersionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerChartOfIndividualAccounts} element={<RouteBoundary><ChartOfIndividualAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerPersonalizedGroups} element={<RouteBoundary><PersonalizedGroupsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerDefaultAccounts} element={<RouteBoundary><DefaultAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerBankAccountsSetup} element={<RouteBoundary><BankAccountsSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVatAccounts} element={<RouteBoundary><VatAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerTaxAccounts} element={<RouteBoundary><TaxAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExpenseReportAccounts} element={<RouteBoundary><ExpenseReportAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerProductAccounts} element={<RouteBoundary><ProductAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExportOptions} element={<RouteBoundary><ExportOptionsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerClosureAccounts} element={<RouteBoundary><ClosureAccountsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerFiscalPeriod} element={<RouteBoundary><FiscalPeriodModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerFiscalPeriodCreate} element={<RouteBoundary><FiscalPeriodCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerAccountingArea} element={<RouteBoundary><AccountingAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerAccountBalance} element={<RouteBoundary><AccountBalanceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerAnnualClosure} element={<RouteBoundary><AnnualClosureModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerValidateMovements} element={<RouteBoundary><ValidateMovementsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExportAccountingDocuments} element={<RouteBoundary><ExportAccountingDocumentsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerCreateFinancialClosure} element={<RouteBoundary><CreateFinancialClosureModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerFinancialClosureList} element={<RouteBoundary><FinancialClosureListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerForeignCurrencyRevaluation} element={<RouteBoundary><ForeignCurrencyRevaluationModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerFinanceJournal} element={<RouteBoundary><FinanceJournalModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExpenseJournal} element={<RouteBoundary><ExpenseJournalModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSellJournal} element={<RouteBoundary><SellJournalModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerPurchaseJournal} element={<RouteBoundary><PurchaseJournalModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerPredefinedGroups} element={<RouteBoundary><PredefinedGroupsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerPersonalizedGroupsReport} element={<RouteBoundary><PersonalizedGroupsReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerDonationsList} element={<RouteBoundary><DonationsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerDonationCreate} element={<RouteBoundary><DonationCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSpecialPaymentsArea} element={<RouteBoundary><SpecialPaymentsAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSocialFiscalTaxesList} element={<RouteBoundary><SocialFiscalTaxesListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSocialFiscalTaxCreate} element={<RouteBoundary><SocialFiscalTaxCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSocialFiscalTaxPayments} element={<RouteBoundary><SocialFiscalTaxPaymentsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSalesTaxList} element={<RouteBoundary><SalesTaxListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSalesTaxCreate} element={<RouteBoundary><SalesTaxCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVatReportByMonth} element={<RouteBoundary><VatReportByMonthModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVatReportByCustomer} element={<RouteBoundary><VatReportByCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVatReportByRate} element={<RouteBoundary><VatReportByRateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSalaryList} element={<RouteBoundary><SalaryListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSalaryPaymentCreate} element={<RouteBoundary><SalaryPaymentCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerSalaryStatistics} element={<RouteBoundary><SalaryStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerEmployeeLoansList} element={<RouteBoundary><EmployeeLoansListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerLoanCreate} element={<RouteBoundary><LedgerLoanCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerMiscPaymentsList} element={<RouteBoundary><MiscPaymentsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerMiscPaymentCreate} element={<RouteBoundary><MiscPaymentCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerCustomerBindingIndex} element={<RouteBoundary><CustomerBindingIndexModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerCustomerBindingToDispatch} element={<RouteBoundary><CustomerToDispatchModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerCustomerBindingDispatched} element={<RouteBoundary><CustomerDispatchedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVendorBindingIndex} element={<RouteBoundary><VendorBindingIndexModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVendorBindingToDispatch} element={<RouteBoundary><VendorToDispatchModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerVendorBindingDispatched} element={<RouteBoundary><VendorDispatchedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExpenseReportBindingIndex} element={<RouteBoundary><ExpenseReportBindingIndexModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExpenseReportBindingToDispatch} element={<RouteBoundary><ExpenseReportToDispatchModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerExpenseReportBindingDispatched} element={<RouteBoundary><ExpenseReportDispatchedModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerReportingArea} element={<RouteBoundary><ReportingAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerReportTurnover} element={<RouteBoundary><ReportTurnoverModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ledgerDonationsArea} element={<RouteBoundary><DonationsAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.memberDashboard} element={<RouteBoundary><MembersDashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.memberList} element={<RouteBoundary><MembersListModule /></RouteBoundary>} />
-                  {MEMBER_PLACEHOLDERS.map((p) => (
-                    <Route key={p.path} path={p.path} element={<RouteBoundary><MemberPlaceholderModule /></RouteBoundary>} />
-                  ))}
-                  <Route path={ROUTES.fixedAssetList} element={<RouteBoundary><AssetsListModule /></RouteBoundary>} />
-                  {FIXED_ASSET_PLACEHOLDERS.map((p) => (
-                    <Route key={p.path} path={p.path} element={<RouteBoundary><FixedAssetPlaceholderModule /></RouteBoundary>} />
-                  ))}
-                  <Route path={ROUTES.reportDetail} element={<RouteBoundary><ReportDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.stockMovements} element={<RouteBoundary><StockMovementsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userGroupEdit} element={<RouteBoundary><GroupEditModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationCreateIntervention} element={<RouteBoundary><QuotationCreateInterventionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationCreateContract} element={<RouteBoundary><QuotationCreateContractModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationCreateInvoice} element={<RouteBoundary><QuotationCreateInvoiceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.purchaseOrderCreateReception} element={<RouteBoundary><CreateReceptionModule /></RouteBoundary>} />
-                  <Route path={ROUTES.ticketDetail} element={<RouteBoundary><TicketDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productStockAtDate} element={<RouteBoundary><StockAtDateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.expenseReportDetail} element={<RouteBoundary><ExpenseReportDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationConsumptionHistory} element={<RouteBoundary><ConsumptionHistoryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productLotSerialDetail} element={<RouteBoundary><LotSerialDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productVariantAttributeDetail} element={<RouteBoundary><VariantAttributeDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.kitchenDashboard} element={<RouteBoundary><KitchenDashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.kitchenOrderManagement} element={<RouteBoundary><KitchenModule /></RouteBoundary>} />
-                  <Route path={ROUTES.kitchenBeverageOrders} element={<RouteBoundary><BeverageOrdersModule /></RouteBoundary>} />
-                  <Route path={ROUTES.kitchenCreateOrder} element={<RouteBoundary><CreateOrderModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelReservations} element={<RouteBoundary><HotelReservationsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelNewBooking} element={<RouteBoundary><HotelNewBookingModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelEnquiry} element={<RouteBoundary><HotelEnquiryModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelBookingReport} element={<RouteBoundary><HotelBookingReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelWakeUpCalls} element={<RouteBoundary><HotelWakeUpCallsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomTypes} element={<RouteBoundary><HotelRoomTypesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelFloorTypes} element={<RouteBoundary><HotelFloorTypesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelBookingTypes} element={<RouteBoundary><HotelBookingTypesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelBedTypes} element={<RouteBoundary><HotelBedTypesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomFeatures} element={<RouteBoundary><HotelRoomFeaturesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelAddRoom} element={<RouteBoundary><HotelAddRoomModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomList} element={<RouteBoundary><HotelRoomListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelCheckoutList} element={<RouteBoundary><HotelCheckOutListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelAssignRoomCleaning} element={<RouteBoundary><HotelAssignRoomCleaningModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomCleaningStatus} element={<RouteBoundary><HotelRoomCleaningStatusModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomCleaningReport} element={<RouteBoundary><HotelRoomCleaningReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hotelRoomHistoryReport} element={<RouteBoundary><HotelRoomHistoryReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.usersDashboard} element={<RouteBoundary><UsersDashboardModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userCreate} element={<RouteBoundary><UserCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userDetail} element={<RouteBoundary><UserDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userGroupList} element={<RouteBoundary><GroupsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userGroupCreate} element={<RouteBoundary><GroupCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userTags} element={<RouteBoundary><TagsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.hrmArea} element={<RouteBoundary><HrmAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.leaveList} element={<RouteBoundary><LeaveListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.leaveRequest} element={<RouteBoundary><LeaveRequestModule /></RouteBoundary>} />
-                  <Route path={ROUTES.timeSpent} element={<RouteBoundary><TimeSpentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.activitiesDetail} element={<RouteBoundary><ActivitiesDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userDocuments} element={<RouteBoundary><LinkedFilesAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userDocumentsManual} element={<RouteBoundary><LinkedFilesManualTreeModule /></RouteBoundary>} />
-                  <Route path={ROUTES.userDocumentsAutomatic} element={<RouteBoundary><LinkedFilesAutomaticTreeModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerList} element={<RouteBoundary><CustomersListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customersCreate} element={<RouteBoundary><CustomerCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerDetail} element={<RouteBoundary><CustomerDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerContractCreate} element={<RouteBoundary><ContractCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerQuotationCreate} element={<RouteBoundary><QuotationCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerOrderCreate} element={<RouteBoundary><OrderCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerInvoiceCreate} element={<RouteBoundary><InvoiceCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerPurchaseOrderCreate} element={<RouteBoundary><PurchaseOrderCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerSupplierProposalCreate} element={<RouteBoundary><SupplierProposalCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerVendorInvoiceCreate} element={<RouteBoundary><VendorInvoiceCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.jobCardCreate} element={<RouteBoundary><JobCardCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerJobCardCreate} element={<RouteBoundary><JobCardCreateFromCustomerModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerAdvanceList} element={<RouteBoundary><AdvanceListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.prospectList} element={<RouteBoundary><ProspectsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.prospectsCreate} element={<RouteBoundary><ProspectCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerGroupList} element={<RouteBoundary><CustomerGroupListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerGroupCreate} element={<RouteBoundary><CustomerGroupCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerGroupEdit} element={<RouteBoundary><CustomerGroupCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contactCreate} element={<RouteBoundary><ContactCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contactList} element={<RouteBoundary><ContactListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contactDetail} element={<RouteBoundary><ContactDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorList} element={<RouteBoundary><VendorsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorCreate} element={<RouteBoundary><VendorCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorTags} element={<RouteBoundary><VendorTagsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.orderList} element={<RouteBoundary><OrdersListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.orderCreate} element={<RouteBoundary><OrderCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.orderStats} element={<RouteBoundary><OrderStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.orderDetail} element={<RouteBoundary><OrderDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.orderCreateContract} element={<RouteBoundary><OrderCreateContractModule /></RouteBoundary>} />
-                  <Route path={ROUTES.orderCreateInvoice} element={<RouteBoundary><OrderCreateInvoiceModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contractList} element={<RouteBoundary><ContractsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contractCreate} element={<RouteBoundary><ContractCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contractServices} element={<RouteBoundary><ServicesDetailsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contractReport} element={<RouteBoundary><ContractReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contractDetail} element={<RouteBoundary><ContractDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationList} element={<RouteBoundary><QuotationsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationCreate} element={<RouteBoundary><QuotationCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationDetail} element={<RouteBoundary><QuotationDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.quotationStats} element={<RouteBoundary><QuotationStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceList} element={<RouteBoundary><InvoicesListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceAbandoned} element={<RouteBoundary><AbandonedInvoicesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceCreate} element={<RouteBoundary><InvoiceCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceCreateQuick} element={<RouteBoundary><QuickInvoiceCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceTemplates} element={<RouteBoundary><TemplateInvoicesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.paymentsList} element={<RouteBoundary><PaymentsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.paymentsReport} element={<RouteBoundary><PaymentsReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceStats} element={<RouteBoundary><InvoiceStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceAdvancePayments} element={<RouteBoundary><AdvancePaymentListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.invoiceDetail} element={<RouteBoundary><InvoiceDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.customerTags} element={<RouteBoundary><CustomerTagsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.contactTags} element={<RouteBoundary><ContactTagsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.importCustomers} element={<RouteBoundary><ImportCustomersModule /></RouteBoundary>} />
-                  <Route path={ROUTES.purchaseOrderList} element={<RouteBoundary><PurchaseOrdersListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.purchaseOrderCreate} element={<RouteBoundary><PurchaseOrderCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.purchaseOrderDetail} element={<RouteBoundary><PurchaseOrderDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.purchaseOrderStats} element={<RouteBoundary><PurchaseOrderStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.supplierProposalArea} element={<RouteBoundary><VendorProposalsAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.supplierProposalList} element={<RouteBoundary><SupplierProposalsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.supplierProposalCreate} element={<RouteBoundary><SupplierProposalCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorContactCreate} element={<RouteBoundary><VendorContactCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorContactList} element={<RouteBoundary><VendorContactListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorContactDetail} element={<RouteBoundary><VendorContactDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorContactTags} element={<RouteBoundary><VendorContactTagsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceCreateQuick} element={<RouteBoundary><QuickPurchaseCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceCreate} element={<RouteBoundary><DetailedPurchaseCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceList} element={<RouteBoundary><VendorInvoiceListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceDetail} element={<RouteBoundary><VendorInvoiceDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoicePaid} element={<RouteBoundary><VendorInvoicePaidModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceUnpaid} element={<RouteBoundary><VendorInvoiceUnpaidModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceManual} element={<RouteBoundary><VendorInvoiceManualModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceAutomatic} element={<RouteBoundary><VendorInvoiceAutomaticModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorPaymentsList} element={<RouteBoundary><VendorPaymentsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorPaymentsReport} element={<RouteBoundary><VendorPaymentsReportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.vendorInvoiceStats} element={<RouteBoundary><VendorInvoiceStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectCreate} element={<RouteBoundary><ProjectCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectEdit} element={<RouteBoundary><ProjectEditModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectList} element={<RouteBoundary><ProjectListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectDetail} element={<RouteBoundary><ProjectDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectOpenLeadsList} element={<RouteBoundary><ProjectOpenLeadsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectOpenProjectsList} element={<RouteBoundary><ProjectOpenProjectsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectStats} element={<RouteBoundary><ProjectStatsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectTaskCreate} element={<RouteBoundary><ProjectTaskCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectTaskList} element={<RouteBoundary><ProjectTaskListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectTimeSpent} element={<RouteBoundary><ProjectTimeSpentModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectCategoryList} element={<RouteBoundary><ProjectCategoryListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.projectCategoryCreate} element={<RouteBoundary><ProjectCategoryCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.supplierProposalStats} element={<RouteBoundary><SupplierProposalStatsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productList} element={<RouteBoundary><ProductsListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.serviceList} element={<RouteBoundary><ServicesListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productArea} element={<RouteBoundary><ProductAreaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productCreate} element={<RouteBoundary><ProductCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productDetail} element={<RouteBoundary><ProductDetailModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productEdit} element={<RouteBoundary><ProductEditModule /></RouteBoundary>} />
-                  <Route path={ROUTES.serviceCreate} element={<RouteBoundary><ServiceCreateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productStats} element={<RouteBoundary><ProductStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.serviceStats} element={<RouteBoundary><ServiceStatisticsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productStocks} element={<RouteBoundary><ProductStocksModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productStocksByLot} element={<RouteBoundary><ProductStocksByLotModule /></RouteBoundary>} />
-                  <Route path={ROUTES.lotsSerials} element={<RouteBoundary><LotsSerialsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.variantAttributes} element={<RouteBoundary><VariantAttributesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productPriceList} element={<RouteBoundary><ProductPriceListModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productTags} element={<RouteBoundary><ProductTagsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productImport} element={<RouteBoundary><ProductImportModule /></RouteBoundary>} />
-                  <Route path={ROUTES.productVatUpdate} element={<RouteBoundary><ProductVatUpdateModule /></RouteBoundary>} />
-                  <Route path={ROUTES.agenda} element={<RouteBoundary><AgendaModule /></RouteBoundary>} />
-                  <Route path={ROUTES.agendaReporting} element={<RouteBoundary><ReportingModule /></RouteBoundary>} />
-                  <Route path={ROUTES.agendaCategories} element={<RouteBoundary><EventCategoriesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.reports} element={<RouteBoundary><ReportsModule /></RouteBoundary>} />
-                  <Route path="/settings" element={<RouteBoundary><SettingsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.setupLanding} element={<RouteBoundary><SetupLandingModule /></RouteBoundary>} />
-                  <Route path={ROUTES.companyOrganization} element={<RouteBoundary><CompanyOrganizationModule /></RouteBoundary>} />
-                  <Route path={ROUTES.menusSetup} element={<RouteBoundary><MenusSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.displaySetup} element={<RouteBoundary><DisplaySetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.translationSetup} element={<RouteBoundary><TranslationSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.defaultValuesSetup} element={<RouteBoundary><DefaultValuesSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.widgetsSetup} element={<RouteBoundary><WidgetsSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.alertsSetup} element={<RouteBoundary><AlertsSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.securitySetup} element={<RouteBoundary><SecuritySetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.limitsSetup} element={<RouteBoundary><LimitsSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.pdfSetup} element={<RouteBoundary><PdfSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.emailsSetup} element={<RouteBoundary><EmailsSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.emailTemplates} element={<RouteBoundary><EmailTemplatesModule /></RouteBoundary>} />
-                  <Route path={ROUTES.smsSetup} element={<RouteBoundary><SmsSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.dictionaries} element={<RouteBoundary><DictionarySetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.otherSetup} element={<RouteBoundary><OtherSetupModule /></RouteBoundary>} />
-                  <Route path={ROUTES.exportAssistant} element={<RouteBoundary><ExportAssistantModule /></RouteBoundary>} />
-                  <Route path={ROUTES.importAssistant} element={<RouteBoundary><ImportAssistantModule /></RouteBoundary>} />
-                  <Route path={ROUTES.cashflowSettings} element={<RouteBoundary><CashflowSettingsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.whatsappSettings} element={<RouteBoundary><WhatsappSettingsModule /></RouteBoundary>} />
-                  <Route path={ROUTES.takeposTerminalSetup} element={<RouteBoundary><TerminalSetupModule /></RouteBoundary>} />
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Route>
-                </Route>
-              </Routes>
-            </BrowserRouter>
-          </AuthProvider>
+                      <Route element={<HotelSuiteLayout />}>
+                        <Route
+                          path={ROUTES.bookingDashboard}
+                          element={
+                            <RouteBoundary>
+                              <HotelModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRooms}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelFrontDesk}
+                          element={
+                            <RouteBoundary>
+                              <HotelFrontDeskModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelSuiteNewBooking}
+                          element={
+                            <RouteBoundary>
+                              <HotelSuiteNewBookingModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelGuests}
+                          element={
+                            <RouteBoundary>
+                              <HotelGuestsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelHousekeeping}
+                          element={
+                            <RouteBoundary>
+                              <HotelHousekeepingModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelMaintenance}
+                          element={
+                            <RouteBoundary>
+                              <HotelMaintenanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelWaitlist}
+                          element={
+                            <RouteBoundary>
+                              <HotelWaitlistModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomService}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomServiceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelInventory}
+                          element={
+                            <RouteBoundary>
+                              <HotelInventoryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelCalendar}
+                          element={
+                            <RouteBoundary>
+                              <HotelCalendarModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomQr}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomQRModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelReports}
+                          element={
+                            <RouteBoundary>
+                              <HotelReportsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelSuiteConcierge}
+                          element={
+                            <RouteBoundary>
+                              <HotelSuiteConciergeModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelSuiteReservations}
+                          element={
+                            <RouteBoundary>
+                              <HotelSuiteReservationsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelQuotes}
+                          element={
+                            <RouteBoundary>
+                              <HotelQuotesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelInvoices}
+                          element={
+                            <RouteBoundary>
+                              <HotelInvoicesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRatesChannels}
+                          element={
+                            <RouteBoundary>
+                              <HotelRatesChannelsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelSettings}
+                          element={
+                            <RouteBoundary>
+                              <HotelSettingsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                      </Route>
+                      <Route element={<AppLayout />}>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route
+                          path="/dashboard"
+                          element={
+                            <RouteBoundary>
+                              <DashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.home}
+                          element={
+                            <RouteBoundary>
+                              <DashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zra}
+                          element={
+                            <RouteBoundary>
+                              <ZraModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraImport}
+                          element={
+                            <RouteBoundary>
+                              <ZraImportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraAutomaticPurchase}
+                          element={
+                            <RouteBoundary>
+                              <ZraAutomaticPurchaseModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraUnuploadedCustomers}
+                          element={
+                            <RouteBoundary>
+                              <ZraUnuploadedCustomersModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraPendingSales}
+                          element={
+                            <RouteBoundary>
+                              <ZraPendingSalesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraPendingPurchase}
+                          element={
+                            <RouteBoundary>
+                              <ZraPendingPurchaseModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraUnuploadedStockMovements}
+                          element={
+                            <RouteBoundary>
+                              <ZraUnuploadedStockModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraUnuploadedProducts}
+                          element={
+                            <RouteBoundary>
+                              <ZraUnuploadProductsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraInvoiceDetails}
+                          element={
+                            <RouteBoundary>
+                              <ZraSalesLookupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraCustomerInfo}
+                          element={
+                            <RouteBoundary>
+                              <ZraCustomerInfoModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraItemDetails}
+                          element={
+                            <RouteBoundary>
+                              <ZraItemDetailsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraRrpItemList}
+                          element={
+                            <RouteBoundary>
+                              <ZraRrpItemListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraPrincipals}
+                          element={
+                            <RouteBoundary>
+                              <ZraPrincipalsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.zraStockList}
+                          element={
+                            <RouteBoundary>
+                              <ZraStockListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.asycudaPurchase}
+                          element={
+                            <RouteBoundary>
+                              <AsycudaPurchaseInvoiceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.salesDashboard}
+                          element={
+                            <RouteBoundary>
+                              <SalesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.purchasesDashboard}
+                          element={
+                            <RouteBoundary>
+                              <PurchasesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.warehouseDashboard}
+                          element={
+                            <RouteBoundary>
+                              <WarehousesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.warehouseCreate}
+                          element={
+                            <RouteBoundary>
+                              <WarehouseCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.warehouseList}
+                          element={
+                            <RouteBoundary>
+                              <WarehouseListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.warehouseDetail}
+                          element={
+                            <RouteBoundary>
+                              <WarehouseDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.inventoryCreate}
+                          element={
+                            <RouteBoundary>
+                              <InventoryCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.inventoryList}
+                          element={
+                            <RouteBoundary>
+                              <InventoryListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.inventoryDetail}
+                          element={
+                            <RouteBoundary>
+                              <InventoryDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.landedCostCreate}
+                          element={
+                            <RouteBoundary>
+                              <LandedCostCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.landedCostList}
+                          element={
+                            <RouteBoundary>
+                              <LandedCostListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.shipmentList}
+                          element={
+                            <RouteBoundary>
+                              <ShipmentSearchModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.shipmentDraft}
+                          element={
+                            <RouteBoundary>
+                              <ShipmentDraftModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.shipmentValidated}
+                          element={
+                            <RouteBoundary>
+                              <ShipmentValidatedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.shipmentProcessed}
+                          element={
+                            <RouteBoundary>
+                              <ShipmentProcessedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.shipmentStatistics}
+                          element={
+                            <RouteBoundary>
+                              <StatisticsShipmentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.packingList}
+                          element={
+                            <RouteBoundary>
+                              <PackingListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionsArea}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionsAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionCreate}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionList}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionDraft}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionDraftModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionValidated}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionValidatedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionProcessed}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionProcessedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.receptionStatistics}
+                          element={
+                            <RouteBoundary>
+                              <ReceptionStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.creditNoteOrderList}
+                          element={
+                            <RouteBoundary>
+                              <CreditNoteOrderListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.stockMovementsList}
+                          element={
+                            <RouteBoundary>
+                              <StockMovementsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.boxBreak}
+                          element={
+                            <RouteBoundary>
+                              <BoxBreakModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.uomManager}
+                          element={
+                            <RouteBoundary>
+                              <UomManagerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.minMaxStock}
+                          element={
+                            <RouteBoundary>
+                              <MinMaxStockModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.fefoDashboard}
+                          element={
+                            <RouteBoundary>
+                              <FefoDashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.stockCorrection}
+                          element={
+                            <RouteBoundary>
+                              <StockCorrectionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.stockTransfer}
+                          element={
+                            <RouteBoundary>
+                              <StockTransferModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.massStockTransfer}
+                          element={
+                            <RouteBoundary>
+                              <MassStockTransferModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.replenishment}
+                          element={
+                            <RouteBoundary>
+                              <ReplenishmentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.stockMovementReport}
+                          element={
+                            <RouteBoundary>
+                              <StockMovementReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.racksArea}
+                          element={
+                            <RouteBoundary>
+                              <RacksAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.shelvesList}
+                          element={
+                            <RouteBoundary>
+                              <ShelvesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.racksList}
+                          element={
+                            <RouteBoundary>
+                              <RacksListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productRackAssign}
+                          element={
+                            <RouteBoundary>
+                              <ProductRackAssignModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollDashboard}
+                          element={
+                            <RouteBoundary>
+                              <PayrollModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollDateWiseAttendance}
+                          element={
+                            <RouteBoundary>
+                              <DateWiseAttendanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollMarkAttendance}
+                          element={
+                            <RouteBoundary>
+                              <MarkAttendanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollCalendarHolidays}
+                          element={
+                            <RouteBoundary>
+                              <HolidayModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollCalendarHolidaysCreate}
+                          element={
+                            <RouteBoundary>
+                              <HolidayCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeAward}
+                          element={
+                            <RouteBoundary>
+                              <AwardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeAwardCreate}
+                          element={
+                            <RouteBoundary>
+                              <AwardCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeTransfers}
+                          element={
+                            <RouteBoundary>
+                              <TransferModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeTransfersCreate}
+                          element={
+                            <RouteBoundary>
+                              <TransferCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeResignation}
+                          element={
+                            <RouteBoundary>
+                              <ResignationModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeResignationCreate}
+                          element={
+                            <RouteBoundary>
+                              <ResignationCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeTravel}
+                          element={
+                            <RouteBoundary>
+                              <TravelModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeTravelCreate}
+                          element={
+                            <RouteBoundary>
+                              <TravelCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeComplaints}
+                          element={
+                            <RouteBoundary>
+                              <ComplaintModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeComplaintsCreate}
+                          element={
+                            <RouteBoundary>
+                              <ComplaintCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeWarnings}
+                          element={
+                            <RouteBoundary>
+                              <WarningModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeWarningsCreate}
+                          element={
+                            <RouteBoundary>
+                              <WarningCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeTerminations}
+                          element={
+                            <RouteBoundary>
+                              <TerminationModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeTerminationsCreate}
+                          element={
+                            <RouteBoundary>
+                              <TerminationCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeIndicator}
+                          element={
+                            <RouteBoundary>
+                              <IndicatorModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeIndicatorCreate}
+                          element={
+                            <RouteBoundary>
+                              <IndicatorCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeAppraisal}
+                          element={
+                            <RouteBoundary>
+                              <AppraisalModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeAppraisalCreate}
+                          element={
+                            <RouteBoundary>
+                              <AppraisalCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollAllLeaveRequest}
+                          element={
+                            <RouteBoundary>
+                              <PayrollLeaveListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollLeaveRequest}
+                          element={
+                            <RouteBoundary>
+                              <PayrollLeaveRequestModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollMarkSpecialShiftAttendance}
+                          element={
+                            <RouteBoundary>
+                              <MarkSpecialShiftAttendanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollMarkHolidayAttendance}
+                          element={
+                            <RouteBoundary>
+                              <MarkHolidayAttendanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollAdvanceSalary}
+                          element={
+                            <RouteBoundary>
+                              <AdvanceSalaryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollAdvanceSalaryCreate}
+                          element={
+                            <RouteBoundary>
+                              <AdvanceSalaryCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeLoan}
+                          element={
+                            <RouteBoundary>
+                              <LoanModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollEmployeeLoanCreate}
+                          element={
+                            <RouteBoundary>
+                              <PayrollLoanCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollAssignShifts}
+                          element={
+                            <RouteBoundary>
+                              <ShiftModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollAssignShiftsCreate}
+                          element={
+                            <RouteBoundary>
+                              <ShiftCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollSalaryTemplate}
+                          element={
+                            <RouteBoundary>
+                              <SalaryTemplateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollSalaryTemplateCreate}
+                          element={
+                            <RouteBoundary>
+                              <SalaryTemplateCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollHourlyTemplate}
+                          element={
+                            <RouteBoundary>
+                              <HourlyTemplateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollHourlyTemplateCreate}
+                          element={
+                            <RouteBoundary>
+                              <HourlyTemplateCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollManageSalary}
+                          element={
+                            <RouteBoundary>
+                              <ManageSalaryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollManageSalaryList}
+                          element={
+                            <RouteBoundary>
+                              <ManageSalaryListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollManageHolidaySalary}
+                          element={
+                            <RouteBoundary>
+                              <ManageHolidaySalaryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollManageSpecialShiftSalary}
+                          element={
+                            <RouteBoundary>
+                              <ManageSpecialShiftSalaryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollGenerateMakePayment}
+                          element={
+                            <RouteBoundary>
+                              <MakePaymentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollGratuityPayment}
+                          element={
+                            <RouteBoundary>
+                              <GratuityPaymentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollGeneratePayslip}
+                          element={
+                            <RouteBoundary>
+                              <GeneratePayslipModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollYtdPayslip}
+                          element={
+                            <RouteBoundary>
+                              <YtdPayslipModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollYtdSummary}
+                          element={
+                            <RouteBoundary>
+                              <YtdPayrollSummaryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollYtdEarningsDeductions}
+                          element={
+                            <RouteBoundary>
+                              <YtdEarningsDeductionsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollSummary}
+                          element={
+                            <RouteBoundary>
+                              <PayrollSummaryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollMonthlyAllowanceDeduction}
+                          element={
+                            <RouteBoundary>
+                              <PayDeductionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportMonthlyOverallAttendance}
+                          element={
+                            <RouteBoundary>
+                              <OverallAttendanceReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportEmployeeWiseMonthlyAttendance}
+                          element={
+                            <RouteBoundary>
+                              <EmployeeMonthlyReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollSetup}
+                          element={
+                            <RouteBoundary>
+                              <PayrollSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        {PAYROLL_PLACEHOLDERS.map((p) => (
+                          <Route
+                            key={p.path}
+                            path={p.path}
+                            element={
+                              <RouteBoundary>
+                                <PayrollPlaceholderModule />
+                              </RouteBoundary>
+                            }
+                          />
+                        ))}
+                        <Route
+                          path={ROUTES.bankingAccounts}
+                          element={
+                            <RouteBoundary>
+                              <BankAccountsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingAccountDetail}
+                          element={
+                            <RouteBoundary>
+                              <BankAccountDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingList}
+                          element={
+                            <RouteBoundary>
+                              <BankAccountsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingEntries}
+                          element={
+                            <RouteBoundary>
+                              <BankEntriesListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingEntryDetail}
+                          element={
+                            <RouteBoundary>
+                              <BankEntryDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingEntriesByCategory}
+                          element={
+                            <RouteBoundary>
+                              <BankEntriesByCategoryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingInternalTransfer}
+                          element={
+                            <RouteBoundary>
+                              <InternalTransferModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingTransactionTags}
+                          element={
+                            <RouteBoundary>
+                              <BankTransactionTagsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingCategories}
+                          element={
+                            <RouteBoundary>
+                              <BankAccountCategoriesListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingLoanList}
+                          element={
+                            <RouteBoundary>
+                              <LoanListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingNewAccount}
+                          element={
+                            <RouteBoundary>
+                              <BankAccountCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingNewLoan}
+                          element={
+                            <RouteBoundary>
+                              <LoanCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingNewDeposit}
+                          element={
+                            <RouteBoundary>
+                              <CheckDepositCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingDepositList}
+                          element={
+                            <RouteBoundary>
+                              <CheckDepositListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingCheckDepositsArea}
+                          element={
+                            <RouteBoundary>
+                              <CheckDepositsAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingRevolut}
+                          element={
+                            <RouteBoundary>
+                              <RevolutModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        {BANKING_PLACEHOLDERS.map((p) => (
+                          <Route
+                            key={p.path}
+                            path={p.path}
+                            element={
+                              <RouteBoundary>
+                                <BankingPlaceholderModule />
+                              </RouteBoundary>
+                            }
+                          />
+                        ))}
+                        <Route
+                          path={ROUTES.loanManagementList}
+                          element={
+                            <RouteBoundary>
+                              <AllLoansListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.loanCalculator}
+                          element={
+                            <RouteBoundary>
+                              <LoanCalculatorModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.loanProducts}
+                          element={
+                            <RouteBoundary>
+                              <LoanProductsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.loanRepayment}
+                          element={
+                            <RouteBoundary>
+                              <LoanRepaymentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.loanType}
+                          element={
+                            <RouteBoundary>
+                              <LoanTypeListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.loanCustomerList}
+                          element={
+                            <RouteBoundary>
+                              <LoanCustomerListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.loanCustomerCreate}
+                          element={
+                            <RouteBoundary>
+                              <LoanCustomerCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.budget}
+                          element={
+                            <RouteBoundary>
+                              <BudgetModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ticketList}
+                          element={
+                            <RouteBoundary>
+                              <TicketsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ticketMyAssigned}
+                          element={
+                            <RouteBoundary>
+                              <MyAssignedTicketsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ticketStatistics}
+                          element={
+                            <RouteBoundary>
+                              <TicketStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ticketNew}
+                          element={
+                            <RouteBoundary>
+                              <TicketCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        {TICKET_PLACEHOLDERS.map((p) => (
+                          <Route
+                            key={p.path}
+                            path={p.path}
+                            element={
+                              <RouteBoundary>
+                                <TicketPlaceholderModule />
+                              </RouteBoundary>
+                            }
+                          />
+                        ))}
+                        <Route
+                          path={ROUTES.expensesList}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expenseReportsList}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportsListPageModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.specialExpenses}
+                          element={
+                            <RouteBoundary>
+                              <SpecialExpensesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesOverview}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseDashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesCreate}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesApprovals}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseApprovalsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesPayments}
+                          element={
+                            <RouteBoundary>
+                              <ExpensePaymentsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesAdvances}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseAdvancesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesReimbursements}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReimbursementsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesRepayments}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseRepaymentsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesRecurring}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseRecurringModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesReports}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesAnalytics}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseAnalyticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expensesBudgets}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseBudgetsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerDashboard}
+                          element={
+                            <RouteBoundary>
+                              <LedgerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerList}
+                          element={
+                            <RouteBoundary>
+                              <JournalsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerPieceDetail}
+                          element={
+                            <RouteBoundary>
+                              <PieceDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSubledger}
+                          element={
+                            <RouteBoundary>
+                              <SubledgerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerCreate}
+                          element={
+                            <RouteBoundary>
+                              <NewTransactionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerChartOfAccounts}
+                          element={
+                            <RouteBoundary>
+                              <ChartOfAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerAccountCard}
+                          element={
+                            <RouteBoundary>
+                              <AccountCardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerOpeningBalance}
+                          element={
+                            <RouteBoundary>
+                              <OpeningBalanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerGeneralSettings}
+                          element={
+                            <RouteBoundary>
+                              <GeneralSettingsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerAccountingJournals}
+                          element={
+                            <RouteBoundary>
+                              <AccountingJournalsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerChartOfAccountsModels}
+                          element={
+                            <RouteBoundary>
+                              <ChartOfAccountsModelsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerPcgVersion}
+                          element={
+                            <RouteBoundary>
+                              <PcgVersionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerChartOfIndividualAccounts}
+                          element={
+                            <RouteBoundary>
+                              <ChartOfIndividualAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerPersonalizedGroups}
+                          element={
+                            <RouteBoundary>
+                              <PersonalizedGroupsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerDefaultAccounts}
+                          element={
+                            <RouteBoundary>
+                              <DefaultAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerBankAccountsSetup}
+                          element={
+                            <RouteBoundary>
+                              <BankAccountsSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVatAccounts}
+                          element={
+                            <RouteBoundary>
+                              <VatAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerTaxAccounts}
+                          element={
+                            <RouteBoundary>
+                              <TaxAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExpenseReportAccounts}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerProductAccounts}
+                          element={
+                            <RouteBoundary>
+                              <ProductAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExportOptions}
+                          element={
+                            <RouteBoundary>
+                              <ExportOptionsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerClosureAccounts}
+                          element={
+                            <RouteBoundary>
+                              <ClosureAccountsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerFiscalPeriod}
+                          element={
+                            <RouteBoundary>
+                              <FiscalPeriodModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerFiscalPeriodCreate}
+                          element={
+                            <RouteBoundary>
+                              <FiscalPeriodCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerAccountingArea}
+                          element={
+                            <RouteBoundary>
+                              <AccountingAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerAccountBalance}
+                          element={
+                            <RouteBoundary>
+                              <AccountBalanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerAnnualClosure}
+                          element={
+                            <RouteBoundary>
+                              <AnnualClosureModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerValidateMovements}
+                          element={
+                            <RouteBoundary>
+                              <ValidateMovementsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExportAccountingDocuments}
+                          element={
+                            <RouteBoundary>
+                              <ExportAccountingDocumentsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerCreateFinancialClosure}
+                          element={
+                            <RouteBoundary>
+                              <CreateFinancialClosureModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerFinancialClosureList}
+                          element={
+                            <RouteBoundary>
+                              <FinancialClosureListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerForeignCurrencyRevaluation}
+                          element={
+                            <RouteBoundary>
+                              <ForeignCurrencyRevaluationModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerFinanceJournal}
+                          element={
+                            <RouteBoundary>
+                              <FinanceJournalModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExpenseJournal}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseJournalModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSellJournal}
+                          element={
+                            <RouteBoundary>
+                              <SellJournalModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerPurchaseJournal}
+                          element={
+                            <RouteBoundary>
+                              <PurchaseJournalModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerPredefinedGroups}
+                          element={
+                            <RouteBoundary>
+                              <PredefinedGroupsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerPersonalizedGroupsReport}
+                          element={
+                            <RouteBoundary>
+                              <PersonalizedGroupsReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerDonationsList}
+                          element={
+                            <RouteBoundary>
+                              <DonationsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerDonationCreate}
+                          element={
+                            <RouteBoundary>
+                              <DonationCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSpecialPaymentsArea}
+                          element={
+                            <RouteBoundary>
+                              <SpecialPaymentsAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSocialFiscalTaxesList}
+                          element={
+                            <RouteBoundary>
+                              <SocialFiscalTaxesListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSocialFiscalTaxCreate}
+                          element={
+                            <RouteBoundary>
+                              <SocialFiscalTaxCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSocialFiscalTaxPayments}
+                          element={
+                            <RouteBoundary>
+                              <SocialFiscalTaxPaymentsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSalesTaxList}
+                          element={
+                            <RouteBoundary>
+                              <SalesTaxListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSalesTaxCreate}
+                          element={
+                            <RouteBoundary>
+                              <SalesTaxCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVatReportByMonth}
+                          element={
+                            <RouteBoundary>
+                              <VatReportByMonthModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVatReportByCustomer}
+                          element={
+                            <RouteBoundary>
+                              <VatReportByCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVatReportByRate}
+                          element={
+                            <RouteBoundary>
+                              <VatReportByRateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSalaryList}
+                          element={
+                            <RouteBoundary>
+                              <SalaryListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSalaryPaymentCreate}
+                          element={
+                            <RouteBoundary>
+                              <SalaryPaymentCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerSalaryStatistics}
+                          element={
+                            <RouteBoundary>
+                              <SalaryStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerEmployeeLoansList}
+                          element={
+                            <RouteBoundary>
+                              <EmployeeLoansListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerLoanCreate}
+                          element={
+                            <RouteBoundary>
+                              <LedgerLoanCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerMiscPaymentsList}
+                          element={
+                            <RouteBoundary>
+                              <MiscPaymentsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerMiscPaymentCreate}
+                          element={
+                            <RouteBoundary>
+                              <MiscPaymentCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerCustomerBindingIndex}
+                          element={
+                            <RouteBoundary>
+                              <CustomerBindingIndexModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerCustomerBindingToDispatch}
+                          element={
+                            <RouteBoundary>
+                              <CustomerToDispatchModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerCustomerBindingDispatched}
+                          element={
+                            <RouteBoundary>
+                              <CustomerDispatchedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVendorBindingIndex}
+                          element={
+                            <RouteBoundary>
+                              <VendorBindingIndexModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVendorBindingToDispatch}
+                          element={
+                            <RouteBoundary>
+                              <VendorToDispatchModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerVendorBindingDispatched}
+                          element={
+                            <RouteBoundary>
+                              <VendorDispatchedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExpenseReportBindingIndex}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportBindingIndexModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExpenseReportBindingToDispatch}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportToDispatchModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerExpenseReportBindingDispatched}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportDispatchedModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerReportingArea}
+                          element={
+                            <RouteBoundary>
+                              <ReportingAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerReportTurnover}
+                          element={
+                            <RouteBoundary>
+                              <ReportTurnoverModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ledgerDonationsArea}
+                          element={
+                            <RouteBoundary>
+                              <DonationsAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.memberDashboard}
+                          element={
+                            <RouteBoundary>
+                              <MembersDashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.memberList}
+                          element={
+                            <RouteBoundary>
+                              <MembersListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        {MEMBER_PLACEHOLDERS.map((p) => (
+                          <Route
+                            key={p.path}
+                            path={p.path}
+                            element={
+                              <RouteBoundary>
+                                <MemberPlaceholderModule />
+                              </RouteBoundary>
+                            }
+                          />
+                        ))}
+                        <Route
+                          path={ROUTES.fixedAssetList}
+                          element={
+                            <RouteBoundary>
+                              <AssetsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        {FIXED_ASSET_PLACEHOLDERS.map((p) => (
+                          <Route
+                            key={p.path}
+                            path={p.path}
+                            element={
+                              <RouteBoundary>
+                                <FixedAssetPlaceholderModule />
+                              </RouteBoundary>
+                            }
+                          />
+                        ))}
+                        <Route
+                          path={ROUTES.reportDetail}
+                          element={
+                            <RouteBoundary>
+                              <ReportDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.stockMovements}
+                          element={
+                            <RouteBoundary>
+                              <StockMovementsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userGroupEdit}
+                          element={
+                            <RouteBoundary>
+                              <GroupEditModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationCreateIntervention}
+                          element={
+                            <RouteBoundary>
+                              <QuotationCreateInterventionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationCreateContract}
+                          element={
+                            <RouteBoundary>
+                              <QuotationCreateContractModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationCreateInvoice}
+                          element={
+                            <RouteBoundary>
+                              <QuotationCreateInvoiceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.purchaseOrderCreateReception}
+                          element={
+                            <RouteBoundary>
+                              <CreateReceptionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ticketDetail}
+                          element={
+                            <RouteBoundary>
+                              <TicketDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productStockAtDate}
+                          element={
+                            <RouteBoundary>
+                              <StockAtDateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expenseCard}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseCardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.expenseReportDetail}
+                          element={
+                            <RouteBoundary>
+                              <ExpenseReportDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationConsumptionHistory}
+                          element={
+                            <RouteBoundary>
+                              <ConsumptionHistoryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productLotSerialDetail}
+                          element={
+                            <RouteBoundary>
+                              <LotSerialDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productVariantAttributeDetail}
+                          element={
+                            <RouteBoundary>
+                              <VariantAttributeDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.kitchenDashboard}
+                          element={
+                            <RouteBoundary>
+                              <KitchenDashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.kitchenOrderManagement}
+                          element={
+                            <RouteBoundary>
+                              <KitchenModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.kitchenBeverageOrders}
+                          element={
+                            <RouteBoundary>
+                              <BeverageOrdersModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.kitchenCreateOrder}
+                          element={
+                            <RouteBoundary>
+                              <CreateOrderModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelReservations}
+                          element={
+                            <RouteBoundary>
+                              <HotelReservationsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelNewBooking}
+                          element={
+                            <RouteBoundary>
+                              <HotelNewBookingModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelEnquiry}
+                          element={
+                            <RouteBoundary>
+                              <HotelEnquiryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelBookingReport}
+                          element={
+                            <RouteBoundary>
+                              <HotelBookingReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelWakeUpCalls}
+                          element={
+                            <RouteBoundary>
+                              <HotelWakeUpCallsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomTypes}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomTypesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelFloorTypes}
+                          element={
+                            <RouteBoundary>
+                              <HotelFloorTypesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelBookingTypes}
+                          element={
+                            <RouteBoundary>
+                              <HotelBookingTypesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelBedTypes}
+                          element={
+                            <RouteBoundary>
+                              <HotelBedTypesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomFeatures}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomFeaturesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelAddRoom}
+                          element={
+                            <RouteBoundary>
+                              <HotelAddRoomModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomList}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelCheckoutList}
+                          element={
+                            <RouteBoundary>
+                              <HotelCheckOutListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelAssignRoomCleaning}
+                          element={
+                            <RouteBoundary>
+                              <HotelAssignRoomCleaningModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomCleaningStatus}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomCleaningStatusModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomCleaningReport}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomCleaningReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hotelRoomHistoryReport}
+                          element={
+                            <RouteBoundary>
+                              <HotelRoomHistoryReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.usersDashboard}
+                          element={
+                            <RouteBoundary>
+                              <UsersDashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userCreate}
+                          element={
+                            <RouteBoundary>
+                              <UserCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userDetail}
+                          element={
+                            <RouteBoundary>
+                              <UserDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userGroupList}
+                          element={
+                            <RouteBoundary>
+                              <GroupsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userGroupCreate}
+                          element={
+                            <RouteBoundary>
+                              <GroupCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userTags}
+                          element={
+                            <RouteBoundary>
+                              <TagsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hrmArea}
+                          element={
+                            <RouteBoundary>
+                              <HrmAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.leaveList}
+                          element={
+                            <RouteBoundary>
+                              <LeaveListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.leaveRequest}
+                          element={
+                            <RouteBoundary>
+                              <LeaveRequestModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.timeSpent}
+                          element={
+                            <RouteBoundary>
+                              <TimeSpentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.activitiesDetail}
+                          element={
+                            <RouteBoundary>
+                              <ActivitiesDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userDocuments}
+                          element={
+                            <RouteBoundary>
+                              <LinkedFilesAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userDocumentsManual}
+                          element={
+                            <RouteBoundary>
+                              <LinkedFilesManualTreeModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.userDocumentsAutomatic}
+                          element={
+                            <RouteBoundary>
+                              <LinkedFilesAutomaticTreeModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerList}
+                          element={
+                            <RouteBoundary>
+                              <CustomersListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customersCreate}
+                          element={
+                            <RouteBoundary>
+                              <CustomerCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerDetail}
+                          element={
+                            <RouteBoundary>
+                              <CustomerDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerContractCreate}
+                          element={
+                            <RouteBoundary>
+                              <ContractCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerQuotationCreate}
+                          element={
+                            <RouteBoundary>
+                              <QuotationCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerOrderCreate}
+                          element={
+                            <RouteBoundary>
+                              <OrderCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerInvoiceCreate}
+                          element={
+                            <RouteBoundary>
+                              <InvoiceCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerPurchaseOrderCreate}
+                          element={
+                            <RouteBoundary>
+                              <PurchaseOrderCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerSupplierProposalCreate}
+                          element={
+                            <RouteBoundary>
+                              <SupplierProposalCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerVendorInvoiceCreate}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.jobCardCreate}
+                          element={
+                            <RouteBoundary>
+                              <JobCardCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerJobCardCreate}
+                          element={
+                            <RouteBoundary>
+                              <JobCardCreateFromCustomerModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerAdvanceList}
+                          element={
+                            <RouteBoundary>
+                              <AdvanceListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.prospectList}
+                          element={
+                            <RouteBoundary>
+                              <ProspectsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.prospectsCreate}
+                          element={
+                            <RouteBoundary>
+                              <ProspectCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerGroupList}
+                          element={
+                            <RouteBoundary>
+                              <CustomerGroupListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerGroupCreate}
+                          element={
+                            <RouteBoundary>
+                              <CustomerGroupCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerGroupEdit}
+                          element={
+                            <RouteBoundary>
+                              <CustomerGroupCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contactCreate}
+                          element={
+                            <RouteBoundary>
+                              <ContactCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contactList}
+                          element={
+                            <RouteBoundary>
+                              <ContactListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contactDetail}
+                          element={
+                            <RouteBoundary>
+                              <ContactDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorList}
+                          element={
+                            <RouteBoundary>
+                              <VendorsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorCreate}
+                          element={
+                            <RouteBoundary>
+                              <VendorCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorTags}
+                          element={
+                            <RouteBoundary>
+                              <VendorTagsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.orderList}
+                          element={
+                            <RouteBoundary>
+                              <OrdersListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.orderCreate}
+                          element={
+                            <RouteBoundary>
+                              <OrderCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.orderStats}
+                          element={
+                            <RouteBoundary>
+                              <OrderStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.orderDetail}
+                          element={
+                            <RouteBoundary>
+                              <OrderDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.orderCreateContract}
+                          element={
+                            <RouteBoundary>
+                              <OrderCreateContractModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.orderCreateInvoice}
+                          element={
+                            <RouteBoundary>
+                              <OrderCreateInvoiceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contractList}
+                          element={
+                            <RouteBoundary>
+                              <ContractsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contractCreate}
+                          element={
+                            <RouteBoundary>
+                              <ContractCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contractServices}
+                          element={
+                            <RouteBoundary>
+                              <ServicesDetailsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contractReport}
+                          element={
+                            <RouteBoundary>
+                              <ContractReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contractDetail}
+                          element={
+                            <RouteBoundary>
+                              <ContractDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationList}
+                          element={
+                            <RouteBoundary>
+                              <QuotationsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationCreate}
+                          element={
+                            <RouteBoundary>
+                              <QuotationCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationDetail}
+                          element={
+                            <RouteBoundary>
+                              <QuotationDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.quotationStats}
+                          element={
+                            <RouteBoundary>
+                              <QuotationStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceList}
+                          element={
+                            <RouteBoundary>
+                              <InvoicesListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceAbandoned}
+                          element={
+                            <RouteBoundary>
+                              <AbandonedInvoicesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceCreate}
+                          element={
+                            <RouteBoundary>
+                              <InvoiceCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceCreateQuick}
+                          element={
+                            <RouteBoundary>
+                              <QuickInvoiceCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceTemplates}
+                          element={
+                            <RouteBoundary>
+                              <TemplateInvoicesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.paymentsList}
+                          element={
+                            <RouteBoundary>
+                              <PaymentsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.paymentsReport}
+                          element={
+                            <RouteBoundary>
+                              <PaymentsReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceStats}
+                          element={
+                            <RouteBoundary>
+                              <InvoiceStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceAdvancePayments}
+                          element={
+                            <RouteBoundary>
+                              <AdvancePaymentListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.rebateInvoiceList}
+                          element={
+                            <RouteBoundary>
+                              <RebateInvoicesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.rebateInvoiceCreate}
+                          element={
+                            <RouteBoundary>
+                              <CreateRebateInvoiceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.invoiceDetail}
+                          element={
+                            <RouteBoundary>
+                              <InvoiceDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.customerTags}
+                          element={
+                            <RouteBoundary>
+                              <CustomerTagsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.contactTags}
+                          element={
+                            <RouteBoundary>
+                              <ContactTagsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.importCustomers}
+                          element={
+                            <RouteBoundary>
+                              <ImportCustomersModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.purchaseOrderList}
+                          element={
+                            <RouteBoundary>
+                              <PurchaseOrdersListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.purchaseOrderCreate}
+                          element={
+                            <RouteBoundary>
+                              <PurchaseOrderCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.purchaseOrderDetail}
+                          element={
+                            <RouteBoundary>
+                              <PurchaseOrderDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.purchaseOrderStats}
+                          element={
+                            <RouteBoundary>
+                              <PurchaseOrderStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.supplierProposalArea}
+                          element={
+                            <RouteBoundary>
+                              <VendorProposalsAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.supplierProposalList}
+                          element={
+                            <RouteBoundary>
+                              <SupplierProposalsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.supplierProposalCreate}
+                          element={
+                            <RouteBoundary>
+                              <SupplierProposalCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorContactCreate}
+                          element={
+                            <RouteBoundary>
+                              <VendorContactCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorContactList}
+                          element={
+                            <RouteBoundary>
+                              <VendorContactListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorContactDetail}
+                          element={
+                            <RouteBoundary>
+                              <VendorContactDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorContactTags}
+                          element={
+                            <RouteBoundary>
+                              <VendorContactTagsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceCreateQuick}
+                          element={
+                            <RouteBoundary>
+                              <QuickPurchaseCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceCreate}
+                          element={
+                            <RouteBoundary>
+                              <DetailedPurchaseCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceList}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceDetail}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoicePaid}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoicePaidModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceUnpaid}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceUnpaidModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceManual}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceManualModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceAutomatic}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceAutomaticModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorPaymentsList}
+                          element={
+                            <RouteBoundary>
+                              <VendorPaymentsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorPaymentsReport}
+                          element={
+                            <RouteBoundary>
+                              <VendorPaymentsReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceStats}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectCreate}
+                          element={
+                            <RouteBoundary>
+                              <ProjectCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectEdit}
+                          element={
+                            <RouteBoundary>
+                              <ProjectEditModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectList}
+                          element={
+                            <RouteBoundary>
+                              <ProjectListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectDetail}
+                          element={
+                            <RouteBoundary>
+                              <ProjectDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectOpenLeadsList}
+                          element={
+                            <RouteBoundary>
+                              <ProjectOpenLeadsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectOpenProjectsList}
+                          element={
+                            <RouteBoundary>
+                              <ProjectOpenProjectsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectStats}
+                          element={
+                            <RouteBoundary>
+                              <ProjectStatsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectTaskCreate}
+                          element={
+                            <RouteBoundary>
+                              <ProjectTaskCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectTaskList}
+                          element={
+                            <RouteBoundary>
+                              <ProjectTaskListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectTimeSpent}
+                          element={
+                            <RouteBoundary>
+                              <ProjectTimeSpentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectCategoryList}
+                          element={
+                            <RouteBoundary>
+                              <ProjectCategoryListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectCategoryCreate}
+                          element={
+                            <RouteBoundary>
+                              <ProjectCategoryCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.supplierProposalStats}
+                          element={
+                            <RouteBoundary>
+                              <SupplierProposalStatsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productList}
+                          element={
+                            <RouteBoundary>
+                              <ProductsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.serviceList}
+                          element={
+                            <RouteBoundary>
+                              <ServicesListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productArea}
+                          element={
+                            <RouteBoundary>
+                              <ProductAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productCreate}
+                          element={
+                            <RouteBoundary>
+                              <ProductCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productDetail}
+                          element={
+                            <RouteBoundary>
+                              <ProductDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productEdit}
+                          element={
+                            <RouteBoundary>
+                              <ProductEditModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.serviceCreate}
+                          element={
+                            <RouteBoundary>
+                              <ServiceCreateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productStats}
+                          element={
+                            <RouteBoundary>
+                              <ProductStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.serviceStats}
+                          element={
+                            <RouteBoundary>
+                              <ServiceStatisticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productStocks}
+                          element={
+                            <RouteBoundary>
+                              <ProductStocksModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productStocksByLot}
+                          element={
+                            <RouteBoundary>
+                              <ProductStocksByLotModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.lotsSerials}
+                          element={
+                            <RouteBoundary>
+                              <LotsSerialsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.variantAttributes}
+                          element={
+                            <RouteBoundary>
+                              <VariantAttributesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productPriceList}
+                          element={
+                            <RouteBoundary>
+                              <ProductPriceListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productTags}
+                          element={
+                            <RouteBoundary>
+                              <ProductTagsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productImport}
+                          element={
+                            <RouteBoundary>
+                              <ProductImportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productVatUpdate}
+                          element={
+                            <RouteBoundary>
+                              <ProductVatUpdateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.agenda}
+                          element={
+                            <RouteBoundary>
+                              <AgendaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.agendaReporting}
+                          element={
+                            <RouteBoundary>
+                              <ReportingModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.agendaCategories}
+                          element={
+                            <RouteBoundary>
+                              <EventCategoriesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.reports}
+                          element={
+                            <RouteBoundary>
+                              <ReportsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path="/settings"
+                          element={
+                            <RouteBoundary>
+                              <SettingsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.setupLanding}
+                          element={
+                            <RouteBoundary>
+                              <SetupLandingModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.companyOrganization}
+                          element={
+                            <RouteBoundary>
+                              <CompanyOrganizationModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.menusSetup}
+                          element={
+                            <RouteBoundary>
+                              <MenusSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.displaySetup}
+                          element={
+                            <RouteBoundary>
+                              <DisplaySetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.translationSetup}
+                          element={
+                            <RouteBoundary>
+                              <TranslationSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.defaultValuesSetup}
+                          element={
+                            <RouteBoundary>
+                              <DefaultValuesSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.widgetsSetup}
+                          element={
+                            <RouteBoundary>
+                              <WidgetsSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.alertsSetup}
+                          element={
+                            <RouteBoundary>
+                              <AlertsSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.securitySetup}
+                          element={
+                            <RouteBoundary>
+                              <SecuritySetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.limitsSetup}
+                          element={
+                            <RouteBoundary>
+                              <LimitsSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.pdfSetup}
+                          element={
+                            <RouteBoundary>
+                              <PdfSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.emailsSetup}
+                          element={
+                            <RouteBoundary>
+                              <EmailsSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.emailTemplates}
+                          element={
+                            <RouteBoundary>
+                              <EmailTemplatesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.smsSetup}
+                          element={
+                            <RouteBoundary>
+                              <SmsSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.dictionaries}
+                          element={
+                            <RouteBoundary>
+                              <DictionarySetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.otherSetup}
+                          element={
+                            <RouteBoundary>
+                              <OtherSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.exportAssistant}
+                          element={
+                            <RouteBoundary>
+                              <ExportAssistantModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.importAssistant}
+                          element={
+                            <RouteBoundary>
+                              <ImportAssistantModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.cashflowSettings}
+                          element={
+                            <RouteBoundary>
+                              <CashflowSettingsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.whatsappSettings}
+                          element={
+                            <RouteBoundary>
+                              <WhatsappSettingsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.takeposTerminalSetup}
+                          element={
+                            <RouteBoundary>
+                              <TerminalSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      </Route>
+                    </Route>
+                  </Routes>
+                </BrowserRouter>
+              </AuthProvider>
+            </ConfirmDialogProvider>
           </SidebarStyleProvider>
         </ThemeProvider>
         <ReactQueryDevtools initialIsOpen={false} />
@@ -960,11 +4001,7 @@ function FullPageError() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface p-6 text-center">
       <p className="text-lg font-semibold text-text">Something went wrong.</p>
       <p className="text-sm text-text-muted">Please reload the page. If this keeps happening, contact support.</p>
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-      >
+      <button type="button" onClick={() => window.location.reload()} className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
         Reload page
       </button>
     </div>

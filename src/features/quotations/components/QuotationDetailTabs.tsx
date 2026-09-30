@@ -14,6 +14,7 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
+import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
 import { useProductOptions } from '../../products/products.queries'
@@ -608,25 +609,13 @@ function AgendaTab({ id, socid }: { id: string; socid?: number }) {
                 data.events.map((e, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
                     <td className="px-4 py-2.5">
-                      {e.url ? (
-                        <a href={stripBackendPrefix(e.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {e.ref}
-                        </a>
-                      ) : (
-                        e.ref
-                      )}
+                      <LegacyObjectLink url={e.url}>{e.ref}</LegacyObjectLink>
                     </td>
                     <td className="px-4 py-2.5 text-text-muted">{e.date}</td>
                     <td className="px-4 py-2.5 text-text-muted">{e.owner}</td>
                     <td className="px-4 py-2.5 text-text!">{e.label}</td>
                     <td className="px-4 py-2.5">
-                      {e.relatedObjectUrl ? (
-                        <a href={stripBackendPrefix(e.relatedObjectUrl)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                          {e.relatedObjectRef}
-                        </a>
-                      ) : (
-                        e.relatedObjectRef
-                      )}
+                      <LegacyObjectLink url={e.relatedObjectUrl}>{e.relatedObjectRef}</LegacyObjectLink>
                     </td>
                     <td className="px-4 py-2.5 text-text-muted">{e.statusLabel}</td>
                   </tr>

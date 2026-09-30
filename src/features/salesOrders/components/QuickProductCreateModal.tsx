@@ -4,7 +4,7 @@ import { Field, Select, ClassificationSearch, CategoryMultiSelect, inputCls, sel
 import { useCreateProduct, useProductFormOptions, type FormOption } from '../../zra/createProduct.queries'
 
 // Compact single-page modal matching the reference layout's own "Add Products" slide-in —
-// same real create-product endpoint (useCreateProduct -> POST /api/products/create-full/,
+// same real create-product request (useCreateProduct -> POST custom/zra/ajax_products.php,
 // the same one ProductServiceCreateForm's full page uses) but scoped to the fields that
 // page's own handleSubmit() actually validates as required, rather than the full page's much
 // larger field set (weight/dimensions, accounting codes, lot/serial, image — none of which
@@ -12,7 +12,7 @@ import { useCreateProduct, useProductFormOptions, type FormOption } from '../../
 // RRP stay out: they're marked "demo only" on the full page too (no matching param on
 // CreateProductFullInput at all) — Barcode type and Tags/categories ARE real fields on that
 // interface (barcodeType/categories), so those are included.
-// create-full/ only ever returns { status }, never the new row's id (checked in
+// ajax_products.php only ever returns { status }, never the new row's id (checked in
 // useCreateProduct's own mutationFn) — there's no reliable way to hand the caller a real id
 // to auto-select, so onCreated is just a "done, close the modal" signal. The product picker
 // still picks the new item up on its own once the query-invalidation-triggered refetch

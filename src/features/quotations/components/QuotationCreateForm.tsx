@@ -15,8 +15,6 @@ import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
-import { useLogActivity } from '../../agenda/agenda.queries'
-import { useAuth } from '../../auth/AuthContext'
 
 // This form talks to a real, complete JSON API —
 // comm/propal/api/proposal_handler.php — read directly from its PHP source.
@@ -201,8 +199,6 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
   const [formError, setFormError] = useState('')
   const [createdQuotation, setCreatedQuotation] = useState<CreatedQuotation | null>(null)
 
-  const { user } = useAuth()
-  const logActivity = useLogActivity()
   const listLink = backTo ?? ROUTES.quotationList
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
@@ -355,10 +351,7 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
       }
       return data.data as CreatedQuotation
     },
-    onSuccess: (quotation, validate) => {
-      const customerName = customers?.find((c) => c.id === customerId)?.name ?? 'a customer'
-      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `${validate ? 'New' : 'Draft'} quotation ${quotation.ref} for ${customerName}`, category: 'other', authorName })
+    onSuccess: (quotation) => {
       setCreatedQuotation(quotation)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create quotation'),

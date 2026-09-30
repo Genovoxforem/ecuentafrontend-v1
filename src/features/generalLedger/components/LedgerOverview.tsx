@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   FileText,
   Trash2,
@@ -17,8 +18,8 @@ import {
   Wallet,
 } from 'lucide-react'
 import { Card, fmtZMW, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
-import { Link } from 'react-router-dom'
 import { useLedgerReport, useDeleteLedgerEntry, defaultLedgerFilters, type LedgerFilters, type LedgerMovement } from '../generalLedger.queries'
 import { DocLink } from './DocLink'
 import { LedgerToolbar, LedgerFilterBar, LedgerPagination } from './LedgerControls'
@@ -126,11 +127,27 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 const COLUMNS = ['Num.', 'Journal', 'Date', 'Accounting Doc.', 'Label', 'Currency', 'Conversion', 'Debit', 'Credit', 'Lettering Code', '']
 
+// A link into this page (e.g. from Account Balance) can carry the account and date range to show.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+function filtersFromUrl(params: URLSearchParams): LedgerFilters {
+  const base = defaultLedgerFilters()
+  const start = params.get('dateStart') ?? ''
+  const end = params.get('dateEnd') ?? ''
+  return {
+    ...base,
+    accountCode: params.get('accountCode') ?? base.accountCode,
+    dateStart: ISO_DATE.test(start) ? start : base.dateStart,
+    dateEnd: ISO_DATE.test(end) ? end : base.dateEnd,
+  }
+}
+
 export function LedgerOverview() {
-  const [filters, setFilters] = useState<LedgerFilters>(defaultLedgerFilters)
+  const [searchParams] = useSearchParams()
+  const [filters, setFilters] = useState<LedgerFilters>(() => filtersFromUrl(searchParams))
   const [draft, setDraft] = useState<LedgerFilters>(filters)
   const { data: report, isLoading, isFetching, isError, error, refetch } = useLedgerReport(filters)
   const deleteEntry = useDeleteLedgerEntry()
+  const confirm = useConfirm()
   // Collapsed by default — the legacy page dumps every transaction line for
   // every account into one flat table (can run past 250 rows), which makes
   // it unscannable. Groups start closed so the account-level totals/balance
@@ -292,8 +309,8 @@ export function LedgerOverview() {
                                     type="button"
                                     disabled={deleteEntry.isPending}
                                     title="Delete this entry on the real accounting backend"
-                                    onClick={() => {
-                                      if (entry.deleteUrl && window.confirm('Delete this accounting entry on the real backend? This cannot be undone.')) deleteEntry.mutate(entry.deleteUrl)
+                                    onClick={async () => {
+                                      if (entry.deleteUrl && (await confirm({ title: 'Delete Entry?', message: 'Delete this accounting entry on the real backend?' }))) deleteEntry.mutate(entry.deleteUrl)
                                     }}
                                     className="p-1 rounded text-text-faint hover:text-danger hover:bg-danger-bg disabled:opacity-40"
                                   >

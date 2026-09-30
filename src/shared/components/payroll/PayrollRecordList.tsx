@@ -1,6 +1,6 @@
 import { useMemo, useState, type ComponentType, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Info, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 import { ListPagination } from '../ListPagination'
 import { TableExportButtons } from '../TableExportButtons'
@@ -33,7 +33,7 @@ export function PayrollRecordList<T, K extends string>({
   getRowKey,
   getSearchText,
   exportTitle,
-  localOnlyNote,
+  notice,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -44,12 +44,8 @@ export function PayrollRecordList<T, K extends string>({
   getRowKey: (row: T) => string
   getSearchText: (row: T) => string
   exportTitle: string
-  // Shown as an honest banner: this list only reflects records created in
-  // this browser session (see payrollLists.queries.ts) — there's no read
-  // API for these entities, so it can't show anything already on the
-  // backend. Omit for entities where the create side is itself inert
-  // (Indicator/Appraisal), where the banner would be misleading noise.
-  localOnlyNote?: boolean
+  // Optional message shown above the table (e.g. why a delete failed).
+  notice?: ReactNode
 }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
@@ -100,15 +96,7 @@ export function PayrollRecordList<T, K extends string>({
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
-        {localOnlyNote && (
-          <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-            <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-            <p className="text-xs text-info-fg">
-              There's no read API for this data on the legacy backend, so this list only shows records created here in this browser session — it won't
-              include anything already saved on the backend, and resets on reload.
-            </p>
-          </Card>
-        )}
+        {notice}
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">

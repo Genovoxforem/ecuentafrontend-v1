@@ -3,19 +3,15 @@ import { ArrowRightLeft } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useUsersSummary } from '../../users/users.queries'
-import { useAuth } from '../../auth/AuthContext'
 import { ROUTES } from '../../../routes'
 import { useCreateTransfer } from '../payrollActions.queries'
-import { useRecordTransfer } from '../payrollLists.queries'
 
 // Real via payroll/ajax.php?savetransfer=1... (payroll/transfers.php's
 // "Add Transfer" panel). Entity is fixed to this deployment's one real
 // entity (see HolidayForm's comment) — its own <select> has no JSON API.
 export function TransferForm() {
   const { data: users } = useUsersSummary()
-  const { user } = useAuth()
   const createTransfer = useCreateTransfer()
-  const recordTransfer = useRecordTransfer()
 
   const [employeeId, setEmployeeId] = useState('')
   const [transferDate, setTransferDate] = useState('')
@@ -34,13 +30,10 @@ export function TransferForm() {
     setError('')
     if (!employeeId) return setError('Select an employee.')
     if (!transferDate) return setError('Select a transfer date.')
-    const employee = users?.users.find((u) => String(u.id) === employeeId)
-    const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
     createTransfer.mutate(
       { employeeId: Number(employeeId), transferDate, description },
       {
         onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
-        onSuccess: () => recordTransfer.add({ employeeName: employee?.name || employee?.login || 'Unknown', transferDate, description, createdBy }),
       },
     )
   }

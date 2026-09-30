@@ -13,10 +13,12 @@ import {
   useHotelDelEnquiry,
   useHotelToken,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
 function WakeupCallsCard() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: wakeups, isLoading, isError, error, refetch } = useHotelWakeups()
   const { data: occRooms } = useHotelOccRooms()
@@ -61,8 +63,8 @@ function WakeupCallsCard() {
     setBusyId(id)
     done.mutate({ id, token }, { onSettled: () => setBusyId(null) })
   }
-  function handleDelete(id: string) {
-    if (!token || !confirm('Delete this wake-up call?')) return
+  async function handleDelete(id: string) {
+    if (!token || !(await confirm('Delete this wake-up call?'))) return
     setBusyId(id)
     del.mutate({ id, token }, { onSettled: () => setBusyId(null) })
   }
@@ -146,6 +148,7 @@ function WakeupCallsCard() {
 }
 
 function EnquiriesLeadsCard() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: enquiries, isLoading, isError, error, refetch } = useHotelEnquiries()
   const save = useHotelSaveEnquiry()
@@ -182,8 +185,8 @@ function EnquiriesLeadsCard() {
     )
   }
 
-  function handleDelete(id: string) {
-    if (!token || !confirm('Delete this enquiry?')) return
+  async function handleDelete(id: string) {
+    if (!token || !(await confirm('Delete this enquiry?'))) return
     setDeleting(id)
     del.mutate({ id, token }, { onSettled: () => setDeleting(null) })
   }

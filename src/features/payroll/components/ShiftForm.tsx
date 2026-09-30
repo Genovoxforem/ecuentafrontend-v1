@@ -2,10 +2,8 @@ import { useState } from 'react'
 import { CalendarRange } from 'lucide-react'
 import { ActionFormShell } from '../../../shared/components/forms/ActionFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
-import { useAuth } from '../../auth/AuthContext'
 import { ROUTES } from '../../../routes'
 import { useCreateShift } from '../payrollActions.queries'
-import { useRecordShift } from '../payrollLists.queries'
 
 const DAYS = [
   ['monday', 'Monday'],
@@ -33,9 +31,7 @@ const EMPTY_TIMES: Times = {
 // Shift" panel). Shift Type is fixed to "Fixed" — the real <select> only
 // ever offers that one option.
 export function ShiftForm() {
-  const { user } = useAuth()
   const createShift = useCreateShift()
-  const recordShift = useRecordShift()
 
   const [name, setName] = useState('')
   const [times, setTimes] = useState<Times>(EMPTY_TIMES)
@@ -78,10 +74,6 @@ export function ShiftForm() {
       },
       {
         onError: (e) => setError(e instanceof Error ? e.message : 'Failed to save.'),
-        onSuccess: () => {
-          const createdBy = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-          recordShift.add({ name, shiftType: 'Fixed', createdBy })
-        },
       },
     )
   }

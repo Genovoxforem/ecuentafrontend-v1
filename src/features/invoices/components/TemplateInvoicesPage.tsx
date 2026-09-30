@@ -4,7 +4,6 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { isBackendUnavailable, BackendUnavailableInline } from '../../../shared/components/BackendUnavailable'
 import { formatMoney } from '../../../utils/format'
 import { useInvoiceTemplates, type InvoiceTemplateRow } from '../invoiceTemplates.queries'
 
@@ -175,11 +174,7 @@ export function TemplateInvoicesPage() {
                 ) : isError ? (
                   <tr>
                     <td colSpan={COLUMN_LABELS.length} className="px-4 py-4">
-                      {isBackendUnavailable(error) ? (
-                        <BackendUnavailableInline feature="Invoice Templates" />
-                      ) : (
-                        <span className="text-danger">Could not load template invoices.</span>
-                      )}
+                      <span className="text-danger">{error instanceof Error ? error.message : 'Could not load template invoices.'}</span>
                     </td>
                   </tr>
                 ) : items.length === 0 ? (

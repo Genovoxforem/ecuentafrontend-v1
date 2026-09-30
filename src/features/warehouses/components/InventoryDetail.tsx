@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useInventoryDetail, useDeleteInventoryReal, useSetInventoryToDraftReal } from '../warehouseExtras.queries'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
@@ -85,16 +86,17 @@ export function InventoryDetail() {
   const [showSendEmail, setShowSendEmail] = useState(false)
   const deleteInventory = useDeleteInventoryReal()
   const setToDraft = useSetInventoryToDraftReal()
+  const confirm = useConfirm()
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!id) return
-    if (!window.confirm('Delete this inventory? This cannot be undone.')) return
+    if (!(await confirm({ title: 'Delete Inventory?', message: 'Are you sure you want to delete this inventory?' }))) return
     deleteInventory.mutate(id, { onSuccess: () => navigate(ROUTES.inventoryList) })
   }
 
-  function handleSetToDraft() {
+  async function handleSetToDraft() {
     if (!id) return
-    if (!window.confirm('Set this inventory back to Draft?')) return
+    if (!(await confirm({ title: 'Set to Draft?', message: 'Set this inventory back to Draft?', variant: 'default', confirmLabel: 'Set to Draft' }))) return
     setToDraft.mutate(id)
   }
 

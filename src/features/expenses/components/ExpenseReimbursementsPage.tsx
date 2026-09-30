@@ -1,120 +1,190 @@
-import { useMemo, useState } from 'react'
-import { HandCoins } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useAllExpenseReports, useCreateExpenseReimbursement } from '../expenses.queries'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { HandCoins, Plus, Printer, Save } from 'lucide-react'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { ROUTES } from '../../../routes'
+import { useCreateReimbursement, useReimbursements } from '../expenseTabs.queries'
+import type { ReimbursementRow } from '../expenseTabsParser'
+import { TONE_CLS, controlCls } from '../expenseTable'
+import { ExpenseTable, type ExpenseColumn } from './ExpenseTable'
+import { Field, FormCard, FormProblem } from './expenseParts'
+import { PrintPreviewDialog } from './PrintPreviewDialog'
 
-const inputCls = 'h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
+const amount = (s: string) => parseFloat(s.replace(/,/g, '')) || 0
 
-function parseAmount(s: string): number {
-  return parseFloat(s.replace(/,/g, '')) || 0
+const STATUS_CLS: Record<string, string> = {
+  Pending: 'bg-neutral-bg text-neutral-fg',
+  Approved: 'bg-info-bg text-info-fg',
+  Paid: 'bg-success-bg text-success-fg',
+  Closed: 'bg-neutral-bg text-text-muted',
 }
 
-// Real via expense/api/expense.php action=create_reimburse — genuine INSERT
-// into llx_expense_reimbursement, requires an Approved report. The report
-// picker below is sourced from the real List endpoint filtered to
-// fk_statut=5 (matching the real reimbursements.php form's own
-// restriction). The recipient employee is resolved from that report's own
-// author (this module has no JSON search limited to "this report's
-// employee", so the real form's separate employee/customer picker isn't
-// reproduced — the report's own author is used directly). The history
-// table has no JSON list endpoint on this backend (see
-// expenses.queries.ts's header comment) so it's an honest empty state.
+// expense/reimbursements.php: what the company still owes a person for an approved expense report.
 export function ExpenseReimbursementsPage() {
-  const { data } = useAllExpenseReports('5')
-  const approvedRows = useMemo(() => data?.rows ?? [], [data])
+  const { data, isLoading, isError, error, refetch } = useReimbursements()
+  const create = useCreateReimbursement()
   const [reportId, setReportId] = useState('')
-  const [claimAmount, setClaimAmount] = useState('')
-  const createReimburse = useCreateExpenseReimbursement()
-  const [result, setResult] = useState<'success' | 'error' | null>(null)
+  // A recipient is an employee or a customer; their ids are separate, so the type is part of the choice.
+  const [recipient, setRecipient] = useState('')
+  const [claim, setClaim] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+  const [printing, setPrinting] = useState<string | null>(null)
 
-  const selected = approvedRows.find((r) => String(r.id) === reportId)
+  const recipientType = recipient.split(':')[0] || 'employee'
 
-  function onSelectReport(id: string) {
-    setReportId(id)
-    const row = approvedRows.find((r) => String(r.id) === id)
-    if (row) setClaimAmount(String(parseAmount(row.totalTtc)))
+  // Choosing a report fills the claim with its total and picks who it is for: the customer when the report
+  // is a customer expense, otherwise the employee.
+  function pickReport(value: string) {
+    setReportId(value)
+    const r = data?.reports.find((x) => x.value === value)
+    if (!r || !value) return
+    if (r.amount) setClaim(r.amount)
+    if (r.expenseType === 'customer' && Number(r.socid) > 0) setRecipient(`customer:${r.socid}`)
+    else if (Number(r.employeeId) > 0) setRecipient(`employee:${r.employeeId}`)
   }
 
-  async function submit() {
-    if (!selected || !claimAmount) return
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!reportId || !recipient || !(Number(claim) > 0)) return setProblem('Choose the expense report, who it is for, and a claim amount.')
+    setProblem(null)
     try {
-      await createReimburse.mutateAsync({ expenseReportId: selected.id, recipientId: selected.id, recipientType: 'employee', claimAmount: Number(claimAmount) })
-      setResult('success')
+      await create.mutateAsync({ reportId, recipientId: recipient.split(':')[1] ?? '', recipientType, claimAmount: claim })
       setReportId('')
-      setClaimAmount('')
-    } catch {
-      setResult('error')
+      setRecipient('')
+      setClaim('')
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : 'Could not create the reimbursement.')
     }
   }
 
-  return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
-      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <HandCoins size={20} className="text-brand" /> Expense Reimbursements
-        </h2>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
-        <Card className="!h-auto">
-          <h3 className="font-semibold text-text! mb-3">Create Reimbursement</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Expense Report (Approved)</label>
-              <select value={reportId} onChange={(e) => onSelectReport(e.target.value)} className={`${inputCls} w-full`}>
-                <option value="">Select expense report…</option>
-                {approvedRows.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.ref} — {r.user}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Employee</label>
-              <input value={selected?.user ?? ''} disabled className="h-9 w-full px-3 rounded-lg border border-input-border bg-surface-alt text-text-faint text-sm outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Claim Amount</label>
-              <input type="number" step="0.01" value={claimAmount} onChange={(e) => setClaimAmount(e.target.value)} className={`${inputCls} w-full`} />
-            </div>
-          </div>
-          {result === 'error' && <p className="text-sm text-danger-fg mt-2">{createReimburse.error instanceof Error ? createReimburse.error.message : 'Could not create the reimbursement.'}</p>}
-          {result === 'success' && <p className="text-sm text-success-fg mt-2">Reimbursement created.</p>}
+  const columns: ExpenseColumn<ReimbursementRow>[] = [
+    { key: 'n', header: '#', sortValue: (r) => Number(r.n) || 0, cell: (r) => <span className="text-text-muted">{r.n}</span> },
+    {
+      key: 'ref',
+      header: 'Expense Ref',
+      sortValue: (r) => r.ref,
+      cell: (r) => (
+        <Link to={ROUTES.expenseCard.replace(':id', r.reportId)} className="font-semibold text-brand hover:underline">
+          {r.ref}
+        </Link>
+      ),
+    },
+    {
+      key: 'recipient',
+      header: 'Employee',
+      sortValue: (r) => r.recipient,
+      cell: (r) => (
+        <span className="inline-flex items-center gap-1.5">
+          {r.recipient}
+          {r.recipientType && <span className="rounded bg-neutral-bg px-1.5 py-0.5 text-[11px] text-neutral-fg">{r.recipientType}</span>}
+        </span>
+      ),
+    },
+    { key: 'gross', header: 'Gross Expense', align: 'right', sortValue: (r) => amount(r.gross), cell: (r) => <span className="tabular-nums">{r.gross}</span> },
+    { key: 'advance', header: 'Advance Deducted', align: 'right', sortValue: (r) => amount(r.advance), cell: (r) => <span className="tabular-nums text-text-muted">{r.advance}</span> },
+    { key: 'net', header: 'Net Claim', align: 'right', sortValue: (r) => amount(r.net), cell: (r) => <span className="font-bold tabular-nums text-text!">{r.net}</span> },
+    { key: 'paid', header: 'Paid', align: 'right', sortValue: (r) => amount(r.paid), cell: (r) => <span className="tabular-nums">{r.paid}</span> },
+    {
+      key: 'balance',
+      header: 'Balance',
+      align: 'right',
+      sortValue: (r) => amount(r.balance),
+      cell: (r) => <span className={`font-semibold tabular-nums ${TONE_CLS[r.balanceTone]}`}>{r.balance}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortValue: (r) => r.status,
+      cell: (r) => <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLS[r.status] ?? 'bg-neutral-bg text-neutral-fg'}`}>{r.status}</span>,
+    },
+    { key: 'date', header: 'Date', sortValue: (r) => r.date, cell: (r) => r.date },
+    {
+      key: 'actions',
+      header: 'Action',
+      cell: (r) =>
+        r.receiptId && (
           <button
             type="button"
-            onClick={submit}
-            disabled={!selected || !claimAmount || createReimburse.isPending}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            onClick={() => setPrinting(`/expense/reimbursement_receipt.php?id=${r.receiptId}`)}
+            className="rounded-md border border-brand p-1.5 text-brand hover:bg-brand/10"
+            title="Print Receipt"
+            aria-label={`Print receipt for ${r.ref}`}
           >
-            Create Reimbursement
+            <Printer size={13} />
           </button>
-        </Card>
+        ),
+    },
+  ]
 
-        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-          <div className="flex-1 min-h-0 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-4 py-2.5">Expense Ref</th>
-                  <th className="font-medium px-4 py-2.5">Employee</th>
-                  <th className="font-medium px-4 py-2.5">Claim</th>
-                  <th className="font-medium px-4 py-2.5">Paid</th>
-                  <th className="font-medium px-4 py-2.5">Balance</th>
-                  <th className="font-medium px-4 py-2.5">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
-                    No live listing API on this backend for existing reimbursements — reimbursements.php renders its history table as server-side HTML with no JSON source.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+  const recipientLabel = recipientType === 'customer' ? 'Customer' : 'Employee'
+
+  return (
+    <div className="space-y-4">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+        <HandCoins size={20} className="text-brand" /> Expense Reimbursements
+      </h2>
+
+      {isLoading && <LegacyLoadingCard label="Loading reimbursements…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the reimbursements" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+      {data && (
+        <>
+          {data.canCreate && (
+            <FormCard icon={<Plus size={15} />} title="Create Reimbursement">
+              <form onSubmit={submit} className="grid grid-cols-1 items-end gap-3 md:grid-cols-4">
+                <Field label="Expense Report">
+                  <select value={reportId} onChange={(e) => pickReport(e.target.value)} className={`${controlCls} w-full`}>
+                    {data.reports.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={recipientLabel}>
+                  <select value={recipient} onChange={(e) => setRecipient(e.target.value)} className={`${controlCls} w-full`}>
+                    <option value="">Select {recipientLabel}</option>
+                    {data.recipients
+                      .filter((o) => o.value)
+                      .map((o) => (
+                        <option key={`${o.type}:${o.value}`} value={`${o.type}:${o.value}`}>
+                          {o.label}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                <Field label="Claim Amount">
+                  <input type="number" step="0.01" min="0" value={claim} onChange={(e) => setClaim(e.target.value)} className={`${controlCls} w-full`} />
+                </Field>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={create.isPending}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    <Save size={14} /> {create.isPending ? 'Creating…' : 'Create'}
+                  </button>
+                </div>
+                <div className="md:col-span-4">
+                  <FormProblem message={problem} />
+                </div>
+              </form>
+            </FormCard>
+          )}
+
+          <ExpenseTable
+            rows={data.rows}
+            columns={columns}
+            rowKey={(r) => `${r.n}-${r.reportId}`}
+            searchPlaceholder="Search reimbursements..."
+            searchText={(r) => [r.ref, r.recipient, r.recipientType, r.status, r.date, r.net].join(' ')}
+            defaultSort={{ key: 'balance', dir: 'desc' }}
+            empty="No reimbursements yet."
+          />
+        </>
+      )}
+
+      {printing && <PrintPreviewDialog url={printing} onClose={() => setPrinting(null)} />}
     </div>
   )
 }

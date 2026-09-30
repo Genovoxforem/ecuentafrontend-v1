@@ -3,6 +3,7 @@ import { LoaderCircle, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelMaintenance, useHotelMaintStaff, useHotelSaveMaint, useHotelMaintAdvance, useHotelDelMaint, useHotelToken, type HotelMaintTicket } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const PRIORITY_COLOR: Record<string, string> = { urgent: 'text-rose-600', high: 'text-amber-600', normal: 'text-text-muted', low: 'text-text-faint' }
 const STATUS_TAG: Record<string, string> = { reported: 'bg-warning-bg text-warning-fg', assigned: 'bg-info-bg text-info-fg', inprogress: 'bg-info-bg text-info-fg', completed: 'bg-success-bg text-success-fg' }
@@ -104,6 +105,7 @@ function TicketModal({ ticket, onClose, onSaved }: { ticket: HotelMaintTicket | 
 // a=maintadvance / a=delmaint — the Hotel Suite app's own Maintenance
 // Tickets view.
 export function HotelMaintenance() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: tickets, isLoading, isError, error, refetch } = useHotelMaintenance()
   const advance = useHotelMaintAdvance()
@@ -116,8 +118,8 @@ export function HotelMaintenance() {
     setBusyId(id)
     advance.mutate({ id, to, token }, { onSettled: () => setBusyId(null) })
   }
-  function handleDelete(id: string) {
-    if (!token || !confirm('Delete this ticket?')) return
+  async function handleDelete(id: string) {
+    if (!token || !(await confirm('Delete this ticket?'))) return
     del.mutate({ id, token })
   }
 

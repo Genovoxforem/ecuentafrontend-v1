@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import type { ConfirmInput } from '../../../shared/components/ConfirmDialog'
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -79,13 +80,21 @@ function StatCard({ icon: Icon, tone, label, value }: { icon: LucideIcon; tone: 
 // confirmation box (action=deletefile) — reading
 // core/actions_linkedfiles.inc.php directly shows the actual file removal
 // only happens on action=confirm_deletefile&confirm=yes. Since we render
-// our own window.confirm() above in place of that box, we go straight to
+// our own confirm dialog above in place of that box, we go straight to
 // the real final action instead of fetching (and discarding) the
 // intermediate confirmation page — the previous version silently never
 // deleted anything.
-async function deleteOrderDocument(deleteUrl: string, name: string, refetch: () => void) {
+async function deleteOrderDocument(deleteUrl: string, name: string, refetch: () => void, confirm: (options: ConfirmInput) => Promise<boolean>) {
   if (!deleteUrl) return
-  if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return
+  const ok = await confirm({
+    title: 'Delete File?',
+    message: (
+      <>
+        Are you sure you want to delete <strong className="text-text!">{name}</strong>?
+      </>
+    ),
+  })
+  if (!ok) return
   const finalUrl = deleteUrl.replace('action=deletefile', 'action=confirm_deletefile') + '&confirm=yes'
   await fetch(stripBackendPrefix(finalUrl), { credentials: 'same-origin' })
   refetch()

@@ -1,18 +1,6 @@
-import { useLocalCollection, nextLocalRef, todayIso } from '../../shared/localCollection'
-import { useLogActivity } from '../agenda/agenda.queries'
-import { useAuth } from '../auth/AuthContext'
 import { useAttendanceStatus } from '../attendance/attendance.queries'
+import { useHolidayRequests } from '../users/leave.queries'
 import { useEmployeeCount } from '../users/users.queries'
-
-export interface LeaveRequest {
-  ref: string
-  employeeName: string
-  fromDate: string
-  toDate: string
-  reason: string
-  status: 'Pending' | 'Approved' | 'Rejected'
-  requestedAt: string
-}
 
 export interface PayrollSummary {
   totalEmployees: number
@@ -27,7 +15,6 @@ export interface PayrollSummary {
   salaryPaidThisMonth: number
   salaryPaidLastMonth: number
   salaryPaidLastMonthLabel: string
-  leaveRequests: LeaveRequest[]
 }
 
 function monthLabel(monthsAgo: number) {
@@ -36,23 +23,23 @@ function monthLabel(monthsAgo: number) {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
-const KEY = ['local', 'leaveRequests'] as const
-const SEED: LeaveRequest[] = []
+// Leave requests this month are real (holiday/ajax_holiday_list.php, the same
+// list the Leave pages show). Employee count and today's attendance are real too
+// (the Users list and the live GET /api/attendance/ status). Everything
+// money-related (YTD amounts, salary paid) and shifts stay an honest zero rather
+// than invented payroll figures, same reasoning as Ledger/Banking: a convincing
+// fake dollar amount here is actively misleading.
+function isoDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
-// No backend endpoint exists for the payroll module on this app's server.
-// Employee count and today's attendance are real (drawn from the local
-// Users list and the live GET /api/attendance/ status respectively) —
-// everything money-related (YTD amounts, salary paid) stays an honest zero
-// rather than invented payroll figures, same reasoning as Ledger/Banking:
-// a convincing fake dollar amount here is actively misleading in a way a
-// fake room booking or stock count isn't. Leave requests are held in
-// react-query's cache only — see shared/localCollection.ts.
 export function usePayrollSummary() {
-  const [leaveRequests] = useLocalCollection(KEY, SEED)
+  const now = new Date()
+  const monthStart = isoDate(new Date(now.getFullYear(), now.getMonth(), 1))
+  const monthEnd = isoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const { data: leaveThisMonth } = useHolidayRequests({ from: monthStart, to: monthEnd, status: '' })
   const employeeCount = useEmployeeCount()
   const { data: attendance } = useAttendanceStatus()
-  const now = new Date()
-  const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const summary: PayrollSummary = {
     // +1 for the real logged-in admin, who isn't tracked as a local UserRow.
@@ -60,7 +47,7 @@ export function usePayrollSummary() {
     todaysAttendance: attendance?.isClockedIn ? 1 : 0,
     shifts: 0,
     shiftTemplates: 0,
-    leaveRequestsThisMonth: leaveRequests.filter((r) => r.requestedAt.slice(0, 7) === thisMonthKey).length,
+    leaveRequestsThisMonth: leaveThisMonth?.length ?? 0,
     ytdAmountThisMonth: 0,
     ytdAmountThisMonthLabel: monthLabel(0),
     ytdAmountLastMonth: 0,
@@ -68,41 +55,6 @@ export function usePayrollSummary() {
     salaryPaidThisMonth: 0,
     salaryPaidLastMonth: 0,
     salaryPaidLastMonthLabel: monthLabel(1),
-    leaveRequests: leaveRequests.slice(0, 10),
   }
   return { data: summary, isError: false, isLoading: false }
-}
-
-export interface NewLeaveRequestInput {
-  employeeName: string
-  fromDate: string
-  toDate: string
-  reason: string
-}
-
-export function useCreateLeaveRequest() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
-  return (input: NewLeaveRequestInput) => {
-    const request: LeaveRequest = {
-      ref: nextLocalRef('LR'),
-      employeeName: input.employeeName,
-      fromDate: input.fromDate,
-      toDate: input.toDate,
-      reason: input.reason,
-      status: 'Pending',
-      requestedAt: todayIso(),
-    }
-    update((current) => [request, ...current])
-    const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-    logActivity({ label: `New leave request from ${input.employeeName}`, category: 'leave', authorName })
-  }
-}
-
-export function useSetLeaveRequestStatus() {
-  const [, update] = useLocalCollection(KEY, SEED)
-  return (ref: string, status: LeaveRequest['status']) => {
-    update((current) => current.map((r) => (r.ref === ref ? { ...r, status } : r)))
-  }
 }

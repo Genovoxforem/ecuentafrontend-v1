@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Warehouse,
@@ -24,14 +24,14 @@ import {
   FilePenLine,
   PackagePlus,
   Plus,
-  X,
   History,
   AlertOctagon,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, SectionHeading, ICON_STYLES, ActionGroupCard, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney } from '../../../utils/format'
-import { useStockRows, useRecentMovements, useRecordStockMovement, type WarehouseSummary } from '../warehouses.queries'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { useRecentMovements, type WarehouseSummary } from '../warehouses.queries'
 
 const HERO_WASH: Record<string, string> = {
   blue: 'bg-gradient-to-br from-blue-50 dark:from-blue-500/10',
@@ -131,80 +131,12 @@ function LegacyStatsWarning({ message }: { message: string }) {
   )
 }
 
-function RecordMovementForm({ onClose }: { onClose: () => void }) {
-  const stockRows = useStockRows()
-  const recordMovement = useRecordStockMovement()
-  const [productRef, setProductRef] = useState('')
-  const [delta, setDelta] = useState(0)
-  const [reason, setReason] = useState('')
-  const [error, setError] = useState('')
-
-  function handleSubmit() {
-    const product = stockRows.find((p) => p.ref === productRef)
-    if (!product || delta === 0) {
-      setError('Product and a non-zero quantity are both required.')
-      return
-    }
-    recordMovement({ productRef: product.ref, productLabel: product.label, delta, reason })
-    onClose()
-  }
-
-  return (
-    <Card className="border-brand/40">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-text!">Record Stock Movement</h3>
-        <button type="button" onClick={onClose} className="p-1 rounded-md text-text-faint hover:bg-surface-hover">
-          <X size={16} />
-        </button>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">Product</span>
-          <select value={productRef} onChange={(e) => setProductRef(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2">
-            <option value="">{stockRows.length === 0 ? 'No products' : 'Select a product'}</option>
-            {stockRows.map((p) => (
-              <option key={p.ref} value={p.ref}>
-                {p.label} (current: {p.effectiveStock})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">Quantity (+ in / - out)</span>
-          <input
-            type="number"
-            value={delta}
-            onChange={(e) => setDelta(Number(e.target.value))}
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text">Reason</span>
-          <input
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. Manual recount"
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
-          />
-        </label>
-      </div>
-      {error && <p className="text-sm text-danger mt-2">{error}</p>}
-      <div className="flex justify-end mt-3">
-        <button type="button" onClick={handleSubmit} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
-          <Plus size={14} /> Record movement
-        </button>
-      </div>
-    </Card>
-  )
-}
-
-function timeLabel(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
 function RecentMovements() {
-  const movements = useRecentMovements()
+  const { movements, isLoading, isError, error, refetch } = useRecentMovements()
+  if (isLoading) return <LegacyLoadingCard label="Loading recent stock movements…" />
+  if (isError) {
+    return <LegacyErrorCard title="Couldn't load stock movements" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  }
   if (movements.length === 0) {
     return (
       <Card className="!h-auto items-center justify-center gap-2 py-10 text-center">
@@ -223,32 +155,39 @@ function RecentMovements() {
             <tr className="text-left text-xs font-semibold text-text uppercase tracking-wide border-b border-border bg-surface">
               <th className="px-4 py-3">Ref</th>
               <th className="px-4 py-3">Product</th>
+              <th className="px-4 py-3">Warehouse</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3 text-right">Qty</th>
-              <th className="px-4 py-3">Reason</th>
+              <th className="px-4 py-3">Label</th>
               <th className="px-4 py-3">Date</th>
             </tr>
           </thead>
           <tbody>
             {movements.map((m) => {
-              const DeltaIcon = m.delta >= 0 ? ArrowUpRight : ArrowDownRight
+              const outgoing = m.qty.trim().startsWith('-')
+              const DeltaIcon = outgoing ? ArrowDownRight : ArrowUpRight
               return (
-                <tr key={m.ref} className="border-t border-border hover:bg-surface-hover">
+                <tr key={m.id} className="border-t border-border hover:bg-surface-hover">
                   <td className="px-4 py-3">
                     <span className="flex items-center gap-1.5 text-brand">
                       <History size={13} />
-                      {m.ref}
+                      {m.id}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-text!">{m.productLabel}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums font-medium ${m.delta >= 0 ? 'text-success' : 'text-danger'}`}>
+                  <td className="px-4 py-3 text-text!">
+                    {m.productLabel}
+                    <p className="text-xs text-text-faint">{m.productRef}</p>
+                  </td>
+                  <td className="px-4 py-3 text-text-muted">{m.warehouseRef || '-'}</td>
+                  <td className="px-4 py-3 text-text-muted">{m.typeLabel || '-'}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-medium ${outgoing ? 'text-danger' : 'text-success'}`}>
                     <span className="inline-flex items-center gap-1 justify-end">
                       <DeltaIcon size={13} />
-                      {m.delta >= 0 ? '+' : ''}
-                      {m.delta}
+                      {m.qty}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-text-muted">{m.reason || '-'}</td>
-                  <td className="px-4 py-3 text-text-muted whitespace-nowrap">{timeLabel(m.date)}</td>
+                  <td className="px-4 py-3 text-text-muted">{m.label || '-'}</td>
+                  <td className="px-4 py-3 text-text-muted whitespace-nowrap">{m.dateFormatted}</td>
                 </tr>
               )
             })}
@@ -260,24 +199,16 @@ function RecentMovements() {
 }
 
 export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
-  const [showRecordMovement, setShowRecordMovement] = useState(false)
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Warehouse size={20} className="text-brand" /> Warehouses area
         </h2>
-        <button
-          type="button"
-          onClick={() => setShowRecordMovement((v) => !v)}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-        >
-          <Plus size={14} /> Record Stock Movement
-        </button>
+        <Link to={ROUTES.stockCorrection} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          <Plus size={14} /> Stock correction
+        </Link>
       </div>
-
-      {showRecordMovement && <RecordMovementForm onClose={() => setShowRecordMovement(false)} />}
 
       {summary.legacyStatsError && <LegacyStatsWarning message={summary.legacyStatsError} />}
 

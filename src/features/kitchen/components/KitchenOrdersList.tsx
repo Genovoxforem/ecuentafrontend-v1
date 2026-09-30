@@ -6,12 +6,13 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import {
   useKitchenOrders,
+  useKitchenFilterOptions,
   useSetKitchenOrderComplete,
-  KITCHEN_ORDER_STATUS_OPTIONS,
   type KitchenOrderRow,
   type KitchenOrdersFilters,
 } from '../kitchen.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { usePaymentModes } from '../../invoices/invoiceFormOptions.queries'
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 const EMPTY_FILTERS: KitchenOrdersFilters = { date: '', token: '', thirdParty: '', city: '', paymentType: '', orderStatus: '', completed: '' }
@@ -95,6 +96,10 @@ export function KitchenOrdersList({ kind }: { kind: 'kitchen' | 'beverage' }) {
   const [filters, setFilters] = useState<KitchenOrdersFilters>(EMPTY_FILTERS)
 
   const { data, isLoading, isError, error, refetch, isFetching } = useKitchenOrders(kind, filters, page, perPage)
+  const { data: filterOptions } = useKitchenFilterOptions(kind)
+  // The order stores the payment type's row id (1 = Cash …), which is what the backend's
+  // filter compares — so the select sends that id, not the dictionary's "01" code.
+  const { data: paymentModes } = usePaymentModes()
   const orders = data?.items ?? []
   const total = data?.total ?? 0
   const { sorted: sortedOrders, sort, toggleSort } = useSortableRows<KitchenOrderRow, SortKey>(orders, sortValue)
@@ -135,7 +140,7 @@ export function KitchenOrdersList({ kind }: { kind: 'kitchen' | 'beverage' }) {
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Icon size={20} className="text-brand" /> {kind === 'beverage' ? 'Beverage Order Management' : 'Kitchen Order Management'}
+          <Icon size={20} className="text-brand" /> {filterOptions?.title || (kind === 'beverage' ? 'Beverage Order Management' : 'Kitchen Order Management')}
         </h2>
       </div>
 
@@ -173,24 +178,29 @@ export function KitchenOrdersList({ kind }: { kind: 'kitchen' | 'beverage' }) {
             placeholder="Search City"
             className={`${inputCls} w-36`}
           />
-          <input
-            type="text"
-            value={draftFilters.paymentType}
-            onChange={(e) => updateDraft('paymentType', e.target.value)}
-            placeholder="Search Payment Type"
-            className={`${inputCls} w-40`}
-          />
-          <select value={draftFilters.orderStatus} onChange={(e) => updateDraft('orderStatus', e.target.value)} className={`${inputCls} appearance-none`}>
-            {KITCHEN_ORDER_STATUS_OPTIONS.map((o) => (
+          <select value={draftFilters.paymentType} onChange={(e) => updateDraft('paymentType', e.target.value)} className={`${inputCls} w-44 appearance-none`} aria-label="Search Payment Type">
+            <option value="">Payment Type</option>
+            {(paymentModes ?? [])
+              .filter((m) => /^\d+$/.test(m.id))
+              .map((m) => (
+                <option key={m.id} value={String(Number(m.id))}>
+                  {m.text}
+                </option>
+              ))}
+          </select>
+          <select value={draftFilters.orderStatus} onChange={(e) => updateDraft('orderStatus', e.target.value)} className={`${inputCls} appearance-none`} aria-label="Order status">
+            {(filterOptions?.orderStatus ?? [{ value: '', label: 'Select Order Status' }]).map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
-          <select value={draftFilters.completed} onChange={(e) => updateDraft('completed', e.target.value)} className={`${inputCls} appearance-none`}>
-            <option value="">Completed Status</option>
-            <option value="1">Yes</option>
-            <option value="0">No</option>
+          <select value={draftFilters.completed} onChange={(e) => updateDraft('completed', e.target.value)} className={`${inputCls} appearance-none`} aria-label="Completed status">
+            {(filterOptions?.completed ?? [{ value: '', label: 'Completed Status' }]).map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
           <button type="button" onClick={handleSearch} className="h-9 px-4 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover">
             Search

@@ -1,138 +1,135 @@
-import { useMemo, useState } from 'react'
-import { BarChart3, Users, Tags } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { useState } from 'react'
+import { BarChart3, Tags, Users } from 'lucide-react'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useAllExpenseReports } from '../expenses.queries'
-import { formatMoney } from '../../../utils/format'
+import { useExpenseReportsPage, type ReportsFilters } from '../expenseTabs.queries'
+import { controlCls } from '../expenseTable'
+import { ExpenseTable, type ExpenseColumn } from './ExpenseTable'
+import { Field, FormCard } from './expenseParts'
 
-function parseAmount(s: string): number {
-  return parseFloat(s.replace(/,/g, '')) || 0
+const amount = (s: string) => parseFloat(s.replace(/,/g, '')) || 0
+
+// The backend prints sums with every decimal the database holds (287.4137931); amounts are shown to 2.
+const money = (s: string) => {
+  const n = amount(s)
+  return /\.\d{3,}$/.test(s) ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : s
 }
-function parseListDate(s: string): Date | null {
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? null : d
-}
 
-const inputCls = 'h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none'
+type EmployeeRow = { employee: string; count: string; ht: string; vat: string; ttc: string; paid: string }
+type TypeRow = { type: string; lines: string; ttc: string }
 
-// Real via expense/ajax/expense_list.php (length=-1) — "By Employee" is
-// computed client-side from these real rows (count/HT/VAT/TTC/paid TTC per
-// user), matching the real reports.php table's own columns. "By Expense
-// Type" needs per-line-item amounts this backend has no JSON API for (only
-// server-rendered HTML) — shown as an honest empty state. The real page's
-// Department/Branch filters aren't offered here for the same reason: the
-// List endpoint doesn't expose those columns at all.
+const employeeColumns: ExpenseColumn<EmployeeRow>[] = [
+  { key: 'employee', header: 'Employee', sortValue: (r) => r.employee, cell: (r) => r.employee },
+  { key: 'count', header: 'Count', align: 'center', sortValue: (r) => Number(r.count) || 0, cell: (r) => r.count },
+  { key: 'ht', header: 'Total HT', align: 'right', sortValue: (r) => amount(r.ht), cell: (r) => <span className="tabular-nums">{money(r.ht)}</span> },
+  { key: 'vat', header: 'VAT', align: 'right', sortValue: (r) => amount(r.vat), cell: (r) => <span className="tabular-nums">{money(r.vat)}</span> },
+  { key: 'ttc', header: 'Total TTC', align: 'right', sortValue: (r) => amount(r.ttc), cell: (r) => <strong className="tabular-nums">{money(r.ttc)}</strong> },
+  { key: 'paid', header: 'Paid TTC', align: 'right', sortValue: (r) => amount(r.paid), cell: (r) => <span className="tabular-nums text-success-fg">{money(r.paid)}</span> },
+]
+const typeColumns: ExpenseColumn<TypeRow>[] = [
+  { key: 'type', header: 'Type', sortValue: (r) => r.type, cell: (r) => r.type },
+  { key: 'lines', header: 'Lines', align: 'center', sortValue: (r) => Number(r.lines) || 0, cell: (r) => r.lines },
+  { key: 'ttc', header: 'Total TTC', align: 'right', sortValue: (r) => amount(r.ttc), cell: (r) => <strong className="tabular-nums">{money(r.ttc)}</strong> },
+]
+
+// expense/reports.php: totals by employee and by expense type for a period (and department / branch).
 export function ExpenseReportsPage() {
-  const currentYear = new Date().getFullYear()
-  const [yearFrom, setYearFrom] = useState(String(currentYear))
-  const [yearTo, setYearTo] = useState(String(currentYear))
-  const { data, isLoading, isError, error, refetch } = useAllExpenseReports()
-  const rows = useMemo(() => data?.rows ?? [], [data])
+  // Until Filter is pressed the page shows its own defaults: this year, January to December.
+  const [applied, setApplied] = useState<ReportsFilters | null>(null)
+  const [draft, setDraft] = useState<ReportsFilters | null>(null)
+  const { data, isLoading, isError, error, refetch } = useExpenseReportsPage(applied)
+  const form = draft ?? (data ? data.filters : null)
 
-  const filtered = useMemo(() => {
-    const from = Number(yearFrom)
-    const to = Number(yearTo)
-    return rows.filter((r) => {
-      const d = parseListDate(r.dateStart)
-      if (!d) return true
-      return d.getFullYear() >= from && d.getFullYear() <= to
-    })
-  }, [rows, yearFrom, yearTo])
-
-  const byEmployee = useMemo(() => {
-    const map = new Map<string, { employee: string; count: number; ht: number; tva: number; ttc: number; paidTtc: number }>()
-    for (const r of filtered) {
-      const key = r.user || 'Unknown'
-      const bucket = map.get(key) ?? { employee: key, count: 0, ht: 0, tva: 0, ttc: 0, paidTtc: 0 }
-      bucket.count += 1
-      bucket.ht += parseAmount(r.totalHt)
-      bucket.tva += parseAmount(r.totalTva)
-      bucket.ttc += parseAmount(r.totalTtc)
-      if (r.paid) bucket.paidTtc += parseAmount(r.totalTtc)
-      map.set(key, bucket)
-    }
-    return Array.from(map.values()).sort((a, b) => b.ttc - a.ttc)
-  }, [filtered])
+  const set = (key: keyof ReportsFilters) => (value: string) => form && setDraft({ ...form, [key]: value })
 
   return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
-      <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <BarChart3 size={20} className="text-brand" /> Expense Reports
-        </h2>
-      </div>
+    <div className="space-y-4">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+        <BarChart3 size={20} className="text-brand" /> Expense Reports
+      </h2>
 
-      <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
-        <Card className="!h-auto">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Year From</label>
-              <input value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} className={`${inputCls} w-28`} />
+      {isLoading && <LegacyLoadingCard label="Loading the reports…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+      {data && form && (
+        <>
+          <FormCard icon={<BarChart3 size={15} />} title="Filters">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                setApplied(form)
+              }}
+              className="grid grid-cols-1 items-end gap-3 md:grid-cols-4"
+            >
+              <Field label="Year From">
+                <input type="number" value={form.yearFrom} onChange={(e) => set('yearFrom')(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Month From">
+                <select value={form.monthFrom} onChange={(e) => set('monthFrom')(e.target.value)} className={`${controlCls} w-full`}>
+                  {data.months.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Year To">
+                <input type="number" value={form.yearTo} onChange={(e) => set('yearTo')(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Month To">
+                <select value={form.monthTo} onChange={(e) => set('monthTo')(e.target.value)} className={`${controlCls} w-full`}>
+                  {data.months.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Department">
+                <input value={form.dept} onChange={(e) => set('dept')(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Branch">
+                <input value={form.branch} onChange={(e) => set('branch')(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
+              <div>
+                <button type="submit" className="h-9 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-hover">
+                  Filter
+                </button>
+              </div>
+            </form>
+          </FormCard>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[7fr_5fr]">
+            <div className="min-w-0 space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
+                <Users size={15} className="text-brand" /> By Employee
+              </h3>
+              <ExpenseTable
+                rows={data.byEmployee}
+                columns={employeeColumns}
+                rowKey={(r) => r.employee}
+                searchPlaceholder="Search..."
+                searchText={(r) => r.employee}
+                defaultSort={{ key: 'ttc', dir: 'desc' }}
+                empty="No expenses in this period."
+              />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Year To</label>
-              <input value={yearTo} onChange={(e) => setYearTo(e.target.value)} className={`${inputCls} w-28`} />
+            <div className="min-w-0 space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
+                <Tags size={15} className="text-brand" /> By Expense Type
+              </h3>
+              <ExpenseTable
+                rows={data.byType}
+                columns={typeColumns}
+                rowKey={(r) => r.type}
+                searchPlaceholder="Search..."
+                searchText={(r) => r.type}
+                defaultSort={{ key: 'ttc', dir: 'desc' }}
+                empty="No expenses in this period."
+              />
             </div>
           </div>
-        </Card>
-
-        {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
-        {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-
-        {data && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
-            <Card className="!p-0 overflow-hidden">
-              <h3 className="flex items-center gap-2 font-semibold text-text! p-4 pb-3 shrink-0">
-                <Users size={16} className="text-brand" /> By Employee
-              </h3>
-              <div className="flex-1 min-h-0 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 z-10 bg-surface-alt">
-                    <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                      <th className="font-medium px-4 py-2">Employee</th>
-                      <th className="font-medium px-4 py-2 text-right">Count</th>
-                      <th className="font-medium px-4 py-2 text-right">Total HT</th>
-                      <th className="font-medium px-4 py-2 text-right">VAT</th>
-                      <th className="font-medium px-4 py-2 text-right">Total TTC</th>
-                      <th className="font-medium px-4 py-2 text-right">Paid TTC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byEmployee.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-4 text-text-faint italic">
-                          No expense reports in this range.
-                        </td>
-                      </tr>
-                    ) : (
-                      byEmployee.map((row) => (
-                        <tr key={row.employee} className="border-b border-border last:border-0">
-                          <td className="px-4 py-2 text-text!">{row.employee}</td>
-                          <td className="px-4 py-2 text-right text-text-muted">{row.count}</td>
-                          <td className="px-4 py-2 text-right text-text-muted">{formatMoney(row.ht)}</td>
-                          <td className="px-4 py-2 text-right text-text-muted">{formatMoney(row.tva)}</td>
-                          <td className="px-4 py-2 text-right text-text! font-medium">{formatMoney(row.ttc)}</td>
-                          <td className="px-4 py-2 text-right text-success-fg">{formatMoney(row.paidTtc)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-
-            <Card>
-              <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
-                <Tags size={16} className="text-brand" /> By Expense Type
-              </h3>
-              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
-                <p className="text-sm text-text-muted">Not available</p>
-                <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API for per-line expense-type amounts — only server-rendered HTML.</p>
-              </div>
-            </Card>
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }

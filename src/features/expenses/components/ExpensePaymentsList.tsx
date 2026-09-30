@@ -1,186 +1,158 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, X, Info } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Banknote, Info, Undo2 } from 'lucide-react'
+import { StickyListLayout, ScrollCard, STICKY_THEAD } from '../../../shared/components/layout/StickyListLayout'
+import { ListPagination } from '../../../shared/components/ListPagination'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useAllExpenseReports, useCreateExpensePayment, usePaymentTypes, useBankAccounts, type ExpenseReportRow } from '../expenses.queries'
+import { useExpensePayments } from '../expensePages.queries'
+import type { PaymentRow } from '../expensePagesParser'
+import { useDataTable } from '../expenseTable'
+import { ExpensePayDialog } from './ExpensePayDialog'
+import { PaidBadge, PerPageSelect, SearchBox, SortTh, StatusBadge } from './expenseParts'
 import { ROUTES } from '../../../routes'
 
-function parseAmount(s: string): number {
-  return parseFloat(s.replace(/,/g, '')) || 0
-}
+const amount = (s: string) => parseFloat(s.replace(/,/g, '')) || 0
 
-function PayModal({ row, onClose }: { row: ExpenseReportRow; onClose: () => void }) {
-  const amountDue = parseAmount(row.totalTtc)
-  const [amount, setAmount] = useState(String(amountDue))
-  const [fkTypePayment, setFkTypePayment] = useState('')
-  const [accountId, setAccountId] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [numPayment, setNumPayment] = useState('')
-  const { data: paymentTypes } = usePaymentTypes()
-  const { data: bankAccounts } = useBankAccounts()
-  const createPayment = useCreateExpensePayment()
-
-  async function submit() {
-    await createPayment.mutateAsync({
-      id: row.id,
-      amount: Number(amount),
-      fkTypePayment,
-      accountId: accountId ? Number(accountId) : undefined,
-      date,
-      numPayment,
-    })
-    onClose()
+function sortValue(r: PaymentRow, key: string): string | number {
+  switch (key) {
+    case 'n':
+      return r.n
+    case 'ref':
+      return r.ref
+    case 'employee':
+      return r.employee
+    case 'period':
+      return r.period
+    case 'totalTtc':
+      return amount(r.totalTtc)
+    case 'advance':
+      return amount(r.advance)
+    case 'net':
+      return amount(r.netPayable)
+    case 'paidAmount':
+      return amount(r.totalPaid)
+    default:
+      return r.status
   }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-surface rounded-xl border border-border w-full max-w-md p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-text!">Pay {row.ref}</h3>
-          <button type="button" onClick={onClose} className="text-text-faint hover:text-text">
-            <X size={18} />
-          </button>
-        </div>
-        <label className="block">
-          <span className="block text-xs font-medium text-text-muted mb-1">Amount</span>
-          <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none" />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-text-muted mb-1">Payment date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none" />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-text-muted mb-1">Payment mode</span>
-          <select value={fkTypePayment} onChange={(e) => setFkTypePayment(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none">
-            <option value="">Select…</option>
-            {paymentTypes?.map((pt) => (
-              <option key={pt.id} value={pt.id}>
-                {pt.text}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-text-muted mb-1">Bank account</span>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none">
-            <option value="">Select…</option>
-            {bankAccounts?.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.text}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-text-muted mb-1">Payment reference (optional)</span>
-          <input value={numPayment} onChange={(e) => setNumPayment(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none" />
-        </label>
-        {createPayment.isError && <p className="text-sm text-danger-fg">{createPayment.error instanceof Error ? createPayment.error.message : 'Could not record the payment.'}</p>}
-        <div className="flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={createPayment.isPending || !amount || !fkTypePayment}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-          >
-            Pay {formatAmount(amount)}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
 }
+const searchText = (r: PaymentRow) => [r.ref, r.employee, r.period, r.totalTtc, r.netPayable, r.status, r.paid ? 'Paid' : 'Unpaid'].join(' ')
 
-function formatAmount(v: string) {
-  const n = Number(v)
-  return Number.isFinite(n) ? n.toFixed(2) : v
-}
+const NET_CLS = { owed: 'text-brand', surplus: 'text-warning-fg', settled: 'text-success-fg' }
 
-// Real via expense/ajax/expense_list.php filtered to fk_statut=5 ("Approved"),
-// narrowed client-side to unpaid rows — the real payments.php page's own
-// list has no JSON of its own. The real reference query also treats
-// fk_statut=3 as payable, a status code never actually populated in
-// practice (see expenses.queries.ts's header comment), so it's not fetched
-// here. Net Payable in the real page nets out already-recorded advances/
-// reimbursements (llx_expense_advance / llx_expense_reimbursement), which
-// have no JSON read endpoint at all — so this shows the full unpaid Total
-// TTC instead of a netted figure, flagged below rather than silently
-// approximated. Pay is genuinely real (action=create_payment).
+// expense/payments.php: approved reports waiting for (or done with) payment, with the advance already
+// given and what is still payable.
 export function ExpensePaymentsList() {
-  const { data, isLoading, isError, error, refetch } = useAllExpenseReports('5')
-  const rows = useMemo(() => (data?.rows ?? []).filter((r) => !r.paid), [data])
-  const [paying, setPaying] = useState<ExpenseReportRow | null>(null)
+  const { data, isLoading, isError, error, refetch } = useExpensePayments()
+  const [paying, setPaying] = useState<{ row: PaymentRow; payable: number } | null>(null)
+  const t = useDataTable({ rows: data?.rows ?? [], searchText, sortValue, defaultSort: { key: 'ref', dir: 'desc' } })
+  const th = (key: string, label: string, align?: 'right') => (
+    <SortTh active={t.sort.key === key} dir={t.sort.dir} onSort={() => t.toggleSort(key)} align={align}>
+      {label}
+    </SortTh>
+  )
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <CreditCard size={20} className="text-brand" /> Expense Payments
-      </h2>
-
-      <div className="flex items-start gap-2 rounded-lg border border-info-bg bg-info-bg/40 px-3 py-2 text-xs text-info-fg">
-        <Info size={14} className="shrink-0 mt-0.5" />
-        <p>Net Payable shows the full unpaid Total TTC. This backend has no JSON API for advances/reimbursements already applied to a report, so those can&apos;t be netted out here.</p>
-      </div>
-
+    <StickyListLayout
+      header={
+        <>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+            <Banknote size={20} className="text-brand" /> Expense Payments
+          </h2>
+          {data?.note && (
+            <div className="flex items-center gap-2 rounded-lg border border-info-fg/30 bg-info-bg/40 px-3 py-2 text-sm text-info-fg">
+              <Info size={14} className="shrink-0" /> {data.note}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <PerPageSelect value={t.perPage} onChange={t.setPerPage} />
+            <SearchBox value={t.search} onChange={t.setSearch} placeholder="Search payments..." />
+          </div>
+        </>
+      }
+    >
       {isLoading && <LegacyLoadingCard label="Loading payments…" />}
       {isError && <LegacyErrorCard title="Couldn't load payments" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
       {data && (
-        <Card className="!h-auto !p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                <th className="font-medium px-4 py-2.5">Ref</th>
-                <th className="font-medium px-4 py-2.5">Employee</th>
-                <th className="font-medium px-4 py-2.5">Period</th>
-                <th className="font-medium px-4 py-2.5 text-right">Total TTC</th>
-                <th className="font-medium px-4 py-2.5 text-right">Net Payable</th>
-                <th className="font-medium px-4 py-2.5">Status</th>
-                <th className="font-medium px-4 py-2.5">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-6 text-text-faint italic text-center">
-                    No approved expense reports awaiting payment.
-                  </td>
+        <>
+          <ScrollCard>
+            <table className="w-full text-sm">
+              <thead className={STICKY_THEAD}>
+                <tr className="border-b border-border bg-surface">
+                  {th('n', '#')}
+                  {th('ref', 'Ref')}
+                  {th('employee', 'Employee')}
+                  {th('period', 'Period')}
+                  {th('totalTtc', 'Total TTC', 'right')}
+                  {th('advance', 'Advance', 'right')}
+                  {th('net', 'Net Payable', 'right')}
+                  {th('paidAmount', 'Total Paid', 'right')}
+                  {th('status', 'Status')}
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold">Paid</th>
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold">Actions</th>
                 </tr>
-              ) : (
-                rows.map((r) => (
+              </thead>
+              <tbody>
+                {t.pageRows.length === 0 && (
+                  <tr>
+                    <td colSpan={11} className="px-4 py-8 text-center italic text-text-faint">
+                      {t.all === 0 ? 'No approved expense reports awaiting payment.' : 'No matching records found'}
+                    </td>
+                  </tr>
+                )}
+                {t.pageRows.map((r) => (
                   <tr key={r.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5">
-                      <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
+                    <td className="px-3 py-2.5 text-text-muted">{r.n}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold">
+                      <Link to={ROUTES.expenseCard.replace(':id', r.id)} className="text-brand hover:underline">
                         {r.ref}
                       </Link>
                     </td>
-                    <td className="px-4 py-2.5 text-text-muted">{r.user}</td>
-                    <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">
-                      {r.dateStart} – {r.dateEnd}
+                    <td className="whitespace-nowrap px-3 py-2.5 text-text-muted">{r.employee}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-text-muted">{r.period}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-text!">{r.totalTtc}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-text-muted">{r.advance}</td>
+                    <td className={`whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums ${NET_CLS[r.netTone]}`}>{r.netPayable}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-text!">{r.totalPaid}</td>
+                    <td className="px-3 py-2.5">
+                      <StatusBadge status={r.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right text-text-muted">{r.totalTtc}</td>
-                    <td className="px-4 py-2.5 text-right text-text!">{r.totalTtc}</td>
-                    <td className="px-4 py-2.5">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-success-bg text-success-fg">{r.status}</span>
+                    <td className="px-3 py-2.5">
+                      <PaidBadge paid={r.paid} />
                     </td>
-                    <td className="px-4 py-2.5">
-                      <button type="button" onClick={() => setPaying(r)} className="rounded-md bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-hover">
-                        Pay {r.totalTtc}
-                      </button>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                      {r.action.kind === 'pay' && (
+                        <button
+                          type="button"
+                          onClick={() => r.action.kind === 'pay' && setPaying({ row: r, payable: r.action.amount })}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-gray-800 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                        >
+                          <Banknote size={13} /> {r.action.label}
+                        </button>
+                      )}
+                      {r.action.kind === 'collect' && (
+                        <Link
+                          to={ROUTES.expensesRepayments}
+                          title="Advance exceeds expense — go to Repayments to collect the return"
+                          className="inline-flex items-center gap-1.5 rounded-md bg-warning-bg px-3 py-1 text-xs font-medium text-warning-fg hover:brightness-95"
+                        >
+                          <Undo2 size={13} /> {r.action.label}
+                        </Link>
+                      )}
+                      {r.action.kind === 'settled' && <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success-fg">{r.action.label}</span>}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Card>
+                ))}
+              </tbody>
+            </table>
+          </ScrollCard>
+          <div className="-mx-6 -mb-4">
+            <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} edgeToEdge />
+          </div>
+        </>
       )}
 
-      {paying && <PayModal row={paying} onClose={() => setPaying(null)} />}
-    </div>
+      {paying && <ExpensePayDialog id={paying.row.id} refLabel={paying.row.ref} payable={paying.payable} onClose={() => setPaying(null)} />}
+    </StickyListLayout>
   )
 }

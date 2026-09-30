@@ -1,5 +1,4 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { api } from '../../api/axios'
 import { LEGACY_SESSION_EXPIRED_PREFIX } from '../../shared/components/BackendUnavailable'
 import { fetchLegacyDocument, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { looksLikeZraLoginPage, extractEmbeddedJsonData, type ZraGatewayEnvelope } from './zraGatewayParser'
@@ -169,27 +168,35 @@ export function useZraSummary(year?: number) {
   })
 }
 
-// GET /api/zra/vsdc-status/ — real, live connectivity checks (not derived
-// from local DB data): ZRA API HEAD probe, the VSDC app's own status page
-// (version banner, service time, pending-invoice count for this TPIN/branch),
-// and the ZRA gateway's own branch-sync status code/message. Ports
-// zraindex.php's checkZRAApiStatus()/fetchZRAContent() and
-// quicklinks_ajax.php's 'getzraresponse' action exactly — no derived/local
-// substitute, since this is specifically a live-gateway health check.
-export interface VsdcStatus {
-  apiOnline: boolean
-  tpinBranchCode: string
-  vsdc: { logoUrl: string | null; title: string | null; serviceTime: string | null; pendingLine: string | null } | null
-  syncStatus: { code: string | null; message: string | null } | null
+// POST /quicklinks_ajax.php  type=getzraresponse — the ZRA dashboard's own
+// "Server Synchronization Status" check: the backend asks the ZRA gateway for the
+// branch sync status and answers with a short text such as
+// "000 - It is succeeded". That is the only status the backend's dashboard shows
+// (the old /api/zra/vsdc-status/ with its API probe and VSDC banner is not on
+// this backend).
+export interface ZraServerStatus {
+  code: string | null
+  message: string
+  ok: boolean
   responseTimeMs: number
 }
-export function useVsdcStatus() {
+export function useZraServerStatus() {
   return useQuery({
-    queryKey: ['zra', 'vsdc-status'],
-    queryFn: async (): Promise<VsdcStatus> => {
+    queryKey: ['zra', 'server-status'],
+    queryFn: async (): Promise<ZraServerStatus> => {
       const start = performance.now()
-      const { data } = await api.get<{ success: boolean; data: Omit<VsdcStatus, 'responseTimeMs'> }>('/zra/vsdc-status/')
-      return { ...data.data, responseTimeMs: Math.round(performance.now() - start) }
+      const res = await fetch('/quicklinks_ajax.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'type=getzraresponse',
+      })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const raw = await res.text()
+      if (raw.includes('name="password"') && raw.includes('actionlogin')) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const text = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+      const m = text.match(/^(\d{3})\s*-\s*(.*)$/)
+      return { code: m?.[1] ?? null, message: m?.[2] ?? text, ok: m?.[1] === '000', responseTimeMs: Math.round(performance.now() - start) }
     },
     staleTime: 1000 * 30,
     retry: false,
@@ -222,10 +229,13 @@ export function useSalesInvoiceLookup() {
       if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
       const block = doc.querySelector('.zra-list-view')
       if (!block) return { found: false }
+      // For an unknown invoice number the page still prints the block, with "N/A" in every field.
+      const receiptNumber = textOf(doc, '#rcptNo')
+      if (receiptNumber === '' || receiptNumber.toUpperCase() === 'N/A') return { found: false }
       return {
         found: true,
         invoiceNumber: textOf(doc, '.zra-list-view-body p:first-child span'),
-        receiptNumber: textOf(doc, '#rcptNo'),
+        receiptNumber,
         receiptDate: textOf(doc, '#vsdcRcptPbctDate'),
         internalData: textOf(doc, '#intrlData'),
         receiptSignature: textOf(doc, '#rcptSign'),
@@ -471,11 +481,13 @@ export function useZraPrincipals(lastReqDt?: string) {
   })
 }
 
-// GET /api/zra/stock-list/ — real, proxies custom/zra/stocklist.php's own
-// live lookup against the ZRA gateway's /stock/selectStockItems endpoint —
-// this business's own reported stock movement history, grouped/aggregated
-// by item code server-side exactly like the real page's own client-side
-// groupAndAggregateItems(). Read-only, safe to call and retry.
+// custom/zra/stocklist.php — this business's own stock movement history from
+// the ZRA gateway (/stock/selectStockItems). Like selectItems.php it embeds the
+// whole gateway response as `var jsonData = {...};` in the page itself, and the
+// page's own script then groups the movements by item code (summing quantity and
+// supply amount) — the same grouping is done here on that embedded blob, since
+// there is no separate JSON endpoint (the old /api/zra/stock-list/ this used to
+// call is not on this backend). Read-only.
 export interface ZraStockMovementDetail {
   sno: number
   sarNo: string
@@ -509,15 +521,100 @@ export interface ZraStockListItem {
   vat: string
   details: ZraStockMovementDetail[]
 }
+interface RawZraStockItem {
+  itemSeq?: number
+  itemCd?: string
+  itemClsCd?: string
+  itemNm?: string
+  pkgUnitCd?: string
+  pkg?: number
+  qtyUnitCd?: string
+  qty?: number
+  prc?: number
+  splyAmt?: number
+  totDcAmt?: number
+  taxblAmt?: number
+  vatCatCd?: string
+  vatAmt?: number
+  totAmt?: number
+}
+interface RawZraStockMove {
+  sarNo?: number | string
+  ocrnDt?: string
+  itemList?: RawZraStockItem[]
+}
 export function useZraStockList() {
   return useQuery({
     queryKey: ['zra', 'stock-list'],
     queryFn: async (): Promise<{ resultCode: string | null; resultMessage: string | null; items: ZraStockListItem[] }> => {
-      const { data } = await api.get<{ success: boolean; data: { resultCode: string | null; resultMessage: string | null; items: ZraStockListItem[] } }>(
-        '/zra/stock-list/',
-      )
-      return data.data
+      const doc = await fetchLegacyDocument('/custom/zra/stocklist.php')
+      if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const envelope = extractEmbeddedJsonData(doc) as (ZraGatewayEnvelope & { data?: { stockList?: RawZraStockMove[] } }) | null
+      if (!envelope) throw new Error('The ZRA stock list was not found on the backend page.')
+
+      const byItem = new Map<string, ZraStockListItem>()
+      for (const move of envelope.data?.stockList ?? []) {
+        for (const it of move.itemList ?? []) {
+          const code = it.itemCd ?? ''
+          let group = byItem.get(code)
+          if (!group) {
+            group = {
+              sno: byItem.size + 1,
+              itemCode: code,
+              itemClassCode: it.itemClsCd ?? '',
+              itemName: it.itemNm ?? '',
+              packageUnit: it.pkgUnitCd ?? '',
+              quantityUnit: it.qtyUnitCd ?? '',
+              quantity: 0,
+              price: it.prc ?? null,
+              supplyAmount: 0,
+              vat: it.vatCatCd ?? '',
+              details: [],
+            }
+            byItem.set(code, group)
+          }
+          group.quantity += it.qty ?? 0
+          group.supplyAmount += it.splyAmt ?? 0
+          group.details.push({
+            sno: group.details.length + 1,
+            sarNo: String(move.sarNo ?? ''),
+            occurrenceDate: move.ocrnDt ?? '',
+            itemSeq: it.itemSeq ?? null,
+            itemCode: code,
+            itemClassCode: it.itemClsCd ?? '',
+            itemName: it.itemNm ?? '',
+            packageUnit: it.pkgUnitCd ?? '',
+            package: it.pkg ?? null,
+            quantityUnit: it.qtyUnitCd ?? '',
+            quantity: it.qty ?? null,
+            price: it.prc ?? null,
+            supplyAmount: it.splyAmt ?? null,
+            totalDiscountAmount: it.totDcAmt ?? null,
+            taxableAmount: it.taxblAmt ?? null,
+            vat: it.vatCatCd ?? '',
+            vatAmount: it.vatAmt ?? null,
+            totalAmount: it.totAmt ?? null,
+          })
+        }
+      }
+      return { resultCode: envelope.resultCd ?? null, resultMessage: envelope.resultMsg ?? null, items: Array.from(byItem.values()) }
     },
     staleTime: 1000 * 30,
+  })
+}
+
+// The dashboard's "ZRA Monitor" tab is an iframe onto the ZRA server analysis
+// page whose address the backend prints on custom/zra/zraindex.php
+// (iframe.zra-analysis-frame) — read from there rather than written into the
+// app. Only fetched once the tab is opened.
+export function useZraMonitorUrl(enabled: boolean) {
+  return useQuery({
+    queryKey: ['zra', 'monitor-url'],
+    queryFn: async (): Promise<string | null> => {
+      const doc = await fetchLegacyDocument('/custom/zra/zraindex.php')
+      return doc.querySelector('iframe.zra-analysis-frame')?.getAttribute('src') || null
+    },
+    enabled,
+    staleTime: 1000 * 60 * 10,
   })
 }

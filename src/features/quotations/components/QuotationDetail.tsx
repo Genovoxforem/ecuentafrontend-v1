@@ -22,8 +22,9 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { formatMoney, formatNumber } from '../../../utils/format'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
 import {
   useQuotationCard,
   useValidateQuotation,
@@ -80,6 +81,7 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
   const classifyBilled = useClassifyBilledQuotation()
   const clone = useCloneQuotation()
   const del = useDeleteQuotation()
+  const confirm = useConfirm()
   const { data } = useQuotationCard(id)
   const [showSendEmail, setShowSendEmail] = useState(false)
   const actions = data?.actions
@@ -136,8 +138,9 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         <button
           type="button"
           disabled={clone.isPending}
-          onClick={() => {
-            if (!window.confirm('Clone this quotation into a new draft?')) return
+          onClick={async () => {
+            const ok = await confirm({ title: 'Clone Quotation?', message: 'Clone this quotation into a new draft?', variant: 'default', confirmLabel: 'Clone' })
+            if (!ok) return
             clone.mutate({ id, socid }, { onSuccess: (newId) => newId && navigate(ROUTES.quotationDetail.replace(':id', newId)) })
           }}
           className={btnCls}
@@ -149,8 +152,9 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         <button
           type="button"
           disabled={del.isPending}
-          onClick={() => {
-            if (!window.confirm('Delete this quotation? This cannot be undone.')) return
+          onClick={async () => {
+            const ok = await confirm({ title: 'Delete Quotation?', message: 'Are you sure you want to delete this quotation?' })
+            if (!ok) return
             del.mutate(id, { onSuccess: () => navigate(ROUTES.quotationList) })
           }}
           className={dangerCls}
@@ -251,9 +255,9 @@ function RelatedObjectsSection({ id }: { id: string }) {
                 <tr key={i} className="border-b border-border last:border-0">
                   <td className="px-4 py-2.5 text-text-muted">{o.type}</td>
                   <td className="px-4 py-2.5">
-                    <a href={stripBackendPrefix(o.url)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-brand hover:underline">
+                    <LegacyObjectLink url={o.url} className="flex items-center gap-1 text-brand hover:underline" plainClassName="flex items-center gap-1">
                       <Link2 size={12} /> {o.ref}
-                    </a>
+                    </LegacyObjectLink>
                   </td>
                   <td className="px-4 py-2.5 text-text-muted">{o.date}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-text-muted">{formatMoney(o.amount)}</td>
@@ -339,13 +343,7 @@ function LatestLinkedEventsSection({ id }: { id: string }) {
               {latestLinkedEvents.map((e, i) => (
                 <tr key={i} className="border-b border-border last:border-0">
                   <td className="px-4 py-2.5">
-                    {e.url ? (
-                      <a href={stripBackendPrefix(e.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                        {e.ref}
-                      </a>
-                    ) : (
-                      e.ref
-                    )}
+                    <LegacyObjectLink url={e.url}>{e.ref}</LegacyObjectLink>
                   </td>
                   <td className="px-4 py-2.5 text-text-muted">{e.date}</td>
                   <td className="px-4 py-2.5 text-text-muted">{e.by}</td>

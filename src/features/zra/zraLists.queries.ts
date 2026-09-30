@@ -34,8 +34,9 @@ export function useAutomaticPurchaseList(params: ListParams) {
         length: String(params.perPage),
       })
       if (params.search) body.set('search[value]', params.search)
-      const { data } = await axios.post<{ recordsTotal: number; data: RawAutomaticPurchaseRow[] }>('/custom/zra/getpurchases_ajax.php', body)
-      return { items: (data.data ?? []).map(parseAutomaticPurchaseRow), total: Number(data.recordsTotal) || 0 }
+      const { data } = await axios.post<{ recordsTotal: number; recordsFiltered?: number; data: RawAutomaticPurchaseRow[] }>('/custom/zra/getpurchases_ajax.php', body)
+      // recordsTotal ignores the search; the pager needs the filtered count (live: search "UNO" -> 14 of 1102).
+      return { items: (data.data ?? []).map(parseAutomaticPurchaseRow), total: Number(data.recordsFiltered ?? data.recordsTotal) || 0 }
     },
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,
@@ -121,8 +122,8 @@ export function usePendingSalesList(params: ListParams) {
         invtype: 'pending',
       })
       if (params.search) body.set('search[value]', params.search)
-      const { data } = await axios.post<{ iTotalRecords: number; aaData: RawPendingSalesRow[] }>('/compta/facture/invoice_ajax_list.php', body)
-      return { items: (data.aaData ?? []).map(parsePendingSalesRow), total: Number(data.iTotalRecords) || 0 }
+      const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords?: number; aaData: RawPendingSalesRow[] }>('/compta/facture/invoice_ajax_list.php', body)
+      return { items: (data.aaData ?? []).map(parsePendingSalesRow), total: Number(data.iTotalDisplayRecords ?? data.iTotalRecords) || 0 }
     },
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,
@@ -147,8 +148,9 @@ export function useUnuploadedProductsList(params: ListParams) {
         'columns[0][data]': 'label',
       })
       if (params.search) body.set('search[value]', params.search)
-      const { data } = await axios.post<{ iTotalRecords: number; aaData: RawUnuploadedProductRow[] }>('/product/allproducts_ajax.php', body)
-      return { items: (data.aaData ?? []).map(parseUnuploadedProductRow), total: Number(data.iTotalRecords) || 0 }
+      const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords?: number; aaData: RawUnuploadedProductRow[] }>('/product/allproducts_ajax.php', body)
+      // Live: with length=10, iTotalRecords is 10 (this page) while iTotalDisplayRecords is the real 14.
+      return { items: (data.aaData ?? []).map(parseUnuploadedProductRow), total: Number(data.iTotalDisplayRecords ?? data.iTotalRecords) || 0 }
     },
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,

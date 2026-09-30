@@ -164,7 +164,6 @@ export function ContractCreateForm({
             .map((l) => ({ productId: l.productId || undefined, description: l.description, qty: l.qty, unitPriceHt: l.unitPrice, vatRate: l.vatRate, discountPct: l.discountPct })),
           validate,
         },
-        authorName,
       )
       void created
       navigate(listLink)

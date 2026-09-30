@@ -13,7 +13,7 @@ function pctChange(current: number, previous: number) {
   return Math.round(((current - previous) / previous) * 100)
 }
 
-// Real GET /api/invoices/ data (see invoices.queries.ts), grouped
+// Real invoice list data (invoice_ajax_list.php — see invoices.queries.ts), grouped
 // client-side by year/month — this backend has no per-month stats
 // endpoint of its own (only totals), so the breakdown is derived here from
 // the same real invoice rows the list page already fetches.

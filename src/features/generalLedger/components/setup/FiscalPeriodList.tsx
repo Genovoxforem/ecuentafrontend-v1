@@ -1,19 +1,16 @@
 import { CalendarRange } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
 import { ROUTES } from '../../../../routes'
+import { LegacyListPage } from '../LegacyListPage'
 
-// accountancy/admin/fiscalyear.php — read-only list over
-// llx_accounting_fiscalyear; create/edit happens on fiscalyear_card.php
-// (classic form-POST, full-page reload, no JSON).
+// accountancy/admin/fiscalyear.php — the real list of accounting periods.
 export function FiscalPeriodList() {
   return (
-    <InertListPage
+    <LegacyListPage
       icon={CalendarRange}
       title="Fiscal Period"
-      sourcePath="accountancy/admin/fiscalyear.php"
-      columns={['Ref', 'Label', 'Date Start', 'Date End', 'Accountancy Entries', 'Accountancy Movements', 'Status', 'Action']}
-      addLabel="New Fiscal Period"
-      addPath={ROUTES.ledgerFiscalPeriodCreate}
+      path="/accountancy/admin/fiscalyear.php"
+      firstHeader={/^Ref/}
+      addTo={{ label: 'New Fiscal Period', to: ROUTES.ledgerFiscalPeriodCreate }}
     />
   )
 }

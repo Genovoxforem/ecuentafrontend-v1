@@ -20,6 +20,7 @@ import {
   type HotelTypeKind,
   type HotelSettingsTypeRow,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const FEATURE_TYPE_LABEL: Record<string, string> = { complementary: 'Complimentary Amenities', facility: 'Facility', amenities: 'Amenities' }
@@ -29,6 +30,7 @@ const FEATURE_TYPE_LABEL: Record<string, string> = { complementary: 'Complimenta
 // "+ Add Suite" fails with "Could not create room product" — both buttons
 // stay, matching the real page. "Integrations" is static content.
 function TypeSection({ kind, label }: { kind: HotelTypeKind; label: string }) {
+  const confirm = useConfirm()
   const { data: settings, isLoading } = useHotelSettingsBundle()
   const { data: token } = useHotelToken()
   const save = useHotelSaveType()
@@ -97,7 +99,7 @@ function TypeSection({ kind, label }: { kind: HotelTypeKind; label: string }) {
                 <button
                   type="button"
                   disabled={!token}
-                  onClick={() => token && confirm(`Delete "${r.name}"?`) && del.mutate({ kind, id: r.id, token })}
+                  onClick={async () => token && (await confirm(`Delete "${r.name}"?`)) && del.mutate({ kind, id: r.id, token })}
                   className="p-1.5 rounded-md text-danger hover:bg-surface-hover"
                 >
                   <Trash2 size={13} />
@@ -240,6 +242,7 @@ function RoomsSection() {
 }
 
 function FeaturesSection() {
+  const confirm = useConfirm()
   const { data: features, isLoading } = useHotelFeatures()
   const { data: token } = useHotelToken()
   const save = useHotelSaveFeatureFull()
@@ -340,7 +343,7 @@ function FeaturesSection() {
                       <button
                         type="button"
                         disabled={!token}
-                        onClick={() => token && confirm(`Delete "${f.name}"?`) && del.mutate({ id: f.id, token })}
+                        onClick={async () => token && (await confirm(`Delete "${f.name}"?`)) && del.mutate({ id: f.id, token })}
                         className="p-1.5 rounded-md text-danger hover:bg-surface-hover"
                       >
                         <Trash2 size={13} />

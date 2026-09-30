@@ -3,8 +3,8 @@ import { Search, Package, Plus, Minus, Trash2, ShoppingCart, UtensilsCrossed, Sh
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney } from '../../../utils/format'
 import {
+  useWaiterConfig,
   useWaiterTables,
-  useWaiterCategories,
   useWaiterProducts,
   useWaiterTableInvoice,
   usePlaceWaiterOrder,
@@ -12,7 +12,7 @@ import {
   type WaiterCartItem,
 } from '../waiterOrder.queries'
 
-function ProductCard({ product, onAdd }: { product: WaiterProduct; onAdd: () => void }) {
+function ProductCard({ product, currency, onAdd }: { product: WaiterProduct; currency: string; onAdd: () => void }) {
   return (
     <button
       type="button"
@@ -29,18 +29,18 @@ function ProductCard({ product, onAdd }: { product: WaiterProduct; onAdd: () => 
       <div className="p-2.5">
         <p className="text-sm font-medium text-text! truncate">{product.label}</p>
         <p className="text-xs text-text-faint truncate">Ref: {product.ref}</p>
-        <p className="text-sm font-semibold text-brand mt-1">{formatMoney(product.priceTtc)} ZMW</p>
+        <p className="text-sm font-semibold text-brand mt-1">{formatMoney(product.priceTtc)} {currency}</p>
       </div>
     </button>
   )
 }
 
-function CartRow({ item, onQtyChange, onRemove }: { item: WaiterCartItem; onQtyChange: (qty: number) => void; onRemove: () => void }) {
+function CartRow({ item, currency, onQtyChange, onRemove }: { item: WaiterCartItem; currency: string; onQtyChange: (qty: number) => void; onRemove: () => void }) {
   return (
     <div className="flex items-center gap-2 py-2 border-b border-border last:border-0">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-text! truncate">{item.label}</p>
-        <p className="text-xs text-text-faint">{item.priceTtc.toFixed(2)} ZMW each</p>
+        <p className="text-xs text-text-faint">{item.priceTtc.toFixed(2)} {currency} each</p>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <button type="button" onClick={() => onQtyChange(item.qty - 1)} className="w-6 h-6 rounded-md border border-input-border grid place-items-center text-text-muted hover:bg-surface-hover">
@@ -66,16 +66,29 @@ function CartRow({ item, onQtyChange, onRemove }: { item: WaiterCartItem; onQtyC
 // much larger real subsystems left out of this pass by explicit agreement.
 export function WaiterOrderPage() {
   const [selectedTable, setSelectedTable] = useState<number | null>(null)
-  const [transportMode, setTransportMode] = useState<0 | 1>(0)
-  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [transportChoice, setTransportChoice] = useState<number | null>(null)
+  const [mainCategoryId, setMainCategoryId] = useState<number | null>(null)
+  const [subCategoryId, setSubCategoryId] = useState<number | null>(null)
+  const [floor, setFloor] = useState<number | 'all'>('all')
   const [searchInput, setSearchInput] = useState('')
   const [cart, setCart] = useState<Map<number, WaiterCartItem>>(new Map())
   const [banner, setBanner] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
 
-  const { data: tables, isLoading: tablesLoading } = useWaiterTables()
-  const { data: categories } = useWaiterCategories()
+  const { data: config } = useWaiterConfig()
+  const currency = config?.currency ?? ''
+  const categories = config?.categories
+  // Order types come from the backend page's own tabs; the first one is the default.
+  const transports = config?.transports ?? []
+  const transportMode = transportChoice ?? transports[0]?.mode ?? 0
+  // Products of a category already include its sub-categories'; picking a sub-category narrows to it.
+  const categoryId = subCategoryId ?? mainCategoryId
+  const subCategories = mainCategoryId != null ? (config?.subcategories[mainCategoryId] ?? []) : []
+  const { data: allTables, isLoading: tablesLoading } = useWaiterTables()
+  // Floor pills only when the backend has more than one floor, as on the real page.
+  const floors = useMemo(() => [...new Set((allTables ?? []).map((t) => t.floor))].sort((a, b) => a - b), [allTables])
+  const tables = floor === 'all' ? allTables : allTables?.filter((t) => t.floor === floor)
   const { data: products, isLoading: productsLoading } = useWaiterProducts(categoryId, searchInput)
-  const { data: existingOrder } = useWaiterTableInvoice(selectedTable)
+  const { data: existingOrder } = useWaiterTableInvoice(selectedTable, config?.terminal ?? null)
   const placeOrder = usePlaceWaiterOrder()
 
   // Seed the local cart from whatever draft order already exists for the
@@ -130,13 +143,13 @@ export function WaiterOrderPage() {
 
   const cartItems = useMemo(() => Array.from(cart.values()), [cart])
   const total = cartItems.reduce((sum, c) => sum + c.priceTtc * c.qty, 0)
-  const selectedTableLabel = tables?.find((t) => t.id === selectedTable)?.label
+  const selectedTableLabel = allTables?.find((t) => t.id === selectedTable)?.label
 
   function handlePlaceOrder() {
-    if (!selectedTable || cartItems.length === 0) return
+    if (!selectedTable || cartItems.length === 0 || !config) return
     setBanner(null)
     placeOrder.mutate(
-      { place: selectedTable, transportMode, cart: cartItems },
+      { place: selectedTable, terminal: config.terminal, transportMode: transportMode as 0 | 1, cart: cartItems },
       {
         onSuccess: () => setBanner({ kind: 'success', message: `Order placed for ${selectedTableLabel ?? 'table'}.` }),
         onError: (err) => setBanner({ kind: 'error', message: err instanceof Error ? err.message : 'Could not place the order.' }),
@@ -161,20 +174,16 @@ export function WaiterOrderPage() {
           />
         </div>
         <div className="flex items-center gap-1.5 ml-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => setTransportMode(0)}
-            className={`flex items-center gap-1.5 px-3 h-9 rounded-md text-sm font-medium ${transportMode === 0 ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
-          >
-            <UtensilsCrossed size={14} /> Dine In
-          </button>
-          <button
-            type="button"
-            onClick={() => setTransportMode(1)}
-            className={`flex items-center gap-1.5 px-3 h-9 rounded-md text-sm font-medium ${transportMode === 1 ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
-          >
-            <ShoppingBag size={14} /> TakeAway
-          </button>
+          {transports.map((t) => (
+            <button
+              key={t.mode}
+              type="button"
+              onClick={() => setTransportChoice(t.mode)}
+              className={`flex items-center gap-1.5 px-3 h-9 rounded-md text-sm font-medium ${transportMode === t.mode ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
+            >
+              {t.mode === 0 ? <UtensilsCrossed size={14} /> : <ShoppingBag size={14} />} {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -184,12 +193,23 @@ export function WaiterOrderPage() {
           <div className="flex items-center gap-2 overflow-x-auto pb-1 soft-scrollbar">
             <Table2 size={16} className="text-text-faint shrink-0" />
             {tablesLoading && <span className="text-xs text-text-faint">Loading tables…</span>}
+            {floors.length > 1 &&
+              (['all', ...floors] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFloor(f)}
+                  className={`shrink-0 px-3 h-8 rounded-md text-xs font-semibold whitespace-nowrap ${floor === f ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
+                >
+                  {f === 'all' ? 'All' : `Floor ${f}`}
+                </button>
+              ))}
             {tables?.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => selectTable(t.id)}
-                title={t.occupied ? `Occupied${t.totalTtc ? ` — ${t.totalTtc.toFixed(2)} ZMW` : ''}` : 'Available'}
+                title={t.occupied ? `Occupied${t.totalTtc ? ` — ${t.totalTtc.toFixed(2)} ${currency}` : ''}` : 'Available'}
                 className={`shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-medium whitespace-nowrap ${
                   selectedTable === t.id
                     ? 'bg-brand text-white'
@@ -206,8 +226,11 @@ export function WaiterOrderPage() {
           <div className="flex items-center gap-2 overflow-x-auto pb-1 soft-scrollbar">
             <button
               type="button"
-              onClick={() => setCategoryId(null)}
-              className={`shrink-0 px-3 h-8 rounded-full text-xs font-semibold ${categoryId === null ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
+              onClick={() => {
+                setMainCategoryId(null)
+                setSubCategoryId(null)
+              }}
+              className={`shrink-0 px-3 h-8 rounded-full text-xs font-semibold ${mainCategoryId === null ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
             >
               All
             </button>
@@ -215,15 +238,40 @@ export function WaiterOrderPage() {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setCategoryId(c.id)}
+                onClick={() => {
+                  setMainCategoryId(c.id)
+                  setSubCategoryId(null)
+                }}
                 className={`shrink-0 px-3 h-8 rounded-full text-xs font-semibold whitespace-nowrap ${
-                  categoryId === c.id ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'
+                  mainCategoryId === c.id ? 'bg-brand text-white' : 'border border-input-border text-text-muted hover:bg-surface-hover'
                 }`}
               >
                 {c.label}
               </button>
             ))}
           </div>
+
+          {subCategories.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 soft-scrollbar" aria-label="Sub-categories">
+              <button
+                type="button"
+                onClick={() => setSubCategoryId(null)}
+                className={`shrink-0 px-3 h-7 rounded-full text-xs font-medium ${subCategoryId === null ? 'bg-brand/15 text-brand' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
+              >
+                All {categories?.find((c) => c.id === mainCategoryId)?.label}
+              </button>
+              {subCategories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSubCategoryId(c.id)}
+                  className={`shrink-0 px-3 h-7 rounded-full text-xs font-medium whitespace-nowrap ${subCategoryId === c.id ? 'bg-brand/15 text-brand' : 'border border-input-border text-text-muted hover:bg-surface-hover'}`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex-1 min-h-0 overflow-y-auto soft-scrollbar">
             {productsLoading ? (
@@ -235,7 +283,7 @@ export function WaiterOrderPage() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {products.map((p) => (
-                  <ProductCard key={p.id} product={p} onAdd={() => addToCart(p)} />
+                  <ProductCard key={p.id} product={p} currency={currency} onAdd={() => addToCart(p)} />
                 ))}
               </div>
             )}
@@ -256,7 +304,7 @@ export function WaiterOrderPage() {
               <p className="text-sm text-text-faint italic py-6 text-center">Cart empty</p>
             ) : (
               cartItems.map((item) => (
-                <CartRow key={item.productId} item={item} onQtyChange={(qty) => updateQty(item.productId, qty)} onRemove={() => removeFromCart(item.productId)} />
+                <CartRow key={item.productId} item={item} currency={currency} onQtyChange={(qty) => updateQty(item.productId, qty)} onRemove={() => removeFromCart(item.productId)} />
               ))
             )}
           </div>
@@ -270,11 +318,11 @@ export function WaiterOrderPage() {
             )}
             <div className="flex items-center justify-between text-sm font-semibold text-text!">
               <span>Total</span>
-              <span className="tabular-nums">{total.toFixed(2)} ZMW</span>
+              <span className="tabular-nums">{total.toFixed(2)} {currency}</span>
             </div>
             <button
               type="button"
-              disabled={!selectedTable || cartItems.length === 0 || placeOrder.isPending}
+              disabled={!selectedTable || cartItems.length === 0 || !config || placeOrder.isPending}
               onClick={handlePlaceOrder}
               className="w-full h-10 rounded-lg bg-brand text-white font-medium hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >

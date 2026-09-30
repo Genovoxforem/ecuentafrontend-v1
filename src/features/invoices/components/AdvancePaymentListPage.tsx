@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { HandCoins, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { useAdvancePayments, type AdvancePaymentRow } from '../advancePayments.queries'
 
@@ -50,8 +52,8 @@ function sortValue(r: AdvancePaymentRow, key: SortKey): string | number {
   }
 }
 
-// Real GET /api/invoices/advance-payments/ data (see
-// advancePayments.queries.ts), reading llx_paiement_advance directly.
+// Customer advance payments — the classic list's own data source (see
+// advancePayments.queries.ts).
 export function AdvancePaymentListPage() {
   const { data, isLoading, isError } = useAdvancePayments()
   const [page, setPage] = useState(1)
@@ -149,13 +151,29 @@ export function AdvancePaymentListPage() {
                     </td>
                   </tr>
                 ) : (
-                  pageRows.map((r) => (
-                    <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
+                  pageRows.map((r, i) => (
+                    <tr key={`${r.ref}-${i}`} className="border-b border-border last:border-0 hover:bg-surface-hover">
                       <td className="px-4 py-3 text-brand font-medium">{r.ref}</td>
                       <td className="px-4 py-3 text-text-muted whitespace-nowrap">{fmtDate(r.date)}</td>
-                      <td className="px-4 py-3 text-text!">{r.thirdParty || '-'}</td>
+                      <td className="px-4 py-3">
+                        {r.socid ? (
+                          <Link to={ROUTES.customerDetail.replace(':id', String(r.socid))} className="text-brand hover:underline">
+                            {r.thirdParty || '-'}
+                          </Link>
+                        ) : (
+                          <span className="text-text!">{r.thirdParty || '-'}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-text-muted">{r.paymentTypeLabel || '-'}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.author || '-'}</td>
+                      <td className="px-4 py-3">
+                        {r.authorId ? (
+                          <Link to={ROUTES.userDetail.replace(':id', String(r.authorId))} className="text-brand hover:underline">
+                            {r.author}
+                          </Link>
+                        ) : (
+                          <span className="text-text-muted">{r.author || '-'}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums text-text!">{formatMoney(r.amount)}</td>
                     </tr>
                   ))

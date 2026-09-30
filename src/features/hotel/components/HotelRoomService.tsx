@@ -14,6 +14,7 @@ import {
   useHotelToken,
 } from '../hotel.queries'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const STATUS_TAG: Record<string, string> = {
   pending: 'bg-warning-bg text-warning-fg',
@@ -27,6 +28,7 @@ const STATUS_TAG: Record<string, string> = {
 // orderstatus/confirmorder/rejectorder). "Kitchen screen" opens
 // HotelKitchenScreen.tsx, a React rebuild over the same rsorders endpoint.
 export function HotelRoomService() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const orders = useHotelRsOrders()
   const { data: rsRooms } = useHotelRsRooms()
@@ -92,8 +94,8 @@ export function HotelRoomService() {
     setBusyId(id)
     confirmOrder.mutate({ id, token }, { onSettled: () => setBusyId(null) })
   }
-  function handleReject(id: string) {
-    if (!token || !confirm('Reject this order?')) return
+  async function handleReject(id: string) {
+    if (!token || !(await confirm('Reject this order?'))) return
     setBusyId(id)
     rejectOrder.mutate({ id, token }, { onSettled: () => setBusyId(null) })
   }

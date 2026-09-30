@@ -44,6 +44,7 @@ import { nav as expensesNav } from '../../../features/expenses/expenses.nav'
 import { nav as specialExpensesNav } from '../../../features/expenses/specialExpenses.nav'
 import { nav as budgetNav } from '../../../features/budget/budget.nav'
 import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
+import { nav as supplementNav } from '../../../features/kitchen/supplement.nav'
 import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
 import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
 import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
@@ -80,6 +81,7 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
   specialExpensesNav,
   budgetNav,
   kitchenNav,
+  supplementNav,
   fixedAssetNav,
   generalLedgerNav,
   ticketNav,
@@ -125,15 +127,25 @@ const PHOSPHOR_ICON: Record<string, PhosphorIcon> = {
   chat: ChatCircle,
 }
 
-function sectionContainsCurrent(section: NavSection, pathname: string): boolean {
-  return section.items.some((item) => itemContainsCurrent(item, pathname))
+function pathMatchesLocation(path: string | undefined, pathname: string, currentSearch: string): boolean {
+  if (!path) return false
+  const queryIndex = path.indexOf('?')
+  const itemPathname = queryIndex < 0 ? path : path.slice(0, queryIndex)
+  const search = queryIndex < 0 ? '' : path.slice(queryIndex)
+  return pathname === itemPathname && (!search || currentSearch === search)
+}
+
+function sectionContainsCurrent(section: NavSection, location: Location): boolean {
+  // An expense's own card (/expenses/card/:id) is not a menu item but belongs to Expenses.
+  if (section.key === 'expenses' && location.pathname.startsWith('/expenses/card/')) return true
+  return section.items.some((item) => itemContainsCurrent(item, location.pathname, location.search))
 }
 function isGroupItem(item: NavItem): item is { label: string; items: NavItem[] } {
   return 'items' in item
 }
-function itemContainsCurrent(item: NavItem, pathname: string): boolean {
-  if (isGroupItem(item)) return item.items.some((sub) => itemContainsCurrent(sub, pathname))
-  return item.path === pathname
+function itemContainsCurrent(item: NavItem, pathname: string, search: string): boolean {
+  if (isGroupItem(item)) return pathMatchesLocation(item.path, pathname, search) || item.items.some((sub) => itemContainsCurrent(sub, pathname, search))
+  return pathMatchesLocation(item.path, pathname, search)
 }
 
 // A group node can carry the exact same `path` as one of its own
@@ -149,19 +161,7 @@ function hasDescendantWithPath(item: { items: NavItem[] }, path: string | undefi
   return item.items.some((sub) => sub.path === path || (isGroupItem(sub) && hasDescendantWithPath(sub, path)))
 }
 
-function NavLeaf({
-  item,
-  depth = 0,
-  navigate,
-  location,
-  suppressCurrent = false,
-}: {
-  item: NavLeafItem
-  depth?: number
-  navigate: NavigateFunction
-  location: Location
-  suppressCurrent?: boolean
-}) {
+function NavLeaf({ item, depth = 0, navigate, location, suppressCurrent = false }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location; suppressCurrent?: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -170,24 +170,30 @@ function NavLeaf({
   // the search string — which left every one of them permanently "loading"
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
-  const currentUrl = location.pathname + location.search
   // suppressCurrent: see NavItemList's own comment — set when an earlier
   // sibling in this same list already resolves to this identical path (a
   // real, legitimate backend menu shape: a category heading whose own click
   // target duplicates a more specific sibling below it), so only the later,
   // more specific row lights up instead of both at once.
-  const isCurrent = isLink && currentUrl === item.path && !suppressCurrent
+  const isCurrent = isLink && pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (loading && currentUrl === item.path) setLoading(false)
-  }, [currentUrl, loading, item.path])
+    if (loading && pathMatchesLocation(item.path, location.pathname, location.search)) setLoading(false)
+  }, [location.pathname, location.search, loading, item.path])
 
   return (
     <button
       type="button"
       disabled={!isLink || loading}
-      onClick={isLink ? () => { setLoading(true); navigate(item.path!) } : undefined}
+      onClick={
+        isLink
+          ? () => {
+              setLoading(true)
+              navigate(item.path!)
+            }
+          : undefined
+      }
       onMouseEnter={isLink ? () => prefetchRoute(item.path!) : undefined}
       style={{ paddingLeft: `${1.5 + depth * 0.5}rem` }}
       className={`w-full flex items-center gap-2 text-left pr-2.5 py-1.5 rounded-lg text-sm transition-colors ${
@@ -229,8 +235,9 @@ function NavGroup({
   // Holiday Management/All Leave Request page). Mirrors NavLeaf's own
   // currentUrl comment: search string included since a group's path can
   // carry one too.
-  const currentUrl = location.pathname + location.search
-  const isCurrent = Boolean(item.path) && currentUrl === item.path && !suppressCurrent && !hasDescendantWithPath(item, item.path)
+  const hasActiveDescendant = item.items.some((sub) => itemContainsCurrent(sub, location.pathname, location.search))
+  const isCurrent = pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent && !hasDescendantWithPath(item, item.path)
+  const isActive = isCurrent || hasActiveDescendant
   return (
     <div>
       <button
@@ -246,7 +253,7 @@ function NavGroup({
         onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
         style={{ paddingLeft: `${1.5 + depth * 0.75}rem` }}
         className={`w-full flex items-center justify-between gap-2 pr-2.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
-          isOpen || isCurrent ? 'text-white' : 'text-white/45 hover:text-white/80'
+          isActive ? 'bg-white/10 text-white' : isOpen ? 'text-white' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
         }`}
       >
         <span className="truncate">{item.label}</span>
@@ -272,9 +279,11 @@ function NavGroup({
 // of nesting, without touching ancestors or descendants (those belong to a
 // different NavItemList instance entirely).
 function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; depth: number; navigate: NavigateFunction; location: Location }) {
-  const [openLabel, setOpenLabel] = useState<string | null>(
-    () => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname))?.label ?? null,
-  )
+  const [openLabel, setOpenLabel] = useState<string | null>(() => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname, location.search))?.label ?? null)
+  useEffect(() => {
+    const currentGroup = items.find((item) => isGroupItem(item) && itemContainsCurrent(item, location.pathname, location.search))
+    if (currentGroup) setOpenLabel(currentGroup.label)
+  }, [items, location.pathname, location.search])
   // A real backend menu can legitimately list the same real page twice at
   // one level — a category heading whose own click target duplicates a
   // more specific sibling below it (Payroll's flat "Human Resource"/
@@ -330,14 +339,18 @@ function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; d
 // model a single-column "modern" sidebar like the reference actually uses,
 // vs. the legacy rail+flyout split.
 function MenuList({ sections, navigate, location }: { sections: NavSection[]; navigate: NavigateFunction; location: Location }) {
-  const [openSection, setOpenSection] = useState<string | null>(() => sections.find((s) => sectionContainsCurrent(s, location.pathname))?.key ?? null)
+  const currentSectionKey = sections.find((section) => sectionContainsCurrent(section, location))?.key
+  const [openSection, setOpenSection] = useState<string | null>(() => currentSectionKey ?? null)
+  useEffect(() => {
+    if (currentSectionKey) setOpenSection(currentSectionKey)
+  }, [currentSectionKey, location.pathname, location.search])
 
   return (
     <div className="space-y-0.5">
       {sections.map((section) => {
         const Icon = PHOSPHOR_ICON[section.key] ?? section.icon
         const isOpen = openSection === section.key
-        const isCurrent = sectionContainsCurrent(section, location.pathname)
+        const isCurrent = sectionContainsCurrent(section, location)
         return (
           <div key={section.key}>
             <button
@@ -356,11 +369,7 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
               <Icon size={19} weight="duotone" className={`shrink-0 ${isOpen || isCurrent ? 'text-white' : MODERN_ICON_REST_COLOR}`} />
               <span className="flex-1 text-left truncate">{section.label}</span>
               {section.items.length > 0 &&
-                (isOpen ? (
-                  <CaretDown size={14} weight="bold" className="shrink-0 text-white/50" />
-                ) : (
-                  <CaretRight size={14} weight="bold" className="shrink-0 text-white/50" />
-                ))}
+                (isOpen ? <CaretDown size={14} weight="bold" className="shrink-0 text-white/50" /> : <CaretRight size={14} weight="bold" className="shrink-0 text-white/50" />)}
             </button>
             {isOpen && (
               <div className="mt-0.5 mb-1 space-y-0.5">
@@ -444,7 +453,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
               <div className="space-y-1">
                 {SECTIONS.map((section) => {
                   const Icon = PHOSPHOR_ICON[section.key] ?? section.icon
-                  const isCurrent = sectionContainsCurrent(section, location.pathname)
+                  const isCurrent = sectionContainsCurrent(section, location)
                   return (
                     <div key={section.key} className="group/rail relative">
                       <button
@@ -472,9 +481,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
               type="button"
               onClick={onLogout}
               title="Log Out"
-              className={`flex items-center gap-2.5 rounded-xl text-white/60 hover:bg-white/10 hover:text-white transition-colors ${
-                expanded ? 'w-full px-3 py-2' : 'w-10 h-10 justify-center'
-              }`}
+              className={`flex items-center gap-2.5 rounded-xl text-white/60 hover:bg-white/10 hover:text-white transition-colors ${expanded ? 'w-full px-3 py-2' : 'w-10 h-10 justify-center'}`}
             >
               <SignOut size={19} weight="duotone" />
               {expanded && <span className="text-sm font-medium">Log Out</span>}

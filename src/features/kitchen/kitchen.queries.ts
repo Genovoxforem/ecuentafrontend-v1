@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 
 // Real via kitchen/order_ajax_list.php — confirmed genuine JSON this
 // session, replacing the entirely fake/local-only implementation this file
@@ -142,15 +143,31 @@ function parseOrderComplete(html: string): boolean {
   return /value="1"[^>]*selected/i.test(html)
 }
 
-export const KITCHEN_ORDER_STATUS_OPTIONS = [
-  { value: '', label: 'Select Order Status' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'received', label: 'Received' },
-  { value: 'preparing', label: 'Preparing' },
-  { value: 'ready_to_serve', label: 'Ready_to_serve' },
-  { value: 'served', label: 'Served' },
-  { value: 'cancelled', label: 'Cancelled' },
-]
+// The filter lists are read from the backend's own Order Management page
+// (kitchen/ordermanagement.php, ?type=supplement for beverages) — its
+// #filterOrderStatus / #filterCompleted selects and its page title — rather
+// than being copied into the app.
+export interface KitchenFilterOptions {
+  title: string
+  orderStatus: { value: string; label: string }[] // first entry is the "Select Order Status" placeholder
+  completed: { value: string; label: string }[] // first entry is the "Completed Status" placeholder
+}
+
+export function useKitchenFilterOptions(kind: 'kitchen' | 'beverage') {
+  return useQuery({
+    queryKey: ['kitchen', 'filterOptions', kind],
+    queryFn: async (): Promise<KitchenFilterOptions> => {
+      const doc = await fetchLegacyDocument('/kitchen/ordermanagement.php', kind === 'beverage' ? new URLSearchParams({ type: 'supplement' }) : undefined)
+      const options = (id: string) =>
+        Array.from(doc.querySelectorAll<HTMLOptionElement>(`select#${id} option`)).map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
+      const orderStatus = options('filterOrderStatus')
+      const completed = options('filterCompleted')
+      if (orderStatus.length === 0 || completed.length === 0) throw new Error('The order filters were not found on the backend page.')
+      return { title: (doc.title ?? '').trim(), orderStatus, completed }
+    },
+    staleTime: 10 * 60_000,
+  })
+}
 
 export interface KitchenOrdersFilters {
   date: string

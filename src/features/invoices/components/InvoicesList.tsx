@@ -1,12 +1,14 @@
 import { useDeferredValue, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, CalendarDays, CreditCard, X, LoaderCircle } from 'lucide-react'
+import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, CalendarDays, CreditCard, X, LoaderCircle, QrCode } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
+import { Avatar } from '../../../shared/components/Avatar'
+import { ZraQrDialog } from './ZraQrDialog'
 import { useMarkInvoicePaid, useRecordInvoicePayment, type InvoiceRow, type InvoicesSummary } from '../invoices.queries'
 
 type SortKey = 'ref' | 'invoiceNo' | 'invoiceDate' | 'thirdParty' | 'city' | 'paymentType' | 'amountInclTax' | 'author' | 'status' | 'zraStatus'
@@ -121,6 +123,17 @@ function RecordPaymentForm({ row, onClose }: { row: InvoiceRow; onClose: () => v
   )
 }
 
+// Two-letter initials badge, in the colour the classic list gives this third party.
+function InitialsBadge({ name, color }: { name: string; color: string }) {
+  const parts = name.split(' ').filter(Boolean)
+  const initials = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? parts[0]?.[1] ?? '')).toUpperCase() || '?'
+  return (
+    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: color || '#397db9' }}>
+      {initials}
+    </span>
+  )
+}
+
 function RowActions({ row, payingRef, onTogglePay }: { row: InvoiceRow; payingRef: string | null; onTogglePay: (ref: string | null) => void }) {
   const markPaid = useMarkInvoicePaid()
   if (!row.canRecordPayment) return <span className="text-text-faint">-</span>
@@ -147,6 +160,7 @@ function RowActions({ row, payingRef, onTogglePay }: { row: InvoiceRow; payingRe
 
 export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   const [payingRef, setPayingRef] = useState<string | null>(null)
+  const [qrRow, setQrRow] = useState<InvoiceRow | null>(null)
   const payingRow = summary.rows.find((r) => r.ref === payingRef)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
@@ -181,13 +195,13 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
     const rows = sortedRows.map((r) => [
       r.ref,
       r.invoiceNo,
-      r.invoiceDate,
+      r.invoiceDateLabel || r.invoiceDate,
       r.thirdParty,
       r.city,
       r.paymentType,
       `${formatMoney(r.amountInclTax)} ZMW`,
       r.author,
-      r.status,
+      r.statusLabel || r.status,
       r.zraStatus,
     ])
     return { headers, rows }
@@ -201,7 +215,7 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
           <ShoppingCart size={20} className="text-brand" /> Sales Invoices
         </h2>
         <div className="flex items-center gap-2">
-          <Link to={ROUTES.invoiceCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          <Link to={ROUTES.invoiceCreateQuick} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New Quick Invoice
           </Link>
           <Link to={ROUTES.invoiceCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
@@ -337,14 +351,59 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-text-muted">{r.invoiceNo}</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{r.invoiceDate}</td>
-                      <td className="px-4 py-3 text-text!">{r.thirdParty}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-text-muted">
+                        <div className="text-text!">{r.invoiceDateLabel || r.invoiceDate}</div>
+                        {r.dueDate && <div className="text-xs text-text-faint">Due: {r.dueDate}</div>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.socid ? (
+                          <Link to={ROUTES.customerDetail.replace(':id', String(r.socid))} className="inline-flex items-center gap-2 whitespace-nowrap text-brand hover:underline">
+                            <InitialsBadge name={r.thirdParty} color={r.thirdPartyColor} />
+                            {r.thirdParty}
+                          </Link>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap text-text!">
+                            <InitialsBadge name={r.thirdParty} color={r.thirdPartyColor} />
+                            {r.thirdParty}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-text-muted">{r.city}</td>
                       <td className="px-4 py-3 text-text-muted">{r.paymentType}</td>
-                      <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(r.amountInclTax)} ZMW</td>
-                      <td className="px-4 py-3 text-text-muted">{r.author}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.status}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.zraStatus}</td>
+                      <td className="px-4 py-3 whitespace-nowrap tabular-nums">
+                        <div className="font-bold text-text!">{formatMoney(r.amountInclTax)}</div>
+                        {(r.amountHt || r.vatAmount) && (
+                          <div className="text-xs text-text-faint">
+                            HT: {r.amountHt} | VAT: {r.vatAmount}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.author && (
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <Avatar photo={r.authorPhoto || undefined} name={r.author} size={24} color="bg-brand" />
+                            {r.authorId ? (
+                              <Link to={ROUTES.userDetail.replace(':id', String(r.authorId))} className="text-brand hover:underline">
+                                {r.author}
+                              </Link>
+                            ) : (
+                              <span className="text-text-muted">{r.author}</span>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="inline-block rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">{r.statusLabel || r.status}</span>
+                        {r.currency && <div className="mt-0.5 text-xs text-text-faint">Currency: {r.currency}</div>}
+                      </td>
+                      <td className={`px-4 py-3 whitespace-nowrap font-medium ${/succeed/i.test(r.zraStatus) ? 'text-success-fg' : /error|fail/i.test(r.zraStatus) ? 'text-warning-fg' : 'text-text-muted'}`}>
+                        {r.zraStatus || '-'}
+                        {r.zraQrUrl && (
+                          <button type="button" onClick={() => setQrRow(r)} title="View QR code" className="ml-2 align-middle text-brand hover:opacity-70">
+                            <QrCode size={15} />
+                          </button>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <RowActions row={r} payingRef={payingRef} onTogglePay={setPayingRef} />
                       </td>
@@ -356,6 +415,7 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
           </div>
         </Card>
       </div>
+      {qrRow && <ZraQrDialog url={qrRow.zraQrUrl} invoiceRef={qrRow.ref} onClose={() => setQrRow(null)} />}
       <ListPagination page={page} perPage={perPage} total={filteredRows.length} onPageChange={setPage} edgeToEdge />
     </div>
   )

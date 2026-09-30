@@ -1,57 +1,37 @@
-import { useMemo, useState } from 'react'
-import { LineChart as LineChartIcon, Users, Tags, Building2 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Building2, LineChart as LineChartIcon, PieChart as PieChartIcon, Users } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useAllExpenseReports } from '../expenses.queries'
-import { formatMoney } from '../../../utils/format'
+import { useExpenseAnalytics } from '../expenseTabs.queries'
+import { controlCls } from '../expenseTable'
 
-function parseAmount(s: string): number {
-  return parseFloat(s.replace(/,/g, '')) || 0
-}
-function parseListDate(s: string): Date | null {
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const TYPE_COLORS = ['#397db9', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6', '#f97316']
 
-// Real via expense/ajax/expense_list.php (length=-1) — Monthly Expense
-// Trend and Top Employees by Spend are computed client-side from these real
-// rows. This directly fixes a real, confirmed bug: the legacy analytics.php
-// page's own 4 charts render permanently blank in the SPA (ApexCharts is
-// never injected into the AJAX fragment, and its DOMContentLoaded-gated
-// init code can't re-fire once the tab is swapped in client-side — so
-// building against genuinely computed real data, rather than reproducing
-// that rendering bug, is the intended fix here. "By Expense Type" and "By
-// Department" have no JSON
-// source at all on this backend (no per-line-item or department data is
-// ever exposed as JSON) — shown as honest empty states.
+const money = (n: number, currency: string, decimals = false) => `${currency ? currency + ' ' : ''}${n.toLocaleString(undefined, decimals ? { minimumFractionDigits: 2 } : undefined)}`
+
+function ChartCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <Card className="!h-auto">
+      <h3 className="mb-3 flex items-center gap-2 font-semibold text-text!">
+        <span className="text-brand">{icon}</span> {title}
+      </h3>
+      {children}
+    </Card>
+  )
+}
+
+const Empty = ({ children }: { children: string }) => <p className="py-16 text-center text-sm text-text-faint">{children}</p>
+
+// expense/analytics.php: a year of spending — by month, by expense type, top employees, by department.
 export function ExpenseAnalyticsPage() {
-  const currentYear = new Date().getFullYear()
-  const [year, setYear] = useState(currentYear)
-  const { data, isLoading, isError, error, refetch } = useAllExpenseReports()
-  const rows = useMemo(() => data?.rows ?? [], [data])
+  const [applied, setApplied] = useState<string | null>(null)
+  const [draft, setDraft] = useState<string | null>(null)
+  const { data, isLoading, isError, error, refetch } = useExpenseAnalytics(applied)
+  const year = draft ?? data?.year ?? ''
 
-  const yearRows = useMemo(() => rows.filter((r) => parseListDate(r.dateStart)?.getFullYear() === year), [rows, year])
-
-  const monthlyTrend = useMemo(() => {
-    const months = MONTH_NAMES.map((label) => ({ label, Total: 0 }))
-    for (const r of yearRows) {
-      const d = parseListDate(r.dateCreate)
-      if (!d || d.getFullYear() !== year) continue
-      months[d.getMonth()].Total += parseAmount(r.totalTtc)
-    }
-    return months.map((m) => ({ ...m, Total: Math.round(m.Total * 100) / 100 }))
-  }, [yearRows, year])
-
-  const topEmployees = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const r of yearRows) map.set(r.user, (map.get(r.user) ?? 0) + parseAmount(r.totalTtc))
-    return Array.from(map.entries())
-      .map(([label, Total]) => ({ label, Total: Math.round(Total * 100) / 100 }))
-      .sort((a, b) => b.Total - a.Total)
-      .slice(0, 10)
-  }, [yearRows])
+  const trend = useMemo(() => (data ? data.months.map((m, i) => ({ month: m, amount: data.amounts[i] ?? 0, count: data.counts[i] ?? 0 })) : []), [data])
+  const typeTotal = data?.types.reduce((s, t) => s + t.amount, 0) ?? 0
 
   return (
     <div className="space-y-4">
@@ -59,73 +39,95 @@ export function ExpenseAnalyticsPage() {
         <LineChartIcon size={20} className="text-brand" /> Expense Analytics
       </h2>
 
-      <Card className="!h-auto">
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-text-muted">Year</label>
-          <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="h-9 w-28 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none" />
-          <span className="text-xs text-text-faint">Showing analytics for {year}</span>
-        </div>
-      </Card>
-
-      {isLoading && <LegacyLoadingCard label="Loading analytics…" />}
-      {isError && <LegacyErrorCard title="Couldn't load analytics" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {isLoading && <LegacyLoadingCard label="Loading the analytics…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the analytics" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
       {data && (
         <>
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <Card>
-              <h3 className="font-semibold text-text! mb-3">Monthly Expense Trend {year}</h3>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={monthlyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
-                  <Tooltip formatter={(v) => `${formatMoney(Number(v))} ZMW`} />
-                  <Bar dataKey="Total" fill="#2a78d6" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              setApplied(year)
+            }}
+            className="flex flex-wrap items-end gap-3"
+          >
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-muted">Year</span>
+              <input type="number" value={year} onChange={(e) => setDraft(e.target.value)} className={`${controlCls} w-32`} />
+            </label>
+            <button type="submit" className="h-9 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-hover">
+              Apply
+            </button>
+            <span className="pb-2 text-xs text-text-faint">Showing analytics for {data.year}</span>
+          </form>
 
-            <Card>
-              <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
-                <Tags size={16} className="text-brand" /> By Expense Type
-              </h3>
-              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
-                <p className="text-sm text-text-muted">Not available</p>
-                <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API for per-line expense-type amounts.</p>
-              </div>
-            </Card>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+            <ChartCard icon={<LineChartIcon size={16} />} title={`Monthly Expense Trend ${data.year}`}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={trend}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="amount" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={84} tickFormatter={(v) => money(Number(v), data.currency)} />
+                  <YAxis yAxisId="count" orientation="right" allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                  <Tooltip formatter={(v, name) => (name === 'Total TTC' ? money(Number(v), data.currency, true) : String(v))} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="amount" dataKey="amount" name="Total TTC" fill="#397db9" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                  <Line yAxisId="count" dataKey="count" name="Expenses" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard icon={<PieChartIcon size={16} />} title="By Expense Type">
+              {typeTotal <= 0 ? (
+                <Empty>No data yet</Empty>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={data.types} dataKey="amount" nameKey="label" innerRadius="55%" outerRadius="90%" stroke="none">
+                      {data.types.map((t, i) => (
+                        <Cell key={t.label} fill={TYPE_COLORS[i % TYPE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
+                    <Legend verticalAlign="bottom" iconType="circle" itemSorter={null} wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <Card>
-              <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
-                <Users size={16} className="text-brand" /> Top Employees by Spend
-              </h3>
-              {topEmployees.length === 0 ? (
-                <p className="flex-1 flex items-center justify-center text-sm text-text-faint italic text-center">No expenses in {year}.</p>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <ChartCard icon={<Users size={16} />} title="Top Employees by Spend">
+              {data.employees.length === 0 ? (
+                <Empty>No data yet</Empty>
               ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={topEmployees} layout="vertical" margin={{ left: 24 }}>
+                <ResponsiveContainer width="100%" height={Math.max(160, data.employees.length * 34 + 40)}>
+                  <BarChart data={data.employees} layout="vertical" margin={{ left: 16 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border, #e5e7eb)" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => money(Number(v), data.currency)} />
                     <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
-                    <Tooltip formatter={(v) => `${formatMoney(Number(v))} ZMW`} />
-                    <Bar dataKey="Total" fill="#2a78d6" radius={[0, 3, 3, 0]} maxBarSize={18} />
+                    <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
+                    <Bar dataKey="amount" name="Total TTC" fill="#397db9" radius={[0, 4, 4, 0]} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
-            </Card>
+            </ChartCard>
 
-            <Card>
-              <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
-                <Building2 size={16} className="text-brand" /> By Department
-              </h3>
-              <div className="flex-1 flex flex-col items-center justify-center text-center gap-1">
-                <p className="text-sm text-text-muted">Not available</p>
-                <p className="text-xs text-text-faint max-w-[260px]">This backend has no JSON API exposing department data.</p>
-              </div>
-            </Card>
+            <ChartCard icon={<Building2 size={16} />} title="By Department">
+              {data.departments.length === 0 ? (
+                <Empty>No data yet</Empty>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(160, data.departments.length * 34 + 40)}>
+                  <BarChart data={data.departments} layout="vertical" margin={{ left: 16 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border, #e5e7eb)" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => money(Number(v), data.currency)} />
+                    <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                    <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
+                    <Bar dataKey="amount" name="Total TTC" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
           </div>
         </>
       )}

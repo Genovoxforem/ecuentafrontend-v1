@@ -1,17 +1,9 @@
-import { FileInput } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
+import { ROUTES } from '../../../../routes'
+import { VENDOR_BIND_PATH } from '../../bindLines.queries'
+import { BindToDispatchList } from './CustomerToDispatchList'
 
-// accountancy/supplier/list.php — byte-for-byte the same architecture as
-// customer/list.php, sourced from facture_fourn instead, suggesting
-// purchase-side accounts. Classic mass-select form-POST, no JSON.
+// accountancy/supplier/list.php — same form and row layout as customer/list.php,
+// sourced from facture_fourn_det and suggesting purchase-side accounts.
 export function VendorToDispatchList() {
-  return (
-    <InertListPage
-      icon={FileInput}
-      title="ToDispatch"
-      sourcePath="accountancy/supplier/list.php"
-      columns={['Invoice', 'Date', 'Product Ref', 'Description', 'Amount', 'VAT Rate', 'Third Party', 'Country', 'Suggested Account', 'Into Account']}
-      note="The real page is a mass-select form (suggested account per row, tick rows, submit once), not a per-row instant save — not reproduced as a live write here."
-    />
-  )
+  return <BindToDispatchList path={VENDOR_BIND_PATH} invoiceRoute={ROUTES.vendorInvoiceDetail} title="Lines Of Vendor Invoices To Bind" />
 }

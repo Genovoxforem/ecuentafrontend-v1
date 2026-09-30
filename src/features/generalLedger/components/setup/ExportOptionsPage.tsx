@@ -1,27 +1,8 @@
 import { Download } from 'lucide-react'
-import { DisabledFormPage } from '../../../../shared/components/forms/DisabledFormPage'
+import { LegacyFormPage } from '../LegacyFormPage'
 
-// accountancy/admin/export.php — a single settings form (export model +
-// per-model CSV options), reads/writes Dolibarr constants directly, no
-// list, no JSON.
+// accountancy/admin/export.php — the real export settings. The sections, labels and order are the
+// backend form's own; Modify posts its action=update and stores them as backend constants.
 export function ExportOptionsPage() {
-  return (
-    <DisabledFormPage
-      icon={Download}
-      title="Export Options"
-      sourcePath="accountancy/admin/export.php"
-      sections={[
-        {
-          fields: [
-            { label: 'File Prefix' },
-            { label: 'Export Model', type: 'select' },
-            { label: 'Format' },
-            { label: 'CSV Separator' },
-            { label: 'End Of Line' },
-            { label: 'Date Format' },
-          ],
-        },
-      ]}
-    />
-  )
+  return <LegacyFormPage icon={Download} title="Export Options" path="/accountancy/admin/export.php" anchor="ACCOUNTING_EXPORT_MODELCSV" />
 }

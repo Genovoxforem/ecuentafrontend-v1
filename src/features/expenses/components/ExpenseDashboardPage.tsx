@@ -1,294 +1,224 @@
-import { useMemo, useState, type ComponentType, type ReactNode } from 'react'
+import { useMemo, type ComponentType, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { LayoutDashboard, Clock, CreditCard, CheckCircle2, Layers, AlertCircle, PieChart as PieChartIcon, Wallet2, Target, TrendingUp, TrendingDown, Plus, FileText } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
-import { Card, ICON_STYLES, fmtZMW, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
+import { AlertCircle, ArrowRight, CheckCircle2, Clock, Coins, FileText, Hourglass, LayoutDashboard, PieChart as PieChartIcon, Wallet } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useAllExpenseReports, type ExpenseReportRow } from '../expenses.queries'
 import { ROUTES } from '../../../routes'
+import { useExpenseApprovals, useExpenseDashboard } from '../expensePages.queries'
+import { StatusBadge } from './expenseParts'
 
-function parseAmount(s: string): number {
-  return parseFloat(s.replace(/,/g, '')) || 0
-}
-function parseListDate(s: string): Date | null {
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? null : d
-}
+// The dashboard prints its numbers and chart data itself (expense/dashboard.php), so this page shows
+// exactly those: all-time KPIs, the last six months by last-change date, the top expense types by line
+// amount, this year's budgets and the eight most recently changed reports.
+const KPI_STYLE: { color: string; icon: ComponentType<{ size?: number; style?: CSSProperties }> }[] = [
+  { color: '#397db9', icon: FileText },
+  { color: '#f59e0b', icon: Clock },
+  { color: '#ef4444', icon: Hourglass },
+  { color: '#10b981', icon: CheckCircle2 },
+  { color: '#6366f1', icon: Coins },
+  { color: '#ef4444', icon: AlertCircle },
+]
+const TYPE_COLORS = ['#397db9', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6', '#f97316']
 
-// vs a 0 baseline there's no real ratio to report (division by zero) — 0
-// stays flat at 0%, and any positive current value is shown as a flat +100%
-// (a new baseline) rather than +Infinity%.
-function pctChange(current: number, previous: number): number {
-  if (previous === 0) return current === 0 ? 0 : 100
-  return Math.round(((current - previous) / previous) * 100)
+// Percent inside its ring segment (segments under 2% are too thin to hold a label).
+interface SliceLabelProps {
+  cx?: number
+  cy?: number
+  midAngle?: number
+  innerRadius?: number
+  outerRadius?: number
+  percent?: number
 }
-
-function TrendBadge({ pct }: { pct: number }) {
-  const isUp = pct >= 0
-  const Icon = isUp ? TrendingUp : TrendingDown
+function sliceLabel({ cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, percent = 0 }: SliceLabelProps) {
+  if (percent < 0.02) return null
+  const r = innerRadius + (outerRadius - innerRadius) / 2
+  const rad = Math.PI / 180
   return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-semibold ${isUp ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg'}`}>
-      <Icon size={10} /> {isUp ? '+' : ''}
-      {pct}%
-    </span>
-  )
-}
-function CountBadge({ n }: { n: number }) {
-  return <span className="inline-block px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-neutral-bg text-neutral-fg">{n} item{n === 1 ? '' : 's'}</span>
-}
-
-function KpiCard({
-  label,
-  value,
-  caption,
-  icon: Icon,
-  color,
-  badge,
-}: {
-  label: string
-  value: string
-  caption: string
-  icon: ComponentType<{ size?: number }>
-  color: IconColor
-  badge?: ReactNode
-}) {
-  return (
-    <Card className="!p-3">
-      <div className="flex items-start justify-between gap-2">
-        <span className={`shrink-0 w-9 h-9 rounded-lg grid place-items-center ${ICON_STYLES[color]}`}>
-          <Icon size={16} />
-        </span>
-        {badge}
-      </div>
-      <p className="text-[11px] font-semibold text-text-faint uppercase tracking-wide mt-2">{label}</p>
-      <p className="text-2xl font-bold text-text! mt-0.5">{value}</p>
-      <p className="text-xs text-text-faint mt-0.5">{caption}</p>
-    </Card>
+    <text x={cx + r * Math.cos(-midAngle * rad)} y={cy + r * Math.sin(-midAngle * rad)} fill="#fff" fontSize={11} fontWeight={600} textAnchor="middle" dominantBaseline="central">
+      {(percent * 100).toFixed(1)}%
+    </text>
   )
 }
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const money = (n: number, currency: string, decimals = false) => `${currency ? currency + ' ' : ''}${n.toLocaleString(undefined, decimals ? { minimumFractionDigits: 2 } : undefined)}`
 
-function EmptyPanel({ icon: Icon, message, ctaLabel, ctaPath }: { icon: ComponentType<{ size?: number; className?: string }>; message: string; ctaLabel: string; ctaPath: string }) {
+function EmptyChart({ icon: Icon, children }: { icon: ComponentType<{ size?: number }>; children: string }) {
   return (
-    <div className="flex-1 min-h-40 flex flex-col items-center justify-center text-center gap-2 py-6">
-      <span className="w-14 h-14 rounded-full grid place-items-center bg-neutral-bg text-text-faint">
-        <Icon size={26} />
-      </span>
-      <p className="text-sm font-semibold text-text-muted">No data available</p>
-      <p className="text-xs text-text-faint max-w-[240px]">{message}</p>
-      <Link to={ctaPath} className="mt-1 flex items-center gap-1.5 text-xs font-medium rounded-md border border-border px-3 py-1.5 text-text hover:bg-surface-hover">
-        <FileText size={12} /> {ctaLabel}
-      </Link>
+    <div className="flex min-h-56 flex-1 flex-col items-center justify-center gap-2 py-8 text-center text-text-faint">
+      <Icon size={30} />
+      <p className="text-sm">{children}</p>
     </div>
   )
 }
 
-// Real via expense/ajax/expense_list.php (length=-1, no status filter) — see
-// expenses.queries.ts's header comment for the full real-vs-not breakdown.
-// KPIs/trend/recent list are computed client-side from these real rows, now
-// scoped to the selected year (with trend badges comparing it to the prior
-// year) instead of an undifferentiated all-time total. "By Expense Type" and
-// "Budget vs Used" have no real JSON source at all on this backend
-// (per-line-item amounts and llx_expense_budget are only ever rendered as
-// inline HTML by dashboard.php, never exposed as JSON) — shown as honest
-// empty states with a real link onward rather than scraped or fabricated.
 export function ExpenseDashboardPage() {
-  const { data, isLoading, isError, error, refetch } = useAllExpenseReports()
-  const rows = useMemo(() => data?.rows ?? [], [data])
+  const { data, isLoading, isError, error, refetch } = useExpenseDashboard()
+  const approvals = useExpenseApprovals()
 
-  const years = useMemo(() => {
-    const set = new Set<number>([new Date().getFullYear()])
-    for (const r of rows) {
-      const d = parseListDate(r.dateCreate)
-      if (d) set.add(d.getFullYear())
-    }
-    return Array.from(set).sort((a, b) => b - a)
-  }, [rows])
-  const [year, setYear] = useState(() => new Date().getFullYear())
+  const trend = useMemo(() => (data ? data.months.map((label, i) => ({ label, total: data.trend[i] ?? 0 })) : []), [data])
+  const types = useMemo(() => (data ? data.typeLabels.map((label, i) => ({ label: label || 'Unknown', value: data.typeData[i] ?? 0 })) : []), [data])
+  const typeTotal = types.reduce((sum, t) => sum + t.value, 0)
 
-  const yearRows = useMemo(() => rows.filter((r) => parseListDate(r.dateCreate)?.getFullYear() === year), [rows, year])
-  const prevYearRows = useMemo(() => rows.filter((r) => parseListDate(r.dateCreate)?.getFullYear() === year - 1), [rows, year])
-
-  function summarize(list: ExpenseReportRow[]) {
-    const totalExpenses = list.length
-    const paid = list.filter((r) => r.paid).length
-    // The real dashboard.php's own "Pending Approval" KPI counts fk_statut=1,
-    // a status this module never actually sets (submissions go straight from
-    // Draft(0) to Submitted(2)) — it would always read 0 on real data. Using
-    // "Submitted" here instead gives the number a user actually means by
-    // that label.
-    const pendingApproval = list.filter((r) => r.status === 'Submitted').length
-    const pendingPaymentRows = list.filter((r) => r.status === 'Approved' && !r.paid)
-    const totalAmount = list.reduce((sum, r) => sum + parseAmount(r.totalTtc), 0)
-    const pendingAmount = pendingPaymentRows.reduce((sum, r) => sum + parseAmount(r.totalTtc), 0)
-    return { totalExpenses, paid, pendingApproval, pendingPayment: pendingPaymentRows.length, totalAmount, pendingAmount }
-  }
-  const stats = useMemo(() => summarize(yearRows), [yearRows])
-  const prevStats = useMemo(() => summarize(prevYearRows), [prevYearRows])
-  const pendingAmountShare = stats.totalAmount > 0 ? Math.round((stats.pendingAmount / stats.totalAmount) * 100) : 0
-
-  const trend = useMemo(() => {
-    const months = MONTH_NAMES.map((label) => ({ label: `${label} ${year}`, Total: 0 }))
-    for (const r of yearRows) {
-      const d = parseListDate(r.dateCreate)
-      if (!d) continue
-      months[d.getMonth()].Total += parseAmount(r.totalTtc)
-    }
-    return months.map((m) => ({ ...m, Total: Math.round(m.Total * 100) / 100 }))
-  }, [yearRows, year])
-
-  const recent = useMemo(() => {
-    return [...rows]
-      .sort((a, b) => (parseListDate(b.dateCreate)?.getTime() ?? 0) - (parseListDate(a.dateCreate)?.getTime() ?? 0))
-      .slice(0, 8)
-  }, [rows])
-
-  const yearSelect = (
-    <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="h-9 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none">
-      {years.map((y) => (
-        <option key={y} value={y}>
-          {y === new Date().getFullYear() ? `This Year (${y})` : y}
-        </option>
-      ))}
-    </select>
-  )
+  // The dashboard's own "Pending Approval" counts status 1, which nothing in this module ever sets
+  // (a submitted report goes straight to status 2), so it always reads 0 while the Approvals tab lists
+  // reports waiting. Count what the Approvals tab lists instead.
+  const waiting = approvals.data?.filter((r) => r.status === 'Submitted').length
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <LayoutDashboard size={20} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">Expense Dashboard</h2>
-            <p className="text-xs text-text-faint mt-0.5">Track, manage and analyze your business expenses</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {yearSelect}
-          <Link to={ROUTES.expensesCreate} className="h-9 flex items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover">
-            <Plus size={14} /> Add Expense
-          </Link>
-        </div>
-      </div>
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+        <LayoutDashboard size={20} className="text-brand" /> Expense Dashboard
+      </h2>
 
       {isLoading && <LegacyLoadingCard label="Loading expense dashboard…" />}
       {isError && <LegacyErrorCard title="Couldn't load the expense dashboard" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
       {data && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-            <KpiCard label="Total Expenses" value={String(stats.totalExpenses)} caption={`In ${year}`} icon={Layers} color="blue" badge={<TrendBadge pct={pctChange(stats.totalExpenses, prevStats.totalExpenses)} />} />
-            <KpiCard label="Pending Approval" value={String(stats.pendingApproval)} caption="Awaiting review" icon={Clock} color="amber" badge={<CountBadge n={stats.pendingApproval} />} />
-            <KpiCard label="Pending Payment" value={String(stats.pendingPayment)} caption="Approved, unpaid" icon={AlertCircle} color="rose" badge={<CountBadge n={stats.pendingPayment} />} />
-            <KpiCard label="Paid" value={String(stats.paid)} caption="Fully settled" icon={CheckCircle2} color="green" badge={<CountBadge n={stats.paid} />} />
-            <KpiCard label="Total Amount" value={fmtZMW(stats.totalAmount)} caption={`In ${year}`} icon={CreditCard} color="cyan" badge={<TrendBadge pct={pctChange(stats.totalAmount, prevStats.totalAmount)} />} />
-            <KpiCard
-              label="Pending Amount"
-              value={fmtZMW(stats.pendingAmount)}
-              caption="To be paid"
-              icon={Wallet2}
-              color="violet"
-              badge={<span className="inline-block px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-neutral-bg text-neutral-fg">{pendingAmountShare}%</span>}
-            />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {data.kpis.map((k, i) => {
+              const { color, icon: Icon } = KPI_STYLE[i] ?? KPI_STYLE[0]
+              const value = k.label === 'Pending Approval' && waiting !== undefined ? String(waiting) : k.value
+              return (
+                <Card key={k.label} className="relative !p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">{k.label}</p>
+                  <p className="mt-1 text-2xl font-bold" style={{ color }}>
+                    {value}
+                    {k.currency && <span className="ml-1 text-xs font-medium">{k.currency}</span>}
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-faint">{k.sub}</p>
+                  <span className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-lg" style={{ background: `${color}22` }}>
+                    <Icon size={18} style={{ color }} />
+                  </span>
+                </Card>
+              )
+            })}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-stretch">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
             <Card>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-text!">Monthly Expense Trend</h3>
-                  <p className="text-xs text-text-faint mt-0.5">Total expenses by month</p>
-                </div>
-                {yearSelect}
-              </div>
-              <ResponsiveContainer width="100%" height={260}>
+              <h3 className="mb-3 flex items-center gap-2 font-semibold text-text!">
+                <LayoutDashboard size={16} className="text-brand" /> Monthly Expense Trend
+              </h3>
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
-                  <XAxis dataKey="label" tickFormatter={(v: string) => v.split(' ')[0]} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
-                  <Tooltip formatter={(v) => fmtZMW(Number(v))} />
-                  <Bar dataKey="Total" name="Expenses (ZMW)" fill="#2a78d6" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={104} tickFormatter={(v) => money(Number(v), data.currency)} />
+                  <Tooltip formatter={(v) => [money(Number(v), data.currency, true), 'Total TTC']} />
+                  <Bar dataKey="total" name="Total TTC" fill="#397db9" radius={[4, 4, 0, 0]} maxBarSize={80} />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
 
             <Card>
-              <h3 className="flex items-center gap-2 font-semibold text-text! mb-3">
-                <PieChartIcon size={16} className="text-brand" /> Expenses by Type
+              <h3 className="mb-3 flex items-center gap-2 font-semibold text-text!">
+                <PieChartIcon size={16} className="text-brand" /> By Expense Type
               </h3>
-              <EmptyPanel
-                icon={PieChartIcon}
-                message="This backend has no JSON API for per-line expense-type amounts — only server-rendered HTML."
-                ctaLabel="View All Expenses"
-                ctaPath={ROUTES.expensesList}
-              />
+              {typeTotal <= 0 ? (
+                <EmptyChart icon={PieChartIcon}>No data yet</EmptyChart>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={types} dataKey="value" nameKey="label" innerRadius="55%" outerRadius="90%" stroke="none" label={sliceLabel} labelLine={false}>
+                      {types.map((t, i) => (
+                        <Cell key={t.label} fill={TYPE_COLORS[i % TYPE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
+                    <Legend verticalAlign="bottom" iconType="circle" itemSorter={null} wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[0.65fr_1.35fr] gap-4 items-stretch">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[5fr_7fr]">
             <Card>
-              <h3 className="flex items-center gap-2 font-semibold text-text! mb-1">
-                <Target size={16} className="text-brand" /> Budget vs Used
+              <h3 className="mb-3 flex items-center gap-2 font-semibold text-text!">
+                <Wallet size={16} className="text-brand" /> Budget vs Used{data.budgetYear && ` (${data.budgetYear})`}
               </h3>
-              <p className="text-xs text-text-faint">Compare budgeted vs actual expenses</p>
-              <EmptyPanel
-                icon={Target}
-                message="Budgets (llx_expense_budget) have no JSON API on this backend — only server-rendered HTML."
-                ctaLabel="Go to Budgets"
-                ctaPath={ROUTES.expensesBudgets}
-              />
+              {data.budgets.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center text-text-faint">
+                  <Wallet size={30} />
+                  <p className="text-sm">No budgets set for this year.</p>
+                  <Link to={ROUTES.expensesBudgets} className="rounded-md border border-brand px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand/10">
+                    Set Budgets
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {data.budgets.map((b) => {
+                    const tone = b.pct >= 90 ? 'danger' : b.pct >= 70 ? 'warning' : 'success'
+                    return (
+                      <div key={b.label}>
+                        <div className="mb-1 flex justify-between gap-2 text-xs">
+                          <span className="text-text">{b.label}</span>
+                          <span className={tone === 'danger' ? 'text-danger-fg' : tone === 'warning' ? 'text-warning-fg' : 'text-success-fg'}>
+                            {b.pct}% ({b.used} / {b.budget})
+                          </span>
+                        </div>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-neutral-bg">
+                          <div
+                            className={tone === 'danger' ? 'h-full bg-red-500' : tone === 'warning' ? 'h-full bg-amber-500' : 'h-full bg-emerald-500'}
+                            style={{ width: `${Math.min(b.pct, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </Card>
 
-            <Card className="!p-0 overflow-x-auto">
-              <div className="flex items-center justify-between p-4 pb-0">
-                <h3 className="font-semibold text-text!">Recent Expenses</h3>
-                <Link to={ROUTES.expensesList} className="text-sm text-brand hover:underline">
-                  View All
+            <Card className="!p-0 overflow-hidden">
+              <h3 className="flex items-center gap-2 px-4 pt-4 font-semibold text-text!">
+                <Clock size={16} className="text-brand" /> Recent Expenses
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="mt-3 w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs font-semibold text-text">
+                      <th className="px-4 py-2">Ref</th>
+                      <th className="px-4 py-2">User</th>
+                      <th className="px-4 py-2 text-right">Amount</th>
+                      <th className="px-4 py-2">Status</th>
+                      <th className="px-4 py-2">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recent.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-4 italic text-text-faint">
+                          No expenses yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      data.recent.map((r) => (
+                        <tr key={r.id} className="border-b border-border last:border-0">
+                          <td className="whitespace-nowrap px-4 py-2">
+                            <Link to={ROUTES.expenseCard.replace(':id', r.id)} className="text-brand hover:underline">
+                              {r.ref}
+                            </Link>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2 text-text-muted">{r.user}</td>
+                          <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums text-text!">{r.amount}</td>
+                          <td className="px-4 py-2">
+                            <StatusBadge status={r.status} />
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2 text-xs text-text-muted">{r.date}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-3 text-right">
+                <Link to={ROUTES.expensesList} className="inline-flex items-center gap-1.5 rounded-md border border-brand px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand/10">
+                  View All <ArrowRight size={14} />
                 </Link>
               </div>
-              <table className="w-full text-sm mt-3 mb-3">
-                <thead>
-                  <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                    <th className="font-medium px-3 py-2">#</th>
-                    <th className="font-medium px-3 py-2">Reference</th>
-                    <th className="font-medium px-3 py-2">User</th>
-                    <th className="font-medium px-3 py-2 text-right">Amount</th>
-                    <th className="font-medium px-3 py-2">Status</th>
-                    <th className="font-medium px-3 py-2">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-3 py-4 text-text-faint italic">
-                        No expenses yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    recent.map((r: ExpenseReportRow, i) => (
-                      <tr key={r.id} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 text-text-faint">{i + 1}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <Link to={ROUTES.expenseReportDetail.replace(':id', String(r.id))} className="text-brand hover:underline">
-                            {r.ref}
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.user}</td>
-                        <td className="px-3 py-2 text-right text-text! whitespace-nowrap">{r.totalTtc}</td>
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${r.paid ? 'bg-success-bg text-success-fg' : 'bg-info-bg text-info-fg'}`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" /> {r.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.dateCreate}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
             </Card>
           </div>
         </>

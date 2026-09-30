@@ -10,8 +10,7 @@ import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useUsersSummary } from '../../users/users.queries'
-import { useLocalCollection } from '../../../shared/localCollection'
-import { useCreateJobCard, useCreateAccessory, useJobCardProjectOptions, type JobCardLineInput } from '../jobCard.queries'
+import { useCreateJobCard, useCreateAccessory, useJobCardAccessories, useJobCardProjectOptions, type JobCardLineInput } from '../jobCard.queries'
 
 interface DraftLine {
   key: number
@@ -33,11 +32,6 @@ function decomposeDateTime(value: string): { day: number; month: number; year: n
   return { day: day || 0, month: month || 0, year: year || 0, hour: hour || 0, min: min || 0 }
 }
 
-interface LocalAccessory {
-  id: number
-  label: string
-}
-
 // `fixedCustomerId` powers JobCardCreateFromCustomerForm.tsx (reached from a
 // specific customer's own Customer tab, "Create Job Card" button).
 export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
@@ -48,7 +42,7 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
   const { data: usersSummary, isLoading: usersLoading } = useUsersSummary()
   const createJobCard = useCreateJobCard()
   const createAccessory = useCreateAccessory()
-  const [accessories, updateAccessories] = useLocalCollection<LocalAccessory[]>(['interventions', 'sessionAccessories'], [])
+  const { data: accessories = [], isError: accessoriesError } = useJobCardAccessories()
 
   const [customerId, setCustomerId] = useState(fixedCustomerId ?? '')
   const [refInput, setRefInput] = useState('')
@@ -84,7 +78,6 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
     setAccessoryError('')
     createAccessory.mutate(newAccessoryLabel.trim(), {
       onSuccess: (accessory) => {
-        updateAccessories((cur) => [...cur, accessory])
         setSelectedAccessoryIds((cur) => [...cur, accessory.id])
         setNewAccessoryLabel('')
         setAddingAccessory(false)
@@ -263,10 +256,8 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
 
           <div>
             <span className="text-sm text-text">Accessories</span>
-            {/* No real read API exists for the accessories already in
-                llx_jobcardaccessories (create.php's own page queries that
-                table with plain inline SQL, not an API) — starts empty, real
-                additions via add_gadget.php grow it for this session. */}
+            {/* The real accessories, as the backend's own create page lists them. */}
+            {accessoriesError && <p className="text-xs text-danger mt-1">Couldn't load the accessories list.</p>}
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
               {accessories.map((a) => (
                 <button

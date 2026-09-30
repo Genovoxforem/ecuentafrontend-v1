@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { parseLegacyStats } from './legacyStatsParser'
 
 export interface MonthlyStats {
   year: number
@@ -8,16 +9,9 @@ export interface MonthlyStats {
   summary: { count: number; totalAmount: number; averageAmount: number }
 }
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
-
-// Matches the reference layout's own real filters (commande/stats/index.php builds a
-// Dolibarr CommandeStats($db, $socid, $mode, $userid, $typent_id, $categ_id) from these
-// exact params) — added to api/orders/stats/index.php's SQL as real WHERE/JOIN clauses,
-// verified live (socid=5 -> count 2, status=1 -> count 66, matching the Orders List page's
-// own already-verified validated count).
+// The classic page's own filters (commande/stats/index.php builds a
+// CommandeStats($db, $socid, $mode, $userid, $typent_id, $categ_id) from these
+// exact form fields — socid, typent_id, categ_id, userid, object_status, year).
 export interface OrderStatsFilters {
   socid?: string
   userid?: string
@@ -26,26 +20,22 @@ export interface OrderStatsFilters {
   status?: string
 }
 
-// GET /api/orders/stats/ (api/orders/stats/index.php) — real, ports the
-// Node sales-service monthlyStats() against llx_commande. Was already
-// built but unused — SalesStatsPage previously always showed an
-// honest-zero placeholder despite this endpoint being ready.
+// commande/stats/index.php — the classic order statistics page, read through
+// legacyStatsParser.ts. Replaces GET /api/orders/stats/, which does not exist
+// on the backend (404) and left this page showing a row of zeros as if it were
+// real data. Blank filters are simply not sent (the page's own "all").
 export function useOrderStats(year: number, filters: OrderStatsFilters = {}) {
   const { socid, userid, typentId, categId, status } = filters
   return useQuery({
     queryKey: ['orders', 'stats', year, socid, userid, typentId, categId, status],
     queryFn: async (): Promise<MonthlyStats> => {
-      const { data } = await api.get<WebEnvelope<MonthlyStats>>('/orders/stats/', {
-        params: {
-          year,
-          socid: socid || undefined,
-          userid: userid || undefined,
-          typent_id: typentId || undefined,
-          categ_id: categId || undefined,
-          status: status || undefined,
-        },
-      })
-      return data.data
+      const params = new URLSearchParams({ year: String(year) })
+      if (socid) params.set('socid', socid)
+      if (userid) params.set('userid', userid)
+      if (typentId) params.set('typent_id', typentId)
+      if (categId) params.set('categ_id', categId)
+      if (status) params.set('object_status', status)
+      return parseLegacyStats(await fetchLegacyDocument('/commande/stats/index.php', params), year)
     },
     placeholderData: (prev) => prev,
   })

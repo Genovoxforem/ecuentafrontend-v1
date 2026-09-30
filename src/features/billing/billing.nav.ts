@@ -80,6 +80,8 @@ export const nav: NavSection = {
         { label: 'Reporting', path: ROUTES.paymentsReport },
         { label: 'Statistics (Customers invoices statistics)', path: ROUTES.invoiceStats },
         { label: 'Advance Payment List', path: ROUTES.invoiceAdvancePayments },
+        { label: 'Create Rebate Invoice', path: ROUTES.rebateInvoiceCreate },
+        { label: 'Rebate Invoices', path: ROUTES.rebateInvoiceList },
       ],
     },
     {

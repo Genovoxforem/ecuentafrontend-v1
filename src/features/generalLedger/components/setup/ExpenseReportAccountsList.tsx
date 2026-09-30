@@ -1,8 +1,8 @@
 import { FileSpreadsheet } from 'lucide-react'
-import { DictListPage } from './DictListPage'
+import { DictionaryPage } from './DictionaryPage'
 
-// admin/dict.php?id=17 — real, scraped rows (llx_c_type_fees, expense-report
-// fee types) — see dolibarrDictParser.ts's own top comment.
+// General Ledger > Setup > Expense report accounts: the backend's own dictionary of expense report
+// line types (admin/dict.php?id=17), with the accounting account each one posts to.
 export function ExpenseReportAccountsList() {
-  return <DictListPage icon={FileSpreadsheet} title="Expense Report Accounts" path="/admin/dict.php?id=17" columns={['Code', 'Label', 'Accountancy Code']} />
+  return <DictionaryPage id="17" title="Dictionary setup - Expense report - Types of expense report lines" dictionaryName="expense report line type" icon={FileSpreadsheet} />
 }

@@ -8,30 +8,17 @@
 
 import { ROUTES } from '../../routes'
 
-// Resolves a real "Accounting Doc." link for a ledger/journal/piece row —
-// the real backend renders that column as a clickable link (with a small
-// file icon) whenever the API's own doc_url is non-empty, straight to the
-// source document's classic card page (confirmed live:
-// doc_type "customer_invoice" → /compta/facture/card.php?facid=<fk_doc>;
-// doc_type "supplier_invoice" → /fourn/facture/card.php?facid=<fk_doc>;
-// doc_type "bank" has doc_url = "" — no card page of its own, stays plain
-// text). fk_doc is the exact same facid each native detail page fetches by
-// (InvoiceDetail.tsx for customer_invoice, VendorInvoiceDetail.tsx for
-// supplier_invoice — both live-verified end to end). These two doc_types
-// route to their native pages instead of the real external one; every
-// other doc_type (e.g. expense_report) falls back to the real external
-// doc_url since no native page exists yet for it, and entries with no
-// doc_url at all render as plain text exactly like the real page does.
-export function resolveDocLink(docType: string, fkDoc: string, docUrl: string | null): { href: string; external: boolean } | null {
-  if (docType === 'customer_invoice' && fkDoc) {
-    return { href: ROUTES.invoiceDetail.replace(':id', fkDoc), external: false }
-  }
-  if (docType === 'supplier_invoice' && fkDoc) {
-    return { href: ROUTES.vendorInvoiceDetail.replace(':id', fkDoc), external: false }
-  }
-  if (docUrl) {
-    return { href: docUrl, external: true }
-  }
+// Resolves the "Accounting Doc." link for a ledger/journal/piece row to a
+// React route — never to a backend PHP page. doc_type + fk_doc name the source
+// document: customer_invoice and supplier_invoice open the native invoice
+// detail pages, expense_report opens the native expense report page (fk_doc is
+// the same id each page fetches by). Every other doc_type (bank, member,
+// donation, …) has no React page of its own, so it renders as plain text.
+export function resolveDocLink(docType: string, fkDoc: string, _docUrl: string | null): string | null {
+  if (!fkDoc) return null
+  if (docType === 'customer_invoice') return ROUTES.invoiceDetail.replace(':id', fkDoc)
+  if (docType === 'supplier_invoice') return ROUTES.vendorInvoiceDetail.replace(':id', fkDoc)
+  if (docType === 'expense_report') return ROUTES.expenseReportDetail.replace(':id', fkDoc)
   return null
 }
 
@@ -103,35 +90,6 @@ export interface LedgerReport {
   openingBalance: LedgerMovement | null
   periodMovements: LedgerMovement | null
   closingBalance: LedgerMovement | null
-  meta: LedgerMeta
-}
-
-export interface JournalRow {
-  transactionNum: string
-  cardUrl: string | null
-  journal: string
-  date: string
-  accountingDoc: string
-  accountCode: string
-  subledgerAccount: string
-  label: string
-  debit: number
-  credit: number
-  dateExport: string
-  letteringCode: string
-  docType: string
-  fkDoc: string
-  docUrl: string | null
-  canEdit: boolean
-  editUrl: string | null
-  canDelete: boolean
-  deleteUrl: string | null
-}
-
-export interface JournalsReport {
-  rows: JournalRow[]
-  totalDebit: number
-  totalCredit: number
   meta: LedgerMeta
 }
 

@@ -16,6 +16,7 @@ import {
   useHotelSaveQuoteCfg,
   useHotelToken,
 } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm'
 const STATE_TAG: Record<string, string> = {
@@ -295,6 +296,7 @@ function QuoteCfgModal({ onClose }: { onClose: () => void }) {
 // a=savequote/quotestatus/sendquote/convertquote/delquote/savequotecfg —
 // the Hotel Suite app's own Quotations view.
 export function HotelQuotes() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: quotes, isLoading, isError, error, refetch } = useHotelQuotes()
   const [filter, setFilter] = useState('')
@@ -389,7 +391,7 @@ export function HotelQuotes() {
                               <button
                                 type="button"
                                 disabled={!token}
-                                onClick={() => token && confirm('Delete this draft quote?') && act(q.id, () => del.mutate({ id: q.id, token }))}
+                                onClick={async () => token && (await confirm('Delete this draft quote?')) && act(q.id, () => del.mutate({ id: q.id, token }))}
                                 className="text-xs text-danger hover:underline"
                               >
                                 Delete
@@ -401,7 +403,7 @@ export function HotelQuotes() {
                               <button
                                 type="button"
                                 disabled={!token}
-                                onClick={() => token && confirm('Mark this quote as accepted by the guest?') && act(q.id, () => status.mutate({ id: q.id, to: 'accepted', token }))}
+                                onClick={async () => token && (await confirm('Mark this quote as accepted by the guest?')) && act(q.id, () => status.mutate({ id: q.id, to: 'accepted', token }))}
                                 className="text-xs text-success-fg hover:underline mr-2"
                               >
                                 Accept
@@ -409,7 +411,7 @@ export function HotelQuotes() {
                               <button
                                 type="button"
                                 disabled={!token}
-                                onClick={() => token && confirm('Mark this quote as declined?') && act(q.id, () => status.mutate({ id: q.id, to: 'declined', token }))}
+                                onClick={async () => token && (await confirm('Mark this quote as declined?')) && act(q.id, () => status.mutate({ id: q.id, to: 'declined', token }))}
                                 className="text-xs text-danger hover:underline"
                               >
                                 Decline
@@ -420,9 +422,9 @@ export function HotelQuotes() {
                             <button
                               type="button"
                               disabled={!token}
-                              onClick={() =>
+                              onClick={async () =>
                                 token &&
-                                confirm('Convert this accepted quote into a confirmed booking?\nRooms of each quoted type will be auto-assigned for the stay dates.') &&
+                                (await confirm('Convert this accepted quote into a confirmed booking?\nRooms of each quoted type will be auto-assigned for the stay dates.')) &&
                                 act(q.id, () => convert.mutate({ id: q.id, token }))
                               }
                               className="text-xs text-white bg-brand rounded-md px-2 py-1"

@@ -45,6 +45,7 @@ import {
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useUser, useUserDetail } from '../users.queries'
 import { useUserPermissions, useToggleUserPermission } from '../userPermissions.queries'
@@ -1307,6 +1308,7 @@ function ActivityForm({
   const create = useCreateActivity(userId)
   const update = useUpdateActivity(userId)
   const del = useDeleteActivity(userId)
+  const confirm = useConfirm()
   const [values, setValues] = useState<ActivityFormFields>(() => (activity ? activityToFormFields(activity) : { processtype }))
   const patch = (p: Partial<ActivityFormFields>) => setValues((v) => ({ ...v, ...p }))
   const mutation = activity ? update : create
@@ -1324,8 +1326,8 @@ function ActivityForm({
           <button
             type="button"
             disabled={del.isPending}
-            onClick={() => {
-              if (window.confirm('Delete this activity?')) del.mutate(activity.id, { onSuccess: onDone })
+            onClick={async () => {
+              if (await confirm({ title: 'Delete Activity?', message: 'Are you sure you want to delete this activity?' })) del.mutate(activity.id, { onSuccess: onDone })
             }}
             className="mr-auto inline-flex items-center gap-1.5 rounded-lg border border-danger/30 text-danger px-3 py-1.5 text-sm font-medium hover:bg-danger-bg disabled:opacity-50"
           >

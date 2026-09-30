@@ -6,9 +6,12 @@ import {
   useProductClassificationSearch,
   useProductFormOptions,
   useProductPrefill,
+  pickUnitByCode,
   type FormOption,
+  type ProductFormOptions,
+  type ProductPrefill,
 } from '../createProduct.queries'
-import { isBackendUnavailable, BackendUnavailableCard } from '../../../shared/components/BackendUnavailable'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -53,9 +56,9 @@ function measureOpenUpward(el: HTMLElement | null, menuHeight = 240) {
 }
 
 // Real "Product Classification" field is a jQuery UI autocomplete over
-// productclassification.php (see product_off.php) — ported here as a plain
-// text input + live results list backed by /zra/product-classifications/,
-// the same real llx_c_productclassification search.
+// custom/zra/productclassification.php — ported here as a plain text input +
+// live results list backed by that same endpoint. Picking a row sets the field
+// to the classification code, which is what the backend is sent.
 function ClassificationSearch({ value, code, onSelect }: { value: string; code: string; onSelect: (label: string, code: string) => void }) {
   const [term, setTerm] = useState(value)
   const [debounced, setDebounced] = useState(value)
@@ -96,7 +99,7 @@ function ClassificationSearch({ value, code, onSelect }: { value: string; code: 
         className={inputCls}
       />
       {code && <p className="text-xs text-text-faint mt-1">Code: {code}</p>}
-      {open && debounced.trim().length >= 2 && (
+      {open && debounced.trim().length >= 1 && (
         <div className={`${menuCls} ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           {isFetching && <p className="px-3 py-2 text-xs text-text-faint">Searching…</p>}
           {!isFetching && (results?.length ?? 0) === 0 && <p className="px-3 py-2 text-xs text-text-faint">No matches.</p>}
@@ -199,10 +202,20 @@ function ComboboxSelect({ value, onChange, options, placeholder }: { value: stri
   )
 }
 
-// Real "Create tag/category" modal (see product_off.php's #exampleCat +
-// #insert_prodcat form) — Name/Is Sub Category/Description, submitted via
+// Real "Create tag/category" modal (the page's #exampleCat + #insert_prodcat
+// form) — Name/Is Sub Category/Description, submitted via
 // product/ajax/products.php?action=save_categories (useCreateCategory).
-function CreateCategoryModal({ categories, onClose, onCreated }: { categories: FormOption[]; onClose: () => void; onCreated: (categoryId: string) => void }) {
+function CreateCategoryModal({
+  categories,
+  selected,
+  onClose,
+  onCreated,
+}: {
+  categories: FormOption[]
+  selected: string[]
+  onClose: () => void
+  onCreated: (categoryId: string) => void
+}) {
   const createCategory = useCreateCategory()
   const [name, setName] = useState('')
   const [parentId, setParentId] = useState('')
@@ -213,10 +226,10 @@ function CreateCategoryModal({ categories, onClose, onCreated }: { categories: F
     setError('')
     if (!name.trim()) return setError('Name is required!')
     try {
-      const result = await createCategory.mutateAsync({ label: name.trim(), description: description.trim() || undefined, parentId: parentId || undefined })
+      const result = await createCategory.mutateAsync({ label: name.trim(), description: description.trim() || undefined, parentId: parentId || undefined, selected })
       onCreated(result.categoryId)
     } catch (err) {
-      setError(isBackendUnavailable(err) ? "Creating a tag/category isn't available on this backend yet." : err instanceof Error ? err.message : 'Could not create the category — please try again.')
+      setError(err instanceof Error ? err.message : 'Could not create the category — please try again.')
     }
   }
 
@@ -326,6 +339,7 @@ function CategoryMultiSelect({ value, onChange, options }: { value: string[]; on
       {showCreate && (
         <CreateCategoryModal
           categories={options}
+          selected={value}
           onClose={() => setShowCreate(false)}
           onCreated={(categoryId) => {
             onChange([...value, categoryId])
@@ -337,69 +351,102 @@ function CategoryMultiSelect({ value, onChange, options }: { value: string[]; on
   )
 }
 
-export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode: string; onClose: () => void; onCreated: () => void }) {
-  const createProduct = useCreateProduct()
-  const { data: prefill, isLoading: prefillLoading, error: prefillError } = useProductPrefill(taskCode)
-  const { data: options, isLoading: optionsLoading, error: optionsError } = useProductFormOptions()
+// "0" / "-1" only mean "nothing chosen" on the real form's selects.
+const noneToEmpty = (v: string | undefined) => (v === undefined || v === '0' || v === '-1' ? '' : v)
 
-  const [ref, setRef] = useState('')
-  const [label, setLabel] = useState('')
-  const [statut, setStatut] = useState('1')
-  const [statutBuy, setStatutBuy] = useState('1')
+function ModalShell({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-surface border border-border rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-2.5 border-b border-border">
+          <h3 className="text-lg font-semibold text-text!">Add Products</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded-md text-text-muted hover:bg-surface-alt">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+// A value box with its own unit select (the real form pairs every measure with
+// the unit it is in).
+function WithUnit({ value, onChange, unit, onUnit, units }: { value: string; onChange: (v: string) => void; unit: string; onUnit: (v: string) => void; units: FormOption[] }) {
+  return (
+    <div className="flex items-center gap-1">
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} />
+      <select value={unit} onChange={(e) => onUnit(e.target.value)} className={`${selectCls} !w-24 shrink-0`}>
+        {units.map((u) => (
+          <option key={u.value} value={u.value}>
+            {u.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function ProductForm({
+  taskCode,
+  options,
+  prefill,
+  onClose,
+  onCreated,
+}: {
+  taskCode: string
+  options: ProductFormOptions
+  prefill: ProductPrefill
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const createProduct = useCreateProduct()
+  const confirm = useConfirm()
+  const d = options.defaults
+
+  // Everything starts from what the real form pre-selects, then the ASYCUDA
+  // line's own values on top of it (as the page's own script does).
+  const [ref, setRef] = useState(prefill.ref)
+  const [label, setLabel] = useState(prefill.label)
+  const [statut, setStatut] = useState(d.statut ?? '1')
+  const [statutBuy, setStatutBuy] = useState(d.statut_buy ?? '1')
   const [classificationLabel, setClassificationLabel] = useState('')
   const [classificationCode, setClassificationCode] = useState('')
-  const [finished, setFinished] = useState('2')
-  const [countryId, setCountryId] = useState('')
-  const [warehouseId, setWarehouseId] = useState('')
+  const [finished, setFinished] = useState(d.finished ?? '2')
+  const [countryId, setCountryId] = useState(options.countries.some((c) => c.value === prefill.countryId) ? prefill.countryId : noneToEmpty(d.country_id))
+  const [warehouseId, setWarehouseId] = useState(noneToEmpty(d.fk_default_warehouse))
   const [stockAlertLimit, setStockAlertLimit] = useState('')
   const [desiredStock, setDesiredStock] = useState('')
-  const [units, setUnits] = useState('')
-  const [packing, setPacking] = useState('')
-  const [price, setPrice] = useState('')
+  const [units, setUnits] = useState(pickUnitByCode(options.units, prefill.qtyUnitCode, prefill.qtyUnit))
+  const [packing, setPacking] = useState(pickUnitByCode(options.packingUnits, prefill.packUnitCode, prefill.packUnit))
+  const [price, setPrice] = useState(prefill.price)
+  const [priceBaseType, setPriceBaseType] = useState<'HT' | 'TTC'>(d.price_base_type === 'HT' ? 'HT' : 'TTC')
   const [priceMin, setPriceMin] = useState('')
-  const [vatCategory, setVatCategory] = useState('')
-  const [iplCategory, setIplCategory] = useState('')
-  const [tourismCategory, setTourismCategory] = useState('')
-  const [exciseCategory, setExciseCategory] = useState('')
-  const [barcodeType, setBarcodeType] = useState('')
+  const [vatCategory, setVatCategory] = useState(noneToEmpty(d.tva_tx))
+  const [iplCategory, setIplCategory] = useState(noneToEmpty(d.iplCatCd))
+  const [tourismCategory, setTourismCategory] = useState(noneToEmpty(d.tlCatCd))
+  const [exciseCategory, setExciseCategory] = useState(noneToEmpty(d.exciseTxCatCd))
+  const [barcodeType, setBarcodeType] = useState(noneToEmpty(d.fk_barcode_type))
   const [barcode, setBarcode] = useState('')
-  const [weight, setWeight] = useState('')
+  const [weight, setWeight] = useState(prefill.weight)
+  const [weightUnit, setWeightUnit] = useState(d.weight_units ?? '0')
   const [length, setLength] = useState('')
   const [width, setWidth] = useState('')
   const [height, setHeight] = useState('')
+  const [sizeUnit, setSizeUnit] = useState(d.size_units ?? '0')
   const [surface, setSurface] = useState('')
+  const [surfaceUnit, setSurfaceUnit] = useState(d.surface_units ?? '0')
   const [volume, setVolume] = useState('')
-  const [accountancySell, setAccountancySell] = useState('')
-  const [accountancySellExport, setAccountancySellExport] = useState('')
-  const [accountancyBuy, setAccountancyBuy] = useState('')
-  const [accountancyBuyExport, setAccountancyBuyExport] = useState('')
+  const [volumeUnit, setVolumeUnit] = useState(d.volume_units ?? '0')
+  const [accountancySell, setAccountancySell] = useState((d.accountancy_code_sell ?? '').trim())
+  const [accountancySellExport, setAccountancySellExport] = useState((d.accountancy_code_sell_export ?? '').trim())
+  const [accountancyBuy, setAccountancyBuy] = useState((d.accountancy_code_buy ?? '').trim())
+  const [accountancyBuyExport, setAccountancyBuyExport] = useState((d.accountancy_code_buy_export ?? '').trim())
   const [categories, setCategories] = useState<string[]>([])
   const [isWebsite, setIsWebsite] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (!prefill) return
-    setRef((cur) => cur || prefill.ref)
-    setLabel((cur) => cur || prefill.label)
-    setCountryId((cur) => cur || prefill.countryId)
-    // get_importproduct derives qty_unit/pack_unit by looking up the
-    // ASYCUDA declaration's own unit code (qtyUnitCd/pkgUnitCd) in
-    // llx_c_units — when that code doesn't match any real row (seen live:
-    // qtyUnitCd "N/A" produces qty_unit " ()", a blank-but-nonempty string),
-    // only accept it if it's a real "<rowid> (<code>)" match, so it lines up
-    // with an actual <option> instead of silently submitting a dead value.
-    if (/^\d+\s\(.+\)$/.test(prefill.qtyUnit)) setUnits((cur) => cur || prefill.qtyUnit)
-    if (/^\d+\s\(.+\)$/.test(prefill.packUnit)) setPacking((cur) => cur || prefill.packUnit)
-  }, [prefill])
-
-  const natureOptions = useMemo<FormOption[]>(
-    () => [
-      { value: '2', label: 'Finished Product' },
-      { value: '1', label: 'Raw Material' },
-      { value: '3', label: 'Service' },
-    ],
-    [],
-  )
+  const natureOptions = useMemo<FormOption[]>(() => options.natures, [options.natures])
 
   async function handleSubmit() {
     setError('')
@@ -409,10 +456,18 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
     if (!countryId) return setError('Country of origin is required!')
     if (!units) return setError('Unit is required!')
     if (!packing) return setError('Packaging Unit is required!')
-    if (!statut) return setError('Status (Sell) is required!')
-    if (!statutBuy) return setError('Status (Purchase) is required!')
-    if (!finished) return setError('Nature of product is required!')
-    if (!price) return setError('Selling price is required!')
+    if (!price.trim()) return setError('Selling price is required!')
+    if (!vatCategory) return setError('VAT category is required since this is a VAT-registered company!')
+
+    const ok = await confirm({
+      title: 'Create this product?',
+      message: `"${label.trim()}" (${ref.trim()}) is created and registered with the ZRA gateway in the same step.`,
+      warningTitle: 'This submits to the live ZRA gateway.',
+      warningMessage: 'The product is added to the catalogue and reported to ZRA; it cannot be undone from here.',
+      variant: 'default',
+      confirmLabel: 'Create Product',
+    })
+    if (!ok) return
 
     try {
       await createProduct.mutateAsync({
@@ -422,67 +477,44 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
         statutBuy,
         finished,
         itemClassification: classificationLabel,
+        itemClassificationCode: classificationCode,
         countryId,
         warehouseId: warehouseId || undefined,
         stockAlertLimit: stockAlertLimit || undefined,
         desiredStock: desiredStock || undefined,
         units,
         packing,
-        price,
+        price: price.trim(),
+        priceBaseType,
         priceMin: priceMin || undefined,
-        vatCategory: vatCategory || undefined,
+        vatCategory,
         iplCategory: iplCategory || undefined,
         tourismCategory: tourismCategory || undefined,
         exciseCategory: exciseCategory || undefined,
         barcodeType: barcodeType || undefined,
         barcode: barcode || undefined,
         weight: weight || undefined,
+        weightUnit,
         length: length || undefined,
         width: width || undefined,
         height: height || undefined,
+        sizeUnit,
         surface: surface || undefined,
+        surfaceUnit,
         volume: volume || undefined,
+        volumeUnit,
         accountancySell: accountancySell || undefined,
         accountancySellExport: accountancySellExport || undefined,
         accountancyBuy: accountancyBuy || undefined,
         accountancyBuyExport: accountancyBuyExport || undefined,
         categories: categories.length ? categories : undefined,
         isWebsite,
-        taskCode,
+        taskCode: prefill.taskCode || taskCode,
       })
       onCreated()
     } catch (err) {
-      setError(
-        isBackendUnavailable(err) ? "Creating a new product isn't available on this backend yet." : err instanceof Error ? err.message : 'Connection error while creating the product — please try again.',
-      )
+      setError(err instanceof Error ? err.message : 'Connection error while creating the product — please try again.')
     }
-  }
-
-  const loading = prefillLoading || optionsLoading
-
-  // GET /api/zra/asycuda-imports/prefill/ and /api/zra/product-form-options/ both 404 on
-  // this backend (see BackendUnavailable.tsx) — without either, this form has no country/
-  // unit/packaging/tax-category options and no ASYCUDA prefill data to work with, so it's
-  // treated as the whole feature being unavailable rather than rendering a form full of
-  // empty dropdowns that look loaded but aren't.
-  const backendUnavailable = isBackendUnavailable(prefillError) || isBackendUnavailable(optionsError)
-
-  if (backendUnavailable) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-        <div className="w-full max-w-lg bg-surface border border-border rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-5 py-2.5 border-b border-border">
-            <h3 className="text-lg font-semibold text-text!">Add Products</h3>
-            <button type="button" onClick={onClose} className="p-1 rounded-md text-text-muted hover:bg-surface-alt">
-              <X size={18} />
-            </button>
-          </div>
-          <div className="p-4">
-            <BackendUnavailableCard feature="Add Products" />
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -498,14 +530,14 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
           </button>
         </div>
 
-        <div className="p-4 space-y-2.5">
+        <div className="p-4 space-y-2.5 overflow-y-auto soft-scrollbar">
           <p className="text-xs text-text-faint">
-            From ASYCUDA task code <span className="text-text">{taskCode}</span>.{loading && ' Loading real item details…'}
+            From ASYCUDA task code <span className="text-text">{taskCode}</span>.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-2.5 items-start">
             <Field label="Ref." required>
-              <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} />
+              <input value={ref} onChange={(e) => setRef(e.target.value)} maxLength={128} className={inputCls} />
             </Field>
             <Field label="Label" required>
               <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
@@ -537,10 +569,10 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
               <Select value={finished} onChange={setFinished} options={natureOptions} placeholder="Select…" />
             </Field>
             <Field label="Country of origin" required>
-              <Select value={countryId} onChange={setCountryId} options={options?.countries ?? []} placeholder="Select…" />
+              <Select value={countryId} onChange={setCountryId} options={options.countries} placeholder="Select…" />
             </Field>
             <Field label="Default warehouse">
-              <Select value={warehouseId} onChange={setWarehouseId} options={options?.warehouses ?? []} placeholder="Select a warehouse" />
+              <Select value={warehouseId} onChange={setWarehouseId} options={options.warehouses} placeholder="Select a warehouse" />
             </Field>
 
             <Field label="Stock limit for alert">
@@ -550,40 +582,46 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
               <input value={desiredStock} onChange={(e) => setDesiredStock(e.target.value)} className={inputCls} />
             </Field>
             <Field label="Unit" required>
-              <Select value={units} onChange={setUnits} options={options?.units ?? []} placeholder="Select…" />
+              <Select value={units} onChange={setUnits} options={options.units} placeholder="Select…" />
             </Field>
             <Field label="Packaging Unit" required>
-              <Select value={packing} onChange={setPacking} options={options?.packingUnits ?? []} placeholder="Select…" />
+              <Select value={packing} onChange={setPacking} options={options.packingUnits} placeholder="Select…" />
             </Field>
 
             <Field label="Selling price" required>
-              <input value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
+              <div className="flex items-center gap-1">
+                <input value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
+                <select value={priceBaseType} onChange={(e) => setPriceBaseType(e.target.value === 'HT' ? 'HT' : 'TTC')} className={`${selectCls} !w-28 shrink-0`}>
+                  <option value="HT">Excl. tax</option>
+                  <option value="TTC">Inc. tax</option>
+                </select>
+              </div>
             </Field>
             <Field label="Min. selling price">
               <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className={inputCls} />
             </Field>
-            <Field label="VAT category Code">
-              <Select value={vatCategory} onChange={setVatCategory} options={options?.vatCategories ?? []} placeholder="Select Tax Category" />
+            <Field label="VAT category Code" required>
+              <Select value={vatCategory} onChange={setVatCategory} options={options.vatCategories} placeholder="Select Tax Category" />
             </Field>
             <Field label="IPL category code">
-              <Select value={iplCategory} onChange={setIplCategory} options={options?.iplCategories ?? []} placeholder="Select Tax Category" />
+              <Select value={iplCategory} onChange={setIplCategory} options={options.iplCategories} placeholder="Select Tax Category" />
             </Field>
 
             <Field label="Tourism levy Code">
-              <Select value={tourismCategory} onChange={setTourismCategory} options={options?.tourismCategories ?? []} placeholder="Select Tax Category" />
+              <Select value={tourismCategory} onChange={setTourismCategory} options={options.tourismCategories} placeholder="Select Tax Category" />
             </Field>
             <Field label="Excise tax category code">
-              <Select value={exciseCategory} onChange={setExciseCategory} options={options?.exciseCategories ?? []} placeholder="Select Tax Category" />
+              <Select value={exciseCategory} onChange={setExciseCategory} options={options.exciseCategories} placeholder="Select Tax Category" />
             </Field>
             <Field label="Barcode type">
-              <Select value={barcodeType} onChange={setBarcodeType} options={options?.barcodeTypes ?? []} placeholder="Select…" />
+              <Select value={barcodeType} onChange={setBarcodeType} options={options.barcodeTypes} placeholder="Select…" />
             </Field>
             <Field label="Barcode value">
               <input value={barcode} onChange={(e) => setBarcode(e.target.value)} className={inputCls} />
             </Field>
 
-            <Field label="Weight (kg)">
-              <input value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls} />
+            <Field label="Weight">
+              <WithUnit value={weight} onChange={setWeight} unit={weightUnit} onUnit={setWeightUnit} units={options.weightUnits} />
             </Field>
             <Field label="Length x Width x Height">
               <div className="flex items-center gap-1">
@@ -592,30 +630,37 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
                 <input value={width} onChange={(e) => setWidth(e.target.value)} className={inputCls} />
                 <span className="text-text-faint">x</span>
                 <input value={height} onChange={(e) => setHeight(e.target.value)} className={inputCls} />
+                <select value={sizeUnit} onChange={(e) => setSizeUnit(e.target.value)} className={`${selectCls} !w-20 shrink-0`}>
+                  {options.sizeUnits.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </Field>
-            <Field label="Area (m²)">
-              <input value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls} />
+            <Field label="Area">
+              <WithUnit value={surface} onChange={setSurface} unit={surfaceUnit} onUnit={setSurfaceUnit} units={options.surfaceUnits} />
             </Field>
-            <Field label="Volume (m³)">
-              <input value={volume} onChange={(e) => setVolume(e.target.value)} className={inputCls} />
+            <Field label="Volume">
+              <WithUnit value={volume} onChange={setVolume} unit={volumeUnit} onUnit={setVolumeUnit} units={options.volumeUnits} />
             </Field>
 
             <Field label="Product Accountancy Sell Code">
-              <ComboboxSelect value={accountancySell} onChange={setAccountancySell} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              <ComboboxSelect value={accountancySell} onChange={setAccountancySell} options={options.accountingAccounts} placeholder="Select an account" />
             </Field>
             <Field label="Product Accountancy Sell Export Code">
-              <ComboboxSelect value={accountancySellExport} onChange={setAccountancySellExport} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              <ComboboxSelect value={accountancySellExport} onChange={setAccountancySellExport} options={options.accountingAccounts} placeholder="Select an account" />
             </Field>
             <Field label="Product Accountancy Buy Code">
-              <ComboboxSelect value={accountancyBuy} onChange={setAccountancyBuy} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              <ComboboxSelect value={accountancyBuy} onChange={setAccountancyBuy} options={options.accountingAccounts} placeholder="Select an account" />
             </Field>
             <Field label="Product Accountancy Buy Export Code">
-              <ComboboxSelect value={accountancyBuyExport} onChange={setAccountancyBuyExport} options={options?.accountingAccounts ?? []} placeholder="Select an account" />
+              <ComboboxSelect value={accountancyBuyExport} onChange={setAccountancyBuyExport} options={options.accountingAccounts} placeholder="Select an account" />
             </Field>
 
             <Field label="Tags/categories">
-              <CategoryMultiSelect value={categories} onChange={setCategories} options={options?.categories ?? []} />
+              <CategoryMultiSelect value={categories} onChange={setCategories} options={options.categories} />
             </Field>
             <div className="flex items-center gap-2 pt-6">
               <label className="flex items-center gap-1 text-sm text-brand">Enable On Website</label>
@@ -629,10 +674,11 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
             </div>
           </div>
 
-          {error && <p className="text-sm font-medium text-danger">{error}</p>}
+          {error && <p className="whitespace-pre-line text-sm font-medium text-danger">{error}</p>}
         </div>
 
-        <div className="px-5 py-2.5 border-t border-border shrink-0 flex justify-end">
+        <div className="px-5 py-2.5 border-t border-border shrink-0 flex items-center justify-end gap-3">
+          {createProduct.isPending && <span className="text-xs text-text-faint">Wait till updating to ZRA server…</span>}
           <button
             type="button"
             onClick={handleSubmit}
@@ -645,4 +691,39 @@ export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode:
       </div>
     </div>
   )
+}
+
+// The backend's "Add Products" form for one ASYCUDA import line: the form's
+// own lists and defaults, the line's own values as the starting point, and a
+// Create that posts the page's own addproducts request.
+export function CreateProductModal({ taskCode, onClose, onCreated }: { taskCode: string; onClose: () => void; onCreated: () => void }) {
+  const { data: prefill, isLoading: prefillLoading, error: prefillError, refetch: refetchPrefill } = useProductPrefill(taskCode)
+  const { data: options, isLoading: optionsLoading, error: optionsError, refetch: refetchOptions } = useProductFormOptions()
+
+  if (prefillLoading || optionsLoading) {
+    return (
+      <ModalShell onClose={onClose}>
+        <p className="text-sm text-text-faint">Loading the item details…</p>
+      </ModalShell>
+    )
+  }
+  const failure = prefillError ?? optionsError
+  if (failure || !prefill || !options) {
+    return (
+      <ModalShell onClose={onClose}>
+        <p className="whitespace-pre-line text-sm text-danger">{failure instanceof Error ? failure.message : 'The product form could not be loaded.'}</p>
+        <button
+          type="button"
+          onClick={() => {
+            refetchPrefill()
+            refetchOptions()
+          }}
+          className="mt-3 px-3 py-1.5 rounded-md text-sm font-medium border border-border text-text hover:bg-surface-alt"
+        >
+          Retry
+        </button>
+      </ModalShell>
+    )
+  }
+  return <ProductForm taskCode={taskCode} options={options} prefill={prefill} onClose={onClose} onCreated={onCreated} />
 }

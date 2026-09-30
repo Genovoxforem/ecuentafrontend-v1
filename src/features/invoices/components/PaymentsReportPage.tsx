@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
-import { FileBarChart2, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { FileBarChart2, Loader2, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
+import { LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { ROUTES } from '../../../routes'
+import { formatMoney } from '../../../utils/format'
 import { usePayments, type PaymentRow } from '../payments.queries'
-import { BackendUnavailableCard, isBackendUnavailable } from '../../../shared/components/BackendUnavailable'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -22,6 +24,17 @@ const COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Amount', key: 'amount' },
 ]
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
+
+const pad = (n: number) => String(n).padStart(2, '0')
+// The whole calendar month as a backend period.
+function monthPeriod(year: number, month: number) {
+  const last = new Date(year, month + 1, 0).getDate()
+  return { from: `${year}-${pad(month + 1)}-01`, to: `${year}-${pad(month + 1)}-${pad(last)}` }
+}
+const fmtDate = (v: string) => {
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : v
+}
 
 function matchesSearch(r: PaymentRow, query: string) {
   const q = query.trim().toLowerCase()
@@ -44,16 +57,15 @@ function sortValue(r: PaymentRow, key: SortKey): string | number {
   }
 }
 
-// Real GET /api/payments/ data (see payments.queries.ts), grouped
-// client-side by month/year — this backend has no per-period report
-// endpoint of its own, so the grouping happens here rather than being
-// invented server-side.
+// Payments received in one calendar month — the same real payments list as the
+// Report Area page (compta/paiement/list.php, see paymentsListParser.ts) asked
+// for that month's period; the total and the table are that period's rows.
 export function PaymentsReportPage() {
-  const { data, isLoading, error } = usePayments()
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
   const [applied, setApplied] = useState({ month: now.getMonth(), year: now.getFullYear() })
+  const { data, isLoading, isFetching, isError, error, refetch } = usePayments(monthPeriod(applied.year, applied.month))
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
@@ -61,15 +73,7 @@ export function PaymentsReportPage() {
   const rows = useMemo(() => data?.items ?? [], [data])
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i)
 
-  const periodFiltered = useMemo(
-    () =>
-      rows.filter((r) => {
-        const d = new Date(r.paymentDate)
-        return !Number.isNaN(d.getTime()) && d.getMonth() === applied.month && d.getFullYear() === applied.year
-      }),
-    [rows, applied],
-  )
-  const filtered = useMemo(() => periodFiltered.filter((r) => matchesSearch(r, search)), [periodFiltered, search])
+  const filtered = useMemo(() => rows.filter((r) => matchesSearch(r, search)), [rows, search])
   const { sorted, sort, toggleSort } = useSortableRows<PaymentRow, SortKey>(filtered, sortValue)
   const pageRows = sorted.slice((page - 1) * perPage, page * perPage)
   const total = sorted.reduce((sum, r) => sum + r.amount, 0)
@@ -85,20 +89,17 @@ export function PaymentsReportPage() {
   }
 
   function getExportData() {
-    const exportRows = sorted.map((r) => [r.ref, formatDateTimeAmPm(r.paymentDate), r.customerName || '-', r.paymentTypeLabel || '-', formatMoney(r.amount)])
+    const exportRows = sorted.map((r) => [r.ref, fmtDate(r.paymentDate), r.customerName || '-', r.paymentTypeLabel || '-', formatMoney(r.amount)])
     return { headers: COLUMN_LABELS, rows: exportRows }
   }
 
-  // api/payments/ doesn't exist on the current backend (see BackendUnavailable.tsx) — same
-  // underlying query as PaymentsListPage, shown here too rather than letting this page fall
-  // through to a silent "No Data Available" table.
-  if (isBackendUnavailable(error)) {
+  if (isError && !data) {
     return (
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileBarChart2 size={20} className="text-brand" /> Payments reports
         </h2>
-        <BackendUnavailableCard feature="Payments" />
+        <LegacyErrorCard title="Couldn't load the payments report" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
       </div>
     )
   }
@@ -128,8 +129,16 @@ export function PaymentsReportPage() {
                 </option>
               ))}
             </select>
-            <button type="button" onClick={() => setApplied({ month, year })} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-              Create
+            <button
+              type="button"
+              disabled={isFetching}
+              onClick={() => {
+                setApplied({ month, year })
+                setPage(1)
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            >
+              {isFetching && <Loader2 size={14} className="animate-spin" />} Create
             </button>
           </div>
         </Card>
@@ -166,7 +175,7 @@ export function PaymentsReportPage() {
             </div>
             <TableExportButtons title={`Payments Report ${MONTHS[applied.month]} ${applied.year}`} getExportData={getExportData} />
           </div>
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div className={`flex-1 min-h-0 overflow-auto transition-opacity ${isFetching && data ? 'opacity-60' : ''}`}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <TheadRow>
@@ -187,15 +196,23 @@ export function PaymentsReportPage() {
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
-                      {periodFiltered.length === 0 ? 'No Data Available In Table' : `No payments match "${search}".`}
+                      {rows.length === 0 ? 'No Data Available In Table' : `No payments match "${search}".`}
                     </td>
                   </tr>
                 ) : (
-                  pageRows.map((r) => (
-                    <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
-                      <td className="px-4 py-3 text-brand font-medium">{r.ref}</td>
-                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{formatDateTimeAmPm(r.paymentDate)}</td>
-                      <td className="px-4 py-3 text-text!">{r.customerName || '-'}</td>
+                  pageRows.map((r, i) => (
+                    <tr key={`${r.ref}-${i}`} className="border-b border-border last:border-0 hover:bg-surface-hover">
+                      <td className="px-4 py-3 text-brand font-medium whitespace-nowrap">{r.ref}</td>
+                      <td className="px-4 py-3 text-text-muted whitespace-nowrap">{fmtDate(r.paymentDate)}</td>
+                      <td className="px-4 py-3">
+                        {r.socid ? (
+                          <Link to={ROUTES.customerDetail.replace(':id', String(r.socid))} className="text-brand hover:underline">
+                            {r.customerName || '-'}
+                          </Link>
+                        ) : (
+                          <span className="text-text!">{r.customerName || '-'}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-text-muted">{r.paymentTypeLabel || '-'}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-text!">{formatMoney(r.amount)}</td>
                     </tr>

@@ -16,8 +16,6 @@ import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions, callProductInfoFile } from '../../products/products.queries'
 import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
-import { useLogActivity } from '../../agenda/agenda.queries'
-import { useAuth } from '../../auth/AuthContext'
 import { parseOrderDictionaries, looksLikeLegacyLoginPage, type OrderDictionaries } from '../orderFormOptionsParser'
 import { QuickCustomerCreateModal } from './QuickCustomerCreateModal'
 import { QuickProductCreateModal } from './QuickProductCreateModal'
@@ -367,8 +365,6 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
   const [paymentTypeId, setPaymentTypeId] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const logActivity = useLogActivity()
-  const { user } = useAuth()
 
   // Carries the selected customer's own real stored defaults onto the
   // order — same behavior as the legacy form's own customer-change handler
@@ -537,9 +533,6 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders'] })
-      const customerName = fixedCustomer?.name ?? customers?.find((c) => c.id === customerId)?.name ?? 'a customer'
-      const authorName = user ? `${user.firstname} ${user.lastname}`.trim() || user.login : 'Unknown'
-      logActivity({ label: `New sales order for ${customerName}`, category: 'orders', authorName })
       navigate(listLink)
     },
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create order'),

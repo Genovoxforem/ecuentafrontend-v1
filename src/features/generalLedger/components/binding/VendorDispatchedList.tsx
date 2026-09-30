@@ -1,15 +1,9 @@
-import { FileCheck } from 'lucide-react'
-import { InertListPage } from '../../../../shared/components/forms/InertListPage'
+import { ROUTES } from '../../../../routes'
+import { VENDOR_LINES_PATH } from '../../boundLines.queries'
+import { BoundLinesList } from './CustomerDispatchedList'
 
-// accountancy/supplier/lines.php — same architecture as customer/lines.php,
-// purchase-side. Classic form-POST, no JSON.
+// accountancy/supplier/lines.php — same screen as customer/lines.php over the
+// vendor-invoice lines that are already bound to an accounting account.
 export function VendorDispatchedList() {
-  return (
-    <InertListPage
-      icon={FileCheck}
-      title="Dispatched"
-      sourcePath="accountancy/supplier/lines.php"
-      columns={['Invoice', 'Date', 'Product Ref', 'Description', 'Amount', 'VAT Rate', 'Third Party', 'Country', 'Account Accounting']}
-    />
-  )
+  return <BoundLinesList path={VENDOR_LINES_PATH} invoiceRoute={ROUTES.vendorInvoiceDetail} title="Bound Lines Of Vendor Invoices" />
 }

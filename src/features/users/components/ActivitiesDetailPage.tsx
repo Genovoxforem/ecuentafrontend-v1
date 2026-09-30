@@ -44,8 +44,7 @@ const ACTIVITY_TYPE_LABELS: Record<TaskActivityType, string> = { task: 'Task', m
 // equivalent doesn't exist inline on either scraped report page, but the
 // standard Dolibarr agenda "add event" page does (confirmed live, 200 OK) —
 // used the same "open the real legacy create page" convention as this app's
-// other create flows that have no confirmed JSON API (see agenda.queries.ts's
-// own note that llx_actioncomm has none here).
+// other create flows that have no confirmed JSON API.
 const LEGACY_ADD_ACTIVITY_URL = '/comm/action/card.php?action=create'
 
 function useDefaultMonthRange() {

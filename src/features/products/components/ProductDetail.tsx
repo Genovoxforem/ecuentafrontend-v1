@@ -26,6 +26,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
 import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
@@ -121,6 +122,7 @@ export function ProductDetail() {
   const { data: product, isLoading, isError, error } = useProductDetail(id)
   const deleteProduct = useDeleteProduct()
   const duplicateProduct = useDuplicateProduct()
+  const confirm = useConfirm()
   const [actionError, setActionError] = useState('')
   const [tab, setTab] = useState<Tab>('Product Card')
   // Fetched here (not just inside LinkedFilesTab) so its real file count can
@@ -167,8 +169,19 @@ export function ProductDetail() {
     )
   }
 
-  function handleDelete() {
-    const confirmed = window.confirm(`Delete "${product!.label}" (${product!.ref})? This can't be undone.`)
+  async function handleDelete() {
+    const confirmed = await confirm({
+      title: 'Delete Product?',
+      message: (
+        <>
+          Are you sure you want to delete{' '}
+          <strong className="text-text!">
+            {product!.label} ({product!.ref})
+          </strong>
+          ?
+        </>
+      ),
+    })
     if (!confirmed) return
     setActionError('')
     deleteProduct.mutate(id!, {
@@ -177,8 +190,13 @@ export function ProductDetail() {
     })
   }
 
-  function handleDuplicate() {
-    const confirmed = window.confirm(`Duplicate "${product!.label}" (${product!.ref})? A new product will be created from a copy of its fields.`)
+  async function handleDuplicate() {
+    const confirmed = await confirm({
+      title: 'Duplicate Product?',
+      message: `Duplicate "${product!.label}" (${product!.ref})? A new product will be created from a copy of its fields.`,
+      variant: 'default',
+      confirmLabel: 'Duplicate',
+    })
     if (!confirmed) return
     setActionError('')
     duplicateProduct.mutate(id!, {

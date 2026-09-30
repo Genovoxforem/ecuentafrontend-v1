@@ -1,5 +1,6 @@
 import { StockMovementsListPage } from '../../features/warehouses/components/StockMovementsListPage'
 import { BoxBreakPage } from '../../features/warehouses/components/BoxBreakPage'
+import { UomManagerPage } from '../../features/warehouses/components/UomManagerPage'
 import { MinMaxStockPage } from '../../features/warehouses/components/MinMaxStockPage'
 import { FefoExpiryDashboardPage } from '../../features/warehouses/components/FefoExpiryDashboardPage'
 import { StockCorrectionPage } from '../../features/warehouses/components/StockCorrectionPage'
@@ -13,6 +14,9 @@ export function StockMovementsListModule() {
 }
 export function BoxBreakModule() {
   return <BoxBreakPage />
+}
+export function UomManagerModule() {
+  return <UomManagerPage />
 }
 export function MinMaxStockModule() {
   return <MinMaxStockPage />

@@ -1,161 +1,83 @@
-import { UploadCloud, Boxes, Info } from 'lucide-react'
-import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
-import { notWiredYet } from './ZraListChrome'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { useState } from 'react'
+import { Boxes, Loader2, UploadCloud } from 'lucide-react'
+import { ROUTES } from '../../../routes'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { LegacyListPage } from '../../generalLedger/components/LegacyListPage'
+import { useUploadStockMovements } from '../zraActions.queries'
 
-const inputCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
-const disabledCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text-faint text-sm cursor-not-allowed'
+const idOf = (href: string | null) => new URLSearchParams((href ?? '').split('?')[1] ?? '').get('id') ?? ''
 
-// product/stock/movement_listunuploaded.php has no JSON read API at all (see
-// this file's own longer note further down) — there is no real row shape to
-// pull a TypeScript interface from, so this local shape exists purely to
-// name the columns the real page itself shows; `rows` stays permanently
-// empty rather than inventing data. Sorting/exporting an always-empty array
-// is harmless (useSortableRows and TableExportButtons both handle it fine),
-// which is why the header/sort/export treatment is still worth wiring up
-// here even with nothing behind it yet.
-interface UnuploadedStockRow {
-  date: string
-  productRef: string
-  productLabel: string
-  lotSerial: string
-  warehouse: string
-  docCode: string
-  movementType: string
-}
-const rows: UnuploadedStockRow[] = []
-
-type SortKey = 'date' | 'productRef' | 'productLabel' | 'lotSerial' | 'warehouse' | 'docCode' | 'movementType'
-
-const COLUMNS: { label: string; key: SortKey }[] = [
-  { label: 'Date', key: 'date' },
-  { label: 'Product Ref', key: 'productRef' },
-  { label: 'Product Label', key: 'productLabel' },
-  { label: 'Lot/Serial', key: 'lotSerial' },
-  { label: 'Warehouse', key: 'warehouse' },
-  { label: 'Inv./Doc Code', key: 'docCode' },
-  { label: 'Type of Movement', key: 'movementType' },
-]
-const COLUMN_LABELS = COLUMNS.map((c) => c.label)
-
-function sortValue(row: UnuploadedStockRow, key: SortKey): string {
-  return row[key]
-}
-
-function getExportData() {
-  return { headers: COLUMN_LABELS, rows: [] as string[][] }
-}
-
-// product/stock/movement_listunuploaded.php (read directly, not guessed) has
-// no JSON read API at all — its result table is a plain PHP loop rendered
-// once at page load, re-run on a full form submit for every filter change,
-// with no ajax/DataTables config anywhere in its ~1,460 lines. Its "Upload
-// TO ZRA" button IS real (POST product/stock/zraallupdatestock.php, a
-// genuine JSON endpoint) — but it submits selected rows straight to the
-// live ZRA government sandbox, so it's guarded the same way every other
-// ZRA upload/sync action in this app is (see notWiredYet in ZraListChrome).
-// Warehouse is the one field with a real source (this app's own warehouse
-// list); everything else here matches the real form's fields without a
-// live source to back it. No perPage/search controls are added below (unlike
-// the other ZRA lists) since there is no real query behind them to drive —
-// only the header/sort/height/export treatment applies here.
+// product/stock/movement_listunuploaded.php — the real list of stock movements
+// the ZRA gateway has not accepted yet (each row's ZRA Status is the backend's
+// own), with the page's own warehouse / movement-type / reference filters and
+// paging. Product and warehouse cells open the native pages.
+//
+// Tick movements and press "Upload TO ZRA": that posts the ticked ids to
+// product/stock/zraallupdatestock.php, which sends them to the live ZRA gateway
+// and answers with a status message (shown below), exactly like the backend page.
 export function UnuploadedStockList() {
-  const warehouses = useWarehouses()
-  const { sort, toggleSort } = useSortableRows<UnuploadedStockRow, SortKey>(rows, sortValue)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [result, setResult] = useState<string | null>(null)
+  const upload = useUploadStockMovements()
+  const confirm = useConfirm()
+
+  const send = async () => {
+    setResult(null)
+    if (selected.size === 0) {
+      setResult('Please select at least one stock movement to upload.')
+      return
+    }
+    const ok = await confirm({
+      title: 'Upload stock movements to ZRA?',
+      message: `Send ${selected.size} stock movement${selected.size === 1 ? '' : 's'} to the ZRA gateway now?`,
+      warningTitle: 'This submits to the live ZRA gateway.',
+      warningMessage: 'The gateway records what it accepts; it cannot be undone from here.',
+      variant: 'default',
+      confirmLabel: 'Upload TO ZRA',
+    })
+    if (!ok) return
+    upload.mutate([...selected], {
+      onSuccess: (message) => {
+        setResult(message)
+        setSelected(new Set())
+      },
+    })
+  }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-text!">
-            <Boxes size={20} className="text-brand" />
-            Un-uploaded Stock Movements
-          </h2>
-          <div className="flex items-center gap-2">
-            <TableExportButtons title="Un-uploaded Stock Movements" getExportData={getExportData} />
-            <button type="button" onClick={notWiredYet} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90">
-              <UploadCloud size={14} /> Upload TO ZRA
-            </button>
-          </div>
+    <div className="space-y-4">
+      {result && <div className="whitespace-pre-line rounded-lg border border-success/40 bg-success-bg/50 px-4 py-3 text-sm text-success-fg">{result}</div>}
+      {upload.isError && (
+        <div className="whitespace-pre-line rounded-lg border border-danger/40 bg-danger-bg/50 px-4 py-3 text-sm text-danger">
+          {upload.error instanceof Error ? upload.error.message : 'The upload failed.'}
         </div>
-
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">product/stock/movement_listunuploaded.php</code> — a classic server-rendered list with no JSON read
-            API, so results can't be listed here without scraping. "Upload TO ZRA" is real (it posts to the live ZRA gateway), so it's guarded like every
-            other ZRA upload action in this app rather than fired directly.
-          </p>
-        </Card>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-muted">Start Date</span>
-            <input disabled type="date" className={disabledCls} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-muted">End Date</span>
-            <input disabled type="date" className={disabledCls} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-muted">Product Ref</span>
-            <input disabled className={disabledCls} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-muted">Product Label</span>
-            <input disabled className={disabledCls} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-muted">Lot/Serial</span>
-            <input disabled className={disabledCls} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-muted">Warehouse</span>
-            <select className={inputCls} defaultValue="">
-              <option value="">Select a Warehouse</option>
-              {warehouses.map((w) => (
-                <option key={w.ref} value={w.ref}>
-                  {w.shortName || w.ref}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 col-span-2">
-            <span className="text-xs font-medium text-text-muted">Type of movement</span>
-            <select disabled className={disabledCls}>
-              <option>Select a type</option>
-            </select>
-          </label>
-          <div className="flex items-end">
-            <button type="button" disabled className="h-9 px-4 rounded-md text-sm font-medium bg-brand text-white opacity-60 cursor-not-allowed w-full">
-              Filter
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10">
-            <TheadRow>
-              {COLUMNS.map((col) => (
-                <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
-                  {col.label}
-                </Th>
-              ))}
-            </TheadRow>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={COLUMN_LABELS.length} className="px-3 py-6 text-center text-text-faint">
-                No data available here.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      )}
+      <LegacyListPage
+        icon={Boxes}
+        title="Un-uploaded Stock Movements"
+        path="/product/stock/movement_listunuploaded.php"
+        firstHeader={/^REF/}
+        emptyText="No un-uploaded stock movements."
+        rowSelect={{ selected, onChange: setSelected }}
+        toolbar={
+          <button
+            type="button"
+            onClick={send}
+            disabled={upload.isPending}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {upload.isPending ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+            {upload.isPending ? 'Updating to ZRA…' : `Upload TO ZRA${selected.size ? ` (${selected.size})` : ''}`}
+          </button>
+        }
+        linkFor={(header, cell) => {
+          const id = idOf(cell.href)
+          if (!id) return null
+          if (/^Product ref/i.test(header) && cell.href?.includes('/product/stock/product.php')) return ROUTES.productDetail.replace(':id', id)
+          if (/^Warehouse/i.test(header) && cell.href?.includes('/product/stock/card.php')) return ROUTES.warehouseDetail.replace(':id', id)
+          return null
+        }}
+      />
     </div>
   )
 }

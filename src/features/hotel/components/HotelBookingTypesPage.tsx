@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react'
 import { CalendarCheck, Plus, Pencil, Trash2, X, LoaderCircle, Search, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToken } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
 // Real page: booking_types.php — unlike Room Type/Floor, kind=booking
 // writes here genuinely persist (unlike kind=floor/roomtype).
 export function HotelBookingTypesPage() {
+  const confirm = useConfirm()
   const { data: settings, isLoading, isError, error, refetch } = useHotelSettingsBundle()
   const { data: token } = useHotelToken()
   const save = useHotelSaveType()
@@ -134,7 +136,7 @@ export function HotelBookingTypesPage() {
                       <button
                         type="button"
                         disabled={!token}
-                        onClick={() => token && confirm(`Delete "${r.name}"?`) && del.mutate({ kind: 'booking', id: r.id, token })}
+                        onClick={async () => token && (await confirm(`Delete "${r.name}"?`)) && del.mutate({ kind: 'booking', id: r.id, token })}
                         className="p-1.5 rounded-md text-danger hover:bg-surface-hover"
                       >
                         <Trash2 size={13} />

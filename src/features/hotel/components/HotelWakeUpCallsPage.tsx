@@ -5,6 +5,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelWakeups, useHotelOccRooms, useHotelSaveWakeup, useHotelWakeupDone, useHotelDelWakeup, useHotelToken } from '../hotel.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -12,6 +13,7 @@ const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 // Real page: wake_up_calls.php, via r=wakeups. "+Add" uses r=occrooms for
 // the room picker; Action offers "Done" (wakedone) and Delete (delwakeup).
 export function HotelWakeUpCallsPage() {
+  const confirm = useConfirm()
   const { data: token } = useHotelToken()
   const { data: wakeups, isLoading, isError, error, refetch } = useHotelWakeups()
   const { data: occRooms } = useHotelOccRooms()
@@ -70,9 +72,9 @@ export function HotelWakeUpCallsPage() {
     done.mutate({ id, token }, { onSettled: () => setBusyId(null) })
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!token) return
-    if (!confirm('Delete this wake-up call?')) return
+    if (!(await confirm('Delete this wake-up call?'))) return
     setBusyId(id)
     del.mutate({ id, token }, { onSettled: () => setBusyId(null) })
   }
