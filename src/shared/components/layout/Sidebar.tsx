@@ -396,7 +396,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
     <div className={`relative flex h-full shrink-0 bg-rail-bg transition-[width] duration-300 ease-in-out ${expanded ? 'w-[328px]' : RAIL_WIDTH_CLASS}`} onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
         {/* <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2"> */}
-          <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
+        <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
           {SECTIONS.map((section) => {
             const Icon = section.icon
             const isActive = section.key === activeKey
