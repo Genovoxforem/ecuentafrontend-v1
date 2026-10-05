@@ -56,6 +56,8 @@ import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
 import { prefetchRoute } from '../../../app/routePrefetch'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
+import { useTheme } from '../../../context/ThemeContext'
+import { getNavItemIcon } from '../../nav/getNavItemIcon'
 import logoFull from '../../../assets/Ecuenta_logo.png'
 import logoIcon from '../../../assets/log3.png'
 
@@ -161,7 +163,7 @@ function hasDescendantWithPath(item: { items: NavItem[] }, path: string | undefi
   return item.items.some((sub) => sub.path === path || (isGroupItem(sub) && hasDescendantWithPath(sub, path)))
 }
 
-function NavLeaf({ item, depth = 0, navigate, location, suppressCurrent = false }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location; suppressCurrent?: boolean }) {
+function NavLeaf({ item, depth = 0, navigate, location, blueMetal, suppressCurrent = false }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location; blueMetal: boolean; suppressCurrent?: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -176,6 +178,7 @@ function NavLeaf({ item, depth = 0, navigate, location, suppressCurrent = false 
   // target duplicates a more specific sibling below it), so only the later,
   // more specific row lights up instead of both at once.
   const isCurrent = isLink && pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
+  const ItemIcon = getNavItemIcon(item.label)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -195,16 +198,24 @@ function NavLeaf({ item, depth = 0, navigate, location, suppressCurrent = false 
           : undefined
       }
       onMouseEnter={isLink ? () => prefetchRoute(item.path!) : undefined}
-      style={{ paddingLeft: `${1.5 + depth * 0.5}rem` }}
-      className={`w-full flex items-center gap-2 text-left pr-2.5 py-1.5 rounded-lg text-sm transition-colors ${
-        isCurrent ? 'bg-white/15 text-white font-semibold' : isLink ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-white/30 cursor-default'
-      }`}
+      style={{ paddingLeft: `${1.75 + depth * 0.75}rem` }}
+      className={
+        blueMetal
+          ? `w-full min-h-9 flex items-center gap-2.5 text-left pr-2.5 py-2 rounded-lg text-sm transition-colors ${
+              isCurrent ? 'bg-white/15 text-white font-semibold ring-1 ring-cyan-300/25 shadow-sm' : isLink ? 'text-white/65 hover:bg-white/10 hover:text-white' : 'text-white/35 cursor-default'
+            }`
+          : `w-full flex items-center gap-2 text-left pr-2.5 py-2 rounded-lg text-sm transition-colors ${
+              isCurrent ? 'bg-white/15 text-white font-semibold' : isLink ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-white/30 cursor-default'
+            }`
+      }
     >
       {loading ? (
         <Loader2 size={10} className="shrink-0 animate-spin text-(--color-accent-cyan-2)" />
-      ) : (
-        <span className={`w-1 h-1 rounded-full shrink-0 ${isCurrent ? 'bg-(--color-accent-cyan-2)' : 'bg-transparent'}`} />
-      )}
+      ) : blueMetal ? (
+        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isCurrent ? 'bg-white/10 text-(--color-accent-cyan-2)' : 'text-white/55'}`}>
+          <ItemIcon size={15} />
+        </span>
+      ) : <span className={`w-1 h-1 rounded-full shrink-0 ${isCurrent ? 'bg-(--color-accent-cyan-2)' : 'bg-transparent'}`} />}
       <span className="truncate">{item.label}</span>
     </button>
   )
@@ -220,6 +231,7 @@ function NavGroup({
   location,
   isOpen,
   onToggle,
+  blueMetal,
   suppressCurrent = false,
 }: {
   item: { label: string; path?: string; items: NavItem[] }
@@ -228,6 +240,7 @@ function NavGroup({
   location: Location
   isOpen: boolean
   onToggle: () => void
+  blueMetal: boolean
   suppressCurrent?: boolean
 }) {
   // A group can also be a real page (e.g. Payroll's "Human Resource" —
@@ -238,6 +251,7 @@ function NavGroup({
   const hasActiveDescendant = item.items.some((sub) => itemContainsCurrent(sub, location.pathname, location.search))
   const isCurrent = pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent && !hasDescendantWithPath(item, item.path)
   const isActive = isCurrent || hasActiveDescendant
+  const ItemIcon = getNavItemIcon(item.label)
   return (
     <div>
       <button
@@ -251,12 +265,25 @@ function NavGroup({
           }
         }}
         onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
-        style={{ paddingLeft: `${1.5 + depth * 0.75}rem` }}
-        className={`w-full flex items-center justify-between gap-2 pr-2.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
-          isActive ? 'bg-white/10 text-white' : isOpen ? 'text-white' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
-        }`}
+        style={{ paddingLeft: `${1.5 + depth * 0.9}rem` }}
+        className={
+          blueMetal
+            ? `w-full min-h-9 flex items-center justify-between gap-2 pr-2.5 py-2 rounded-lg text-[13px] font-bold uppercase tracking-wide transition-colors ${
+                isActive ? 'bg-white/10 text-white' : isOpen ? 'text-white' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
+              }`
+            : `w-full flex items-center justify-between gap-2 pr-2.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+                isOpen || isCurrent ? 'text-white' : 'text-white/45 hover:text-white/80'
+              }`
+        }
       >
-        <span className="truncate">{item.label}</span>
+        {blueMetal ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isActive ? 'bg-white/15 text-(--color-accent-cyan-2)' : 'text-white/50'}`}>
+              <ItemIcon size={15} />
+            </span>
+            <span className="truncate">{item.label}</span>
+          </span>
+        ) : <span className="truncate">{item.label}</span>}
         <CaretDown size={12} weight="bold" className={`shrink-0 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`} />
       </button>
       {/* Only mounted while open, so its own NavItemList's accordion state
@@ -264,8 +291,8 @@ function NavGroup({
           child holds the current page — each time this group opens, rather
           than remembering a stale selection from a previous visit. */}
       {isOpen && (
-        <div className="mt-0.5 space-y-0.5">
-          <NavItemList items={item.items} depth={depth + 1} navigate={navigate} location={location} />
+        <div className="mt-1 space-y-1">
+          <NavItemList items={item.items} depth={depth + 1} navigate={navigate} location={location} blueMetal={blueMetal} />
         </div>
       )}
     </div>
@@ -278,7 +305,7 @@ function NavGroup({
 // whichever other sibling (same immediate parent) was open, at every level
 // of nesting, without touching ancestors or descendants (those belong to a
 // different NavItemList instance entirely).
-function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; depth: number; navigate: NavigateFunction; location: Location }) {
+function NavItemList({ items, depth, navigate, location, blueMetal }: { items: NavItem[]; depth: number; navigate: NavigateFunction; location: Location; blueMetal: boolean }) {
   const [openLabel, setOpenLabel] = useState<string | null>(() => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname, location.search))?.label ?? null)
   useEffect(() => {
     const currentGroup = items.find((item) => isGroupItem(item) && itemContainsCurrent(item, location.pathname, location.search))
@@ -322,10 +349,11 @@ function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; d
             location={location}
             isOpen={openLabel === item.label}
             onToggle={() => setOpenLabel((cur) => (cur === item.label ? null : item.label))}
+            blueMetal={blueMetal}
             suppressCurrent={suppressedIndices.has(i)}
           />
         ) : (
-          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} suppressCurrent={suppressedIndices.has(i)} />
+          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} suppressCurrent={suppressedIndices.has(i)} />
         ),
       )}
     </>
@@ -338,7 +366,7 @@ function NavItemList({ items, depth, navigate, location }: { items: NavItem[]; d
 // its real leaf items/groups instead of a hover flyout — the interaction
 // model a single-column "modern" sidebar like the reference actually uses,
 // vs. the legacy rail+flyout split.
-function MenuList({ sections, navigate, location }: { sections: NavSection[]; navigate: NavigateFunction; location: Location }) {
+function MenuList({ sections, navigate, location, blueMetal }: { sections: NavSection[]; navigate: NavigateFunction; location: Location; blueMetal: boolean }) {
   const currentSectionKey = sections.find((section) => sectionContainsCurrent(section, location))?.key
   const [openSection, setOpenSection] = useState<string | null>(() => currentSectionKey ?? null)
   useEffect(() => {
@@ -363,10 +391,28 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
                 setOpenSection((cur) => (cur === section.key ? null : section.key))
               }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors ${
-                isOpen || isCurrent ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                blueMetal
+                  ? isOpen || isCurrent
+                    ? 'bg-[#168bff]/20 text-white font-semibold'
+                    : 'text-white/75 hover:bg-[#168bff]/10 hover:text-white'
+                  : isOpen || isCurrent
+                    ? 'bg-white/10 text-white font-semibold'
+                    : 'text-white/70 hover:bg-white/5 hover:text-white'
               }`}
             >
-              <Icon size={19} weight="duotone" className={`shrink-0 ${isOpen || isCurrent ? 'text-white' : MODERN_ICON_REST_COLOR}`} />
+              <span
+                className={
+                  blueMetal
+                    ? `flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${
+                        isOpen || isCurrent
+                          ? 'border-[#66caff] bg-[linear-gradient(145deg,#2aa9ff,#0754a5)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_12px_rgba(22,139,255,0.45)]'
+                          : 'border-[#2b6e9f] bg-[linear-gradient(145deg,#173958,#091522)] text-[#6acfff] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_8px_rgba(22,139,255,0.18)]'
+                      }`
+                    : 'contents'
+                }
+              >
+                <Icon size={19} weight="duotone" className={`shrink-0 ${blueMetal || isOpen || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
+              </span>
               <span className="flex-1 text-left truncate">{section.label}</span>
               {section.items.length > 0 &&
                 (isOpen ? <CaretDown size={14} weight="bold" className="shrink-0 text-white/50" /> : <CaretRight size={14} weight="bold" className="shrink-0 text-white/50" />)}
@@ -374,7 +420,7 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
             {isOpen && (
               <div className="mt-0.5 mb-1 space-y-0.5">
                 {section.items.length === 0 && <p className="text-xs italic text-white/30 pl-6 py-1">Nothing here yet.</p>}
-                <NavItemList items={section.items} depth={0} navigate={navigate} location={location} />
+                <NavItemList items={section.items} depth={0} navigate={navigate} location={location} blueMetal={blueMetal} />
               </div>
             )}
           </div>
@@ -395,6 +441,7 @@ function MenuList({ sections, navigate, location }: { sections: NavSection[]; na
 export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolean; onLogout: () => void; onOpen?: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { theme } = useTheme()
   const { data: menu } = useAppMenu()
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
@@ -424,10 +471,16 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
             of the "always dark" panel the design calls for. This base layer makes
             the sidebar actually dark regardless of theme, while the glass tint and
             sheen layered on top still give the glossy-glass reading. */}
-        <div className="absolute inset-0 bg-gray-900" />
+        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : 'bg-gray-900'}`} />
         {/* Flat translucent tint, no blur — plain glass rather than frosted glass. Kept on its own childless layer,
             separate from the content below, purely so the drop-shadow on the content layer never touches this tint. */}
-        <div className="absolute inset-0" style={{ backgroundColor: MODERN_GLASS_BG, backgroundImage: MODERN_GLASS_SHEEN }} />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: theme === 'blue-metal' ? 'rgba(6, 17, 29, 0.42)' : MODERN_GLASS_BG,
+            backgroundImage: theme === 'blue-metal' ? 'linear-gradient(135deg, rgba(66,200,255,0.2), rgba(22,139,255,0.05) 38%, transparent 68%)' : MODERN_GLASS_SHEEN,
+          }}
+        />
         {/* No top glass-highlight line here — this top edge sits directly against the navbar's bottom edge (not a real
             outer edge), so a highlight line here would just recreate the seam. Navbar keeps the one at its own true top. */}
 
@@ -448,7 +501,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
 
           <div className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-2.5 pb-2 ${expanded ? '' : 'pt-5'}`}>
             {expanded ? (
-              <MenuList sections={SECTIONS} navigate={navigate} location={location} />
+              <MenuList sections={SECTIONS} navigate={navigate} location={location} blueMetal={theme === 'blue-metal'} />
             ) : (
               <div className="space-y-1">
                 {SECTIONS.map((section) => {
@@ -464,10 +517,28 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                           if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
                         }}
                         className={`w-full flex items-center justify-center h-10 rounded-xl transition-colors ${
-                          isCurrent ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'
+                          theme === 'blue-metal'
+                            ? isCurrent
+                              ? 'bg-[#168bff]/20 text-white'
+                              : 'text-white/75 hover:bg-[#168bff]/10 hover:text-white'
+                            : isCurrent
+                              ? 'bg-white/15 text-white'
+                              : 'text-white/60 hover:bg-white/10 hover:text-white'
                         }`}
                       >
-                        <Icon size={20} weight="duotone" className={isCurrent ? 'text-white' : MODERN_ICON_REST_COLOR} />
+                        <span
+                          className={
+                            theme === 'blue-metal'
+                              ? `flex h-8 w-8 items-center justify-center rounded-md border ${
+                                  isCurrent
+                                    ? 'border-[#66caff] bg-[linear-gradient(145deg,#2aa9ff,#0754a5)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_12px_rgba(22,139,255,0.45)]'
+                                    : 'border-[#2b6e9f] bg-[linear-gradient(145deg,#173958,#091522)] text-[#6acfff] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_8px_rgba(22,139,255,0.18)]'
+                                }`
+                              : 'contents'
+                          }
+                        >
+                          <Icon size={20} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
+                        </span>
                       </button>
                     </div>
                   )

@@ -1,265 +1,110 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchInvoicesSummary } from '../invoices/invoices.queries'
-import { useDashboardStatistics } from './dashboardStats'
-import { useZraSummary } from '../zra/zra.queries'
-import { useBankAccountsList } from '../banking/banking.queries'
-import { useContractsSummary } from '../contracts/contracts.queries'
-import { useCustomersSummary } from '../customers/customers.queries'
-import { useVendorInvoices } from '../vendorInvoices/vendorInvoices.queries'
-import type { InvoiceRow } from '../invoices/invoices.queries'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import type { BankAccountRow } from '../banking/banking.queries'
+import {
+  parseLegacyHomeDashboard,
+  type DashAttention,
+  type DashBank,
+  type DashKpi,
+  type DashKpiKey,
+  type DashQuickAction,
+  type DashSide,
+  type LegacyHomeDashboard,
+} from './mainDashboardParser'
 
-export interface StatWithTrend {
-  value: number
-  lastYear: number
+export interface HomeBank {
+  id: number | null
+  name: string
+  amount: number
+  currency: string
+  // Share of the summed balances, as the classic Bank Details card draws it.
   percent: number
-  up: boolean
 }
 
-interface BreakdownStat {
-  draft_count: number
-  validated_count: number
-  total_amount: number
-  paid_amount: number
+// What the dashboard shows — the classic home page's own widgets (see
+// mainDashboardParser.ts), whichever source filled them in.
+export interface HomeDashboard {
+  // 'legacy' = read from the classic dashboard page itself; 'computed' = worked
+  // out here from the invoice lists, for users the backend shows no dashboard.
+  source: 'legacy' | 'computed'
+  cashSession: 'open' | 'closed' | null
+  kpis: Partial<Record<Exclude<DashKpiKey, 'other'>, DashKpi>>
+  sales: DashSide
+  purchase: DashSide
+  banks: HomeBank[]
+  attention: DashAttention[]
+  quickActions: DashQuickAction[]
 }
 
-export interface DashboardSummary {
-  today: {
-    invoices_count: number
-    sales_amount: number
-    refund_amount: number
-    purchases_count: number
-    purchases_amount: number
-    // Real, computed from the same invoice/vendor-invoice rows filtered to
-    // yesterday's date — used for "vs Yesterday" trend badges.
-    sales_amount_yesterday: number
-    refund_amount_yesterday: number
-    purchases_amount_yesterday: number
+// The classic dashboard's six shortcuts, for the computed fallback (the
+// classic page prints the same list for every user).
+export const QUICK_ACTIONS: DashQuickAction[] = [
+  { label: 'New Sale', href: '/takeposnew/index.php' },
+  { label: 'Create Invoice', href: '/compta/facture/card.php?action=create' },
+  { label: 'Add Product', href: '/product/card.php?action=create' },
+  { label: 'New Purchase', href: '/fourn/facture/card.php?action=create' },
+  { label: 'Add Customer', href: '/societe/card.php?action=create' },
+  { label: 'ZRA Sync', href: '/custom/zra/zraindex.php' },
+]
+
+// GET index.php — for a super-admin this is the classic dashboard page itself
+// (one request, ~0.3 s on 172.16.5.10), with every figure the old React
+// dashboard used to re-derive from 8 list requests (the 5,000-row invoice list
+// alone took 3–9 s). index.php redirects any other user to userdashboard.php or
+// the POS; that redirect is not followed and comes back as null, so the caller
+// can fall back to its own figures. A login page means the legacy session is
+// missing — thrown, never turned into an empty dashboard.
+export async function fetchLegacyHomeDashboard(): Promise<LegacyHomeDashboard | null> {
+  const res = await fetch('/index.php?mainmenu=home', { credentials: 'same-origin', redirect: 'manual' })
+  if (res.type === 'opaqueredirect') return null
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const html = await res.text()
+  if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+  return parseLegacyHomeDashboard(html)
+}
+
+export function useLegacyHomeDashboard(enabled = true) {
+  return useQuery({ queryKey: ['dashboard', 'legacy-home'], queryFn: fetchLegacyHomeDashboard, staleTime: 1000 * 60, enabled })
+}
+
+// Bank Details rows. The account list (bank-sidebar-list-ajax.php) carries each
+// account's name, currency and exact balance — the classic card prints the same
+// sums rounded to an even number, and on 172.16.5.10 without the account names
+// (its Account::fetch comes back empty) — so its rows are used when they load,
+// and the card's own rows only when they don't. The share is the classic card's:
+// balance over the summed balances, never below 0.
+export function homeBanks(accounts: BankAccountRow[] | undefined, legacyRows: DashBank[] | undefined, fallbackCurrency: string): HomeBank[] {
+  if (accounts) {
+    const total = accounts.reduce((sum, a) => sum + a.balance, 0)
+    return accounts.map((a) => ({
+      id: a.id,
+      name: a.label,
+      amount: a.balance,
+      currency: a.currencyCode || fallbackCurrency,
+      percent: total > 0 ? Math.max(0, Math.round((a.balance / total) * 100)) : 0,
+    }))
   }
-  zra: {
-    signedInvoices: StatWithTrend
-    totalSale: StatWithTrend
-    totalTax: StatWithTrend
+  return (legacyRows ?? []).map((b, i) => ({
+    id: b.id,
+    name: b.name || `Bank account ${i + 1}`,
+    amount: b.amount ?? 0,
+    currency: fallbackCurrency,
+    percent: b.percent,
+  }))
+}
+
+export function fromLegacyDashboard(legacy: LegacyHomeDashboard, accounts: BankAccountRow[] | undefined): HomeDashboard {
+  const kpis: HomeDashboard['kpis'] = {}
+  for (const kpi of legacy.kpis) if (kpi.key !== 'other') kpis[kpi.key] = kpi
+  const currency = legacy.kpis.find((k) => k.currency)?.currency || 'ZMW'
+  return {
+    source: 'legacy',
+    cashSession: legacy.cashSession,
+    kpis,
+    sales: legacy.sales,
+    purchase: legacy.purchase,
+    banks: homeBanks(accounts, legacy.banks, currency),
+    attention: legacy.attention,
+    quickActions: legacy.quickActions.length ? legacy.quickActions : QUICK_ACTIONS,
   }
-  banks: Array<{ id: string | number; label: string; balance: number }>
-  customers: { total: number; prospects: number; local: number; abroad: number }
-  // Real per-country customer counts (grouped from each customer's own
-  // `country` field), sorted descending — not sales-by-country: no invoice
-  // on this backend carries a country or a customer id to join against, so
-  // a real revenue-per-country figure isn't derivable (see
-  // useDashboardSummary's header comment).
-  customersByCountry: Array<{ country: string; code: string; count: number }>
-  salesBreakdown: BreakdownStat
-  purchaseBreakdown: BreakdownStat
-  // Real sum of credit-note invoices (type=2), shown negative — see
-  // useDashboardSummary for why this can't come from the dashboard stats
-  // endpoint (its invoicesByStatus[].amount is always 0 server-side).
-  totalRefund: number
-  monthly: Array<{ ym: string; income: number; sales_count: number; customers: number }>
-  months: string[]
-  period: { dateStart: string }
-  legacyCounts: {
-    salesOrders: StatWithTrend
-    contracts: StatWithTrend
-    shipments: StatWithTrend
-    quotationsCount: number
-  }
-  recentSales: Array<{
-    id: string | number
-    ref: string | null
-    datef: string | null
-    company_name: string
-    total_ttc: number
-    fk_statut: 0 | 1 | 2 | 3
-  }>
-}
-
-const zeroStat = (value = 0): StatWithTrend => ({ value, lastYear: 0, percent: 0, up: true })
-
-// Invoice shape this dashboard's maths below is written against. Rows come
-// from the same invoice_ajax_list.php source as the Sales Invoices list (see
-// invoices.queries.ts) — mapped to this shape by toDashboardInvoice(). type:
-// 0 = standard invoice, 2 = credit note; the list has no type column, but a
-// credit note is always the negative-total invoice (its CRV- refs are all
-// negative), which is how it is told apart here.
-interface RawInvoice {
-  id: number
-  ref: string
-  date: string
-  thirdparty_name: string
-  total_ttc: number
-  statut: 0 | 1 | 2 | 3
-  type: number
-}
-
-function toDashboardInvoice(r: InvoiceRow): RawInvoice {
-  return { id: r.id, ref: r.ref, date: r.invoiceDate, thirdparty_name: r.thirdParty, total_ttc: r.amountInclTax, statut: r.rawStatut as 0 | 1 | 2 | 3, type: r.amountInclTax < 0 ? 2 : 0 }
-}
-
-// "Sep 2025" -> 2025. chartData only gives a short month name + numeric
-// month-of-year, so the year has to be parsed back out of the label.
-function yearFromMonthName(monthName: string): number {
-  return Number(monthName.split(' ')[1]) || new Date().getFullYear()
-}
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
-}
-
-// GET /api/dashboard/ + /api/invoices/ + /api/zra/summary/ — all confirmed
-// live (the ZRA one is the same endpoint zra.queries.ts's ZRA Dashboard
-// already uses — reused here rather than re-fetched, react-query dedupes
-// by its query key). Bank balances reuse the same real
-// bank-sidebar-list-ajax.php endpoint the Banking module's account list is
-// built on (see banking.queries.ts's useBankAccountsList), the contract
-// count reuses the real contrat/list_ajax.php endpoint the Contracts
-// module's own summary is built on (see contracts.queries.ts's
-// useContractsSummary), customersByCountry is grouped from the same real
-// per-customer `country` field the Customers module's own list/detail pages
-// use (see customers.queries.ts's useCustomersSummary), and purchaseBreakdown
-// reuses the same real fourn/facture/facture_ajax_list.php endpoint the
-// Vendor Invoices module's own list is built on (see
-// vendorInvoices.queries.ts's useVendorInvoices) — there's no separate
-// quotations endpoint on this backend though, so that one stays honestly
-// zero rather than inventing a number.
-export function useDashboardSummary() {
-  const { data: stats } = useDashboardStatistics()
-  const { data: zraSummary } = useZraSummary()
-  const { data: bankAccounts } = useBankAccountsList()
-  const { data: contractsSummary } = useContractsSummary()
-  const { data: customersSummary } = useCustomersSummary()
-  const { data: vendorInvoicesData } = useVendorInvoices('all')
-  return useQuery({
-    queryKey: ['home', 'dashboard', !!stats, !!zraSummary, !!bankAccounts, !!contractsSummary, !!customersSummary, !!vendorInvoicesData],
-    enabled: !!stats,
-    queryFn: async (): Promise<DashboardSummary> => {
-      if (!stats) throw new Error('unreachable')
-      // Every invoice row is needed because /api/dashboard/'s
-      // own invoicesByStatus[].amount is always 0 (a real server-side bug,
-      // confirmed live), so salesBreakdown/totalRefund below are computed
-      // from these full rows instead of trusting that broken field.
-      const invoicesData = { invoices: (await fetchInvoicesSummary()).rows.map(toDashboardInvoice) }
-      const monthPoints = stats.chartData?.invoicesByMonth ?? []
-      const months = monthPoints.map((p) => `${yearFromMonthName(p.monthName)}-${pad2(p.month)}`)
-      const monthly = monthPoints.map((p, i) => ({ ym: months[i], income: p.amount, sales_count: p.count, customers: 0 }))
-      const dateStart = months[0] ? `${months[0]}-01` : `${new Date().getFullYear()}-01-01`
-
-      const invoiceRows = invoicesData.invoices ?? []
-      // Credit notes (type=2) are accounted separately as totalRefund, same
-      // convention as the reference dashboard (Total Sale Amount vs Total
-      // Refund shown as distinct lines) — excluded from salesBreakdown.
-      const standardInvoices = invoiceRows.filter((r) => r.type !== 2)
-      const creditNotes = invoiceRows.filter((r) => r.type === 2)
-      const draftRows = standardInvoices.filter((r) => r.statut === 0)
-      const paidRows = standardInvoices.filter((r) => r.statut === 2)
-      const validatedRows = standardInvoices.filter((r) => r.statut !== 0)
-      const salesBreakdown: BreakdownStat = {
-        draft_count: draftRows.length,
-        validated_count: validatedRows.length,
-        total_amount: standardInvoices.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-        paid_amount: paidRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-      }
-      // "0 - x" rather than "-x": avoids producing -0 when there are no
-      // credit notes, which Intl.NumberFormat (fmtMoney) would render as
-      // the confusing "-0.00" instead of "0.00".
-      const totalRefund = 0 - creditNotes.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0)
-      const todayIso = new Date().toISOString().slice(0, 10)
-      const yesterdayIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      const todayRows = standardInvoices.filter((r) => r.date.slice(0, 10) === todayIso)
-      const todayRefundRows = creditNotes.filter((r) => r.date.slice(0, 10) === todayIso)
-      const yesterdayRows = standardInvoices.filter((r) => r.date.slice(0, 10) === yesterdayIso)
-      const yesterdayRefundRows = creditNotes.filter((r) => r.date.slice(0, 10) === yesterdayIso)
-      // Real, same statusCode convention useVendorInvoices already computes
-      // (0=Draft, 1=Not Paid, 2=Paid, 3=Abandoned) — mirrors the sales
-      // draft/validated/paid split above exactly.
-      const purchaseRows = vendorInvoicesData?.items ?? []
-      const purchaseDraftRows = purchaseRows.filter((r) => r.statusCode === 0)
-      const purchaseValidatedRows = purchaseRows.filter((r) => r.statusCode !== 0)
-      const purchasePaidRows = purchaseRows.filter((r) => r.statusCode === 2)
-      const purchaseBreakdown: BreakdownStat = {
-        draft_count: purchaseDraftRows.length,
-        validated_count: purchaseValidatedRows.length,
-        total_amount: purchaseRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
-        paid_amount: purchasePaidRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
-      }
-      const todayPurchaseRows = purchaseRows.filter((r) => r.invoiceDate?.slice(0, 10) === todayIso)
-      const yesterdayPurchaseRows = purchaseRows.filter((r) => r.invoiceDate?.slice(0, 10) === yesterdayIso)
-
-      const countryCounts = new Map<string, { code: string; count: number }>()
-      for (const c of customersSummary?.customers ?? []) {
-        const country = c.country?.trim()
-        if (!country) continue
-        const existing = countryCounts.get(country)
-        // First real countryCode seen for this name wins — a single
-        // Dolibarr install's own country list maps one name to one code.
-        countryCounts.set(country, { code: existing?.code || c.countryCode || '', count: (existing?.count ?? 0) + 1 })
-      }
-      const customersByCountry = [...countryCounts.entries()]
-        .map(([country, { code, count }]) => ({ country, code, count }))
-        .sort((a, b) => b.count - a.count)
-
-      const recentSales = [...invoiceRows]
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 7)
-        .map((r) => ({
-          id: r.id,
-          ref: r.ref,
-          datef: r.date,
-          company_name: r.thirdparty_name,
-          total_ttc: Number(r.total_ttc ?? 0),
-          fk_statut: r.statut,
-        }))
-
-      return {
-        today: {
-          invoices_count: todayRows.length,
-          sales_amount: todayRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-          refund_amount: 0 - todayRefundRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-          purchases_count: todayPurchaseRows.length,
-          purchases_amount: todayPurchaseRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
-          sales_amount_yesterday: yesterdayRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-          refund_amount_yesterday: 0 - yesterdayRefundRows.reduce((sum, r) => sum + Number(r.total_ttc ?? 0), 0),
-          purchases_amount_yesterday: yesterdayPurchaseRows.reduce((sum, r) => sum + Number(r.amountTtc ?? 0), 0),
-        },
-        // Real ZRA e-invoicing gateway stats (see zra.queries.ts's
-        // useZraSummary) — "signed" here means successfully synced to ZRA,
-        // matching that endpoint's own succeeded/succeededAmount fields.
-        // No year-over-year trend data on this endpoint, so lastYear/percent
-        // stay 0 like the other legacyCounts below.
-        zra: zraSummary
-          ? {
-              signedInvoices: zeroStat(zraSummary.details.find((d) => d.category === 'Sales Invoices')?.succeeded ?? 0),
-              totalSale: zeroStat(zraSummary.salesInvoices.succeededAmount),
-              totalTax: zeroStat(zraSummary.vatAmount.succeededAmount),
-            }
-          : { signedInvoices: zeroStat(), totalSale: zeroStat(), totalTax: zeroStat() },
-        banks: (bankAccounts ?? []).map((b) => ({ id: b.id, label: b.label, balance: b.balance })),
-        // Real live counts from /api/dashboard/'s own customers block — was
-        // previously left unused while the "Customers" stat card showed
-        // legacyCounts.salesOrders.value instead (a mislabeling bug).
-        // local/abroad come from the Customers module's own real summary
-        // split (default vs. other country parties).
-        customers: {
-          total: stats.customers?.total ?? 0,
-          prospects: stats.customers?.prospects ?? 0,
-          local: customersSummary?.defaultCountryCustomers ?? 0,
-          abroad: customersSummary?.otherCountryCustomers ?? 0,
-        },
-        customersByCountry,
-        salesBreakdown,
-        totalRefund,
-        purchaseBreakdown,
-        monthly,
-        months,
-        period: { dateStart },
-        legacyCounts: {
-          salesOrders: zeroStat(stats.salesOrders?.total ?? 0),
-          contracts: zeroStat(contractsSummary?.totalContracts ?? 0),
-          shipments: zeroStat(stats.salesOrders?.shipped ?? 0),
-          quotationsCount: 0,
-        },
-        recentSales,
-      }
-    },
-    staleTime: 1000 * 60,
-  })
 }

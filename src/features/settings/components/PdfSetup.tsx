@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useLanguageOptions } from '../../users/users.queries'
 import { RealToggle } from './RealToggle'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'w-28 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = 'w-48 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none'
@@ -75,12 +76,13 @@ export function PdfSetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FileText size={20} className="text-brand" /> PDF
-      </h2>
-      <p className="text-sm text-text-muted">{PAGE_HEADER}</p>
-
+    <SetupShell
+      icon={FileText}
+      title="PDF"
+      description={PAGE_HEADER}
+      onSave={handleSave}
+      saved={saved ? 'Saved (session-only — the kit-subproducts toggle saves live; no other PDF-config endpoint exists on this backend yet).' : undefined}
+    >
       <div>
         <h3 className="text-base font-semibold text-text! mb-2">Paper formats</h3>
         <Card className="!h-auto !p-0 overflow-hidden">
@@ -206,17 +208,6 @@ export function PdfSetup() {
         </Card>
       </div>
 
-      {saved && (
-        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
-          Saved (session-only — the kit-subproducts toggle above saves live; no other PDF-config endpoint exists on this backend yet).
-        </Card>
-      )}
-
-      <div>
-        <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
-          Save
-        </button>
-      </div>
-    </div>
+    </SetupShell>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ListTree } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'w-56 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface disabled:text-text-faint'
 
@@ -17,25 +18,22 @@ export function MenusSetup() {
   const [tab, setTab] = useState<Tab>('Menu Handlers')
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ListTree size={20} className="text-brand" /> Menus
-      </h2>
-
-      <div className="flex flex-wrap gap-2 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 -mb-px ${
-              tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+    <SetupShell
+      icon={ListTree}
+      title="Menus"
+      tabs={TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setTab(t)}
+          className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 ${
+            tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
+          }`}
+        >
+          {t}
+        </button>
+      ))}
+    >
 
       {tab === 'Menu Handlers' && (
         <>
@@ -109,6 +107,6 @@ export function MenusSetup() {
           </Card>
         </>
       )}
-    </div>
+    </SetupShell>
   )
 }

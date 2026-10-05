@@ -158,7 +158,12 @@ function RowActions({ row, payingRef, onTogglePay }: { row: InvoiceRow; payingRe
   )
 }
 
-export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
+const STATUS_FILTER_LABELS = ['draft', 'unpaid', 'paid', 'abandoned']
+
+// `statusFilter` narrows the list to one Dolibarr invoice status (the classic page's
+// list.php?search_status=N): the Abandoned Invoices page is this same list with 3.
+// The summary cards stay overall figures, as on the classic page.
+export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSummary; statusFilter?: number }) {
   const [payingRef, setPayingRef] = useState<string | null>(null)
   const [qrRow, setQrRow] = useState<InvoiceRow | null>(null)
   const payingRow = summary.rows.find((r) => r.ref === payingRef)
@@ -173,8 +178,14 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   // here instead of the legacy backend's own filtered list.php.
   const customerIdParam = searchParams.get('customerId')
   const customerId = customerIdParam ? Number(customerIdParam) : null
+  // ?status=N — the classic list.php?search_status=N links (the dashboard's
+  // "unpaid invoices" row is status 1: validated, not paid yet).
+  const statusParam = searchParams.get('status')
+  const urlStatus = statusParam !== null && /^[0-3]$/.test(statusParam) ? Number(statusParam) : undefined
+  const activeStatus = statusFilter ?? urlStatus
 
-  const customerScoped = useMemo(() => (customerId ? summary.rows.filter((r) => r.socid === customerId) : summary.rows), [summary.rows, customerId])
+  const scopedRows = useMemo(() => (activeStatus === undefined ? summary.rows : summary.rows.filter((r) => r.rawStatut === activeStatus)), [summary.rows, activeStatus])
+  const customerScoped = useMemo(() => (customerId ? scopedRows.filter((r) => r.socid === customerId) : scopedRows), [scopedRows, customerId])
   const customerName = customerId ? customerScoped[0]?.thirdParty : null
   const filteredRows = useMemo(() => customerScoped.filter((r) => matchesSearch(r, deferredSearch)), [customerScoped, deferredSearch])
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<InvoiceRow, SortKey>(filteredRows, sortValue)
@@ -210,7 +221,8 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
   return (
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
+      {/* In the blue-metal theme the page banner carries this title and both buttons (PageBanner's BANNER_ACTIONS). */}
+      <div data-hide-under-banner className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <ShoppingCart size={20} className="text-brand" /> Sales Invoices
         </h2>
@@ -225,6 +237,25 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+        {statusFilter === undefined && urlStatus !== undefined && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
+            <span className="text-text!">
+              Showing only <span className="font-semibold">{STATUS_FILTER_LABELS[urlStatus]}</span> invoices
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('status')
+                setSearchParams(next)
+                setPage(1)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+            >
+              <X size={12} /> Clear filter
+            </button>
+          </div>
+        )}
         {customerId && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
             <span className="text-text!">
@@ -330,7 +361,7 @@ export function InvoicesList({ summary }: { summary: InvoicesSummary }) {
                 </TheadRow>
               </thead>
               <tbody>
-                {summary.rows.length === 0 ? (
+                {scopedRows.length === 0 ? (
                   <tr>
                     <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
                       No Data Available In Table

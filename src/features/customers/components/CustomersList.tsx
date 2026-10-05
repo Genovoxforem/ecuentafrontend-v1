@@ -13,5 +13,16 @@ export function CustomersList({ summary }: { summary: CustomersSummary }) {
     { label: 'Other Country Customers', value: summary.otherCountryCustomers, caption: 'Foreign Customers', icon: Globe, color: 'amber' },
   ]
 
-  return <ThirdPartyList icon={Users2} title="Customer List" newPath={ROUTES.customersCreate} newLabel="New Customer" stats={stats} rows={summary.customers} />
+  return (
+    <ThirdPartyList
+      icon={Users2}
+      title="Customer List"
+      description="Manage your customers and track their information"
+      bannerImage="/blue-metal-dashboard.jpg"
+      newPath={ROUTES.customersCreate}
+      newLabel="New Customer"
+      stats={stats}
+      rows={summary.customers}
+    />
+  )
 }

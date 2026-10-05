@@ -89,21 +89,53 @@ interface RawSidebarListResponse<T> {
   recordsFiltered: string
   data: T[]
 }
+async function fetchBankSidebarPage(start: number): Promise<RawSidebarListResponse<RawBankAccountRow>> {
+  const res = await fetch(`/compta/bank/bank-sidebar-list-ajax.php?draw=1&start=${start}`, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  return parseLegacyJson<RawSidebarListResponse<RawBankAccountRow>>(res)
+}
+
+function mapBankSidebarRows(page: RawSidebarListResponse<RawBankAccountRow>): BankAccountRow[] {
+  return page.data.map((r) => ({
+    id: Number(r.rowid),
+    label: r.label,
+    accountNumber: r.number ?? '',
+    currencyCode: r.currency_code,
+    balance: Number(r.totbank ?? 0),
+  }))
+}
+
+// bank-sidebar-list-ajax.php returns one fixed-size page of accounts per request
+// (25 on the local backend, more on newer ones; `start` is the offset). Its
+// recordsTotal is NOT the number of accounts (it is the bank-line count of the
+// first account), so the pages are read until one comes back short. Without
+// this, any account past the first page (e.g. id 89 on the demo backend) was
+// "not found" on its detail page. Screens that only need a glimpse (the Home
+// dashboard) use useBankAccountsFirstPage instead.
+const BANK_SIDEBAR_FULL_PAGE = 25
+const BANK_SIDEBAR_MAX_PAGES = 40
 export function useBankAccountsList() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'list'],
     queryFn: async (): Promise<BankAccountRow[]> => {
-      const res = await fetch('/compta/bank/bank-sidebar-list-ajax.php?draw=1&start=0', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data = await parseLegacyJson<RawSidebarListResponse<RawBankAccountRow>>(res)
-      return data.data.map((r) => ({
-        id: Number(r.rowid),
-        label: r.label,
-        accountNumber: r.number ?? '',
-        currencyCode: r.currency_code,
-        balance: Number(r.totbank ?? 0),
-      }))
+      const all: BankAccountRow[] = []
+      for (let page = 0; page < BANK_SIDEBAR_MAX_PAGES; page++) {
+        const rows = (await fetchBankSidebarPage(all.length)).data
+        if (rows.length === 0) break
+        all.push(...mapBankSidebarRows({ recordsTotal: '', recordsFiltered: '', data: rows }))
+        if (rows.length < BANK_SIDEBAR_FULL_PAGE) break
+      }
+      return all
     },
+    staleTime: 1000 * 30,
+  })
+}
+
+// Only the first page of accounts: one request, however many accounts exist.
+export function useBankAccountsFirstPage() {
+  return useQuery({
+    queryKey: ['banking', 'accounts', 'first-page'],
+    queryFn: async (): Promise<BankAccountRow[]> => mapBankSidebarRows(await fetchBankSidebarPage(0)),
     staleTime: 1000 * 30,
   })
 }
@@ -316,6 +348,24 @@ export function useBankEntriesList(accountId: number | undefined, page: number, 
 // account's `courant`/`rappro`/`clos` fields — none of which any confirmed
 // JSON endpoint returns either — so this hook always returns the raw count
 // for every account rather than replicating that per-type suppression.
+// Total of unreconciled bank lines across ALL accounts in one request: the same
+// list endpoint without `search_account` counts every account, so the Home
+// dashboard needs no per-account request.
+export function useUnreconciledEntriesTotal() {
+  return useQuery({
+    queryKey: ['banking', 'entries', 'unreconciled-total'],
+    queryFn: async (): Promise<number> => {
+      const params = new URLSearchParams({ draw: '1', start: '0', length: '1', search_conciliated: '0' })
+      const res = await fetch(`/compta/bank/bankentries_list_ajax.php?${params.toString()}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data = await parseLegacyJson<{ recordsFiltered: number; error?: string }>(res)
+      if (data.error) throw new Error(data.error)
+      return data.recordsFiltered
+    },
+    staleTime: 1000 * 30,
+  })
+}
+
 export function useReconcileCounts(accountIds: number[]) {
   return useQueries({
     queries: accountIds.map((id) => ({

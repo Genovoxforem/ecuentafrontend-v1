@@ -21,8 +21,9 @@ import {
   Mail,
   Package,
   ClipboardCheck,
+  Tags,
 } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricTile } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -68,15 +69,6 @@ function ActionIconLink({ href, icon: Icon, label }: { href: string; icon: typeo
 // Matches WarehouseDetail.tsx's own HeaderStatTile exactly (label/value pair
 // in the header's stat row) — duplicated locally rather than exported from
 // that file, since these two detail pages don't otherwise share components.
-function HeaderStatTile({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex-1 min-w-[120px]">
-      <p className="text-xs text-text-faint uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-bold text-text! mt-0.5">{value || <span className="text-text-faint">—</span>}</p>
-    </div>
-  )
-}
-
 export function InventoryDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -206,9 +198,9 @@ export function InventoryDetail() {
             )}
 
             <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <HeaderStatTile label="Label" value={data.label} />
-              <HeaderStatTile label="Product" value={data.productLabel} />
-              <HeaderStatTile label="Value Date" value={data.valueDate} />
+              <DetailMetricTile label="Label" value={data.label || '—'} icon={Tags} />
+              <DetailMetricTile label="Product" value={data.productLabel || '—'} icon={Package} />
+              <DetailMetricTile label="Value Date" value={data.valueDate || '—'} icon={CalendarDays} />
             </div>
 
             <div className="border-t border-border px-3 py-2.5">

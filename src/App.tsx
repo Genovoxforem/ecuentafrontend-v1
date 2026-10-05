@@ -16,9 +16,7 @@ import { LoginModule } from './modules/auth/LoginModule'
 import { ROUTES } from './routes'
 import { PAYROLL_PLACEHOLDERS } from './features/payroll/payrollPlaceholders'
 import { BANKING_PLACEHOLDERS } from './features/banking/bankingPlaceholders'
-import { TICKET_PLACEHOLDERS } from './features/tickets/ticketsPlaceholders'
 import { MEMBER_PLACEHOLDERS } from './features/members/membersPlaceholders'
-import { FIXED_ASSET_PLACEHOLDERS } from './features/fixedAsset/fixedAssetPlaceholders'
 
 // Everything below is route-level code-splitting: each of these ~45 modules
 // used to be imported eagerly, so visiting /login shipped the entire app
@@ -159,11 +157,34 @@ const YtdPayslipModule = lazy(() => import('./modules/payroll/YtdPayslipModule')
 const YtdPayrollSummaryModule = lazy(() => import('./modules/payroll/YtdPayrollSummaryModule').then((m) => ({ default: m.YtdPayrollSummaryModule })))
 const YtdEarningsDeductionsModule = lazy(() => import('./modules/payroll/YtdEarningsDeductionsModule').then((m) => ({ default: m.YtdEarningsDeductionsModule })))
 const EmployeeMonthlyReportModule = lazy(() => import('./modules/payroll/EmployeeMonthlyReportModule').then((m) => ({ default: m.EmployeeMonthlyReportModule })))
+const AttendancePeriodReportModule = lazy(() => import('./modules/payroll/AttendancePeriodReportModule').then((m) => ({ default: m.AttendancePeriodReportModule })))
+const EmployeeAbsentListModule = lazy(() => import('./modules/payroll/EmployeeAbsentListModule').then((m) => ({ default: m.EmployeeAbsentListModule })))
 const PayrollSummaryModule = lazy(() => import('./modules/payroll/PayrollSummaryModule').then((m) => ({ default: m.PayrollSummaryModule })))
 const PayDeductionModule = lazy(() => import('./modules/payroll/PayDeductionModule').then((m) => ({ default: m.PayDeductionModule })))
 const OverallAttendanceReportModule = lazy(() => import('./modules/payroll/OverallAttendanceReportModule').then((m) => ({ default: m.OverallAttendanceReportModule })))
 const PayrollSetupModule = lazy(() => import('./modules/payroll/PayrollSetupModule').then((m) => ({ default: m.PayrollSetupModule })))
+const PayrollTypesOfLeaveModule = lazy(() => import('./modules/payroll/PayrollTypesOfLeaveModule').then((m) => ({ default: m.PayrollTypesOfLeaveModule })))
+const PayrollHrmDepartmentListModule = lazy(() => import('./modules/payroll/PayrollHrmDepartmentListModule').then((m) => ({ default: m.PayrollHrmDepartmentListModule })))
+const PayrollHrmJobPositionsModule = lazy(() => import('./modules/payroll/PayrollHrmJobPositionsModule').then((m) => ({ default: m.PayrollHrmJobPositionsModule })))
+const OvertimeDailyReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.OvertimeDailyReportModule })))
+const OvertimeMonthlyReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.OvertimeMonthlyReportModule })))
+const GratuityReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.GratuityReportModule })))
+const SpecialShiftAttendanceReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.SpecialShiftAttendanceReportModule })))
+const HolidayShiftAttendanceReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.HolidayShiftAttendanceReportModule })))
+const SpecialShiftSalaryReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.SpecialShiftSalaryReportModule })))
+const HolidayShiftSalaryReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.HolidayShiftSalaryReportModule })))
+const AllowanceDeductionReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.AllowanceDeductionReportModule })))
+const NapsaReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.NapsaReportModule })))
+const NhimaReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.NhimaReportModule })))
+const EmployerContributionModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.EmployerContributionModule })))
+const ShiftTimelineReportModule = lazy(() => import('./modules/payroll/PayrollReportModules').then((m) => ({ default: m.ShiftTimelineReportModule })))
 const PayrollPlaceholderModule = lazy(() => import('./modules/payroll/PayrollPlaceholderModule').then((m) => ({ default: m.PayrollPlaceholderModule })))
+const AssetsDetailsModule = lazy(() => import('./modules/fixedAsset/FixedAssetModules').then((m) => ({ default: m.AssetsDetailsModule })))
+const AssetsTypesModule = lazy(() => import('./modules/fixedAsset/FixedAssetModules').then((m) => ({ default: m.AssetsTypesModule })))
+const AssetCategoryModule = lazy(() => import('./modules/fixedAsset/FixedAssetModules').then((m) => ({ default: m.AssetCategoryModule })))
+const AssetGroupModule = lazy(() => import('./modules/fixedAsset/FixedAssetModules').then((m) => ({ default: m.AssetGroupModule })))
+const InsuranceCompanyModule = lazy(() => import('./modules/fixedAsset/FixedAssetModules').then((m) => ({ default: m.InsuranceCompanyModule })))
+const AssetTransactionReportModule = lazy(() => import('./modules/fixedAsset/FixedAssetModules').then((m) => ({ default: m.AssetTransactionReportModule })))
 const BankAccountsListModule = lazy(() => import('./modules/banking/BankAccountsListModule').then((m) => ({ default: m.BankAccountsListModule })))
 const BankAccountDetailModule = lazy(() => import('./modules/banking/BankAccountDetailModule').then((m) => ({ default: m.BankAccountDetailModule })))
 const BankEntriesListModule = lazy(() => import('./modules/banking/BankEntriesListModule').then((m) => ({ default: m.BankEntriesListModule })))
@@ -192,7 +213,7 @@ const TicketsListModule = lazy(() => import('./modules/tickets/TicketsListModule
 const MyAssignedTicketsModule = lazy(() => import('./modules/tickets/MyAssignedTicketsModule').then((m) => ({ default: m.MyAssignedTicketsModule })))
 const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatisticsModule').then((m) => ({ default: m.TicketStatisticsModule })))
 const TicketCreateModule = lazy(() => import('./modules/tickets/TicketCreateModule').then((m) => ({ default: m.TicketCreateModule })))
-const TicketPlaceholderModule = lazy(() => import('./modules/tickets/TicketPlaceholderModule').then((m) => ({ default: m.TicketPlaceholderModule })))
+const JobCardsListModule = lazy(() => import('./modules/interventions/JobCardsListModule').then((m) => ({ default: m.JobCardsListModule })))
 const ExpenseReportsListModule = lazy(() => import('./modules/expenses/ExpenseReportsListModule').then((m) => ({ default: m.ExpenseReportsListModule })))
 const ExpenseReportsListPageModule = lazy(() => import('./modules/expenseReports/ExpenseReportsListPageModule').then((m) => ({ default: m.ExpenseReportsListPageModule })))
 const SpecialExpensesModule = lazy(() => import('./modules/expenses/SpecialExpensesModule').then((m) => ({ default: m.SpecialExpensesModule })))
@@ -277,8 +298,6 @@ const ReportTurnoverModule = lazy(() => import('./modules/ledger/ReportTurnoverM
 const DonationsAreaModule = lazy(() => import('./modules/ledger/DonationsAreaModule').then((m) => ({ default: m.DonationsAreaModule })))
 const MembersListModule = lazy(() => import('./modules/members/MembersListModule').then((m) => ({ default: m.MembersListModule })))
 const MemberPlaceholderModule = lazy(() => import('./modules/members/MemberPlaceholderModule').then((m) => ({ default: m.MemberPlaceholderModule })))
-const AssetsListModule = lazy(() => import('./modules/fixedAsset/AssetsListModule').then((m) => ({ default: m.AssetsListModule })))
-const FixedAssetPlaceholderModule = lazy(() => import('./modules/fixedAsset/FixedAssetPlaceholderModule').then((m) => ({ default: m.FixedAssetPlaceholderModule })))
 const ReportDetailModule = lazy(() => import('./modules/reports/ReportDetailModule').then((m) => ({ default: m.ReportDetailModule })))
 const StockMovementsModule = lazy(() => import('./modules/stockMovements/StockMovementsModule').then((m) => ({ default: m.StockMovementsModule })))
 const GroupEditModule = lazy(() => import('./modules/usersDashboard/GroupEditModule').then((m) => ({ default: m.GroupEditModule })))
@@ -343,6 +362,7 @@ const GroupCreateModule = lazy(() => import('./modules/usersDashboard/GroupCreat
 const TagsListModule = lazy(() => import('./modules/usersDashboard/TagsListModule').then((m) => ({ default: m.TagsListModule })))
 const HrmAreaModule = lazy(() => import('./modules/usersDashboard/HrmAreaModule').then((m) => ({ default: m.HrmAreaModule })))
 const LeaveListModule = lazy(() => import('./modules/usersDashboard/LeaveListModule').then((m) => ({ default: m.LeaveListModule })))
+const LeaveDetailModule = lazy(() => import('./modules/usersDashboard/LeaveRequestModule').then((m) => ({ default: m.LeaveDetailModule })))
 const LeaveRequestModule = lazy(() => import('./modules/usersDashboard/LeaveRequestModule').then((m) => ({ default: m.LeaveRequestModule })))
 const TimeSpentModule = lazy(() => import('./modules/usersDashboard/TimeSpentModule').then((m) => ({ default: m.TimeSpentModule })))
 const ActivitiesDetailModule = lazy(() => import('./modules/usersDashboard/ActivitiesDetailModule').then((m) => ({ default: m.ActivitiesDetailModule })))
@@ -379,6 +399,8 @@ const VendorInvoicePaidModule = lazy(() => import('./modules/purchases/VendorInv
 const VendorInvoiceUnpaidModule = lazy(() => import('./modules/purchases/VendorInvoiceUnpaidModule').then((m) => ({ default: m.VendorInvoiceUnpaidModule })))
 const VendorInvoiceManualModule = lazy(() => import('./modules/purchases/VendorInvoiceManualModule').then((m) => ({ default: m.VendorInvoiceManualModule })))
 const VendorInvoiceAutomaticModule = lazy(() => import('./modules/purchases/VendorInvoiceAutomaticModule').then((m) => ({ default: m.VendorInvoiceAutomaticModule })))
+const VendorInvoiceExpenseModule = lazy(() => import('./modules/purchases/VendorInvoiceExpenseModule').then((m) => ({ default: m.VendorInvoiceExpenseModule })))
+const VendorInvoiceImportsModule = lazy(() => import('./modules/purchases/VendorInvoiceImportsModule').then((m) => ({ default: m.VendorInvoiceImportsModule })))
 const VendorPaymentsListModule = lazy(() => import('./modules/purchases/VendorPaymentsListModule').then((m) => ({ default: m.VendorPaymentsListModule })))
 const VendorPaymentsReportModule = lazy(() => import('./modules/purchases/VendorPaymentsReportModule').then((m) => ({ default: m.VendorPaymentsReportModule })))
 const VendorInvoiceStatisticsModule = lazy(() => import('./modules/purchases/VendorInvoiceStatisticsModule').then((m) => ({ default: m.VendorInvoiceStatisticsModule })))
@@ -390,6 +412,7 @@ const ProjectOpenLeadsListModule = lazy(() => import('./modules/projects/Project
 const ProjectOpenProjectsListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectOpenProjectsListModule })))
 const ProjectStatsModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectStatsModule })))
 const ProjectTaskCreateModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTaskCreateModule })))
+const ProjectTaskStatsModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTaskStatsModule })))
 const ProjectTaskListModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTaskListModule })))
 const ProjectTimeSpentModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectTimeSpentModule })))
 const ProjectCategoryCreateModule = lazy(() => import('./modules/projects/ProjectsModules').then((m) => ({ default: m.ProjectCategoryCreateModule })))
@@ -1564,10 +1587,146 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.payrollReportAttendancePeriodWise}
+                          element={
+                            <RouteBoundary>
+                              <AttendancePeriodReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportEmployeeAbsenties}
+                          element={
+                            <RouteBoundary>
+                              <EmployeeAbsentListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.payrollSetup}
                           element={
                             <RouteBoundary>
                               <PayrollSetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollTypesOfLeave}
+                          element={
+                            <RouteBoundary>
+                              <PayrollTypesOfLeaveModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollHrmDepartmentList}
+                          element={
+                            <RouteBoundary>
+                              <PayrollHrmDepartmentListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollHrmJobPositions}
+                          element={
+                            <RouteBoundary>
+                              <PayrollHrmJobPositionsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportOvertimeDaily}
+                          element={
+                            <RouteBoundary>
+                              <OvertimeDailyReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportOvertimeMonthly}
+                          element={
+                            <RouteBoundary>
+                              <OvertimeMonthlyReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportGratuity}
+                          element={
+                            <RouteBoundary>
+                              <GratuityReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportSpecialShiftAttendance}
+                          element={
+                            <RouteBoundary>
+                              <SpecialShiftAttendanceReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportHolidayShiftAttendance}
+                          element={
+                            <RouteBoundary>
+                              <HolidayShiftAttendanceReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportSpecialShiftSalary}
+                          element={
+                            <RouteBoundary>
+                              <SpecialShiftSalaryReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportHolidayShiftSalary}
+                          element={
+                            <RouteBoundary>
+                              <HolidayShiftSalaryReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportAllowanceDeduction}
+                          element={
+                            <RouteBoundary>
+                              <AllowanceDeductionReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportNapsa}
+                          element={
+                            <RouteBoundary>
+                              <NapsaReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportNhima}
+                          element={
+                            <RouteBoundary>
+                              <NhimaReportModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportContribution}
+                          element={
+                            <RouteBoundary>
+                              <EmployerContributionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollReportShiftTimeline}
+                          element={
+                            <RouteBoundary>
+                              <ShiftTimelineReportModule />
                             </RouteBoundary>
                           }
                         />
@@ -1817,17 +1976,14 @@ function App() {
                             </RouteBoundary>
                           }
                         />
-                        {TICKET_PLACEHOLDERS.map((p) => (
-                          <Route
-                            key={p.path}
-                            path={p.path}
-                            element={
-                              <RouteBoundary>
-                                <TicketPlaceholderModule />
-                              </RouteBoundary>
-                            }
-                          />
-                        ))}
+                        <Route
+                          path={ROUTES.ticketIntervention}
+                          element={
+                            <RouteBoundary>
+                              <JobCardsListModule />
+                            </RouteBoundary>
+                          }
+                        />
                         <Route
                           path={ROUTES.expensesList}
                           element={
@@ -2515,21 +2671,50 @@ function App() {
                           path={ROUTES.fixedAssetList}
                           element={
                             <RouteBoundary>
-                              <AssetsListModule />
+                              <AssetsDetailsModule />
                             </RouteBoundary>
                           }
                         />
-                        {FIXED_ASSET_PLACEHOLDERS.map((p) => (
-                          <Route
-                            key={p.path}
-                            path={p.path}
-                            element={
-                              <RouteBoundary>
-                                <FixedAssetPlaceholderModule />
-                              </RouteBoundary>
-                            }
-                          />
-                        ))}
+                        <Route
+                          path={ROUTES.fixedAssetTypes}
+                          element={
+                            <RouteBoundary>
+                              <AssetsTypesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.fixedAssetCategory}
+                          element={
+                            <RouteBoundary>
+                              <AssetCategoryModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.fixedAssetGroup}
+                          element={
+                            <RouteBoundary>
+                              <AssetGroupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.fixedAssetInsuranceCompany}
+                          element={
+                            <RouteBoundary>
+                              <InsuranceCompanyModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.fixedAssetTransactionReport}
+                          element={
+                            <RouteBoundary>
+                              <AssetTransactionReportModule />
+                            </RouteBoundary>
+                          }
+                        />
                         <Route
                           path={ROUTES.reportDetail}
                           element={
@@ -2879,6 +3064,14 @@ function App() {
                           element={
                             <RouteBoundary>
                               <LeaveRequestModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.leaveDetail}
+                          element={
+                            <RouteBoundary>
+                              <LeaveDetailModule />
                             </RouteBoundary>
                           }
                         />
@@ -3507,6 +3700,22 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.vendorInvoiceExpense}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceExpenseModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.vendorInvoiceImports}
+                          element={
+                            <RouteBoundary>
+                              <VendorInvoiceImportsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.vendorPaymentsList}
                           element={
                             <RouteBoundary>
@@ -3599,6 +3808,14 @@ function App() {
                           element={
                             <RouteBoundary>
                               <ProjectTaskListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.projectTaskStats}
+                          element={
+                            <RouteBoundary>
+                              <ProjectTaskStatsModule />
                             </RouteBoundary>
                           }
                         />
@@ -3987,7 +4204,9 @@ function App() {
             </ConfirmDialogProvider>
           </SidebarStyleProvider>
         </ThemeProvider>
-        <ReactQueryDevtools initialIsOpen={false} />
+        {/* Opt-in (VITE_QUERY_DEVTOOLS=true in .env.local): its floating button sits at the bottom-right
+            of every page and covered the footer's primary button and the list pagination. */}
+        {import.meta.env.VITE_QUERY_DEVTOOLS === 'true' && <ReactQueryDevtools initialIsOpen={false} />}
       </QueryClientProvider>
     </ErrorBoundary>
   )

@@ -1,0 +1,308 @@
+<div class="erp-dash container-fluid py-3 ecnta-customer-dashboard needscroll">
+ <div class="row gx-3">
+ <div class="col-12 col-xl-9">
+ <!-- ======================== Greeting banner ======================== -->
+ <div class="erp-greeting erp-section">
+ <div>
+ <h1 class="erp-greeting__title">Good Morning, vox_admin! 👋</h1>
+ <p class="erp-greeting__subtitle">Here's what's happening with your business today.</p>
+ </div>
+ <div class="erp-greeting__meta">
+ <div class="erp-session">
+ <span class="erp-session__icon"><svg/></span>
+ <span class="erp-session__body">
+ <span class="erp-session__date">Mon, 05 Oct 2026</span>
+ <span class="erp-session__time" id="erpSessionTime">06:48 AM</span>
+ </span>
+ </div>
+ </div>
+ </div>
+ <!-- ======================== KPI metric cards ======================== -->
+ <div class="row g-2 erp-section">
+ <div class="col-md-3"><div class="erp-metric h-100"><div class="erp-metric__icon erp-metric__icon--success"><svg/></div><div class="erp-metric__body"><p class="erp-metric__label">Today's Sales</p><p class="erp-metric__value">ZMW 0.00</p><p class="erp-metric__meta"><span class="erp-trend erp-trend--down"><svg/> 100.0%</span>0 invoices today</p></div><span class="erp-kpi-spark" aria-hidden="true"><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:100%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i></span></div> </div>
+ <div class="col-md-3"><div class="erp-metric h-100"><div class="erp-metric__icon erp-metric__icon--purple"><svg/></div><div class="erp-metric__body"><p class="erp-metric__label">Today's Purchase</p><p class="erp-metric__value">ZMW 0.00</p><p class="erp-metric__meta">0 invoices today</p></div><span class="erp-kpi-spark" aria-hidden="true"><i style="height:8%"></i><i style="height:8%"></i><i style="height:18%"></i><i style="height:8%"></i><i style="height:78%"></i><i style="height:100%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:9%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i></span></div> </div>
+ <div class="col-md-3"><div class="erp-metric h-100"><div class="erp-metric__icon erp-metric__icon--warning"><svg/></div><div class="erp-metric__body"><p class="erp-metric__label">Unpaid Invoices</p><p class="erp-metric__value">ZMW 116,094.00</p><p class="erp-metric__meta">77 invoices outstanding</p></div></div> </div>
+ <div class="col-md-3"> <div class="erp-metric h-100"><div class="erp-metric__icon erp-metric__icon--primary"><svg/></div><div class="erp-metric__body"><p class="erp-metric__label">ZRA Signed Invoices</p><p class="erp-metric__value">171</p><p class="erp-metric__meta">This fiscal year</p></div><span class="erp-kpi-spark" aria-hidden="true"><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:19%"></i><i style="height:100%"></i><i style="height:64%"></i><i style="height:54%"></i><i style="height:86%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i></span></div> </div>
+ </div>
+ <div class="tab-content" id="v-pills-tabContent">
+ <div class="tab-pane fade show active" id="salesTab" role="tabpanel" aria-labelledby="salesTab-tab" tabindex="0">
+ <div class="row g-3">
+ <div class="col-12 col-lg-5">
+ <div class="erp-card h-100">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Sales vs Purchase</h6>
+ <span class="erp-period-pill">Whole Year <svg/></span>
+ </div>
+ <div class="erp-card__body">
+ <div class="erp-tabs p-0" role="tablist">
+ <button class="erp-tab nav-link active" id="salesTab-tab" data-bs-toggle="pill" data-bs-target="#salesTab" type="button" role="tab" aria-controls="salesTab" aria-selected="true">Sales</button>
+ <button class="erp-tab nav-link" id="purchaseTab-tab" data-bs-toggle="pill" data-bs-target="#purchaseTab" type="button" role="tab" aria-controls="purchaseTab" aria-selected="false">Purchase</button>
+ </div>
+ <div class="position-relative mb-2" style="min-height:190px">
+ <canvas id="salesDonutChart" height="180px" width="100%"></canvas>
+ </div>
+ <div class="erp-donut-legend">
+ <span><i style="background:var(--theme-color)"></i>Completed 54%</span>
+ <span><i style="background:#95bdf2"></i>Started 29%</span>
+ <span><i style="background:#dfe2e6"></i>Draft 17%</span>
+ <span><i style="background:#ffc825"></i>Refund 0%</span>
+ </div>
+ <div class="erp-mini-tiles mt-2">
+ <div class="erp-mini-tile">
+ <span class="erp-mini-tile__value">110</span>
+ <span class="erp-mini-tile__label">Sales Orders</span>
+ </div>
+ <div class="erp-mini-tile">
+ <span class="erp-mini-tile__value">16</span>
+ <span class="erp-mini-tile__label">Quotations</span>
+ </div>
+ <div class="erp-mini-tile">
+ <span class="erp-mini-tile__value">6</span>
+ <span class="erp-mini-tile__label">Contracts</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-lg-7">
+ <div class="erp-card h-100">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Sales Analytics</h6>
+ <div class="erp-tabs" role="tablist">
+ <button class="erp-tab erp-period-btn" data-chart="sales" data-period="today" type="button">Today</button>
+ <button class="erp-tab erp-period-btn" data-chart="sales" data-period="week" type="button">This Week</button>
+ <button class="erp-tab erp-period-btn" data-chart="sales" data-period="month" type="button">This Month</button>
+ <button class="erp-tab erp-period-btn active" data-chart="sales" data-period="year" type="button">This Year</button>
+ </div>
+ </div>
+ <div class="erp-card__body">
+ <div class="erp-analytics-summary">
+ <div class="erp-sum-item">
+ <span class="erp-sum-item__icon erp-sum-item__icon--primary"><svg/></span>
+ <span><span class="erp-sum-item__value">ZMW 1,207,128.00</span>
+ <span class="erp-sum-item__label">Income <span class="erp-trend erp-trend--down"><svg/> 100.0%</span></span></span>
+ </div>
+ <div class="erp-sum-item">
+ <span class="erp-sum-item__icon erp-sum-item__icon--purple"><svg/></span>
+ <span><span class="erp-sum-item__value">241</span>
+ <span class="erp-sum-item__label">Sales</span></span>
+ </div>
+ <div class="erp-sum-item">
+ <span class="erp-sum-item__icon erp-sum-item__icon--success"><svg/></span>
+ <span><span class="erp-sum-item__value">15</span>
+ <span class="erp-sum-item__label">Customers</span></span>
+ </div>
+ </div>
+ <div id="sales-analytics-chart" class="apex-charts" dir="ltr"></div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-lg-7">
+ <div class="erp-card h-100">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Last 7 Sales</h6>
+ <a class="erp-card__link" href="/compta/facture/list.php">View All <svg/></a>
+ </div>
+ <div class="erp-card__body">
+ <div class="erp-table-wrap">
+ <table class="table" id="example2">
+ <thead>
+ <tr>
+ <th>#</th>
+ <th>Invoice No</th>
+ <th>Customer</th>
+ <th>Amount</th>
+ <th>Date</th>
+ <th>Status</th>
+ <th>Action</th>
+ </tr>
+ </thead>
+ <tbody><tr>
+ <td class="erp-text-muted">1</td>
+ <td><a href="/compta/sales/card.php?facid=346" class="classfortooltip"><span class="me-1 fa-regular fa-file-lines fa-bill infobox-commande paddingright classfortooltip font-size: 10px;"></span>INOV-26-0035</a></td>
+ <td><a href="/comm/card.php?socid=10" class="classforajaxtooltip refurl valignmiddle"><div class="avatar-circle">DA</div>David</a></td>
+ <td class="text-nowrap">70.00 ZMW</td>
+ <td class="text-nowrap">04 Oct 2026</td>
+ <td>
+ <span class="badge badge-status1 badge-status" title="Not paid">Not paid</span> </td>
+ <td><a class="erp-row-eye" href="/compta/facture/card.php?facid=346" data-erp-tip="View"><svg/></a></td>
+ </tr><tr>
+ <td class="erp-text-muted">2</td>
+ <td><a href="/compta/sales/card.php?facid=342" class="classfortooltip"><span class="me-1 fa-regular fa-file-lines fa-bill infobox-commande paddingright classfortooltip font-size: 10px;"></span>INOV-26-0032</a></td>
+ <td><a href="/comm/card.php?socid=1990" class="classforajaxtooltip refurl valignmiddle"><div class="avatar-circle">AT</div>Abinav Traders</a></td>
+ <td class="text-nowrap">116.00 ZMW</td>
+ <td class="text-nowrap">01 Oct 2026</td>
+ <td>
+ <span class="badge badge-status6 badge-status" title="Paid">Paid</span> </td>
+ <td><a class="erp-row-eye" href="/compta/facture/card.php?facid=342" data-erp-tip="View"><svg/></a></td>
+ </tr></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-lg-5">
+ <div class="erp-card">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Sales by Country</h6>
+ <a class="erp-card__link" href="/compta/facture/list.php">View All <svg/></a>
+ </div>
+ <div class="erp-card__body">
+ <div id="sales-map-markers" style="height:200px"></div>
+ <div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/zm.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="Zambie">Zambie</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:98%"></div></div></div><span class="erp-country-row__amount">1,182,606.00 ZMW</span><span class="erp-country-row__pct">98%</span></div><div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/in.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="India">India</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:1%"></div></div></div><span class="erp-country-row__amount">14,276.00 ZMW</span><span class="erp-country-row__pct">1%</span></div><div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/je.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="Jersey">Jersey</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:1%"></div></div></div><span class="erp-country-row__amount">9,186.00 ZMW</span><span class="erp-country-row__pct">1%</span></div><div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/us.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="United States">United States</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:0%"></div></div></div><span class="erp-country-row__amount">1,622.00 ZMW</span><span class="erp-country-row__pct">0%</span></div>
+ <!-- Inject JS variables -->
+ <script>
+ const mapMarkers = [{"name":"ZM","coords":[-15.4167,28.2833]},{"name":"IN","coords":[28.6139,77.209]},{"name":"US","coords":[38.9072,-77.0369]}];
+ const mapLines = [{"from":"IN","to":"ZM"},{"from":"US","to":"ZM"}];
+ </script>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="tab-pane fade" id="purchaseTab" role="tabpanel" aria-labelledby="purchaseTab-tab" tabindex="0">
+ <div class="row g-4">
+ <div class="col-12 col-lg-5">
+ <div class="erp-card h-100">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Sales vs Purchase</h6>
+ <span class="erp-period-pill">Whole Year <svg/></span>
+ </div>
+ <div class="erp-card__body">
+ <div class="erp-tabs mb-3 p-0" role="tablist">
+ <button class="erp-tab nav-link" id="salesTab-tab" data-bs-toggle="pill" data-bs-target="#salesTab" type="button" role="tab" aria-controls="salesTab" aria-selected="false">Sales</button>
+ <button class="erp-tab nav-link active" id="purchaseTab-tab" data-bs-toggle="pill" data-bs-target="#purchaseTab" type="button" role="tab" aria-controls="purchaseTab" aria-selected="true">Purchase</button>
+ </div>
+ <div class="position-relative mb-2" style="min-height:190px">
+ <canvas id="purchaseDonutChart" height="150px" width="100%" style="max-height: 180px !important;"></canvas>
+ </div>
+ <div class="erp-donut-legend">
+ <span><i style="background:var(--theme-color)"></i>Completed 54%</span>
+ <span><i style="background:#95bdf2"></i>Started 38%</span>
+ <span><i style="background:#dfe2e6"></i>Draft 8%</span>
+ </div>
+ <div class="erp-mini-tiles mt-2">
+ <div class="erp-mini-tile">
+ <span class="erp-mini-tile__value">9</span>
+ <span class="erp-mini-tile__label">Purchase Orders</span>
+ </div>
+ <div class="erp-mini-tile">
+ <span class="erp-mini-tile__value">1</span>
+ <span class="erp-mini-tile__label">Proposals</span>
+ </div>
+ <div class="erp-mini-tile">
+ <span class="erp-mini-tile__value">5816</span>
+ <span class="erp-mini-tile__label">Asycuda</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-lg-7">
+ <div class="erp-card h-100">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Purchase Analytics</h6>
+ <div class="erp-tabs" role="tablist">
+ <button class="erp-tab erp-period-btn" data-chart="purchase" data-period="today" type="button">Today</button>
+ <button class="erp-tab erp-period-btn" data-chart="purchase" data-period="week" type="button">This Week</button>
+ <button class="erp-tab erp-period-btn" data-chart="purchase" data-period="month" type="button">This Month</button>
+ <button class="erp-tab erp-period-btn active" data-chart="purchase" data-period="year" type="button">This Year</button>
+ </div>
+ </div>
+ <div class="erp-card__body">
+ <div class="erp-analytics-summary">
+ <div class="erp-sum-item">
+ <span class="erp-sum-item__icon erp-sum-item__icon--primary"><svg/></span>
+ <span><span class="erp-sum-item__value">ZMW 1,114,132.00</span>
+ <span class="erp-sum-item__label">Expenses </span></span>
+ </div>
+ <div class="erp-sum-item">
+ <span class="erp-sum-item__icon erp-sum-item__icon--purple"><svg/></span>
+ <span><span class="erp-sum-item__value">161</span>
+ <span class="erp-sum-item__label">Purchases</span></span>
+ </div>
+ <div class="erp-sum-item">
+ <span class="erp-sum-item__icon erp-sum-item__icon--success"><svg/></span>
+ <span><span class="erp-sum-item__value">33</span>
+ <span class="erp-sum-item__label">Vendors</span></span>
+ </div>
+ </div>
+ <div id="purchase-analytics-chart" class="apex-charts" dir="ltr"></div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-lg-7">
+ <div class="erp-card h-100">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Last 7 Purchases</h6>
+ <a class="erp-card__link" href="/fourn/facture/list.php">View All <svg/></a>
+ </div>
+ <div class="erp-card__body">
+ <div class="erp-table-wrap">
+ <table class="table" id="example2">
+ <thead>
+ <tr>
+ <th>#</th>
+ <th>Invoice No</th>
+ <th>Supplier</th>
+ <th>Amount</th>
+ <th>Date</th>
+ <th>Status</th>
+ <th>Action</th>
+ </tr>
+ </thead>
+ <tbody><tr>
+ <td class="erp-text-muted">1</td>
+ <td><a href="/fourn/purchase/card.php?id=183&save_lastsearch_values=1" class="classfortooltip"><span class="me-1 fas fa-file-invoice-dollar infobox-order_supplier paddingright classfortooltip "></span>SI2609-0148</a></td>
+ <td><a href="/comm/card.php?socid=2012" class="classforajaxtooltip refurl valignmiddle"><div class="avatar-circle">AL</div>AUTOWORLD LIMITED</a></td>
+ <td class="text-nowrap">25.00 ZMW</td>
+ <td class="text-nowrap">28 Sep 2026</td>
+ <td>
+ <span class="badge badge-status6 badge-status" title="Paid">Paid</span> </td>
+ <td><a class="erp-row-eye" href="/fourn/facture/card.php?facid=183" data-erp-tip="View"><svg/></a></td>
+ </tr><tr>
+ <td class="erp-text-muted">2</td>
+ <td><a href="/fourn/purchase/card.php?id=184&save_lastsearch_values=1" class="classfortooltip"><span class="me-1 fas fa-file-invoice-dollar infobox-order_supplier paddingright classfortooltip "></span>SI2609-0149</a></td>
+ <td><a href="/comm/card.php?socid=2009" class="classforajaxtooltip refurl valignmiddle"><div class="avatar-circle">EC</div>ETG CURECHEM ZAMBIA LIMITED</a></td>
+ <td class="text-nowrap">2,500.00 ZMW</td>
+ <td class="text-nowrap">28 Sep 2026</td>
+ <td>
+ <span class="badge badge-status6 badge-status" title="Paid">Paid</span> </td>
+ <td><a class="erp-row-eye" href="/fourn/facture/card.php?facid=184" data-erp-tip="View"><svg/></a></td>
+ </tr></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-lg-5">
+ <div class="erp-card">
+ <div class="erp-card__head">
+ <h6 class="erp-card__title">Purchase by Country</h6>
+ <a class="erp-card__link" href="/fourn/facture/list.php">View All <svg/></a>
+ </div>
+ <div class="erp-card__body">
+ <div id="purchase-map-markers" style="height:200px"></div>
+ <div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/zm.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="Zambie">Zambie</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:78%"></div></div></div><span class="erp-country-row__amount">868,006.00 ZMW</span><span class="erp-country-row__pct">78%</span></div><div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/in.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="India">India</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:22%"></div></div></div><span class="erp-country-row__amount">245,126.00 ZMW</span><span class="erp-country-row__pct">22%</span></div><div class="erp-country-row"><img class="erp-country-row__flag" src="/theme/common/flags/us.png" alt="" onerror="this.style.visibility='hidden'"><span class="erp-country-row__name" title="United States">United States</span><div class="erp-country-row__bar"><div class="erp-progress"><div class="erp-progress__fill" style="width:0%"></div></div></div><span class="erp-country-row__amount">1,000.00 ZMW</span><span class="erp-country-row__pct">0%</span></div> <script>
+ const mappMarkers = [{"name":"ZM","coords":[-15.4167,28.2833]},{"name":"IN","coords":[28.6139,77.209]},{"name":"US","coords":[38.9072,-77.0369]}];
+ const mappLines = [{"from":"IN","to":"ZM"},{"from":"US","to":"ZM"}];
+ </script>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="col-12 col-xl-3">
+ <div class="erp-side-stack"><div class="erp-card"><div class="erp-card__head"><h6 class="erp-card__title">Bank Details</h6><a class="erp-card__link" href="/compta/bank/list.php">View All <svg/></a></div><div class="erp-bank-row"><div class="erp-bank-row__icon"><svg/></div><div class="erp-bank-row__body"><div class="erp-bank-row__name"><span><a href="/compta/bank/card.php?id=" class="classfortooltip"></a></span><span class="erp-bank-row__pct"><svg/> 28%</span></div><div class="erp-progress"><div class="erp-progress__fill" style="width:28%"></div></div><div class="erp-bank-row__amount">187,492.00 ZMW</div></div></div><div class="erp-bank-row"><div class="erp-bank-row__icon"><svg/></div><div class="erp-bank-row__body"><div class="erp-bank-row__name"><span><a href="/compta/bank/card.php?id=" class="classfortooltip"></a></span><span class="erp-bank-row__pct"><svg/> 22%</span></div><div class="erp-progress"><div class="erp-progress__fill" style="width:22%"></div></div><div class="erp-bank-row__amount">144,728.00 ZMW</div></div></div></div><div class="erp-card erp-attention"><div class="erp-card__head"><h6 class="erp-card__title">Needs Your Attention</h6><a class="erp-card__link" href="/index.php">View All <svg/></a></div><a class="erp-attention__row" href="/compta/facture/list.php?search_status=1"><span class="erp-attention__icon erp-attention__icon--warning"><svg/></span><span class="erp-attention__body"><span class="erp-attention__title">77 unpaid invoices</span><span class="erp-attention__sub d-block">ZMW 116,094.00 outstanding</span></span><span class="erp-attention__count erp-attention__count--warning">77</span><span class="erp-attention__chev"><svg/></span></a><a class="erp-attention__row" href="/comm/propal/list.php"><span class="erp-attention__icon erp-attention__icon--primary"><svg/></span><span class="erp-attention__body"><span class="erp-attention__title">10 quotations pending</span><span class="erp-attention__sub d-block">Open proposals awaiting action</span></span><span class="erp-attention__count erp-attention__count--primary">10</span><span class="erp-attention__chev"><svg/></span></a><a class="erp-attention__row" href="/custom/zra/zraindex.php"><span class="erp-attention__icon erp-attention__icon--danger"><svg/></span><span class="erp-attention__body"><span class="erp-attention__title">67 ZRA sync warnings</span><span class="erp-attention__sub d-block">Invoices not yet signed by ZRA</span></span><span class="erp-attention__count erp-attention__count--danger">67</span><span class="erp-attention__chev"><svg/></span></a><a class="erp-attention__row" href="/compta/bank/list.php"><span class="erp-attention__icon erp-attention__icon--info"><svg/></span><span class="erp-attention__body"><span class="erp-attention__title">415 unmatched bank transactions</span><span class="erp-attention__sub d-block">Awaiting reconciliation</span></span><span class="erp-attention__count erp-attention__count--primary">415</span><span class="erp-attention__chev"><svg/></span></a></div><div class="erp-card"><div class="erp-card__head"><h6 class="erp-card__title">Quick Actions</h6></div><div class="erp-qa-grid"><a class="erp-qa-tile" href="/takeposnew/index.php"><span class="erp-qa-tile__icon erp-qa-tile__icon--primary"><svg/></span><span>New Sale</span></a><a class="erp-qa-tile" href="/compta/facture/card.php?action=create"><span class="erp-qa-tile__icon erp-qa-tile__icon--purple"><svg/></span><span>Create Invoice</span></a><a class="erp-qa-tile" href="/product/card.php?action=create"><span class="erp-qa-tile__icon erp-qa-tile__icon--warning"><svg/></span><span>Add Product</span></a><a class="erp-qa-tile" href="/fourn/facture/card.php?action=create"><span class="erp-qa-tile__icon erp-qa-tile__icon--purple"><svg/></span><span>New Purchase</span></a><a class="erp-qa-tile" href="/societe/card.php?action=create"><span class="erp-qa-tile__icon erp-qa-tile__icon--success"><svg/></span><span>Add Customer</span></a><a class="erp-qa-tile" href="/custom/zra/zraindex.php"><span class="erp-qa-tile__icon erp-qa-tile__icon--info"><svg/></span><span>ZRA Sync</span></a></div></div></div> </div>
+ </div>
+ </div>
+ <script>
+ new Chart(a, { data: { labels: ["Completed", "Started", "Draft", "Refund"], datasets: [{ label: "Sales Distribution", data: [ 161, 85, 50, 0 ] }] } });
+ new Chart(b, { data: { labels: ["Completed", "Started", "Draft"], datasets: [{ label: "Purchase Distribution", data: [ 95, 66, 14 ] }] } });
+ const erpPeriodData = {
+ sales: {"week":{"labels":["29 Sep","30 Sep","01 Oct","02 Oct","03 Oct","04 Oct","05 Oct"],"income":[0,0,116,0,0,70,0],"sales":[0,0,1,0,0,1,0],"orders":[0,0,0,0,0,0,0],"customers":[0,0,0,0,0,0,0]},"year":{"labels":["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],"income":[0,0,0,0,5380,1069183.78,37817.26,22629.69,72841.73,186,0,0],"sales":["0","0","0","0","14","74","47","40","64","2","0","0"],"orders":[0,0,0,6,0,64,28,0,9,0,0,0],"customers":["0","5","0","3","0","3","0","3","0","0","0","0"]}},
+ purchase: {"week":{"labels":["29 Sep","30 Sep","01 Oct","02 Oct","03 Oct","04 Oct","05 Oct"],"income":[0,0,0,0,0,0,0],"sales":[0,0,0,0,0,0,0],"orders":[0,0,0,0,0,0,0],"customers":[0,0,0,0,0,0,0]},"year":{"labels":["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],"income":[0,1443.2,94217.5,23971.64,408163.72,521756.77,300,18700,45580,0,0,0],"sales":[0,1,44,10,46,29,3,8,20,0,0,0],"orders":[0,0,0,4,0,0,0,0,0,0,0,0],"customers":[1,5,0,7,0,13,1,3,3,0,0,0]}}
+ };
+</script>

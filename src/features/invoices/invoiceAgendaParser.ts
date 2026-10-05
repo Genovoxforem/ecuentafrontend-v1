@@ -25,6 +25,11 @@ export interface InvoiceAgendaPageData {
   validatedBy: string
   validationDate: string
   closingDate: string
+  zraMessage: string
+  /** Company TimeZone label from the topbar user panel (e.g. "UTC"), used to
+   *  compute the real page's "Client time (user)" conversion alongside the
+   *  scraped server-local date strings above. */
+  timezone: string
   events: AgendaEventRow[]
 }
 
@@ -41,6 +46,16 @@ function findHeaderRowValue(html: string, label: string): string {
   return m ? stripTags(m[1]) : ''
 }
 
+function findZraMessage(html: string): string {
+  const m = /<b>\s*Zra Message\s*:\s*<\/b>\s*<span[^>]*>([\s\S]*?)<\/span>/.exec(html)
+  return m ? stripTags(m[1]) : ''
+}
+
+function findCompanyTimezone(html: string): string {
+  const m = /<label class="text-muted">TimeZone<\/label>\s*<\/div>\s*<div class="col-6 text-end">([^<]*)<\/div>/.exec(html)
+  return m ? m[1].trim() : ''
+}
+
 export function parseInvoiceAgendaPage(html: string): InvoiceAgendaPageData {
   const createdBy = findHeaderRowValue(html, 'Created by')
   const creationDate = findHeaderRowValue(html, 'Creation date')
@@ -48,6 +63,8 @@ export function parseInvoiceAgendaPage(html: string): InvoiceAgendaPageData {
   const validatedBy = findHeaderRowValue(html, 'Validated by')
   const validationDate = findHeaderRowValue(html, 'Validation date')
   const closingDate = findHeaderRowValue(html, 'Closing date')
+  const zraMessage = findZraMessage(html)
+  const timezone = findCompanyTimezone(html)
 
   const events: AgendaEventRow[] = []
   const tableIdx = html.search(/Actions\s+on\s+invoice/i)
@@ -77,5 +94,5 @@ export function parseInvoiceAgendaPage(html: string): InvoiceAgendaPageData {
     }
   }
 
-  return { createdBy, creationDate, latestModificationDate, validatedBy, validationDate, closingDate, events }
+  return { createdBy, creationDate, latestModificationDate, validatedBy, validationDate, closingDate, zraMessage, timezone, events }
 }

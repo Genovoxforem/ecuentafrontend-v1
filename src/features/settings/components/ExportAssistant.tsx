@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FileOutput, Plus, ChevronLeft } from 'lucide-react'
+import { FileOutput, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 // exports/index.php (list) and exports/export.php (wizard) — confirmed by
 // reading export.php directly: every step is driven by plain $step/$action
@@ -21,17 +22,16 @@ export function ExportAssistant() {
 
   if (step === 'new') {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setStep('list')} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
-            <ChevronLeft size={18} />
-          </button>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <FileOutput size={20} className="text-brand" /> Export Settings
-          </h2>
-        </div>
-        <p className="text-xs font-semibold text-text-faint uppercase tracking-wide">Step 1</p>
-        <p className="text-sm text-text-muted">Choose dataset you want to export…</p>
+      <SetupShell
+        icon={FileOutput}
+        title="Export Settings"
+        onBack={() => setStep('list')}
+        description={
+          <>
+            <span className="mr-2 text-xs font-semibold text-text-faint uppercase tracking-wide">Step 1</span>Choose dataset you want to export…
+          </>
+        }
+      >
         <Card className="!h-auto !p-0 overflow-hidden">
           <div className="grid grid-cols-[1fr_1fr_60px] px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
             <span>Module/Application</span>
@@ -50,23 +50,21 @@ export function ExportAssistant() {
             reproduced here.
           </p>
         </Card>
-      </div>
+      </SetupShell>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FileOutput size={20} className="text-brand" /> Exports
-      </h2>
-      <p className="text-sm text-text-muted">These tools allow the export of personalized data using an assistant, to help you in the process without requiring technical knowledge.</p>
-
-      <div className="flex justify-end">
-        <button type="button" onClick={() => setStep('new')} className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand text-white hover:bg-brand-hover">
+    <SetupShell
+      icon={FileOutput}
+      title="Exports"
+      description="These tools allow the export of personalized data using an assistant, to help you in the process without requiring technical knowledge."
+      headerRight={
+        <button type="button" onClick={() => setStep('new')} aria-label="New export" className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand text-white hover:bg-brand-hover">
           <Plus size={16} />
         </button>
-      </div>
-
+      }
+    >
       <Card className="!h-auto">
         <table className="w-full text-sm">
           <thead>
@@ -85,6 +83,6 @@ export function ExportAssistant() {
           </tbody>
         </table>
       </Card>
-    </div>
+    </SetupShell>
   )
 }

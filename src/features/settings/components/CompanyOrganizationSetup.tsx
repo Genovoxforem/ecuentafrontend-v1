@@ -4,6 +4,7 @@ import { Wrench, ImageUp } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useGeneralSettings, useEntities } from '../settings.queries'
 import { useProductFormOptions } from '../../zra/createProduct.queries'
+import { SetupShell } from './SetupShell'
 
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
@@ -221,29 +222,25 @@ export function CompanyOrganizationSetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Wrench size={20} className="text-brand" /> Company/Organization
-      </h2>
-
-      <Card className="!h-auto !bg-info-bg border-info/30 text-info-fg text-sm">
-        Edit the information of your company/organization. Click on "Save" button at the bottom of the page when done.
-      </Card>
-
-      <div className="flex flex-wrap gap-2 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 -mb-px ${
-              tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+    <SetupShell
+      icon={Wrench}
+      title="Company/Organization"
+      description='Edit the information of your company/organization. Click on "Save" when done.'
+      tabs={TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setTab(t)}
+          className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 ${
+            tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
+          }`}
+        >
+          {t}
+        </button>
+      ))}
+      onSave={handleSave}
+      saved={saved ? "Saved (Name/Country/Currency/Tpin/Branch Code only — the rest isn't backed by an endpoint yet)." : undefined}
+    >
 
       {tab === 'Company' ? (
         <>
@@ -624,13 +621,6 @@ export function CompanyOrganizationSetup() {
         </Card>
       )}
 
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (Name/Country/Currency/Tpin/Branch Code only — the rest isn't backed by an endpoint yet).</Card>}
-
-      <div className="flex justify-start">
-        <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
-          Save
-        </button>
-      </div>
-    </div>
+    </SetupShell>
   )
 }

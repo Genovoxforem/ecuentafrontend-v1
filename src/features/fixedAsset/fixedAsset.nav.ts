@@ -6,8 +6,8 @@ import type { NavSection } from '../navTypes'
 // — the real menu tree itself is just 1 row (Fixed Asset -> asset/list.php);
 // this grouping and item order instead comes from asset/index.php's own
 // "Asset Area" dashboard tile links, confirmed by reading that file
-// directly. "Assets Details" is genuinely real (asset/assets-sidebar-list-ajax.php,
-// see fixedAssets.queries.ts); the rest are real backing pages with no JSON API.
+// directly. Every page is a real server-rendered list/report that
+// fixedAssetPages.queries.ts scrapes (none has a JSON API).
 export const nav: NavSection = {
   key: 'fixed-asset',
   label: 'Fixed Asset',

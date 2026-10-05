@@ -168,13 +168,13 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
       ) : (
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="flex items-center gap-1 text-xs text-text-faint">
+            <p className="flex items-center gap-1 text-xs text-text-faint [[data-theme=blue-metal]_&]:hidden">
               Ticket <ChevronRight size={11} /> List of Tickets
             </p>
             <h2 className="flex items-center gap-2 text-xl font-bold text-text!">
               <TicketIcon size={20} className="text-brand" /> List of Tickets
             </h2>
-            <p className="text-xs text-text-faint">Manage and track all your support tickets in one place.</p>
+            <p className="text-xs text-text-faint [[data-theme=blue-metal]_&]:hidden">Manage and track all your support tickets in one place.</p>
           </div>
           <Link to={ROUTES.ticketNew} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover shrink-0">
             <Plus size={15} /> New Ticket

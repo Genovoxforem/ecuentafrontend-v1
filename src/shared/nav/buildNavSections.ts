@@ -83,7 +83,24 @@ const FALLBACK_TO_LOCAL_NAV_KEYS = new Set(['expenses'])
 // sidebar) is used as the section tree here instead. Same tradeoff as the
 // Expenses exception above: this always shows the same static grouped
 // list, not a live per-user-permission-filtered one.
-const ALWAYS_PREFER_LOCAL_NAV_KEYS = new Set(['hotel'])
+//
+// Payroll and ZRA have the exact same flat-data shape as Hotel —
+// payroll.nav.ts's own header comment already documented "these rows
+// don't use the source's tree-relation column (fk_menu=-1)" but neither
+// section was ever actually added here, so every one of their items
+// (Payroll's Human Resource/Attendance/Shift & Salary/...; ZRA's
+// ASYCUDA/Sales/Customer/Purchase/...) rendered as a flat list of
+// un-nested, mostly unclickable labels with no real group to collapse —
+// which is what made the sidebar's accordion look broken for both: there
+// was no group there to begin with, not a bug in the collapse logic
+// itself (confirmed live for both: with the flat backend tree, every
+// "group" header came through as a disabled leaf button, and the grid
+// collapse wrapper never even rendered).
+//
+// Ticket is the same shape again (all of its rows fk_menu=-1, confirmed live on
+// 172.16.5.10): flat, the "Ticket" heading came through as an unlinked leaf and
+// "My tickets" matched no local label, so both rendered disabled.
+const ALWAYS_PREFER_LOCAL_NAV_KEYS = new Set(['hotel', 'payroll', 'zra', 'ticket'])
 
 function normalizeLabel(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, ' ')

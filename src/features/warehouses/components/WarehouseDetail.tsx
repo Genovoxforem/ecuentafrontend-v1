@@ -32,9 +32,11 @@ import {
   LoaderCircle,
   FileCog,
   Search as SearchIcon,
+  Boxes,
+  CircleDollarSign,
   type LucideIcon,
 } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricTile } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
@@ -87,15 +89,6 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
 // Matches CustomerDetail.tsx's own StatTile exactly (label/value pair in the
 // header's stat row) — named differently here only because this file's own
 // Stock Movements tab already has an unrelated icon-based StatTile.
-function HeaderStatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex-1 min-w-[120px]">
-      <p className="text-xs text-text-faint uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-bold text-text! mt-0.5">{value}</p>
-    </div>
-  )
-}
-
 export function WarehouseDetail() {
   const { id } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useWarehouseDetail(id)
@@ -232,10 +225,10 @@ export function WarehouseDetail() {
             </div>
 
             <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <HeaderStatTile label="Total Products" value={String(data.totalProductsCount)} />
-              <HeaderStatTile label="Different Products" value={String(data.differentProductsCount)} />
-              <HeaderStatTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} />
-              <HeaderStatTile label="Latest Movement" value={data.latestMovement || 'None'} />
+              <DetailMetricTile label="Total Products" value={String(data.totalProductsCount)} icon={Package} />
+              <DetailMetricTile label="Different Products" value={String(data.differentProductsCount)} icon={Boxes} />
+              <DetailMetricTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} icon={CircleDollarSign} />
+              <DetailMetricTile label="Latest Movement" value={data.latestMovement || 'None'} icon={CalendarClock} />
             </div>
 
             <div className="border-t border-border px-3 py-2.5">

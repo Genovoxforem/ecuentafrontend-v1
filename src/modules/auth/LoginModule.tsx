@@ -161,7 +161,7 @@ function AuthInput({ placeholder, type = 'text', icon, tone = 'plain', value, on
         value={value}
         onChange={(event) => onChange(event.target.value)}
         autoComplete="off"
-        className={`w-full rounded-xl border px-4 py-3.5 pr-11 text-sm font-medium text-slate-800 shadow-sm placeholder:text-slate-400 outline-none transition focus:ring-4 ${toneClass}`}
+        className={`auth-input w-full rounded-xl border px-4 py-3.5 pr-11 text-sm font-medium text-slate-800 shadow-sm placeholder:text-slate-400 outline-none transition focus:ring-4 ${toneClass}`}
       />
       <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-900">{icon}</span>
     </div>

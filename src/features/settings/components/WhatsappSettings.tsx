@@ -1,5 +1,6 @@
 import { MessageCircle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface disabled:text-text-faint'
 
@@ -16,14 +17,15 @@ const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 // Settings), the real write stays disabled rather than fired blind.
 export function WhatsappSettings() {
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <MessageCircle size={20} className="text-brand" /> Whatsapp API Settings
-      </h2>
-      <a href="#" className="text-sm text-brand hover:underline">
-        How to get token and instance id?
-      </a>
-
+    <SetupShell
+      icon={MessageCircle}
+      title="Whatsapp API Settings"
+      description={
+        <a href="#" className="text-brand hover:underline">
+          How to get token and instance id?
+        </a>
+      }
+    >
       <Card className="!h-auto space-y-4">
         <div>
           <label className="block text-sm mb-1 text-text-muted">Token*</label>
@@ -41,6 +43,6 @@ export function WhatsappSettings() {
       <p className="text-xs text-text-faint italic">
         No screenshot of this page's current saved state exists — left showing the reference page's empty/create form rather than guessing whether a token is already configured.
       </p>
-    </div>
+    </SetupShell>
   )
 }

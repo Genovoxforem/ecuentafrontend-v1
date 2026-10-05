@@ -17,10 +17,14 @@ const COLUMN_LABELS = ['Ref.Payment', 'Date', 'Third-Party', 'Type', 'Number', '
 type SortKey = 'ref' | 'paymentDate' | 'customerName' | 'paymentTypeLabel' | 'paymentReference' | 'bankEntryId' | 'accountName' | 'amount'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const todayIso = () => iso(new Date())
+// The classic page opens on the whole current month (10/01/2026 - 10/31/2026), not month-to-date.
 const firstOfMonthIso = () => {
   const d = new Date()
   return iso(new Date(d.getFullYear(), d.getMonth(), 1))
+}
+const lastOfMonthIso = () => {
+  const d = new Date()
+  return iso(new Date(d.getFullYear(), d.getMonth() + 1, 0))
 }
 // yyyy-MM-dd -> MM/dd/yyyy (the classic page's own date format)
 const fmtDate = (v: string) => {
@@ -61,8 +65,8 @@ function sortValue(r: PaymentRow, key: SortKey): string | number {
 // backend filter; search, sorting and paging run on the returned rows.
 export function PaymentsListPage() {
   const [from, setFrom] = useState(firstOfMonthIso())
-  const [to, setTo] = useState(todayIso())
-  const [applied, setApplied] = useState({ from: firstOfMonthIso(), to: todayIso() })
+  const [to, setTo] = useState(lastOfMonthIso())
+  const [applied, setApplied] = useState({ from: firstOfMonthIso(), to: lastOfMonthIso() })
   const { data, isLoading, isFetching, isError, error, refetch } = usePayments(applied)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)

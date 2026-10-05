@@ -46,10 +46,11 @@ import {
   ChevronDown,
   Filter,
 } from 'lucide-react'
-import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricTile, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ROUTES } from '../../../routes'
+import { useTheme } from '../../../context/ThemeContext'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
@@ -170,18 +171,6 @@ function EditableRow({ label, value, editing, onChange }: { label: string; value
   )
 }
 
-function StatTile({ label, value, count }: { label: string; value: string; count?: number }) {
-  return (
-    <div className="flex-1 min-w-[120px]">
-      <p className="text-xs text-text-faint uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-bold text-text! mt-0.5">
-        {value}
-        {count !== undefined && <span className="text-xs font-normal text-text-faint ml-1.5">{count}</span>}
-      </p>
-    </div>
-  )
-}
-
 function NotBuiltCard({ label }: { label: string }) {
   return (
     <Card className="!h-auto">
@@ -251,6 +240,8 @@ function customerTabLabel(data: CustomerProfile): string {
 const TAB_KEYS = new Set(TABS.map((t) => t.key))
 
 export function CustomerDetail() {
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -355,10 +346,26 @@ export function CustomerDetail() {
         </Link>
       </div>
 
-      <div className="sticky top-0 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
-        <div className="px-6">
-          <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+      <div
+        className={`sticky top-0 z-10 -mx-6 overflow-hidden px-6 pt-4 pb-3 ${isBlueMetal ? 'rounded-xl border border-[#2879ad]' : 'bg-white dark:bg-gray-950'}`}
+        style={
+          isBlueMetal
+            ? {
+                backgroundImage: "linear-gradient(90deg, rgba(3,14,28,0.94) 0%, rgba(3,14,28,0.8) 52%, rgba(3,14,28,0.55) 100%), url('/blue-metal-dashboard.jpg')",
+                backgroundSize: 'cover',
+                backgroundPosition: 'center 48%',
+              }
+            : undefined
+        }
+      >
+        {isBlueMetal && <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,121,206,0.2),transparent_58%,rgba(4,15,29,0.2))]" />}
+        <div className="relative z-10">
+          <h1 className={`mb-3 flex items-center gap-2 text-xl font-bold ${isBlueMetal ? 'text-white' : 'text-text!'}`}>
+            <Users2 size={22} className={isBlueMetal ? 'text-cyan-300' : 'text-brand'} />
+            Customer Details
+          </h1>
+          <Card className={`!h-auto ${isBlueMetal ? '!border-white/20 !bg-transparent !shadow-none' : ''}`}>
+            <div className={`flex flex-wrap items-start justify-between gap-4 p-4 border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
               <div className="flex items-start gap-4 min-w-[240px] flex-1">
                 {/* logoUrl is a generic placeholder company icon on this
                     backend (not a real uploaded photo), so always fall back
@@ -442,15 +449,24 @@ export function CustomerDetail() {
                     <button
                       type="button"
                       onClick={startEditing}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                        isBlueMetal
+                          ? 'border-cyan-100/70 bg-slate-950/70 text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] hover:border-cyan-200 hover:bg-blue-800/90'
+                          : 'border-border text-text-muted font-medium hover:bg-surface-hover hover:text-text'
+                      }`}
                     >
                       <Pencil size={14} /> Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => navigate(ROUTES.customerList)}
-                      className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
+                      className={`rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                        isBlueMetal
+                          ? 'border border-white/50 bg-slate-950/70 text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] hover:border-cyan-200 hover:bg-blue-800/90'
+                          : 'text-text-faint hover:bg-surface-hover hover:text-text'
+                      }`}
                       title="Close"
+                      aria-label="Close customer details"
                     >
                       <X size={18} />
                     </button>
@@ -478,11 +494,11 @@ export function CustomerDetail() {
             )}
 
             <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <StatTile label="Quotations" value={formatMoney(data.kpiQuotation)} count={data.kpiQuotationCount} />
-              <StatTile label="Orders" value={formatMoney(data.kpiOrder)} count={data.kpiOrderCount} />
-              <StatTile label="Invoices" value={formatMoney(data.kpiInvoice)} count={data.kpiInvoiceCount} />
-              <StatTile label="Outstanding" value={formatMoney(data.kpiOutstanding)} count={data.kpiOutstandingCount} />
-              <StatTile label="Advance" value={formatMoney(data.advance)} count={data.kpiAdvanceCount} />
+              <DetailMetricTile label="Quotations" value={<>{formatMoney(data.kpiQuotation)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiQuotationCount}</span></>} icon={FileText} />
+              <DetailMetricTile label="Orders" value={<>{formatMoney(data.kpiOrder)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOrderCount}</span></>} icon={ShoppingCart} />
+              <DetailMetricTile label="Invoices" value={<>{formatMoney(data.kpiInvoice)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiInvoiceCount}</span></>} icon={Receipt} />
+              <DetailMetricTile label="Outstanding" value={<>{formatMoney(data.kpiOutstanding)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOutstandingCount}</span></>} icon={BadgeDollarSign} />
+              <DetailMetricTile label="Advance" value={<>{formatMoney(data.advance)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiAdvanceCount}</span></>} icon={Wallet} />
             </div>
 
             <div className="border-t border-border px-3 py-2.5">

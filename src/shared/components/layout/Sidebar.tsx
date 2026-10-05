@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
-import { LayoutGrid, Plus, X, Loader2 } from 'lucide-react'
+import { LayoutGrid, Plus, X, Loader2, Search, ChevronDown, ChevronRight } from 'lucide-react'
 import type { NavItem, NavLeafItem } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
 import { PATH_SOURCE_SECTIONS, EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
 import { prefetchRoute } from '../../../app/routePrefetch'
+import { useTheme } from '../../../context/ThemeContext'
+import { getNavItemIcon, getNavItemIconTileClass } from '../../nav/getNavItemIcon'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
@@ -44,7 +46,39 @@ function pathMatchesLocation(path: string | undefined, pathname: string, current
   return pathname === itemPathname && (!search || currentSearch === search)
 }
 
-function SidebarLeaf({ item, depth, navigate, location, suppressCurrent = false }: { item: NavLeafItem; depth: number; navigate: NavigateFunction; location: Location; suppressCurrent?: boolean }) {
+function filterNavItems(items: NavItem[], query: string): NavItem[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return items
+  return items.reduce<NavItem[]>((matches, item) => {
+    if ('items' in item && item.items) {
+      const children = filterNavItems(item.items, normalizedQuery)
+      if (item.label.toLowerCase().includes(normalizedQuery)) matches.push(item)
+      else if (children.length > 0) matches.push({ ...item, items: children })
+    } else if (item.label.toLowerCase().includes(normalizedQuery)) {
+      matches.push(item)
+    }
+    return matches
+  }, [])
+}
+
+function sectionSubtitle(sectionKey: string): string {
+  const descriptions: Record<string, string> = {
+    home: 'Dashboards & Overview',
+    zra: 'Tax & Invoice Management',
+    sales: 'Customers, Orders & Invoices',
+    purchases: 'Purchasing & Suppliers',
+    products: 'Products & Services',
+    warehouses: 'Inventory & Stock Control',
+    projects: 'Projects & Operations',
+    banking: 'Accounts & Transactions',
+    'general-ledger': 'Accounting & Reports',
+    users: 'People & Administration',
+    payroll: 'Employees & Payroll',
+  }
+  return descriptions[sectionKey] ?? 'Business Management'
+}
+
+function SidebarLeaf({ item, depth, navigate, location, blueMetal, suppressCurrent = false }: { item: NavLeafItem; depth: number; navigate: NavigateFunction; location: Location; blueMetal: boolean; suppressCurrent?: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -54,6 +88,8 @@ function SidebarLeaf({ item, depth, navigate, location, suppressCurrent = false 
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
   const isCurrent = isLink && pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
+  const ItemIcon = getNavItemIcon(item.label)
+  const isImportantAsycudaImport = /import\s*\(\s*asycuda\s*\)/i.test(item.label)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -73,17 +109,30 @@ function SidebarLeaf({ item, depth, navigate, location, suppressCurrent = false 
           : undefined
       }
       onMouseEnter={isLink ? () => prefetchRoute(item.path!) : undefined}
-      style={{ paddingLeft: `${depth * 0.75 + 0.75}rem` }}
-      className={`w-full flex items-start gap-2 text-left py-1.5 pr-2 rounded-md text-[13px] leading-4 transition-colors ${
-        isCurrent ? 'text-brand font-semibold' : isLink ? 'text-text-muted hover:text-brand hover:bg-brand/5 cursor-pointer' : 'text-text-faint cursor-default'
-      }`}
+      style={{ paddingLeft: `${depth * 1 + 1}rem` }}
+      className={
+        blueMetal
+          ? `group w-full min-h-8 flex items-center gap-2.5 text-left ${blueMetal && isImportantAsycudaImport ? 'py-2.5 pr-3.5' : 'py-2 pr-3'} rounded-md text-sm leading-5 transition-colors ${
+              isCurrent ? 'bg-brand/12 text-brand font-semibold shadow-sm ring-1 ring-brand/20' : isLink ? 'text-text-muted hover:text-brand hover:bg-brand/8 cursor-pointer' : 'text-text-faint cursor-default'
+            }`
+          : `w-full flex items-start gap-2 text-left py-2 pr-3 rounded-md text-[13px] leading-4 transition-colors ${
+              isCurrent ? 'text-brand font-semibold' : isLink ? 'text-text-muted hover:text-brand hover:bg-brand/5 cursor-pointer' : 'text-text-faint cursor-default'
+            }`
+      }
     >
       {loading ? (
         <Loader2 size={10} className="mt-1 shrink-0 animate-spin text-brand" />
       ) : (
-        <span className={`mt-1 w-1.5 h-1.5 border shrink-0 ${isCurrent ? 'border-brand bg-brand' : 'border-text-faint'}`} />
+        blueMetal ? (
+          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${getNavItemIconTileClass(item.label)} ${isCurrent ? 'ring-2 ring-brand/60' : 'group-hover:ring-brand/50'}`}>
+            <ItemIcon size={14} strokeWidth={2} />
+          </span>
+        ) : (
+          <span className={`mt-1 w-1.5 h-1.5 border shrink-0 ${isCurrent ? 'border-brand bg-brand' : 'border-text-faint'}`} />
+        )
       )}
-      <span>{item.label}</span>
+      <span className="min-w-0 truncate">{item.label}</span>
+      {blueMetal && isLink && <ChevronRight size={13} className={`ml-auto shrink-0 ${isCurrent ? 'text-brand' : 'text-text-faint/60'}`} />}
     </button>
   )
 }
@@ -104,6 +153,8 @@ function SidebarNavItem({
   toggleGroup,
   hoverGroup,
   setHoverGroup,
+  blueMetal,
+  forceOpen = false,
   suppressCurrent = false,
 }: {
   item: NavItem
@@ -115,17 +166,25 @@ function SidebarNavItem({
   toggleGroup: (groupKey: string, parentKey: string) => void
   hoverGroup: ReadonlySet<string>
   setHoverGroup: (updater: (prev: Set<string>) => Set<string>) => void
+  blueMetal: boolean
+  forceOpen?: boolean
   suppressCurrent?: boolean
 }) {
   if (!('items' in item) || !item.items) {
-    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} suppressCurrent={suppressCurrent} />
+    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} suppressCurrent={suppressCurrent} />
   }
   // Full ancestor path, not just depth — depth alone can't tell two
   // same-depth groups under different parents apart, which would make the
   // accordion incorrectly close a group in an unrelated branch.
   const groupKey = `${parentKey}>${item.label}`
   const isPinned = Boolean(openGroups[groupKey])
-  const isOpen = isPinned || hoverGroup.has(groupKey) || depth === 0
+  // Top-level groups used to always render open (an unconditional `depth
+  // === 0` term here), which defeated the accordion entirely for any
+  // section with several top-level groups (e.g. ZRA's ASYCUDA/Sales/
+  // Customer/Purchase/Item Info all showing expanded at once no matter what
+  // was clicked). They now behave like every other depth: closed until
+  // pinned open (click) or previewed (hover/search).
+  const isOpen = isPinned || hoverGroup.has(groupKey) || (blueMetal && forceOpen)
   // A group can also be a real page (e.g. Payroll's "Human Resource" —
   // matches the legacy menu, where clicking that parent node lands on its
   // Holiday Management/All Leave Request page). currentUrl mirrors
@@ -133,13 +192,15 @@ function SidebarNavItem({
   // since a group's path can carry one too.
   const hasActiveDescendant = item.items.some((sub) => itemContainsPath(sub, location))
   const isCurrent = pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
+  const isActive = isCurrent || hasActiveDescendant
+  const ItemIcon = getNavItemIcon(item.label)
   // Not memoized: item.items is small (a handful of sidebar rows) and this
   // component is already an early-return above hooks, so a useMemo here
   // would run conditionally and violate the Rules of Hooks.
   const childSuppressed = computeSuppressedIndices(item.items)
   return (
     <div
-      className="pt-0.5 first:pt-0"
+      className="pt-1 first:pt-0"
       // A nested group's own mouse-enter/leave only adds/removes *its own*
       // key — never overwrites a single shared value — so hovering into a
       // child (physically still inside every ancestor's box) can't blow
@@ -171,22 +232,32 @@ function SidebarNavItem({
             }
           }}
           onMouseEnter={item.path ? () => prefetchRoute(item.path!) : undefined}
-          style={{ paddingLeft: `${depth * 0.75 + 0.25}rem` }}
-          className={`flex-1 min-w-0 text-left py-1.5 rounded-md text-[13px] font-semibold transition-colors ${isCurrent || hasActiveDescendant ? 'bg-brand/10 text-brand' : isPinned ? 'text-brand' : 'text-text-muted hover:text-text'}`}
+          style={{ paddingLeft: `${depth * 1 + 0.5}rem` }}
+          className={
+            blueMetal
+              ? `flex-1 min-w-0 flex items-center gap-2 text-left py-2 rounded-md transition-colors ${depth === 0 ? 'text-[11px] font-bold uppercase tracking-wide' : 'text-sm font-semibold'} ${isActive ? 'bg-brand/12 text-brand shadow-sm ring-1 ring-brand/20' : isPinned ? 'text-brand' : 'text-text-muted hover:bg-brand/8 hover:text-brand'}`
+              : `flex-1 min-w-0 text-left py-2 rounded-md text-[13px] font-semibold transition-colors ${isCurrent || isPinned ? 'text-brand' : 'text-text-muted hover:text-text'}`
+          }
         >
+          {blueMetal && (
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${getNavItemIconTileClass(item.label)} ${isActive ? 'ring-2 ring-brand/60' : ''}`}>
+              <ItemIcon size={14} strokeWidth={2} />
+            </span>
+          )}
           <span className="truncate">{item.label}</span>
         </button>
         <button
           type="button"
           onClick={() => toggleGroup(groupKey, parentKey)}
           title={`${isOpen ? 'Collapse' : 'Expand'} ${item.label}`}
-          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${isOpen ? 'bg-brand text-white' : 'bg-brand/90 text-white hover:bg-brand'}`}
+          className={blueMetal ? `flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-faint transition-colors hover:bg-brand/10 hover:text-brand ${isOpen ? 'text-brand' : ''}` : `flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${isOpen ? 'bg-brand text-white' : 'bg-brand/90 text-white hover:bg-brand'}`}
         >
-          <Plus size={11} strokeWidth={3} className={`transition-transform ${isOpen ? 'rotate-45' : ''}`} />
+          {blueMetal ? <ChevronDown size={14} strokeWidth={2.5} className={`transition-transform ${isOpen ? '' : '-rotate-90'}`} /> : <Plus size={11} strokeWidth={3} className={`transition-transform ${isOpen ? 'rotate-45' : ''}`} />}
         </button>
       </div>
       <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
+          <div className="space-y-0.5">
           {item.items.map((sub, i) => (
             <SidebarNavItem
               // Index-qualified: the dynamic backend menu (ecuenta9) can
@@ -204,9 +275,12 @@ function SidebarNavItem({
               toggleGroup={toggleGroup}
               hoverGroup={hoverGroup}
               setHoverGroup={setHoverGroup}
+              blueMetal={blueMetal}
               suppressCurrent={childSuppressed.has(i)}
+              forceOpen={forceOpen}
             />
           ))}
+          </div>
         </div>
       </div>
     </div>
@@ -221,7 +295,9 @@ function itemContainsPath(item: NavItem, location: Location): boolean {
 export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onClose?: () => void; onOpen?: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { theme } = useTheme()
   const { data: menu } = useAppMenu()
+  const blueMetal = theme === 'blue-metal'
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
   // React path (see buildNavSections) and covers the one frame before the
@@ -232,6 +308,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   }, [menu])
   const [activeKey, setActiveKey] = useState('home')
   const [hovering, setHovering] = useState(false)
+  const [menuSearch, setMenuSearch] = useState('')
   // Accordion, keyed by full ancestor path (see SidebarNavItem's groupKey):
   // clicking a header pins it open and closes whichever *sibling* — same
   // immediate parent — was previously pinned, but leaves ancestors and
@@ -244,7 +321,9 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [hoverGroup, setHoverGroup] = useState<Set<string>>(() => new Set())
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
-  const activeSuppressed = useMemo(() => computeSuppressedIndices(active.items), [active.items])
+  const ActiveIcon = active.icon
+  const visibleItems = useMemo(() => filterNavItems(active.items, blueMetal ? menuSearch : ''), [active.items, blueMetal, menuSearch])
+  const activeSuppressed = useMemo(() => computeSuppressedIndices(visibleItems), [visibleItems])
 
   // Sync activeKey to the current route's section — but ONLY when the route
   // changes (location.pathname) or the menu data loads (SECTIONS), never when
@@ -308,65 +387,99 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
     })
   }
 
-  // Pinned-open (`open` prop, toggled by Navbar's collapse button) keeps the
-  // flyout in normal flex flow, pushing <main> over. When collapsed,
-  // hovering the rail temporarily reveals the same flyout as a floating
-  // overlay instead (so it doesn't reflow page content on every hover), and
-  // hides it again on mouse-leave — the "expand and shrink on hover" behavior.
+  // Both pinned-open and hover-expanded states reserve the flyout width in
+  // flex flow so the navigation never covers page content. Hover expansion
+  // remains temporary and returns to the icon rail on mouse-leave.
   const expanded = open || hovering
 
   return (
-    <div className="relative flex h-full shrink-0 bg-rail-bg" onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
+    <div className={`relative flex h-full shrink-0 bg-rail-bg transition-[width] duration-300 ease-in-out ${expanded ? 'w-[328px]' : RAIL_WIDTH_CLASS}`} onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
+        {/* <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2"> */}
         <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
-        {SECTIONS.map((section) => {
-          const Icon = section.icon
-          const isActive = section.key === activeKey
-          return (
-            <button
-              key={section.key}
-              type="button"
-              title={section.label}
-              onClick={() => {
-                setActiveKey(section.key)
-                setOpenGroups({})
-                setHoverGroup(new Set())
-                if (!open && onOpen) onOpen()
-                if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
-              }}
-              className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
-                isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
-              }`}
-            >
-              <span className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
-                isActive ? 'bg-brand text-white shadow-md shadow-brand/25' : 'group-hover/rail:bg-brand/10'
-              }`}>
-                <Icon size={20} strokeWidth={1.8} />
-              </span>
-              <span className="w-full truncate text-center">{section.label}</span>
-            </button>
-          )
-        })}
+          {SECTIONS.map((section) => {
+            const Icon = section.icon
+            const isActive = section.key === activeKey
+            const isBlueMetal = theme === 'blue-metal'
+            return (
+              <button
+                key={section.key}
+                type="button"
+                title={section.label}
+                onClick={() => {
+                  setActiveKey(section.key)
+                  setMenuSearch('')
+                  setOpenGroups({})
+                  setHoverGroup(new Set())
+                  if (!open && onOpen) onOpen()
+                  if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
+                }}
+                className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
+                  isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
+                }`}
+              >
+                <span
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${
+                    isBlueMetal
+                      ? isActive
+                        ? 'border-[#66caff] bg-[linear-gradient(145deg,#2aa9ff,#0754a5)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_0_16px_rgba(22,139,255,0.55)]'
+                        : 'border-[#2b6e9f] bg-[linear-gradient(145deg,#173958,#091522)] text-[#6acfff] shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_0_10px_rgba(22,139,255,0.18)]'
+                      : isActive
+                        ? 'border-transparent bg-brand text-white shadow-md shadow-brand/25'
+                        : 'border-transparent group-hover/rail:bg-brand/10'
+                  }`}
+                >
+                  <Icon size={20} strokeWidth={1.8} />
+                </span>
+                <span className="w-full truncate text-center">{section.label}</span>
+              </button>
+            )
+          })}
         </div>
       </aside>
 
       <div
-        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scrollbar-none transition-all duration-300 ease-in-out translate-x-0 z-999 ${
-          open ? 'relative w-64 flex-1 rounded-tl-2xl' : `  ${RAIL_WIDTH_OFFSET_CLASS} border-r border-border top-0 shadow-xl ${expanded ? 'w-64 rounded-tl-2xl' : 'w-0 border-0'}`
+        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-all duration-300 ease-in-out translate-x-0 z-[1] rounded-tl-2xl ${
+          expanded ? 'relative w-64 flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 w-0`
         }`}
         onMouseEnter={() => !open && setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         <div className="soft-scrollbar w-64 h-full overflow-y-auto overflow-x-hidden px-4 pb-5">
-          <div className="sticky top-0 z-10 flex items-center justify-between bg-surface pt-4 pb-3">
-            <span className="text-sm font-bold tracking-wide text-brand uppercase">{active.label}</span>
+          <div className={`sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-surface ${blueMetal ? 'px-2 pt-4 pb-3' : 'pt-4 pb-3'}`}>
+            {blueMetal ? (
+              <>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-brand shadow-sm">
+                  <ActiveIcon size={21} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-base font-bold text-text">{active.label}</h2>
+                  <p className="truncate text-[11px] text-text-faint">{sectionSubtitle(active.key)}</p>
+                </div>
+              </>
+            ) : (
+              <span className="flex-1 text-sm font-bold tracking-wide text-brand uppercase">{active.label}</span>
+            )}
             <button type="button" onClick={onClose} title="Close menu" className="p-1 rounded-md text-text hover:bg-surface-alt">
               <X size={16} strokeWidth={2.5} />
             </button>
           </div>
-          <div className="space-y-0">
-            {active.items.length === 0 && <p className="text-xs italic text-text-muted px-2 py-1">Nothing here yet.</p>}
-            {active.items.map((item, i) => (
+          {blueMetal && (
+            <label className="relative mt-3 mb-2 block">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+              <input
+                value={menuSearch}
+                onChange={(event) => setMenuSearch(event.target.value)}
+                placeholder="Search menu..."
+                aria-label={`Search ${active.label} menu`}
+                className="h-9 w-full rounded-md border border-input-border bg-input-bg pl-9 pr-3 text-sm text-text placeholder:text-text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+            </label>
+          )}
+          <div className="space-y-0.5">
+            {active.items.length === 0 && <p className="px-2 py-2 text-xs italic text-text-muted">Nothing here yet.</p>}
+            {active.items.length > 0 && visibleItems.length === 0 && <p className="px-2 py-2 text-xs text-text-faint">No matching menu items.</p>}
+            {visibleItems.map((item, i) => (
               <SidebarNavItem
                 key={`${item.label}-${i}`}
                 item={item}
@@ -378,6 +491,8 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
                 toggleGroup={toggleGroup}
                 hoverGroup={hoverGroup}
                 setHoverGroup={setHoverGroup}
+                forceOpen={blueMetal && Boolean(menuSearch.trim())}
+                blueMetal={blueMetal}
                 suppressCurrent={activeSuppressed.has(i)}
               />
             ))}

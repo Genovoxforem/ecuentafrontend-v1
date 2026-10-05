@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '../../api/axios'
+import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
 
 export interface InvoiceRow {
   id: number
@@ -140,7 +141,8 @@ export function parseInvoiceListRow(r: RawAjaxInvoice): InvoiceRow | null {
 // exactly the classic screen's own cards.
 export async function fetchInvoicesSummary(): Promise<InvoicesSummary> {
   const body = new URLSearchParams({ draw: '1', start: '0', length: '5000', 'order[0][column]': '2', 'order[0][dir]': 'desc', 'columns[0][data]': 'ref' })
-  const { data } = await axios.post<{ aaData?: RawAjaxInvoice[] }>('/compta/facture/invoice_ajax_list.php?socid=0&userid=0&search_status=', body)
+  const { data: raw } = await axios.post<unknown>('/compta/facture/invoice_ajax_list.php?socid=0&userid=0&search_status=', body)
+  const data = legacyJsonBody<{ aaData?: RawAjaxInvoice[] }>(raw, 'The invoice list')
   const rows = (data.aaData ?? [])
     .map(parseInvoiceListRow)
     .filter((r): r is InvoiceRow => r !== null)

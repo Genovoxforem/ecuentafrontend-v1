@@ -4,6 +4,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useTheme } from '../../../context/ThemeContext'
 import { useLanguageOptions } from '../../users/users.queries'
 import { RealToggle } from './RealToggle'
+import { SetupShell } from './SetupShell'
 
 function Row({ label, hint, caption, children }: { label: string; hint?: string; caption?: string; children: ReactNode }) {
   return (
@@ -126,12 +127,13 @@ export function DisplaySetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Monitor size={20} className="text-brand" /> Display
-      </h2>
-      <p className="text-sm text-text-muted">Parameters affecting the look and behaviour of Ecuenta can be modified here.</p>
-
+    <SetupShell
+      icon={Monitor}
+      title="Display"
+      description="Parameters affecting the look and behaviour of Ecuenta can be modified here."
+      onSave={handleSave}
+      saved={saved ? 'Saved (session-only — the toggle switches save live as you flip them; everything else on this page has no backing endpoint yet).' : undefined}
+    >
       <Card className="!h-auto">
         <SectionPill>Language</SectionPill>
         <Row label="Default Language">
@@ -179,9 +181,25 @@ export function DisplaySetup() {
       </Card>
 
       <Card className="!h-auto">
-        <SectionPill>Dark Mode</SectionPill>
-        <Row label="Enable Dark Mode" caption="Switch to a dark color scheme for reduced eye strain in low-light environments">
-          <Toggle checked={theme === 'dark'} onChange={(v) => setTheme(v ? 'dark' : 'light')} />
+        <SectionPill>Appearance</SectionPill>
+        <Row label="Color Theme" caption="Choose the color scheme used across the application">
+          <div className="inline-flex rounded-lg border border-border bg-surface-alt p-1" role="group" aria-label="Color theme">
+            {([
+              ['light', 'Light'],
+              ['dark', 'Dark'],
+              ['blue-metal', 'Blue Metal'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTheme(value)}
+                aria-pressed={theme === value}
+                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${theme === value ? 'bg-surface text-brand shadow-sm' : 'text-text-muted hover:text-text'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </Row>
       </Card>
 
@@ -258,18 +276,6 @@ export function DisplaySetup() {
         </Row>
       </Card>
 
-      {saved && (
-        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
-          Saved (session-only — the toggle switches above save live as you flip them; everything else on this page has no backing endpoint yet).
-        </Card>
-      )}
-
-      <div className="flex justify-start">
-        <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
-          Save
-        </button>
-      </div>
-
       <Card className="!h-auto">
         <button type="button" onClick={() => setConsoleLoggingOpen((v) => !v)} className="flex items-center gap-2 text-sm font-semibold text-text! w-full text-left">
           <span className="text-text-faint">{consoleLoggingOpen ? '⌄' : '›'}</span> ConsoleLogging
@@ -285,6 +291,6 @@ export function DisplaySetup() {
           </div>
         )}
       </Card>
-    </div>
+    </SetupShell>
   )
 }

@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'w-16 h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -66,14 +67,18 @@ export function AlertsSetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <AlertTriangle size={20} className="text-brand" /> Delay before displaying a warning alert for:
-      </h2>
-      <p className="text-sm text-text-muted">
-        Set the delay before an alert icon <AlertTriangle size={13} className="inline text-danger -mt-0.5" /> is shown onscreen for the late element. Only elements from enabled modules are shown.
-      </p>
-
+    <SetupShell
+      icon={AlertTriangle}
+      title="Delay before displaying a warning alert for:"
+      description={
+        <>
+          Set the delay before an alert icon <AlertTriangle size={13} className="inline text-danger -mt-0.5" /> is shown onscreen for the late element. Only elements from enabled modules are shown.
+        </>
+      }
+      onSave={handleModify}
+      saveLabel="Modify"
+      saved={saved ? 'Saved (session-only — no alerts-config endpoint exists on this backend yet).' : undefined}
+    >
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
           <span>Delay Before Displaying A Warning Alert For:</span>
@@ -114,13 +119,6 @@ export function AlertsSetup() {
         </ul>
       </Card>
 
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (session-only — no alerts-config endpoint exists on this backend yet).</Card>}
-
-      <div className="flex justify-start">
-        <button type="button" onClick={handleModify} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
-          Modify
-        </button>
-      </div>
-    </div>
+    </SetupShell>
   )
 }

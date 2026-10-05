@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Languages, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import {
@@ -406,47 +407,46 @@ export function TranslationSetup() {
   const [tab, setTab] = useState<'search' | 'overwrite'>('search')
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Languages size={20} className="text-brand" /> Translation
-        </h2>
-        {overwrites && (
+    <SetupShell
+      icon={Languages}
+      title="Translation"
+      description={
+        overwrites?.currentLanguage ? (
+          <>
+            Current user language: <span className="font-semibold text-text!">{overwrites.currentLanguage}</span>
+          </>
+        ) : undefined
+      }
+      headerRight={
+        overwrites && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-text-muted">Enable usage of overwritten translation</span>
             <Switch checked={overwrites.enabled} busy={toggle.isPending} onChange={(v) => toggle.mutate(v)} />
           </div>
-        )}
-      </div>
-
-      {overwrites?.currentLanguage && (
-        <p className="text-sm text-text-muted">
-          Current user language: <span className="font-semibold text-text!">{overwrites.currentLanguage}</span>
-        </p>
-      )}
+        )
+      }
+      underlinedTabs={false}
+      tabs={(
+        [
+          ['search', 'Search a translation key or string'],
+          ['overwrite', 'Overwrite a translation string'],
+        ] as const
+      ).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setTab(key)}
+          className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide rounded-md ${tab === key ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted border border-border hover:bg-surface-hover'}`}
+        >
+          {label}
+        </button>
+      ))}
+    >
       {toggle.isError && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           <p role="alert">{toggle.error instanceof Error ? toggle.error.message : 'The setting could not be changed.'}</p>
         </Card>
       )}
-
-      <div className="flex gap-2">
-        {(
-          [
-            ['search', 'Search a translation key or string'],
-            ['overwrite', 'Overwrite a translation string'],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide rounded-md ${tab === key ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted border border-border hover:bg-surface-hover'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       {isLoading ? (
         <LegacyLoadingCard label="Loading translation settings…" />
@@ -457,6 +457,6 @@ export function TranslationSetup() {
       ) : (
         <OverwriteTab languages={overwrites.languageOptions} enabled={overwrites.enabled} rows={overwrites.rows} />
       )}
-    </div>
+    </SetupShell>
   )
 }

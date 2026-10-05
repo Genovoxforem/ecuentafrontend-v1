@@ -3,6 +3,7 @@ import { Lightbulb, ArrowUp, ArrowDown, Trash2, Loader2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { SetupShell } from './SetupShell'
 import { useActivateWidgets, useDisableWidget, useMoveWidget, useSaveWidgetSettings, useWidgetsPage } from '../widgets.queries'
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -64,15 +65,17 @@ export function WidgetsSetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Lightbulb size={20} className="text-brand" /> Widgets
-      </h2>
-      <p className="text-sm text-text-muted">
-        Widgets are components showing some information that you can add to personalize some pages. You can choose between showing the widget or not by selecting target page and clicking
-        "Activate", or by clicking the trashcan to disable it. Only elements from enabled modules are shown.
-      </p>
-
+    <SetupShell
+      icon={Lightbulb}
+      title="Widgets"
+      description={
+        'Widgets are components showing some information that you can add to personalize some pages. You can choose between showing the widget or not by selecting target page and clicking "Activate", or by clicking the trashcan to disable it. Only elements from enabled modules are shown.'
+      }
+      onSave={handleSave}
+      saving={saveSettings.isPending}
+      saveDisabled={busy}
+      saved={saved ? 'Settings saved.' : undefined}
+    >
       {failure && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           <p role="alert">{failure instanceof Error ? failure.message : 'The change could not be made.'}</p>
@@ -224,22 +227,6 @@ export function WidgetsSetup() {
         </table>
       </Card>
 
-      {saved && (
-        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
-          <p role="status">Settings saved.</p>
-        </Card>
-      )}
-
-      <div className="flex justify-start">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={busy}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          {saveSettings.isPending && <Loader2 size={14} className="animate-spin" />} Save
-        </button>
-      </div>
-    </div>
+    </SetupShell>
   )
 }

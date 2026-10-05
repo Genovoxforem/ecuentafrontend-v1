@@ -111,3 +111,20 @@ export function useCustomerInvoiceDefaults(socid: string) {
     staleTime: 1000 * 30,
   })
 }
+
+// Currencies offered by the classic create page's <select name="multicurrency_code">
+// (the instance's base currency plus the multicurrency ones it has set up).
+export function useInvoiceCurrencies() {
+  return useQuery({
+    queryKey: ['invoice', 'currencies'],
+    queryFn: async (): Promise<DictionaryOption[]> => {
+      const doc = await fetchLegacyDocument('/compta/facture/card.php', new URLSearchParams({ action: 'create' }))
+      const select = doc.querySelector('select[name="multicurrency_code"]')
+      if (!select) return []
+      return Array.from(select.querySelectorAll('option'))
+        .map((o) => ({ id: o.getAttribute('value') ?? '', text: (o.textContent ?? '').replace(/\s+/g, ' ').trim() }))
+        .filter((o) => o.id)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}

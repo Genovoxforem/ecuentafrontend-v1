@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MessageSquare, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -17,12 +18,19 @@ export function SmsSetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <MessageSquare size={20} className="text-brand" /> SMS setup
-      </h2>
-      <p className="text-sm text-text-muted">This page allows you to define global options on SMS features</p>
-
+    <SetupShell
+      icon={MessageSquare}
+      title="SMS setup"
+      description="This page allows you to define global options on SMS features"
+      onSave={handleModify}
+      saveLabel="Modify"
+      saved={saved ? 'Saved (session-only — no SMS-config endpoint exists on this backend yet).' : undefined}
+      footerExtra={
+        <button type="button" disabled title="No SMS provider is configured on this backend" className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-faint cursor-not-allowed">
+          Test Sending
+        </button>
+      }
+    >
       <p className="text-sm text-warning-fg bg-warning-bg border border-warning/30 rounded-md px-3 py-2">
         No SMS sender manager available. A SMS sender manager is not installed with the default distribution because they depend on an external vendor — same gap on this backend, which has no SMS
         provider integration either.
@@ -56,16 +64,6 @@ export function SmsSetup() {
         </div>
       </Card>
 
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (session-only — no SMS-config endpoint exists on this backend yet).</Card>}
-
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={handleModify} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          Modify
-        </button>
-        <button type="button" disabled title="No SMS provider is configured on this backend" className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-faint cursor-not-allowed">
-          Test Sending
-        </button>
-      </div>
-    </div>
+    </SetupShell>
   )
 }

@@ -25,6 +25,20 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
   return <div className={`bg-surface-alt border border-border rounded-xl p-4 h-full flex flex-col ${className}`}>{children}</div>
 }
 
+export function DetailMetricTile({ label, value, icon: Icon }: { label: string; value: ReactNode; icon: ComponentType<{ size?: number; className?: string }> }) {
+  return (
+    <div className="flex flex-1 min-w-[145px] items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="truncate text-xs text-text-faint uppercase tracking-wide">{label}</p>
+        <p className="mt-0.5 truncate text-lg font-bold text-text!">{value}</p>
+      </div>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand/25 bg-brand/10 text-brand">
+        <Icon size={16} />
+      </span>
+    </div>
+  )
+}
+
 export function SectionHeading({ icon: Icon, children }: { icon: ComponentType<{ size?: number; className?: string }>; children: ReactNode }) {
   return (
     <h3 className="flex items-center gap-2 font-semibold text-text!">

@@ -1,17 +1,56 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '../../api/axios'
+import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
 import { parseVendorInvoiceListRow, type RawVendorInvoiceListRow } from './vendorInvoiceListParser'
 
-export type VendorInvoiceStatus = 'all' | 'paid' | 'unpaid' | 'manual' | 'automatic'
+// The classic Purchase Invoices page's own views: the toolbar's All / Manual
+// Purchases / Automatic Purchases / Marked As Expense / Imports(ASYCUDA)
+// buttons and the ⋮ menu's status filters. Every one is filtered server-side
+// by facture_ajax_list.php, exactly as the classic page asks for it
+// (VENDOR_INVOICE_VIEW_QUERY) — the Expense view depends on f.internal_exp,
+// which the list doesn't return, so it can't be filtered here.
+export type VendorInvoiceStatus =
+  | 'all'
+  | 'manual'
+  | 'automatic'
+  | 'expense'
+  | 'imports'
+  | 'draft'
+  | 'validated'
+  | 'succeeded'
+  | 'notSucceeded'
+  | 'paid'
+  | 'unpaid'
+  | 'abandoned'
+
+// importlist.php?type=02&code=M|A|IE and ?type=01 (the toolbar buttons), and
+// list.php?search_status=N (the ⋮ menu): 6/7 = ZRA upload (not) succeeded,
+// 8/9 = paid / not paid (f.paye), 0/1/3 = draft / validated / abandoned.
+export const VENDOR_INVOICE_VIEW_QUERY: Record<VendorInvoiceStatus, string> = {
+  all: 'socid=0&search_status=',
+  manual: 'type=02&code=M',
+  automatic: 'type=02&code=A',
+  expense: 'type=02&code=IE',
+  imports: 'type=01&code=',
+  draft: 'socid=0&search_status=0',
+  validated: 'socid=0&search_status=1',
+  succeeded: 'socid=0&search_status=6',
+  notSucceeded: 'socid=0&search_status=7',
+  paid: 'socid=0&search_status=8',
+  unpaid: 'socid=0&search_status=9',
+  abandoned: 'socid=0&search_status=3',
+}
 
 export interface VendorInvoiceRow {
   id: number | null
   ref: string
   refSupplier: string | null
   invoiceDate: string | null
+  dueDate: string
   thirdPartyId: number | null
   thirdPartyName: string | null
+  thirdPartySubtitle: string
   paymentTypeLabel: string | null
   amountHt: number
   amountVat: number
@@ -19,6 +58,10 @@ export interface VendorInvoiceRow {
   saleTypeCode: string | null
   registrationTypeCode: string | null
   statusCode: number
+  // The classic badge's own wording (Draft / Not paid / Started / Paid / Abandoned) and badge number.
+  statusLabel: string
+  statusBadge: number | null
+  currency: string
   paye: boolean
   zraStatus: string | null
 }
@@ -38,7 +81,7 @@ interface VendorInvoicesPayload {
 
 const STATUS_LABELS: Record<number, string> = { 0: 'Draft', 1: 'Not Paid', 2: 'Paid', 3: 'Abandoned' }
 export function vendorInvoiceStatusLabel(row: VendorInvoiceRow) {
-  return STATUS_LABELS[row.statusCode] ?? 'Unknown'
+  return row.statusLabel || STATUS_LABELS[row.statusCode] || 'Unknown'
 }
 
 interface FactureAjaxListResponse {
@@ -69,9 +112,12 @@ function statusCodeFromLabel(label: string, paye: boolean): number {
   return 1
 }
 
-export function useVendorInvoices(status: VendorInvoiceStatus, search = '', page = 1, limit = 500) {
+// `dateRange` is the classic page's date-range picker ("YYYY-MM-DD - YYYY-MM-DD"
+// in its datefilter field).
+export function useVendorInvoices(status: VendorInvoiceStatus, search = '', dateRange?: { from: string; to: string }) {
+  const datefilter = dateRange?.from && dateRange.to ? `${dateRange.from} - ${dateRange.to}` : ''
   return useQuery({
-    queryKey: ['vendor-invoices', status, search, page, limit],
+    queryKey: ['vendor-invoices', status, search, datefilter],
     queryFn: async (): Promise<VendorInvoicesPayload> => {
       const body = new URLSearchParams({
         draw: '1',
@@ -82,10 +128,12 @@ export function useVendorInvoices(status: VendorInvoiceStatus, search = '', page
         'order[0][dir]': 'desc',
       })
       if (search) body.set('search[value]', search)
-      const [{ data: listData }, { data: statsData }] = await Promise.all([
-        axios.post<FactureAjaxListResponse>('/fourn/facture/facture_ajax_list.php', body),
+      if (datefilter) body.set('datefilter', datefilter)
+      const [{ data: rawList }, { data: statsData }] = await Promise.all([
+        axios.post<unknown>(`/fourn/facture/facture_ajax_list.php?${VENDOR_INVOICE_VIEW_QUERY[status]}`, body),
         axios.get<{ ok: boolean; stats: { suppliers: number } }>('/societe/api/societes.php', { params: { action: 'stats' } }),
       ])
+      const listData = legacyJsonBody<FactureAjaxListResponse>(rawList, 'The vendor invoice list')
 
       const parsed = (listData.aaData ?? []).map(parseVendorInvoiceListRow)
       const rows: VendorInvoiceRow[] = parsed.map((r) => ({
@@ -93,6 +141,11 @@ export function useVendorInvoices(status: VendorInvoiceStatus, search = '', page
         ref: r.ref,
         refSupplier: r.refSupplier,
         invoiceDate: r.invoiceDate,
+        dueDate: r.dueDate,
+        thirdPartySubtitle: r.thirdPartySubtitle,
+        statusLabel: r.statusLabel,
+        statusBadge: r.statusBadge,
+        currency: r.currency,
         // r.thirdPartyUrl is the real Societe::getNomUrl(option='supplier')
         // href (fourn/card.php?socid=N) already parsed out by
         // vendorInvoiceListParser.ts — extracting the id from it here (same
@@ -112,20 +165,15 @@ export function useVendorInvoices(status: VendorInvoiceStatus, search = '', page
         zraStatus: r.zraStatus,
       }))
 
-      const items = rows.filter((r) => {
-        if (status === 'paid') return r.statusCode === 2
-        if (status === 'unpaid') return r.statusCode === 1
-        if (status === 'manual') return r.registrationTypeCode === 'M'
-        if (status === 'automatic') return r.registrationTypeCode === 'A'
-        return true
-      })
-
+      // The classic cards: registration type A / M summed over the rows (only
+      // meaningful for the unfiltered "all" view, where they match the cards
+      // of list.php: 473,889.98 / 524,425.35 on 172.16.5.10).
       const automaticAmount = rows.filter((r) => r.registrationTypeCode === 'A').reduce((sum, r) => sum + r.amountTtc, 0)
       const manualAmount = rows.filter((r) => r.registrationTypeCode === 'M').reduce((sum, r) => sum + r.amountTtc, 0)
 
       return {
-        items,
-        total: items.length,
+        items: rows,
+        total: rows.length,
         summary: {
           suppliers: statsData.stats?.suppliers ?? 0,
           invoices: listData.iTotalRecords ?? rows.length,
