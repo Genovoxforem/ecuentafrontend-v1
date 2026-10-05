@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Shield, Eye, EyeOff } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 import { RealToggle } from './RealToggle'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -118,30 +119,29 @@ export function SecuritySetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Shield size={20} className="text-brand" /> Security setup
-      </h2>
-      <p className="text-sm text-text-muted">All other security related parameters are defined here.</p>
-
-      <div className="flex flex-wrap gap-2 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`relative px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 -mb-px ${
-              tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
-            }`}
-          >
-            {t}
-            {t === 'Default permissions' && activePermsCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-4 text-white text-center bg-danger">{activePermsCount}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
+    <SetupShell
+      icon={Shield}
+      title="Security setup"
+      description="All other security related parameters are defined here."
+      onSave={tab !== 'Files (upload)' ? handleSave : undefined}
+      saveLabel={tab === 'Audit' ? 'Save' : 'Modify'}
+      saved={saved ? 'Saved (session-only — the two Miscellaneous toggles save live; no other security-config endpoint exists on this backend yet).' : undefined}
+      tabs={TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setTab(t)}
+          className={`relative px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 ${
+            tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
+          }`}
+        >
+          {t}
+          {t === 'Default permissions' && activePermsCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-4 text-white text-center bg-danger">{activePermsCount}</span>
+          )}
+        </button>
+      ))}
+    >
       {tab === 'Miscellaneous' && (
         <Card className="!h-auto !p-0 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
@@ -424,19 +424,6 @@ export function SecuritySetup() {
         </>
       )}
 
-      {saved && (
-        <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">
-          Saved (session-only — the two Miscellaneous toggles above save live; no other security-config endpoint exists on this backend yet).
-        </Card>
-      )}
-
-      {tab !== 'Files (upload)' && (
-        <div className="flex justify-start">
-          <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
-            {tab === 'Audit' ? 'Save' : 'Modify'}
-          </button>
-        </div>
-      )}
-    </div>
+    </SetupShell>
   )
 }

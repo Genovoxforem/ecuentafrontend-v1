@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Plus, Search, CalendarRange } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../dashboard/DashboardKit'
 import { ListPagination } from '../ListPagination'
@@ -9,6 +9,8 @@ import { Th, TheadRow, useSortableRows } from '../table/SortableTh'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { useUserIdByName } from '../../../features/users/users.queries'
+import { useTheme } from '../../../context/ThemeContext'
+import { isBannerListPage } from '../layout/PageBanner'
 
 type SortKey = 'name' | 'country' | 'balance' | 'tpin' | 'salesRep' | 'email' | 'nature' | 'trackingId' | 'creation' | 'status'
 
@@ -230,6 +232,8 @@ function computeRange(key: RangeKey, customFrom: string, customTo: string): { fr
 export function ThirdPartyList({
   icon: HeaderIcon,
   title,
+  description,
+  bannerImage,
   newPath,
   newLabel,
   stats,
@@ -237,11 +241,17 @@ export function ThirdPartyList({
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
+  description?: string
+  bannerImage?: string
   newPath: string
   newLabel: string
   stats: ThirdPartyStatSpec[]
   rows: ThirdPartyRow[]
 }) {
+  const { theme } = useTheme()
+  const location = useLocation()
+  const shellBannerActive = isBannerListPage(location.pathname, theme)
+  const showBanner = theme === 'blue-metal' && Boolean(bannerImage)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
@@ -304,14 +314,38 @@ export function ThirdPartyList({
           own padding edge (24px inset), not its true edge — -24px shifts the stick point to
           clamp flush against main's true top instead. See StickyFormShell.tsx for the full
           writeup. -mx-6 bleeds it edge-to-edge horizontally the same way. */}
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <HeaderIcon size={20} className="text-brand" /> {title}
-        </h2>
-        <Link to={newPath} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          <Plus size={14} /> {newLabel}
-        </Link>
-      </div>
+      {!shellBannerActive && (
+        <div className={`sticky -top-6 z-10 -mx-6 border-b border-border ${showBanner ? 'bg-surface' : 'flex flex-wrap items-center justify-between gap-3 bg-white px-6 py-3 dark:bg-gray-950'}`}>
+          {showBanner ? (
+          <div className="relative flex min-h-[86px] flex-wrap items-center justify-between gap-5 overflow-hidden px-6 py-3 sm:min-h-24 sm:px-8">
+            <img src={bannerImage} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,14,28,0.96)_0%,rgba(3,14,28,0.82)_43%,rgba(3,14,28,0.34)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,121,206,0.22),transparent_54%,rgba(4,15,29,0.24))]" />
+            <div className="relative z-10 flex min-w-0 items-center gap-4 text-white">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-cyan-200/50 bg-blue-500/20 text-cyan-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_22px_rgba(0,158,255,0.3)] backdrop-blur-sm sm:h-16 sm:w-16">
+                <HeaderIcon size={34} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-2xl font-bold text-white sm:text-3xl">{title}</h2>
+                {description && <p className="mt-1 text-sm text-blue-100/85 sm:text-base">{description}</p>}
+              </div>
+            </div>
+            <Link to={newPath} className="relative z-10 inline-flex shrink-0 items-center gap-2 rounded-lg border border-cyan-200/50 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(0,125,255,0.34)] transition hover:brightness-110">
+              <Plus size={16} /> {newLabel}
+            </Link>
+          </div>
+          ) : (
+            <>
+              <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+                <HeaderIcon size={20} className="text-brand" /> {title}
+              </h2>
+              <Link to={newPath} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+                <Plus size={14} /> {newLabel}
+              </Link>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">

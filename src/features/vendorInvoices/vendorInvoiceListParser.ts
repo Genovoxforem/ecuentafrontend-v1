@@ -20,6 +20,17 @@ function parseAmount(text: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
+// This endpoint's invoice_date cell is "MM/DD/YYYY" (confirmed live), unlike
+// the customer invoice list's own cell which invoices.queries.ts already
+// normalizes to ISO — same conversion applied here so invoiceDate sorts/
+// compares as a plain string and slices into a real year/month everywhere
+// it's consumed (VendorInvoiceStatisticsPage's by-year/by-month grouping,
+// home.queries.ts's today/yesterday/monthly purchase totals).
+function toIsoDate(us: string): string {
+  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : us
+}
+
 export interface RawVendorInvoiceListRow {
   ref: string
   ref_vendor: string
@@ -51,6 +62,10 @@ export interface VendorInvoiceListRow {
   saleTypeCode: string | null
   registrationTypeCode: string | null
   statusLabel: string
+  // N of the status badge's badge-statusN class (0 draft, 1 not paid, 3 started, 6 paid, …).
+  statusBadge: number | null
+  // The "Currency: ZMW" line printed under the status badge.
+  currency: string
   paye: boolean
   zraStatus: string | null
 }
@@ -78,6 +93,7 @@ export function parseVendorInvoiceListRow(raw: RawVendorInvoiceListRow): VendorI
 
   const statusText = cellText(raw.status)
   const paye = /\bpaid\b/i.test(statusText) && !/not\s*paid/i.test(statusText)
+  const badgeMatch = /badge-status(\d+)/.exec(raw.status ?? '')
 
   const sartycd = cellText(raw.sartycd)
   const regtycd = cellText(raw.regtycd)
@@ -87,7 +103,7 @@ export function parseVendorInvoiceListRow(raw: RawVendorInvoiceListRow): VendorI
     ref: cellText(raw.ref),
     refUrl: refHref,
     refSupplier: raw.ref_vendor?.trim() || null,
-    invoiceDate: cellText(raw.invoice_date).split('Due:')[0]?.trim() ?? '',
+    invoiceDate: toIsoDate(cellText(raw.invoice_date).split('Due:')[0]?.trim() ?? ''),
     dueDate: cellText(raw.due_date),
     thirdPartyName: (thirdAnchor?.textContent ?? cellText(raw.thirdparty)).trim() || null,
     thirdPartyUrl: thirdAnchor?.getAttribute('href') ?? null,
@@ -99,6 +115,8 @@ export function parseVendorInvoiceListRow(raw: RawVendorInvoiceListRow): VendorI
     saleTypeCode: sartycd && sartycd !== '-' ? sartycd : null,
     registrationTypeCode: regtycd && regtycd !== '-' ? regtycd : null,
     statusLabel: statusText.split('Currency:')[0]?.trim() ?? statusText,
+    statusBadge: badgeMatch ? Number(badgeMatch[1]) : null,
+    currency: /Currency:\s*([A-Z]{3})/.exec(statusText)?.[1] ?? '',
     paye,
     zraStatus: cellText(raw.zrastatus) || null,
   }

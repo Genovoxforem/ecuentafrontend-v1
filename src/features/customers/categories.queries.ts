@@ -26,6 +26,16 @@ interface TreeResponse {
   success: boolean
   error?: string
   categories?: { id: number; fk_parent: number; label: string; fulllabel?: string; description?: string; color?: string | null; count?: number }[]
+  stats?: { total?: number; roots?: number; linked?: number; created_this_month?: number }
+}
+
+// The four cards above the tree: how many tags, how many top-level ones, how
+// many records are tagged and how many tags were created this month.
+export interface CategoryStats {
+  total: number
+  roots: number
+  linked: number
+  createdThisMonth: number
 }
 
 // GET categories/api/index.php?action=tree&type=… — replaces GET
@@ -35,7 +45,7 @@ interface TreeResponse {
 export function useCategories(type: CategoryType, search = '') {
   return useQuery({
     queryKey: ['categories', type],
-    queryFn: async (): Promise<{ items: CategoryRow[]; total: number }> => {
+    queryFn: async (): Promise<{ items: CategoryRow[]; total: number; stats: CategoryStats }> => {
       const { data } = await axios.get<TreeResponse>('/categories/api/index.php', { params: { action: 'tree', type: TYPE_NAME[type] } })
       if (!data.success) throw new Error(data.error ?? 'Could not load tags/categories.')
       const items = (data.categories ?? []).map(
@@ -49,14 +59,54 @@ export function useCategories(type: CategoryType, search = '') {
           itemCount: c.count ?? 0,
         }),
       )
-      return { items, total: items.length }
+      const stats: CategoryStats = {
+        total: data.stats?.total ?? items.length,
+        roots: data.stats?.roots ?? items.filter((c) => !c.parentId).length,
+        linked: data.stats?.linked ?? items.reduce((sum, c) => sum + c.itemCount, 0),
+        createdThisMonth: data.stats?.created_this_month ?? 0,
+      }
+      return { items, total: items.length, stats }
     },
     select: (d) => {
       const q = search.trim().toLowerCase()
       const items = q ? d.items.filter((c) => c.fullLabel.toLowerCase().includes(q)) : d.items
-      return { items, total: items.length }
+      return { items, total: items.length, stats: d.stats }
     },
   })
+}
+
+// A record filed under a tag (a customer or a contact). `href` is the card
+// URL the backend printed for it — resolve it with resolveLegacyRoute, never
+// link to it directly.
+export interface CategoryLinkedItem {
+  id: number
+  ref: string
+  label: string
+  href: string | null
+}
+
+interface ProductsResponse {
+  success: boolean
+  error?: string
+  categories?: Record<string, { id: number; label: string; products?: { id: number; ref?: string; label?: string; link_html?: string }[] }>
+}
+
+function toLinkedItem(p: { id: number; ref?: string; label?: string; link_html?: string }): CategoryLinkedItem {
+  const href = new DOMParser().parseFromString(p.link_html ?? '', 'text/html').querySelector('a')?.getAttribute('href') ?? null
+  return { id: p.id, ref: p.ref ?? '', label: p.label ?? '', href }
+}
+
+// GET categories/api/index.php?action=products&type=…[&category_id=…] — the
+// records filed under one tag, or under every tag when no id is given (the
+// classic page's "Expand products" button). Keyed by tag id.
+export async function fetchCategoryItems(type: CategoryType, categoryId?: number): Promise<Record<number, CategoryLinkedItem[]>> {
+  const { data } = await axios.get<ProductsResponse>('/categories/api/index.php', {
+    params: { action: 'products', type: TYPE_NAME[type], ...(categoryId ? { category_id: categoryId } : {}) },
+  })
+  if (!data.success) throw new Error(data.error ?? 'Could not load the tagged items.')
+  const out: Record<number, CategoryLinkedItem[]> = {}
+  for (const [id, cat] of Object.entries(data.categories ?? {})) out[Number(id)] = (cat.products ?? []).map(toLinkedItem)
+  return out
 }
 
 // The classic "New tag/category" form (categories/card.php?action=create&type=…)

@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { parseReportTable } from '../../shared/legacyReportTableParser'
 
 // Real via adherents/ajax/ajax_adherents_list.php — confirmed genuine JSON
 // DataTables handler with a real permission check (restrictedArea($user,
@@ -56,17 +58,35 @@ function mapRows(data: RawMemberListResponse): MemberRow[] {
   }))
 }
 
+// Fetches every member. Prefers the real JSON handler above; some deployed
+// backends (e.g. demo.ecuenta.online) don't ship that file and answer 404, so
+// the same rows are then scraped from adherents/list.php, whose <table
+// id="example"> prints every member with the same 10 columns in the same
+// order (ref, firstname, lastname, company, login, nature, type, email, end of
+// subscription, status) — confirmed live on both backends.
+async function fetchAllMembers(): Promise<{ rows: MemberRow[]; total: number }> {
+  const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
+  const res = await fetch('/adherents/ajax/ajax_adherents_list.php', { method: 'POST', credentials: 'same-origin', body })
+  if (res.ok) {
+    const data: RawMemberListResponse = await res.json()
+    return { rows: mapRows(data), total: data.recordsTotal }
+  }
+  if (res.status !== 404) throw new Error(`Legacy backend returned ${res.status}.`)
+  const table = parseReportTable(await fetchLegacyText('/adherents/list.php'), 'table#example')
+  const rows = mapRows({ draw: 1, recordsTotal: table.rows.length, recordsFiltered: table.rows.length, data: table.rows })
+  return { rows, total: rows.length }
+}
+
+function useAllMembers() {
+  return useQuery({ queryKey: ['members', 'all'], queryFn: fetchAllMembers })
+}
+
 export function useMembersList(page: number, length: number) {
-  return useQuery({
-    queryKey: ['members', 'list', page, length],
-    queryFn: async (): Promise<{ rows: MemberRow[]; total: number; filtered: number }> => {
-      const body = new URLSearchParams({ draw: '1', start: String(page * length), length: String(length) })
-      const res = await fetch('/adherents/ajax/ajax_adherents_list.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawMemberListResponse = await res.json()
-      return { rows: mapRows(data), total: data.recordsTotal, filtered: data.recordsFiltered }
-    },
-  })
+  const query = useAllMembers()
+  const data = query.data
+    ? { rows: query.data.rows.slice(page * length, (page + 1) * length), total: query.data.total, filtered: query.data.total }
+    : undefined
+  return { ...query, data }
 }
 
 // --- Members Area dashboard (adherents/index.php) -------------------------
@@ -119,43 +139,30 @@ function categorize(row: MemberRow): 'draft' | 'resiliated' | 'upToDate' | 'outO
 }
 
 export function useMembersDashboard() {
-  return useQuery({
-    queryKey: ['members', 'dashboard'],
-    queryFn: async (): Promise<MembersDashboardData> => {
-      const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
-      const res = await fetch('/adherents/ajax/ajax_adherents_list.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawMemberListResponse = await res.json()
-      const rows = mapRows(data)
+  const query = useAllMembers()
+  const data = query.data ? buildDashboard(query.data.rows, query.data.total) : undefined
+  return { ...query, data }
+}
 
-      const byType = new Map<string, { type: string; draft: number; upToDate: number; outOfDate: number; resiliated: number }>()
-      let draft = 0
-      let resiliated = 0
-      let upToDate = 0
-      let outOfDate = 0
+function buildDashboard(rows: MemberRow[], recordsTotal: number): MembersDashboardData {
+  const byType = new Map<string, { type: string; draft: number; upToDate: number; outOfDate: number; resiliated: number }>()
+  let draft = 0
+  let resiliated = 0
+  let upToDate = 0
+  let outOfDate = 0
 
-      for (const row of rows) {
-        const cat = categorize(row)
-        if (cat === 'draft') draft++
-        else if (cat === 'resiliated') resiliated++
-        else if (cat === 'upToDate') upToDate++
-        else outOfDate++
+  for (const row of rows) {
+    const cat = categorize(row)
+    if (cat === 'draft') draft++
+    else if (cat === 'resiliated') resiliated++
+    else if (cat === 'upToDate') upToDate++
+    else outOfDate++
 
-        const typeKey = row.type || 'Unspecified'
-        const entry = byType.get(typeKey) ?? { type: typeKey, draft: 0, upToDate: 0, outOfDate: 0, resiliated: 0 }
-        entry[cat]++
-        byType.set(typeKey, entry)
-      }
+    const typeKey = row.type || 'Unspecified'
+    const entry = byType.get(typeKey) ?? { type: typeKey, draft: 0, upToDate: 0, outOfDate: 0, resiliated: 0 }
+    entry[cat]++
+    byType.set(typeKey, entry)
+  }
 
-      return {
-        total: data.recordsTotal,
-        draft,
-        resiliated,
-        upToDate,
-        outOfDate,
-        byType: Array.from(byType.values()),
-        recentMembers: rows.slice(0, 5),
-      }
-    },
-  })
+  return { total: recordsTotal, draft, resiliated, upToDate, outOfDate, byType: Array.from(byType.values()), recentMembers: rows.slice(0, 5) }
 }

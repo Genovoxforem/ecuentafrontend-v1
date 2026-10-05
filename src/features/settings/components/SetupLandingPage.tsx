@@ -2,17 +2,14 @@ import { Link } from 'react-router-dom'
 import { Wrench } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { SetupShell } from './SetupShell'
 
 // Static info page — admin/index.php has no $action handling and no DB
 // writes at all (confirmed by reading it directly), just the same welcome
 // text and two links every time. Nothing to wire.
 export function SetupLandingPage() {
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Wrench size={20} className="text-brand" /> Setup
-      </h2>
-
+    <SetupShell icon={Wrench} title="Setup">
       <Card className="!h-auto !bg-info-bg border-info/30 text-info-fg text-sm">
         Before starting to use Ecuenta some initial parameters must be defined and modules enabled/configured. Setup parameters can be set by <b>administrator users</b> only. The following two
         sections are mandatory (the two first entries in the Setup menu):
@@ -33,6 +30,6 @@ export function SetupLandingPage() {
       </Card>
 
       <p className="text-sm text-text-muted">Other Setup menu entries manage optional parameters.</p>
-    </div>
+    </SetupShell>
   )
 }

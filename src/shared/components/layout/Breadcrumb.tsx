@@ -45,8 +45,55 @@ const PATH_ALIASES: Record<string, string> = {
   [ROUTES.ledgerCreate]: ROUTES.ledgerDashboard,
 }
 
+const DETAIL_ROUTES = Object.entries(ROUTES)
+  .filter(([key]) => /(?:Detail|Card)$/i.test(key))
+  .map(([key, path]) => ({ key, path }))
+  .sort((a, b) => b.path.split('/').length - a.path.split('/').length)
+
+const DETAIL_PARENT_PATHS: Record<string, string> = {
+  reportDetail: ROUTES.reports,
+  expenseCard: ROUTES.expensesList,
+  productLotSerialDetail: ROUTES.productList,
+  ledgerPieceDetail: ROUTES.ledgerList,
+  ledgerAccountCard: ROUTES.ledgerChartOfAccounts,
+  activitiesDetail: ROUTES.hrmArea,
+}
+
+function routeMatches(pattern: string, pathname: string): boolean {
+  const patternParts = pattern.split('/').filter(Boolean)
+  const pathParts = pathname.split('/').filter(Boolean)
+  return patternParts.length === pathParts.length && patternParts.every((part, index) => part.startsWith(':') || part === pathParts[index])
+}
+
+function detailPageTitle(routeKey: string): string {
+  const base = routeKey
+    .replace(/(?:Detail|Card)$/i, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+  return `${base.charAt(0).toUpperCase()}${base.slice(1)} Details`
+}
+
+function detailParentPath(routeKey: string, routePath: string): string | undefined {
+  if (DETAIL_PARENT_PATHS[routeKey]) return DETAIL_PARENT_PATHS[routeKey]
+  const baseKey = routeKey.replace(/(?:Detail|Card)$/i, '')
+  const listPath = (ROUTES as Record<string, string>)[`${baseKey}List`]
+  if (listPath) return listPath
+  const parentPath = routePath.split('/:')[0]
+  return Object.values(ROUTES).find((path) => path === parentPath)
+}
+
 function resolvePath(pathname: string): string {
   return PATH_ALIASES[pathname] ?? pathname
+}
+
+// A param route like /warehouses/:id would also match the fixed path
+// /warehouses/list; a path that has its own route is never a detail page.
+const STATIC_ROUTE_PATHS = new Set<string>(Object.values(ROUTES).filter((path) => !path.includes(':')))
+
+export function isDetailPagePath(pathname: string): boolean {
+  const resolved = resolvePath(pathname)
+  if (STATIC_ROUTE_PATHS.has(resolved)) return false
+  return DETAIL_ROUTES.some((route) => routeMatches(route.path, resolved))
 }
 
 interface BreadcrumbTrail {
@@ -70,6 +117,22 @@ export function buildBreadcrumb(sections: NavSection[], pathname: string): Bread
       }
     }
   }
+
+  const detailRoute = STATIC_ROUTE_PATHS.has(resolved) ? undefined : DETAIL_ROUTES.find((route) => routeMatches(route.path, resolved))
+  if (detailRoute) {
+    const parentPath = detailParentPath(detailRoute.key, detailRoute.path)
+    if (parentPath) {
+      const resolvedParent = resolvePath(parentPath)
+      for (const section of sections) {
+        if (!sectionContainsPath(section, resolvedParent)) continue
+        const parentChain = findBreadcrumbChain(section.items, resolvedParent) ?? []
+        return { sectionLabel: section.label, sectionKey: section.key, crumbs: [...parentChain, detailPageTitle(detailRoute.key)] }
+      }
+    }
+
+    return { sectionLabel: 'Details', sectionKey: '', crumbs: [detailPageTitle(detailRoute.key)] }
+  }
+
   return null
 }
 

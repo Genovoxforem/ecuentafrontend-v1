@@ -249,8 +249,10 @@ export function parsePurchaseOrderCard(html: string, id: number): PurchaseOrderC
 
   // Third-party: `... : ' . $object->thirdparty->getNomUrl(1)` — the same
   // real Societe::getNomUrl() already relied on elsewhere in this app
-  // (fourn/card.php?socid=N href, avatar-div text excluded from the name).
-  const thirdPartyAnchor = doc.querySelector('.refidno-sub a[href*="fourn/card.php?socid="]')
+  // (avatar-div text excluded from the name). Its href is societe/card.php on
+  // the current backend and fourn/card.php on older ones, so the link is found
+  // by its socid parameter, not by the page name.
+  const thirdPartyAnchor = doc.querySelector('.refidno-sub a[href*="card.php?socid="]')
   const socidMatch = thirdPartyAnchor?.getAttribute('href')?.match(/socid=(\d+)/)
   const socid = socidMatch ? Number(socidMatch[1]) : null
   const thirdPartyName = thirdPartyAnchor

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FileInput, Plus, ChevronLeft } from 'lucide-react'
+import { FileInput, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 // imports/index.php (list) and imports/import.php (wizard) — confirmed no
 // JSON API by reading the wizard's PHP directly (same $step/$action
@@ -44,17 +45,16 @@ export function ImportAssistant() {
 
   if (step === 'new') {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setStep('list')} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
-            <ChevronLeft size={18} />
-          </button>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <FileInput size={20} className="text-brand" /> Import
-          </h2>
-        </div>
-        <p className="text-xs font-semibold text-text-faint uppercase tracking-wide">Step 1</p>
-        <Card className="!h-auto !bg-info-bg border-info/30 text-info-fg text-sm">Choose dataset you want to import…</Card>
+      <SetupShell
+        icon={FileInput}
+        title="Import"
+        onBack={() => setStep('list')}
+        description={
+          <>
+            <span className="mr-2 text-xs font-semibold text-text-faint uppercase tracking-wide">Step 1</span>Choose dataset you want to import…
+          </>
+        }
+      >
         <Card className="!h-auto !p-0 overflow-hidden">
           <div className="grid grid-cols-[1fr_1fr_60px] px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
             <span>Module/Application</span>
@@ -69,23 +69,21 @@ export function ImportAssistant() {
             </div>
           ))}
         </Card>
-      </div>
+      </SetupShell>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FileInput size={20} className="text-brand" /> Import
-      </h2>
-      <p className="text-sm text-text-muted">This module allows you to update existing data or add new objects into the database from a file without technical knowledge, using an assistant.</p>
-
-      <div className="flex justify-end">
-        <button type="button" onClick={() => setStep('new')} className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand text-white hover:bg-brand-hover">
+    <SetupShell
+      icon={FileInput}
+      title="Import"
+      description="This module allows you to update existing data or add new objects into the database from a file without technical knowledge, using an assistant."
+      headerRight={
+        <button type="button" onClick={() => setStep('new')} aria-label="New import" className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand text-white hover:bg-brand-hover">
           <Plus size={16} />
         </button>
-      </div>
-
+      }
+    >
       <Card className="!h-auto">
         <table className="w-full text-sm">
           <thead>
@@ -104,6 +102,6 @@ export function ImportAssistant() {
           </tbody>
         </table>
       </Card>
-    </div>
+    </SetupShell>
   )
 }

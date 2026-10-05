@@ -3,6 +3,7 @@ import { ProjectCreateForm } from '../../features/projects/components/ProjectCre
 import { ProjectDetail } from '../../features/projects/components/ProjectDetail'
 import { ProjectsListPage } from '../../features/projects/components/ProjectsListPage'
 import { ProjectStatisticsPage } from '../../features/projects/components/ProjectStatisticsPage'
+import { TaskStatisticsPage } from '../../features/projects/components/TaskStatisticsPage'
 import { TaskCreateForm } from '../../features/projects/components/TaskCreateForm'
 import { TasksListPage } from '../../features/projects/components/TasksListPage'
 import { TimeSpentPage } from '../../features/projects/components/TimeSpentPage'
@@ -49,4 +50,8 @@ export function ProjectCategoryListModule() {
 }
 export function SupplierProposalStatsModule() {
   return <VendorProposalStatisticsPage />
+}
+
+export function ProjectTaskStatsModule() {
+  return <TaskStatisticsPage />
 }

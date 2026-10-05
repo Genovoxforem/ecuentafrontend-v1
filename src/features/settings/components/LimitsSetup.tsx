@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowUpDown } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'w-20 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -67,12 +68,14 @@ export function LimitsSetup() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ArrowUpDown size={20} className="text-brand" /> Limits/Precision setup
-      </h2>
-      <p className="text-sm text-text-muted">You can define limits, precisions and optimizations used by Ecuenta here</p>
-
+    <SetupShell
+      icon={ArrowUpDown}
+      title="Limits/Precision setup"
+      description="You can define limits, precisions and optimizations used by Ecuenta here"
+      onSave={handleModify}
+      saveLabel="Modify"
+      saved={saved ? 'Saved (session-only — no limits/precision endpoint exists on this backend yet).' : undefined}
+    >
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
           <span>Parameter</span>
@@ -101,13 +104,6 @@ export function LimitsSetup() {
       </Card>
 
       <div>
-        <button type="button" onClick={handleModify} className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-hover">
-          Modify
-        </button>
-      </div>
-      {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Saved (session-only — no limits/precision endpoint exists on this backend yet).</Card>}
-
-      <div>
         <h3 className="text-base font-semibold text-text! mb-2">Examples with current configuration</h3>
         <p className="text-sm text-text-muted mb-2">Format: 1,234.5679</p>
         <div className="space-y-1 text-sm text-text-muted">
@@ -121,6 +117,6 @@ export function LimitsSetup() {
           ))}
         </div>
       </div>
-    </div>
+    </SetupShell>
   )
 }

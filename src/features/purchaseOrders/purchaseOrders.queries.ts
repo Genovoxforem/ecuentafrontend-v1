@@ -70,14 +70,11 @@ function toRow(r: PurchaseOrderListRow): PurchaseOrderRow {
 // Recomputed client-side here from the same full row set instead, matching
 // this app's established "fetch once, compute client-side" convention.
 //
-// Note this reproduces a real backend quirk faithfully rather than
-// "fixing" it: list.php's own Order Status card literally counts
-// fk_statut===5 as "Approved" and fk_statut===3 as "Pending", even though
-// LibStatut() renders status 5 as "All products received" and status 2 (not
-// 5) as "Approved" in the table's own Status column — confirmed by reading
-// both list.php and the LibStatut()/lang-file source. A row whose Status
-// column literally says "Approved" (fk_statut===2) is NOT counted by this
-// stat tile on the real page, and isn't here either.
+// The Order Status card counts fk_statut 2 (the "Approved" badge) as Approved
+// and fk_statut 1 (the "Validated" badge) as Pending — read from the current
+// list.php (`fk_statut IN (2,1)`). An older version of that page counted
+// statuses 5 and 3 instead, which is why this card once disagreed with the
+// real one (0 / 3 here against 4 / 8 there).
 export function usePurchaseOrdersSummary() {
   return useQuery({
     queryKey: ['purchaseOrders', 'list'],
@@ -94,8 +91,8 @@ export function usePurchaseOrdersSummary() {
         totalOrders: rows.length,
         ordersThisMonth,
         totalPurchaseAmount: rows.reduce((sum, r) => sum + r.amountExclTax, 0),
-        approvedCount: rows.filter((r) => r.statusCode === 5).length,
-        pendingCount: rows.filter((r) => r.statusCode === 3).length,
+        approvedCount: rows.filter((r) => r.statusCode === 2).length,
+        pendingCount: rows.filter((r) => r.statusCode === 1).length,
         orders: rows.map(toRow),
       }
     },

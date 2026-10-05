@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FileSpreadsheet, Info, Search } from 'lucide-react'
+import { FileSpreadsheet, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
@@ -82,25 +82,17 @@ export function EmployeeMonthlyReportForm() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
-        {!appliedEmployee && (
-          <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-            <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-            <p className="text-xs text-info-fg">
-              Backend page: <code className="font-mono">payroll/atten_emp_rip.php</code>. Pick a month and an employee, then Go — this reads the real
-              per-day attendance table live.
-            </p>
-          </Card>
-        )}
-
         {isLoading && <LegacyLoadingCard label="Loading report…" />}
         {isError && <LegacyErrorCard title="Couldn't load report" message={fetchError instanceof Error ? fetchError.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        {report && (
+        {!isLoading && !isError && (
           <>
-            <div className="text-center">
-              <h3 className="text-lg font-bold text-brand">{report.employeeName} - MONTHLY REPORT</h3>
-              <p className="text-sm text-text-muted">For The Month of {report.monthLabel}</p>
-            </div>
+            {report && (
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-brand">{report.employeeName} - MONTHLY REPORT</h3>
+                <p className="text-sm text-text-muted">For The Month of {report.monthLabel}</p>
+              </div>
+            )}
 
             <Card className="!p-0 overflow-hidden flex-1 min-h-0">
               <div className="flex flex-wrap items-center justify-end gap-3 p-3 border-b border-border">
@@ -121,28 +113,38 @@ export function EmployeeMonthlyReportForm() {
                     </tr>
                   </thead>
                   <tbody>
-                    {report.rows.map((r) => (
-                      <tr key={r.date} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 text-text!">{r.date}</td>
-                        <td className="px-3 py-2 text-text-muted">{r.day}</td>
-                        <td className="px-3 py-2 text-text-muted">{r.inTime}</td>
-                        <td className="px-3 py-2 text-text-muted">{r.outTime}</td>
-                        <td className="px-3 py-2 text-text-muted">{r.workingHours}</td>
-                        <td className="px-3 py-2 font-medium" style={r.statusColor ? { color: r.statusColor } : undefined}>
-                          {r.status}
-                        </td>
-                        <td className="px-3 py-2 text-text-muted">{r.details}</td>
-                      </tr>
-                    ))}
-                    {report.totalWorkingHours !== null && (
-                      <tr className="border-t-2 border-border font-semibold text-text!">
-                        <td colSpan={4} className="px-3 py-2">
-                          Total Working hours
-                        </td>
-                        <td className="px-3 py-2" colSpan={3}>
-                          {report.totalWorkingHours}
+                    {!report ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-8 text-center italic text-text-faint">
+                          Pick a month and an employee, then Go.
                         </td>
                       </tr>
+                    ) : (
+                      <>
+                        {report.rows.map((r) => (
+                          <tr key={r.date} className="border-b border-border last:border-0">
+                            <td className="px-3 py-2 text-text!">{r.date}</td>
+                            <td className="px-3 py-2 text-text-muted">{r.day}</td>
+                            <td className="px-3 py-2 text-text-muted">{r.inTime}</td>
+                            <td className="px-3 py-2 text-text-muted">{r.outTime}</td>
+                            <td className="px-3 py-2 text-text-muted">{r.workingHours}</td>
+                            <td className="px-3 py-2 font-medium" style={r.statusColor ? { color: r.statusColor } : undefined}>
+                              {r.status}
+                            </td>
+                            <td className="px-3 py-2 text-text-muted">{r.details}</td>
+                          </tr>
+                        ))}
+                        {report.totalWorkingHours !== null && (
+                          <tr className="border-t-2 border-border font-semibold text-text!">
+                            <td colSpan={4} className="px-3 py-2">
+                              Total Working hours
+                            </td>
+                            <td className="px-3 py-2" colSpan={3}>
+                              {report.totalWorkingHours}
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

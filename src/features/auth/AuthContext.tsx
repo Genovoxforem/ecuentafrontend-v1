@@ -33,6 +33,10 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+// Upper bound on how long sign-in waits for the legacy session (the backend's
+// login answer takes ~0.6 s on 172.16.5.10).
+const LEGACY_SESSION_WAIT_MS = 8000
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [rights, setRights] = useState<Record<string, Record<string, boolean>>>({})
@@ -81,9 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionExpiredMessage(null)
     const data = await loginRequest(credentials)
     setStoredToken(data.bearer_token ?? data.api_key ?? data.token ?? null)
-    // Fire-and-forget: optional, never blocks/fails the real login below.
-    void establishLegacySession(credentials.login, credentials.password)
+    // Waited for (alongside fetchMe) before the app opens: the dashboard and most
+    // list pages read legacy endpoints, and one that reaches the backend before
+    // this login finishes gets the login page back. It never throws, and the
+    // wait is capped so a slow backend can't hold up the sign-in itself.
+    const legacySession = establishLegacySession(credentials.login, credentials.password)
     const me = await fetchMe()
+    await Promise.race([legacySession, new Promise((resolve) => window.setTimeout(resolve, LEGACY_SESSION_WAIT_MS))])
     setUser(me.user)
     setRights(me.permissions)
     setStatus('authenticated')

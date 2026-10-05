@@ -1,6 +1,9 @@
 import { useMemo, useState, type ComponentType } from 'react'
-import { Users2, ChevronRight, ArrowLeft, Download, FileSpreadsheet, FileText, Search, Check, Info } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Users2, ChevronRight, ArrowLeft, Download, FileSpreadsheet, FileText, Loader2, Search, Check, Info } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
+import { ROUTES } from '../../../routes'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../../shared/legacyHtmlFetch'
 import { useImportDatasets } from '../imports.queries'
 import type { ImportDataset } from '../importsHtmlParser'
 
@@ -31,19 +34,59 @@ function Stepper({ step }: { step: 1 | 2 }) {
   )
 }
 
+// Saves the empty template the backend generates for a dataset. The file is
+// fetched first and checked, because a backend that fails while building it
+// (an uncaught PHP error, an expired session) answers 200 with an error page —
+// saved as-is that would be a corrupt .xlsx / a .csv full of HTML.
+async function saveTemplate(url: string, format: 'csv' | 'xlsx', fallbackName: string) {
+  const res = await fetch(url, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`The backend returned ${res.status}.`)
+  const blob = await res.blob()
+  const head = await blob.slice(0, 4096).text()
+  if (looksLikeLegacyLoginPageText(head)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+  const failed = /Fatal error|xdebug-error|<b>Warning<\/b>/i.test(head)
+  // An .xlsx is a zip archive, so a real one starts with "PK".
+  if (failed || (format === 'xlsx' && !head.startsWith('PK'))) {
+    throw new Error('The backend could not generate this template file. Try the CSV format, or ask your administrator to check the server’s spreadsheet library.')
+  }
+  const name = /filename="?([^";]+)"?/i.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(link.href), 10_000)
+}
+
 function FormatCard({
   icon: Icon,
   color,
   title,
   description,
-  url,
+  onDownload,
 }: {
   icon: ComponentType<{ size?: number }>
   color: IconColor
   title: string
   description: string
-  url: string
+  onDownload: () => Promise<void>
 }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleClick() {
+    setBusy(true)
+    setError('')
+    try {
+      await onDownload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not download the template.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Card className="!h-auto flex flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -53,39 +96,45 @@ function FormatCard({
         <p className="font-semibold text-text!">{title}</p>
       </div>
       <p className="text-sm text-text-muted flex-1">{description}</p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover"
+      {error && <p className="text-sm font-medium text-danger">{error}</p>}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void handleClick()}
+        className="flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
       >
-        <Download size={15} /> Download Template
-      </a>
+        {busy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download Template
+      </button>
     </Card>
   )
 }
 
+// The same query string the classic page's own "download empty example" link carries.
+function exampleUrl(format: 'csv' | 'xlsx', code: string) {
+  const file = `Example_of_import_file_${code}.${format}`
+  return `/imports/emptyexample.php?format=${format}&datatoimport=${encodeURIComponent(code)}&excludefirstline=2&enclosure=%22&output=file&file=${encodeURIComponent(file)}`
+}
+
 // Real GET /imports/import.php scrape for the dataset list (see
 // imports.queries.ts) — no REST API exists for the generic import wizard.
-// Step 2's "Download Template" cards go straight to the real
-// imports/emptyexample.php file-generator endpoint using the real
-// `datatoimport` code scraped from Step 1, exactly like the legacy page's
-// own links do — no client-side template generation, no guessed columns.
+// Step 2's "Download Template" cards fetch the real imports/emptyexample.php
+// file-generator endpoint using the real `datatoimport` code scraped from
+// Step 1, exactly like the legacy page's own links do — no client-side
+// template generation, no guessed columns. The step is part of the URL
+// (/import/customers, then /import/customers?dataset=<code>), so Back and a
+// reload land where the user was and the menu item stays highlighted.
 export function ImportCustomersWizard() {
   const { data: datasets, isLoading, isError, error } = useImportDatasets()
-  const [step, setStep] = useState<1 | 2>(1)
-  const [selected, setSelected] = useState<ImportDataset | null>(null)
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const dataset = searchParams.get('dataset')
   const [search, setSearch] = useState('')
 
-  function pick(ds: ImportDataset) {
-    setSelected(ds)
-    setStep(2)
-  }
+  const step: 1 | 2 = dataset ? 2 : 1
+  const selected = useMemo(() => datasets?.find((d) => d.code === dataset) ?? null, [datasets, dataset])
 
-  function exampleUrl(format: 'csv' | 'xlsx') {
-    if (!selected) return '#'
-    const filename = `${selected.label.replace(/\s+/g, '-')}-example.${format}`
-    return `/imports/emptyexample.php?format=${format}&datatoimport=${encodeURIComponent(selected.code)}&output=file&file=${encodeURIComponent(filename)}`
+  function pick(ds: ImportDataset) {
+    navigate(`${ROUTES.importCustomers}?dataset=${encodeURIComponent(ds.code)}`)
   }
 
   const grouped = useMemo(() => {
@@ -129,7 +178,7 @@ export function ImportCustomersWizard() {
           ) : isError ? (
             <p className="px-4 py-4 text-sm text-danger">{error instanceof Error ? error.message : 'Could not load the dataset list.'}</p>
           ) : grouped.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-text-faint italic">No datasets match “{search}”.</p>
+            <p className="px-4 py-4 text-sm text-text-faint italic">{search ? `No datasets match “${search}”.` : 'The backend lists no importable datasets.'}</p>
           ) : (
             <div className="divide-y divide-border max-h-[65vh] overflow-y-auto">
               {grouped.map(([module, items]) => (
@@ -153,47 +202,57 @@ export function ImportCustomersWizard() {
         </Card>
       ) : (
         <div className="space-y-5">
-          <button type="button" onClick={() => setStep(1)} className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text">
+          <button type="button" onClick={() => navigate(ROUTES.importCustomers)} className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text">
             <ArrowLeft size={14} /> Back to dataset list
           </button>
 
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-alt px-5 py-4">
-            <span className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-brand/10 text-brand">
-              <Users2 size={18} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-text-faint uppercase tracking-wide">{selected?.module}</p>
-              <p className="font-semibold text-text! truncate">{selected?.label}</p>
-            </div>
-          </div>
+          {isLoading ? (
+            <p className="text-sm text-text-faint italic">Loading…</p>
+          ) : isError ? (
+            <p className="text-sm text-danger">{error instanceof Error ? error.message : 'Could not load the dataset list.'}</p>
+          ) : !selected ? (
+            <p className="text-sm text-text-faint italic">There is no importable dataset called “{dataset}”. Choose one from the dataset list.</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-alt px-5 py-4">
+                <span className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-brand/10 text-brand">
+                  <Users2 size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs text-text-faint uppercase tracking-wide">{selected.module}</p>
+                  <p className="font-semibold text-text! truncate">{selected.label}</p>
+                </div>
+              </div>
 
-          <div>
-            <h3 className="text-sm font-semibold text-text! mb-3">Choose a file format to download an empty template</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormatCard
-                icon={FileText}
-                color="blue"
-                title="CSV"
-                description="Comma-separated values — opens in any spreadsheet app or text editor."
-                url={exampleUrl('csv')}
-              />
-              <FormatCard
-                icon={FileSpreadsheet}
-                color="green"
-                title="Excel 2007"
-                description="Native .xlsx spreadsheet — opens directly in Microsoft Excel."
-                url={exampleUrl('xlsx')}
-              />
-            </div>
-          </div>
+              <div>
+                <h3 className="text-sm font-semibold text-text! mb-3">Choose a file format to download an empty template</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormatCard
+                    icon={FileText}
+                    color="blue"
+                    title="CSV"
+                    description="Comma-separated values — opens in any spreadsheet app or text editor."
+                    onDownload={() => saveTemplate(exampleUrl('csv', selected.code), 'csv', `Example_of_import_file_${selected.code}.csv`)}
+                  />
+                  <FormatCard
+                    icon={FileSpreadsheet}
+                    color="green"
+                    title="Excel 2007"
+                    description="Native .xlsx spreadsheet — opens directly in Microsoft Excel."
+                    onDownload={() => saveTemplate(exampleUrl('xlsx', selected.code), 'xlsx', `Example_of_import_file_${selected.code}.xlsx`)}
+                  />
+                </div>
+              </div>
 
-          <div className="flex items-start gap-2.5 rounded-lg border border-border bg-surface-alt px-4 py-3">
-            <Info size={15} className="text-text-faint shrink-0 mt-0.5" />
-            <p className="text-xs text-text-faint">
-              Field mapping and file upload aren't built yet — the template above comes straight from the real backend for this exact dataset, so it already has the
-              right columns to fill in.
-            </p>
-          </div>
+              <div className="flex items-start gap-2.5 rounded-lg border border-border bg-surface-alt px-4 py-3">
+                <Info size={15} className="text-text-faint shrink-0 mt-0.5" />
+                <p className="text-xs text-text-faint">
+                  Field mapping and file upload aren't built yet — the template above comes straight from the real backend for this exact dataset, so it already has the
+                  right columns to fill in.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

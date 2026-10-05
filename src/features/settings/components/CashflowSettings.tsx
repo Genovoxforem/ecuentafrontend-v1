@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Wallet, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 // compta/facture/cashflowsettings.php + compta/facture/cashflow_action.php —
 // confirmed no JSON API by reading cashflow_action.php directly: it's a
@@ -31,31 +32,30 @@ export function CashflowSettings() {
   const [tab, setTab] = useState<Tab>('Cash flows from operating activities')
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Wallet size={20} className="text-brand" /> Cash Flow Settings
-      </h2>
-      <a href="#" className="text-sm text-brand hover:underline">
-        How to get token and instance id?
-      </a>
-
+    <SetupShell
+      icon={Wallet}
+      title="Cash Flow Settings"
+      description={
+        <a href="#" className="text-brand hover:underline">
+          How to get token and instance id?
+        </a>
+      }
+      underlinedTabs={false}
+      tabs={TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setTab(t)}
+          className={`rounded-md px-4 py-2 text-sm font-medium ${tab === t ? 'bg-brand text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`}
+        >
+          {t}
+        </button>
+      ))}
+    >
       <Card className="!h-auto !bg-warning-bg border-warning/30 text-warning-fg text-sm space-y-1">
         <p className="font-medium">This warning is real and reproducible on the reference page — not fabricated for this shell:</p>
         <p className="font-mono text-xs">Warning: Undefined array key "msg" in C:\wamp64\www\ecuenta9\htdocs\compta\facture\cashflowsettings.php on line 147</p>
       </Card>
-
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`rounded-md px-4 py-2 text-sm font-medium ${tab === t ? 'bg-brand text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
 
       {tab === 'Cash flows from operating activities' ? (
         <Card className="!h-auto space-y-4">
@@ -84,6 +84,6 @@ export function CashflowSettings() {
           <p className="text-sm text-text-faint italic">No accounts configured for this activity type on the reference page (not screenshotted) — left honestly empty rather than guessed.</p>
         </Card>
       )}
-    </div>
+    </SetupShell>
   )
 }

@@ -15,6 +15,24 @@ import {
   type EmployeeMonthlyReportOption,
   type EmployeeMonthlyReportResult,
 } from './employeeMonthlyReportParser'
+import {
+  parseAttendancePeriodEmployees,
+  parseAttendancePeriodReport,
+  type AttendancePeriodEmployeeOption,
+  type AttendancePeriodReportResult,
+} from './attendancePeriodReportParser'
+import { parseAbsentListEmployees, parseEmployeeAbsentList, type AbsentListEmployeeOption, type AbsentListResult } from './employeeAbsentListParser'
+import { parseOvertimeList, type OvertimeListRow } from './overtimeListParser'
+import { parseGratuityEmployees, parseGratuityReport, type GratuityEmployeeOption, type GratuityReportResult } from './gratuityReportParser'
+import { parseShiftReportEntities, parseShiftPivotReport, type ShiftPivotEntityOption, type ShiftPivotReportResult } from './shiftPivotReportParser'
+import {
+  parseShiftSalaryEntities,
+  parseShiftSalaryEmployees,
+  parseShiftSalaryReport,
+  type ShiftSalaryEntityOption,
+  type ShiftSalaryEmployeeOption,
+  type ShiftSalaryRow,
+} from './shiftSalaryReportParser'
 
 // The Payroll HR / shift / salary list pages. Each legacy page renders its
 // records into a server-side `table#example` (see payrollLegacyTable.ts), and its
@@ -144,5 +162,166 @@ export function useEmployeeMonthlyReport(monthLabel: string, employeeValue: stri
       return parseEmployeeMonthlyReport(html)
     },
     enabled: !!monthLabel && !!employeeValue,
+  })
+}
+
+// Real via payroll/atten_period_rip.php — see attendancePeriodReportParser.ts's
+// own top comment for the real stdate/enddate format quirk (MM/DD/YYYY here,
+// unlike absent_list.php's YYYY-MM-DD).
+export function useAttendancePeriodEmployees() {
+  return useQuery({
+    queryKey: ['payroll', 'attendance-period-report', 'employees'],
+    queryFn: async (): Promise<AttendancePeriodEmployeeOption[]> => {
+      const doc = await fetchLegacyDocument('/payroll/atten_period_rip.php')
+      return parseAttendancePeriodEmployees(doc)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+export function useAttendancePeriodReport(employeeId: string, startDateMDY: string, endDateMDY: string) {
+  return useQuery({
+    queryKey: ['payroll', 'attendance-period-report', employeeId, startDateMDY, endDateMDY],
+    queryFn: async (): Promise<AttendancePeriodReportResult> => {
+      const params = new URLSearchParams({ employee_li: employeeId, stdate: startDateMDY, enddate: endDateMDY, searchBydate: '1' })
+      const html = await fetchLegacyText(`/payroll/atten_period_rip.php?${params.toString()}`)
+      return parseAttendancePeriodReport(html)
+    },
+    enabled: !!employeeId && !!startDateMDY && !!endDateMDY,
+  })
+}
+
+// Real via payroll/absent_list.php — see employeeAbsentListParser.ts's own
+// top comment for the real stdate/enddate format quirk (YYYY-MM-DD here,
+// unlike atten_period_rip.php's MM/DD/YYYY).
+export function useAbsentListEmployees() {
+  return useQuery({
+    queryKey: ['payroll', 'employee-absent-list', 'employees'],
+    queryFn: async (): Promise<AbsentListEmployeeOption[]> => {
+      const doc = await fetchLegacyDocument('/payroll/absent_list.php')
+      return parseAbsentListEmployees(doc)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+export function useEmployeeAbsentList(employeeId: string, startDateIso: string, endDateIso: string) {
+  return useQuery({
+    queryKey: ['payroll', 'employee-absent-list', employeeId, startDateIso, endDateIso],
+    queryFn: async (): Promise<AbsentListResult> => {
+      const params = new URLSearchParams({ employee_li: employeeId, stdate: startDateIso, enddate: endDateIso, searchBydate: '1' })
+      const html = await fetchLegacyText(`/payroll/absent_list.php?${params.toString()}`)
+      return parseEmployeeAbsentList(html)
+    },
+    enabled: !!employeeId && !!startDateIso && !!endDateIso,
+  })
+}
+
+// Real via payroll/over_time.php — see overtimeListParser.ts's own top
+// comment. `date` is YYYY-MM-DD, the same format <input type="date"> gives
+// natively — no conversion needed.
+export function useOvertimeList(date: string) {
+  return useQuery({
+    queryKey: ['payroll', 'overtime-list', date],
+    queryFn: async (): Promise<OvertimeListRow[]> => {
+      const params = new URLSearchParams({ nameIN: date, searchBydate: '1' })
+      const html = await fetchLegacyText(`/payroll/over_time.php?${params.toString()}`)
+      return parseOvertimeList(html)
+    },
+    enabled: !!date,
+  })
+}
+
+// Real via payroll/gratuity_report.php — see gratuityReportParser.ts's own
+// top comment.
+export function useGratuityEmployees() {
+  return useQuery({
+    queryKey: ['payroll', 'gratuity-report', 'employees'],
+    queryFn: async (): Promise<GratuityEmployeeOption[]> => {
+      const doc = await fetchLegacyDocument('/payroll/gratuity_report.php')
+      return parseGratuityEmployees(doc)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+export function useGratuityReport(employeeId: string) {
+  return useQuery({
+    queryKey: ['payroll', 'gratuity-report', employeeId],
+    queryFn: async (): Promise<GratuityReportResult> => {
+      const params = new URLSearchParams({ employee_li: employeeId, submitt: '1' })
+      const html = await fetchLegacyText(`/payroll/gratuity_report.php?${params.toString()}`)
+      return parseGratuityReport(html)
+    },
+    enabled: !!employeeId,
+  })
+}
+
+// Real via payroll/overtime_monthly.php, special_shift_report.php and
+// holiday_shift_report.php — see shiftPivotReportParser.ts's own top
+// comment. Groups/Employee reuse the same real payroll/ajax.php cascading
+// endpoints as Monthly Over All Attendance Report (useOverallAttendanceGroups/
+// Employees above); Entity is scraped fresh per page instead of reusing that
+// form's own hardcoded single-entity assumption, since this backend really
+// does have more than one real entity (Lusaka, Manda hill).
+export type ShiftPivotReportPath = '/payroll/overtime_monthly.php' | '/payroll/special_shift_report.php' | '/payroll/holiday_shift_report.php'
+export function useShiftPivotEntities(path: ShiftPivotReportPath) {
+  return useQuery({
+    queryKey: ['payroll', 'shift-pivot-report', path, 'entities'],
+    queryFn: async (): Promise<ShiftPivotEntityOption[]> => {
+      const doc = await fetchLegacyDocument(path)
+      return parseShiftReportEntities(doc)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+export function useShiftPivotReport(
+  path: ShiftPivotReportPath,
+  monthParam: 'month' | 'monthPic',
+  entity: string,
+  group: string,
+  employee: string,
+  monthIso: string
+) {
+  return useQuery({
+    queryKey: ['payroll', 'shift-pivot-report', path, entity, group, employee, monthIso],
+    queryFn: async (): Promise<ShiftPivotReportResult> => {
+      const params = new URLSearchParams({ entity_li: entity, empGroup: group, ListofEmployee: employee, [monthParam]: monthIso, searchBydate: '1' })
+      const html = await fetchLegacyText(`${path}?${params.toString()}`)
+      return parseShiftPivotReport(html)
+    },
+    enabled: !!entity && !!group && !!employee && !!monthIso,
+  })
+}
+
+// Real via payroll/special_shift_salary_report.php?shift=manual|holidayshift
+// — see shiftSalaryReportParser.ts's own top comment.
+export type ShiftSalaryType = 'manual' | 'holidayshift'
+export function useShiftSalaryEntities(shift: ShiftSalaryType) {
+  return useQuery({
+    queryKey: ['payroll', 'shift-salary-report', shift, 'entities'],
+    queryFn: async (): Promise<ShiftSalaryEntityOption[]> => {
+      const doc = await fetchLegacyDocument('/payroll/special_shift_salary_report.php', new URLSearchParams({ shift }))
+      return parseShiftSalaryEntities(doc)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+export function useShiftSalaryEmployees(shift: ShiftSalaryType) {
+  return useQuery({
+    queryKey: ['payroll', 'shift-salary-report', shift, 'employees'],
+    queryFn: async (): Promise<ShiftSalaryEmployeeOption[]> => {
+      const doc = await fetchLegacyDocument('/payroll/special_shift_salary_report.php', new URLSearchParams({ shift }))
+      return parseShiftSalaryEmployees(doc)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+export function useShiftSalaryReport(shift: ShiftSalaryType, monthLabel: string, entity: string, employee: string) {
+  return useQuery({
+    queryKey: ['payroll', 'shift-salary-report', shift, monthLabel, entity, employee],
+    queryFn: async (): Promise<ShiftSalaryRow[]> => {
+      const params = new URLSearchParams({ shift, monthPic: monthLabel, TypesOfEntity: entity, employee_li: employee, submitt: '1' })
+      const html = await fetchLegacyText(`/payroll/special_shift_salary_report.php?${params.toString()}`)
+      return parseShiftSalaryReport(html)
+    },
+    enabled: !!monthLabel && !!entity && !!employee,
   })
 }

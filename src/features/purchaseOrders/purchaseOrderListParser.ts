@@ -57,17 +57,20 @@ function parseAmount(raw: string): number {
   return match ? Number(match[0]) : 0
 }
 
-// product_ref: CommandeFournisseur::getNomUrl(1, '', 0, -1, 1) — read
-// directly from that function's real source (fourn/class/
-// fournisseur.commande.class.php) — plus a document-download icon link and
-// an inert inline <script>. The order id comes from the href
-// (".../fourn/commande/card.php?id=N..."); the ref is the <a>'s own text
-// (the picto <img> contributes no textContent, so .textContent is safe here
-// unlike the avatar-div case below).
+// product_ref: CommandeFournisseur::getNomUrl(1, '', 0, -1, 1) — an <a> whose
+// href is the order's own page (".../commande/purchaseorder/index_v2.php?id=N",
+// older backends ".../fourn/commande/card.php?id=N") and whose text is the ref,
+// followed by a document-download link comment and an inline <script>. The row
+// is recognised by that link's `id` parameter rather than by one page name, and
+// the ref is the <a>'s own text — never the cell's, which would carry the
+// script's source along (the picto contributes no text).
 function parseProductRef(html: string): { id: number | null; ref: string } {
   const root = parseFragment(html)
-  const anchor = root.querySelector('a[href*="card.php?id="]')
-  if (!anchor) return { id: null, ref: text(root) }
+  const anchor = Array.from(root.querySelectorAll('a')).find((a) => /[?&]id=\d+/.test(a.getAttribute('href') ?? ''))
+  if (!anchor) {
+    root.querySelectorAll('script, style').forEach((el) => el.remove())
+    return { id: null, ref: text(root) }
+  }
   const idMatch = anchor.getAttribute('href')?.match(/[?&]id=(\d+)/)
   return { id: idMatch ? Number(idMatch[1]) : null, ref: text(anchor) }
 }

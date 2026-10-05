@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { fetchLegacyDocument, fetchLegacyText, legacyMissingContentError, legacyRefusalMessages, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from '../generalLedger/bindLines.queries'
+import { parseLeaveCard, type LeaveCard } from './leaveCardParser'
 import { parseHolidayStats, parseHolidayRows, type HolidayStats, type HolidayRequestRow, type HolidayAjaxResponse } from './holidayParser'
 
 // Reused by the Payroll module (see modules/payroll/PayrollLeaveListModule.tsx
@@ -191,5 +192,20 @@ export function useCreateLeaveRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users', 'holiday'] })
     },
+  })
+}
+
+// Real holiday/card.php?id=N — see leaveCardParser.ts. A missing/forbidden id
+// renders the page without the card, which comes back as an error.
+export function useLeaveCard(id: string | undefined) {
+  return useQuery({
+    queryKey: ['users', 'holiday', 'card', id],
+    queryFn: async (): Promise<LeaveCard> => {
+      const doc = await fetchLegacyDocument('/holiday/card.php', new URLSearchParams({ id: id! }))
+      const card = parseLeaveCard(doc)
+      if (!card) throw legacyMissingContentError(doc, 'Leave request not found.')
+      return card
+    },
+    enabled: !!id && /^\d+$/.test(id),
   })
 }

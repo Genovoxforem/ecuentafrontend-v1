@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../../../../features/auth/AuthContext'
 
 // Confirms a password before switching entities. Necessary because, unlike
@@ -39,8 +40,10 @@ export function SwitchEntityModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+  // On <body>: it is opened from the account panel inside the navbar, whose CSS filter (the modern
+  // style's drop shadow) would otherwise pin this fixed overlay to the 56px bar instead of the screen.
+  return createPortal(
+    <div data-navbar-layer className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="w-full max-w-sm rounded-lg bg-surface border border-border p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
         <h3 className="text-sm font-semibold text-text mb-1">Switch to {entityLabel}?</h3>
         <p className="text-xs text-text-muted mb-4">Confirm your password to switch entities. The app will refresh.</p>
@@ -68,6 +71,7 @@ export function SwitchEntityModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

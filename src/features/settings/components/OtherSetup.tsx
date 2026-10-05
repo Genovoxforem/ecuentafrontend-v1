@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Cog } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface disabled:text-text-faint'
 
@@ -40,26 +41,23 @@ export function OtherSetup() {
   const [tab, setTab] = useState<Tab>('Const')
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Cog size={20} className="text-brand" /> Other Setup
-      </h2>
-      <p className="text-sm text-text-muted">This page allows you to edit (override) parameters not available in other pages. These are mostly reserved for developers/advanced troubleshooting only.</p>
-
-      <div className="flex flex-wrap gap-2 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 -mb-px ${
-              tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+    <SetupShell
+      icon={Cog}
+      title="Other Setup"
+      description="This page allows you to edit (override) parameters not available in other pages. These are mostly reserved for developers/advanced troubleshooting only."
+      tabs={TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setTab(t)}
+          className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 ${
+            tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'
+          }`}
+        >
+          {t}
+        </button>
+      ))}
+    >
 
       {tab === 'Available App/Modules' && (
         <Card className="!h-auto">
@@ -157,6 +155,6 @@ export function OtherSetup() {
           </table>
         </Card>
       )}
-    </div>
+    </SetupShell>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowUpDown, Check, Loader2, Pencil, Trash2, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { SetupShell } from './SetupShell'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import { DEFAULT_VALUE_MODES, useAddDefaultValue, useDefaultValuesPage, useDeleteDefaultValue, useToggleDefaultValues, useUpdateDefaultValue, type DefaultValueMode } from '../defaultValues.queries'
@@ -229,37 +230,34 @@ export function DefaultValuesSetup() {
   const tab = TABS[mode]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <ArrowUpDown size={20} className="text-brand" /> Default values/filters/sorting
-        </h2>
-        {page && (
+    <SetupShell
+      icon={ArrowUpDown}
+      title="Default values/filters/sorting"
+      description="Here you may define the default value you wish to use when creating a new record, and/or default filters or the sort order when you list records."
+      headerRight={
+        page && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-text-muted">Enable customization of default values</span>
             <Switch checked={page.enabled} busy={toggle.isPending} onChange={(v) => toggle.mutate(v)} />
           </div>
-        )}
-      </div>
-      <p className="text-sm text-text-muted">Here you may define the default value you wish to use when creating a new record, and/or default filters or the sort order when you list records.</p>
+        )
+      }
+      tabs={DEFAULT_VALUE_MODES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => setMode(m)}
+          className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 ${mode === m ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'}`}
+        >
+          {TABS[m].label}
+        </button>
+      ))}
+    >
       {toggle.isError && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           <p role="alert">{toggle.error instanceof Error ? toggle.error.message : 'The setting could not be changed.'}</p>
         </Card>
       )}
-
-      <div className="flex flex-wrap gap-2 border-b border-border">
-        {DEFAULT_VALUE_MODES.map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            className={`px-4 py-2 text-sm font-semibold uppercase tracking-wide border-b-2 -mb-px ${mode === m ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'}`}
-          >
-            {TABS[m].label}
-          </button>
-        ))}
-      </div>
 
       {tab.note && <p className="text-sm text-warning-fg bg-warning-bg border border-border rounded-md px-3 py-2">{tab.note}</p>}
 
@@ -270,6 +268,6 @@ export function DefaultValuesSetup() {
       ) : (
         <RulesTable key={mode} mode={mode} page={page} />
       )}
-    </div>
+    </SetupShell>
   )
 }

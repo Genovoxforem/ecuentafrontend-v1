@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from '../shared/components/layout/Sidebar'
 import { ModernSidebar } from '../shared/components/layout/ModernSidebar'
 import { Navbar } from '../shared/components/layout/Navbar'
-import { Breadcrumb } from '../shared/components/layout/Breadcrumb'
+import { Breadcrumb, isDetailPagePath } from '../shared/components/layout/Breadcrumb'
+import { getIntegratedDetailTitle, isBannerListPage, PageBanner } from '../shared/components/layout/PageBanner'
 import { RouteProgress, ContentLoader } from '../shared/components/layout/RouteProgress'
 import { useAuth } from '../features/auth/AuthContext'
 import { useSidebarStyle } from '../context/SidebarStyleContext'
@@ -12,6 +13,7 @@ import { buildNavSections } from '../shared/nav/buildNavSections'
 import { PATH_SOURCE_SECTIONS } from '../shared/nav/pathSourceSections'
 import { LayoutGrid } from 'lucide-react'
 import { ROUTES } from '../routes'
+import { useTheme } from '../context/ThemeContext'
 
 interface AppShellProps {
   children: ReactNode
@@ -27,11 +29,15 @@ export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= SIDEBAR_DEFAULT_BREAKPOINT)
   const { logout } = useAuth()
   const { sidebarStyle } = useSidebarStyle()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
   const { data: menu } = useAppMenu()
   const SECTIONS = useMemo(() => (menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : PATH_SOURCE_SECTIONS), [menu])
   const isModern = sidebarStyle === 'modern'
+  const hasListBanner = isBannerListPage(location.pathname, theme)
+  const isDetailPage = isDetailPagePath(location.pathname)
+  const detailBannerTitle = getIntegratedDetailTitle(SECTIONS, location.pathname, theme)
   // Dashboard is the landing page — no breadcrumb there, only on inner pages.
   const showBreadcrumb = location.pathname !== '/dashboard' && location.pathname !== '/'
 
@@ -57,12 +63,15 @@ export function AppShell({ children }: AppShellProps) {
             items means the page's `-m-6` only pulls it to the top edge of
             the scroll container (negating its padding), never into the
             breadcrumb row above. */}
-        <main className="flex flex-col flex-1 overflow-hidden bg-white dark:bg-gray-950 border-t border-border">
+        <main className="flex flex-col flex-1 overflow-hidden bg-surface border-t border-border">
           {showBreadcrumb && (
             <div className="shrink-0 p-2.5 empty:hidden">
               <Breadcrumb sections={SECTIONS} isModern={isModern} />
             </div>
           )}
+          <div className="shrink-0 px-6 empty:hidden">
+            <PageBanner sections={SECTIONS} pathname={location.pathname} />
+          </div>
           {/* flex flex-col here lets a page's root opt into flex-1 (fill-or-overflow the
               scrollport) using flexbox's own algorithm instead of percentage min-height, which
               doesn't reliably resolve against this element's content-box height through the
@@ -70,7 +79,7 @@ export function AppShell({ children }: AppShellProps) {
               No visual effect on pages that don't opt in: a single non-growing flex child sizes
               to its own content along the column axis exactly like normal block flow, and
               stretches to fill the width either way. */}
-          <div className="flex flex-col flex-1 overflow-y-auto soft-scrollbar p-6">
+          <div id="route-page-content" data-list-banner={hasListBanner ? 'true' : undefined} data-detail-page={isDetailPage ? 'true' : undefined} data-detail-title={detailBannerTitle} style={detailBannerTitle ? ({ '--detail-title': JSON.stringify(detailBannerTitle) } as React.CSSProperties) : undefined} className="flex flex-col flex-1 overflow-y-auto soft-scrollbar p-6">
             <ContentLoader>{children}</ContentLoader>
           </div>
         </main>

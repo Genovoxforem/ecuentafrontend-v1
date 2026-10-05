@@ -23,9 +23,12 @@ import {
   FilePlus2,
   Link2,
   Search,
+  Wallet,
+  CalendarDays,
+  Eye,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricTile, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useProjectsList, type ProjectRow } from '../projects.queries'
@@ -71,15 +74,6 @@ function TabTitle({ children }: { children: React.ReactNode }) {
 
 function NoApiNote({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-text-faint italic mt-2">{children}</p>
-}
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex-1 min-w-[120px]">
-      <p className="text-xs text-text-faint uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-bold text-text! mt-0.5">{value}</p>
-    </div>
-  )
 }
 
 // Real header/main data reused from projet/projects-list-ajax.php (see
@@ -214,10 +208,10 @@ export function ProjectDetail() {
             </div>
 
             <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <StatTile label="Budget" value={project.budgetAmount || '—'} />
-              <StatTile label="Start Date" value={project.startDate || '—'} />
-              <StatTile label="End Date" value={project.endDate || '—'} />
-              <StatTile label="Visibility" value={project.visibility || '—'} />
+              <DetailMetricTile label="Budget" value={project.budgetAmount || '—'} icon={Wallet} />
+              <DetailMetricTile label="Start Date" value={project.startDate || '—'} icon={CalendarClock} />
+              <DetailMetricTile label="End Date" value={project.endDate || '—'} icon={CalendarDays} />
+              <DetailMetricTile label="Visibility" value={project.visibility || '—'} icon={Eye} />
             </div>
 
             <div className="border-t border-border px-3 py-2.5">

@@ -32,10 +32,11 @@ export const nav: NavSection = {
       ],
     },
     {
-      label: 'Activities',
+      label: 'Tasks/activities',
       items: [
         { label: 'New task', path: ROUTES.projectTaskCreate },
         { label: 'List', path: ROUTES.projectTaskList },
+        { label: 'Statistics', path: ROUTES.projectTaskStats },
       ],
     },
     { label: 'Time spent', path: ROUTES.projectTimeSpent },

@@ -16,13 +16,24 @@ export interface InvoiceLineRow {
   productId: string | null
   productUrl: string
   label: string
+  // Real inline badge (`<span title="Batch: ...">`) printed right inside
+  // the description cell for a batch/lot-tracked line, not a separate
+  // table cell — '' for the (usual) non-tracked case. Two now-removed
+  // fields belong here for the record: landedCost/.linecolrefsupplier is
+  // real markup, but that <td> is only ever printed for supplier-side
+  // documents (order_supplier/invoice_supplier/supplier_proposal — see
+  // objectline_view.tpl.php), never for this page's own sales invoices, so
+  // it always came back empty; costPrice/.linecolmargin1 is real too but
+  // gated behind the margin module + a margins/creer permission this
+  // install's real invoice view doesn't have enabled either (confirmed:
+  // no "Cost Price" column on any real invoice screenshot checked this
+  // session). Neither belongs on this table.
+  lotBatch: string
   vatRatePercent: string
-  landedCost: string
   unitPriceExcl: string
   unitPriceIncl: string
   qty: string
   discountPercent: string
-  costPrice: string
   totalIncl: string
 }
 
@@ -49,6 +60,52 @@ export interface InvoicePaymentRow {
   type: string
   bankAccount: string
   amount: string
+}
+
+export interface InvoiceGrnDetails {
+  gdnNo: string
+  grnNo: string
+  month: string
+  shippingVia: string
+  shippingDate: string
+  trackingId: string
+  transporter: string
+  truckDetails: string
+  shippingAddress: string
+}
+
+export interface InvoiceMarginRow {
+  sellingPrice: string
+  costPrice: string
+  margin: string
+}
+
+export interface InvoiceMarginDetails {
+  marginOnProducts: InvoiceMarginRow
+  marginOnServices: InvoiceMarginRow
+  totalMargin: InvoiceMarginRow
+}
+
+export interface InvoiceProductOption {
+  value: string
+  label: string
+}
+
+export interface InvoiceWarehouseOption {
+  value: string
+  label: string
+  selected: boolean
+}
+
+// Only present on a real DRAFT invoice (statut=0): the classic `#idprod`
+// product select from the real `addproduct`/action=addline form, and the
+// `#idwarehouse` select from the real "Select Warehouse" modal shown by the
+// page's own "Create Invoice" button (form action=confirm_valid) — both
+// confirmed live, invoice facid=1057. null once the invoice is no longer a
+// draft, since neither element is rendered by the real page at that point.
+export interface InvoiceDraftFormOptions {
+  productOptions: InvoiceProductOption[]
+  warehouseOptions: InvoiceWarehouseOption[]
 }
 
 export interface DocGenOption {
@@ -109,6 +166,20 @@ export interface InvoiceDetail {
 
   docGenOptions: DocGenOptions
 
+  // Real "URL for Online payment" box (`#onlinepaymenturl`) — a real,
+  // clickable public payment link built from the invoice's own ref, shown
+  // only once payment-by-link is set up on this install; '' otherwise.
+  onlinePaymentUrl: string
+
+  // Real "Shipment / GRN Details" card (a custom field on llx_facture,
+  // `grndetails`, stored as JSON) — only rendered by the real page at all
+  // once that JSON is non-empty for this invoice, same "null when absent,
+  // never a fabricated empty block" convention as everything else here.
+  grnDetails: InvoiceGrnDetails | null
+
+  // null once validated — see InvoiceDraftFormOptions.
+  draftFormOptions: InvoiceDraftFormOptions | null
+
   notesBadge: number
   documentsBadge: number
   agendaBadge: number
@@ -125,15 +196,17 @@ function parseAmount(raw: string): number {
   return match ? Number(match[0]) : 0
 }
 
-// Ref/Ref. customer render as plain text (not inside a <label>, unlike Sales
-// Orders' equivalent): `Ref. <a class="editfielda" href="...">...</a> :
-// VALUE<a onclick=loadzradetails()>...` for Ref specifically (a ZRA-portal
-// shortcut icon sits right after the value, so this stops at the next `<`
-// rather than assuming `<br>` follows), `Ref. customer <a ...>...</a> :
-// VALUE<br>` for the rest — confirmed live, invoice facid=418.
+// Ref/Ref. customer: `<label class="form-label ">Ref.</label> <a
+// class="editfielda" href="...">...</a> : VALUE<a onclick=loadzradetails()>...`
+// for Ref specifically (a ZRA-portal shortcut icon sits right after the
+// value, so this stops at the next `<` rather than assuming `<br>`
+// follows), `<label...>Ref. customer</label> <a ...>...</a> : VALUE<br>`
+// for the rest. The `</label>` wrapper is a recent backend change (confirmed
+// live on a draft invoice, facid=1057) not present when this was first
+// written (facid=418) — made optional so both builds parse.
 function findRefLikeValue(html: string, label: string): string {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(`${escaped}\\s*<a class="editfielda"[\\s\\S]*?<\\/a>\\s*:\\s*([^<]*)<`)
+  const re = new RegExp(`${escaped}(?:<\\/label>)?\\s*<a class="editfielda"[\\s\\S]*?<\\/a>\\s*:\\s*([^<]*)<`)
   const m = re.exec(html)
   return (m?.[1] ?? '').trim()
 }
@@ -146,10 +219,17 @@ function findActionUrl(html: string, action: string): string {
   return (m?.[1] ?? '').replace(/&amp;/g, '&')
 }
 
+// The anchor's visible content is a `<div class="avatar-circle">XX</div>`
+// initials bubble immediately followed by the plain third-party name text
+// with no separating whitespace (confirmed live) — stripped out before
+// reading text so the initials don't leak into the name (e.g. "TEtest1").
 function findThirdParty(html: string): { name: string; socid: number | null } {
-  const m = html.match(/Third-party\s*:\s*<a href="\/comm\/card\.php\?socid=(\d+)"[^>]*>([^<]*)<\/a>/)
+  const m = html.match(/Third-party\s*:\s*<a href="\/comm\/card\.php\?socid=(\d+)"[^>]*>([\s\S]*?)<\/a>/)
   if (!m) return { name: '', socid: null }
-  return { name: m[2].replace(/\s+/g, ' ').trim(), socid: Number(m[1]) }
+  const div = document.createElement('div')
+  div.innerHTML = m[2]
+  div.querySelectorAll('.avatar-circle').forEach((el) => el.remove())
+  return { name: (div.textContent ?? '').replace(/\s+/g, ' ').trim(), socid: Number(m[1]) }
 }
 
 // Invoice Details table has a confirmed-broken-tag row ("Bank account<td>"
@@ -231,6 +311,85 @@ function parseZraDetails(html: string): InvoiceZraDetails {
   }
 }
 
+// "Shipment / GRN Details" card — only printed at all once the invoice's
+// own grndetails JSON is non-empty (confirmed live in the real PHP source),
+// so absence here is a real "nothing recorded", not a parse miss. Each
+// field is itself conditional on the real page too (only non-empty ones
+// get a row), so every lookup below defaults to '' rather than assuming
+// the row exists.
+function parseGrnDetails(html: string): InvoiceGrnDetails | null {
+  const headingIdx = html.indexOf('Shipment / GRN Details')
+  if (headingIdx === -1) return null
+  const tableStart = html.indexOf('<table', headingIdx)
+  if (tableStart === -1) return null
+  const tableEnd = html.indexOf('</table>', tableStart)
+  const block = html.slice(tableStart, tableEnd === -1 ? tableStart + 4000 : tableEnd)
+  const cell = (label: string) => {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const m = new RegExp(`>${escaped}\\s*<\\/td>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>`).exec(block)
+    return m ? stripTags(m[1]) : ''
+  }
+  return {
+    gdnNo: cell('GDN No \\.'),
+    grnNo: cell('GRN No \\.'),
+    month: cell('Month'),
+    shippingVia: cell('Shipping Via'),
+    shippingDate: cell('Shipping Date'),
+    trackingId: cell('Tracking ID'),
+    transporter: cell('Transporter'),
+    truckDetails: cell('Truck Details'),
+    shippingAddress: cell('Shipping Address'),
+  }
+}
+
+// Draft-only product/warehouse selects — see InvoiceDraftFormOptions above.
+function parseDraftFormOptions(doc: Document): InvoiceDraftFormOptions | null {
+  const productSelect = doc.querySelector<HTMLSelectElement>('#idprod')
+  if (!productSelect) return null
+  const productOptions: InvoiceProductOption[] = Array.from(productSelect.options)
+    .filter((o) => o.value && o.value !== '0')
+    .map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
+
+  const warehouseSelect = doc.querySelector<HTMLSelectElement>('#idwarehouse')
+  const warehouseOptions: InvoiceWarehouseOption[] = warehouseSelect
+    ? Array.from(warehouseSelect.options)
+        .filter((o) => o.value && o.value !== '-1')
+        .map((o) => ({ value: o.value, label: (o.textContent ?? '').trim(), selected: o.selected }))
+    : []
+
+  return { productOptions, warehouseOptions }
+}
+
+// "Margin Details" card — real output of the backend's own
+// displayMarginInfos() (core/class/html.formmargin.class.php), rendered
+// directly on document.php below the "Linked files" section (confirmed live
+// on invoices 43/1059/1060: always present, same fixed 3-row shape —
+// MarginOnProducts/MarginOnServices/TotalMargin, each with
+// SellingPrice/CostPrice/Margin).
+function parseMarginRow(block: string, label: string): InvoiceMarginRow {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`<td>${escaped}<\\/td>\\s*<td[^>]*>([^<]*)<\\/td>\\s*<td[^>]*>([^<]*)<\\/td>\\s*<td[^>]*>([^<]*)<\\/td>`).exec(block)
+  return {
+    sellingPrice: (m?.[1] ?? '').trim(),
+    costPrice: (m?.[2] ?? '').trim(),
+    margin: (m?.[3] ?? '').trim(),
+  }
+}
+
+export function parseInvoiceMarginDetails(html: string): InvoiceMarginDetails | null {
+  const headingIdx = html.indexOf('Margin Details')
+  if (headingIdx === -1) return null
+  const tableStart = html.indexOf('<table', headingIdx)
+  if (tableStart === -1) return null
+  const tableEndIdx = html.indexOf('</table>', tableStart)
+  const block = html.slice(tableStart, tableEndIdx === -1 ? tableStart + 4000 : tableEndIdx)
+  return {
+    marginOnProducts: parseMarginRow(block, 'MarginOnProducts'),
+    marginOnServices: parseMarginRow(block, 'MarginOnServices'),
+    totalMargin: parseMarginRow(block, 'TotalMargin'),
+  }
+}
+
 // Item Table real rows: `<tr id="row-N" class="drag drop oddeven"
 // data-element="facturedet" data-id="N" ...>` — one per real invoice line
 // (confirmed live). The bulk "Select Tax Category" apply-to-all-lines
@@ -242,42 +401,75 @@ function parseInvoiceLines(doc: Document): InvoiceLineRow[] {
     const productLink = row.querySelector('.linecoldescription a[href*="/product/card.php"]')
     const idMatch = productLink?.getAttribute('href')?.match(/id=(\d+)/)
     const labelCell = row.querySelector('.linecoldescription')
+    // The real Lot/Batch value is a `<span title="Batch: ...">` badge
+    // printed inline inside this same description cell
+    // (objectline_view.tpl.php), not its own <td> — pulled out here and
+    // stripped from a clone before reading label text so it doesn't leak
+    // into the product name.
+    let label = ''
+    let lotBatch = ''
+    if (labelCell) {
+      const batchBadge = labelCell.querySelector<HTMLElement>('span[title^="Batch:"]')
+      lotBatch = (batchBadge?.textContent ?? '').replace(/\s+/g, ' ').trim()
+      const clone = labelCell.cloneNode(true) as HTMLElement
+      clone.querySelectorAll('span[title^="Batch:"], span[title="Unit of Measure"]').forEach((el) => el.remove())
+      label = (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+    }
     return {
       rowid: row.getAttribute('data-id') ?? '',
       productId: idMatch ? idMatch[1] : null,
       productUrl: productLink?.getAttribute('href') ?? '',
-      label: (labelCell?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      label,
+      lotBatch,
       vatRatePercent: (row.querySelector('.linecolvat .flex-fill')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-      landedCost: (row.querySelector('.linecolrefsupplier')?.textContent ?? '').trim(),
       unitPriceExcl: (row.querySelector('.linecoluht')?.textContent ?? '').trim(),
       unitPriceIncl: (row.querySelector('.linecoluttc')?.textContent ?? '').trim(),
       qty: (row.querySelector('.linecolqty')?.textContent ?? '').trim(),
       discountPercent: (row.querySelector('.linecoldiscount')?.textContent ?? '').replace(/ /g, '').trim(),
-      costPrice: (row.querySelector('.linecolmargin1')?.textContent ?? '').trim(),
       totalIncl: (row.querySelector('.linecolht')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
     }
   })
 }
 
 // Bottom action-button row (`<div class="tabsAction d-flex">`): real plain
-// GET links (Send email, POS Ticket, Create credit note, Clone) plus one
-// JS-only button (Send WhatsApp, calls WhatsAppSender.sendInvoice(id) with
-// no plain URL equivalent — omitted here, same reasoning Sales Orders uses
-// for its own modal-only buttons: don't fabricate an unverified URL for a
-// mutating action). POS Ticket only renders when the invoice actually came
-// from a POS terminal — its absence is the real "not a POS sale" case.
+// GET links (Re-Open, Send email, POS Ticket, Create credit note, Clone)
+// plus one JS-only button (Send WhatsApp, calls WhatsAppSender.sendInvoice(id)
+// with no plain URL equivalent — skipped below, same reasoning Sales Orders
+// uses for its own modal-only buttons: don't fabricate an unverified URL for
+// a mutating action). POS Ticket only renders when the invoice actually came
+// from a POS terminal — its absence is the real "not a POS sale" case, and
+// Re-Open/Create credit note/Update to ZRA are each conditional on the
+// invoice's own status (a Paid or already ZRA-synced invoice doesn't carry
+// every button) — an empty or partial list here is real, not a parse miss.
+//
+// This page renders `class="tabsAction d-flex"` TWICE (confirmed live,
+// invoice facid=43): an icon-only shortcut bar right under the header
+// (just Clone + a close-list "x", no text — their anchor content starts
+// with an `<i>` icon, not text) and the real, fully-labeled action row right
+// before the Payment Details section. Taking the FIRST occurrence (as this
+// used to) always lands on the icon-only bar, and its anchors have no text
+// between `>` and the first `<`, so the old `[^<]*` label capture always
+// came back empty and got filtered out — every invoice silently showed zero
+// actions. The real row is the LAST occurrence, immediately before
+// `class="fichecenter"`.
 function parseActions(html: string): InvoiceAction[] {
-  const start = html.indexOf('class="tabsAction')
+  const start = html.lastIndexOf('class="tabsAction')
   if (start === -1) return []
   const end = html.indexOf('class="fichecenter', start)
   const block = end === -1 ? html.slice(start, start + 4000) : html.slice(start, end)
-  const anchorRe = /<a[^>]*class="butAction[^"]*"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g
+  // Non-greedy `[\s\S]*?` (not `[^<]*`) so a label wrapping an icon, e.g.
+  // `<i class="fab fa-whatsapp"></i> Send WhatsApp`, is captured in full
+  // rather than stopping at that inner tag's own `<`; stripTags then drops
+  // the icon markup to leave the plain label text.
+  const anchorRe = /<a[^>]*class="butAction[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g
   const actions: InvoiceAction[] = []
   let m: RegExpExecArray | null
   while ((m = anchorRe.exec(block))) {
-    const label = m[2].trim()
+    const url = m[1].replace(/&amp;/g, '&')
+    if (url.startsWith('javascript:')) continue // Send WhatsApp — see header comment.
+    const label = stripTags(m[2]).trim()
     if (!label) continue
-    actions.push({ label, url: m[1].replace(/&amp;/g, '&') })
+    actions.push({ label, url })
   }
   return actions
 }
@@ -484,6 +676,9 @@ export function parseInvoiceCardHtml(html: string, id: number): InvoiceDetail {
     billed,
     remainingUnpaid,
     docGenOptions: parseDocGenOptions(html),
+    onlinePaymentUrl: (doc.querySelector<HTMLInputElement>('#onlinepaymenturl')?.value ?? '').trim(),
+    grnDetails: parseGrnDetails(html),
+    draftFormOptions: parseDraftFormOptions(doc),
 
     notesBadge: findTabBadge(html, 'note'),
     documentsBadge: findTabBadge(html, 'documents'),

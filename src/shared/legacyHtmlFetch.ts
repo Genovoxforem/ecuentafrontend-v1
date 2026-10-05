@@ -58,6 +58,28 @@ export async function parseLegacyJson<T>(res: Response): Promise<T> {
   return JSON.parse(text) as T
 }
 
+// axios hands back the raw text when a "JSON" endpoint (the DataTables
+// *_ajax_list.php ones) answers with something else: the login page when the
+// legacy session is gone, or a PHP notice printed ahead of the JSON (dev
+// backends run with xdebug). Reading `.aaData ?? []` off that string showed an
+// empty list as if there were no records — the dashboard's "No sales yet" with
+// 294 invoices on the server. A notice-prefixed answer still parses from its
+// first `{"`; anything else is an error the page can show.
+export function legacyJsonBody<T>(data: unknown, source: string): T {
+  if (data && typeof data === 'object') return data as T
+  const text = typeof data === 'string' ? data : ''
+  if (looksLikeLegacyLoginPageText(text)) throw new Error(NOT_SIGNED_IN_MESSAGE)
+  const start = text.indexOf('{"')
+  if (start >= 0) {
+    try {
+      return JSON.parse(text.slice(start)) as T
+    } catch {
+      // not JSON after all — reported below
+    }
+  }
+  throw new Error(`${source} sent back something other than its data. Reload the page to try again.`)
+}
+
 // A backend page that refuses to open — a module switched off in setup, a
 // missing permission — prints toastr.error("…") and redirects to the home
 // page, so the page the caller asked for never arrives. Those messages are

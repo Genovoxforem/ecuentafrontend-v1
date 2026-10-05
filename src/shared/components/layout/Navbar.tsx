@@ -156,6 +156,9 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
   useEffect(() => {
     if (!openPanel) return
     const onClickOutside = (e: MouseEvent) => {
+      // Layers a panel renders on <body> through a portal (a modal, the All Apps drawer) are not
+      // inside panelRef in the DOM, yet belong to the open panel — a click in them is not "outside".
+      if (e.target instanceof Element && e.target.closest('[data-navbar-layer]')) return
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpenPanel(null)
     }
     document.addEventListener('mousedown', onClickOutside)
@@ -183,16 +186,25 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
               0.22 alpha is see-through, so without this the navbar washes out
               to near-white over a light-mode page. Keeps the navbar and sidebar
               visually continuous at their shared edge. */}
-          <div className="absolute inset-0 bg-gray-900" />
+          <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : 'bg-gray-900'}`} />
           {/* Flat translucent tint, no blur — plain glass, matching ModernSidebar. Kept on its own childless layer,
               separate from the content below, so the content's drop-shadow never touches this tint. Flat color
               (not a gradient) lines up seamlessly with the sidebar's identical tint at their shared edge. */}
-          <div className="absolute inset-0" style={{ backgroundColor: MODERN_GLASS_BG, backgroundImage: MODERN_GLASS_SHEEN }} />
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundColor: theme === 'blue-metal' ? 'rgba(6, 17, 29, 0.42)' : MODERN_GLASS_BG,
+              backgroundImage: theme === 'blue-metal' ? 'linear-gradient(135deg, rgba(66,200,255,0.2), rgba(22,139,255,0.05) 38%, transparent 68%)' : MODERN_GLASS_SHEEN,
+            }}
+          />
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
         </>
       )}
+      {/* z-30, above the z-10 pinned headers and footers that pages stick inside <main>: the
+          account / notification / settings panels open downward out of this bar, and at z-10
+          the page's own header (later in the DOM) painted over them. */}
       <div
-        className="relative z-10 flex items-center justify-between gap-4 h-full w-full"
+        className="relative z-30 flex items-center justify-between gap-4 h-full w-full"
         style={isModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
       >
       <div className={`relative z-10 flex h-full shrink-0 items-center transition-[width] duration-300 ${sidebarOpen ? (isModern ? 'w-64' : 'w-80') : 'w-16'}`}>
@@ -262,10 +274,12 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           </button>
         </div>
 
-        <div className="flex items-center rounded-full bg-surface-alt p-1 mr-1">
+        <div className="flex items-center rounded-full bg-surface-alt p-1 mr-1" aria-label="Color theme">
           <button
             type="button"
             onClick={() => setTheme('light')}
+            aria-label="Light theme"
+            aria-pressed={theme === 'light'}
             className={`w-7 h-7 flex items-center justify-center rounded-full ${theme === 'light' ? 'bg-white shadow text-amber-500' : 'text-text-faint'}`}
           >
             <Sun size={15} />
@@ -273,9 +287,21 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           <button
             type="button"
             onClick={() => setTheme('dark')}
+            aria-label="Dark theme"
+            aria-pressed={theme === 'dark'}
             className={`w-7 h-7 flex items-center justify-center rounded-full ${theme === 'dark' ? 'bg-gray-900 shadow text-blue-300' : 'text-text-faint'}`}
           >
             <Moon size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setTheme('blue-metal')}
+            title="Blue Metal theme"
+            aria-label="Blue Metal theme"
+            aria-pressed={theme === 'blue-metal'}
+            className={`w-7 h-7 flex items-center justify-center rounded-full transition-shadow ${theme === 'blue-metal' ? 'bg-[#06111d] shadow-[0_0_0_1px_#168bff,0_0_10px_#168bff80]' : 'hover:bg-surface-hover'}`}
+          >
+            <span className="h-4 w-4 rounded-full border border-white/50 bg-[linear-gradient(135deg,#42c8ff_0%,#168bff_48%,#06111d_100%)]" />
           </button>
         </div>
 

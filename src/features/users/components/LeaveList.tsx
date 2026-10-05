@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { CalendarDays, CalendarCheck2, CalendarX2, Plus, Search, Users, MoreVertical, ExternalLink } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CalendarDays, CalendarCheck2, CalendarX2, Plus, Search, Users, MoreVertical } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import { ROUTES } from '../../../routes'
 import { useHolidayStats, useHolidayRequests, type HolidaySearchStatus } from '../leave.queries'
 import type { HolidayRequestRow } from '../holidayParser'
 
@@ -38,14 +39,6 @@ const STATUS_OPTIONS: { value: HolidaySearchStatus; label: string }[] = [
   { value: '4', label: 'Canceled Leave' },
   { value: '5', label: 'Refused Leave' },
 ]
-
-// Real: the real page's own "New Leave Request" button links to
-// holiday/card.php?action=create — this app has no confirmed real POST
-// endpoint for creating a holiday request yet (unlike the read side here,
-// which is genuine DataTables JSON), so this opens the real legacy form
-// instead of a local-only mock create flow that would silently vanish from
-// this now-real list.
-const LEGACY_NEW_LEAVE_REQUEST_URL = '/holiday/card.php?action=create'
 
 function sortValue(r: HolidayRequestRow, key: SortKey): string | number {
   switch (key) {
@@ -105,7 +98,13 @@ function matchesSearch(row: HolidayRequestRow, query: string) {
   return [row.ref, row.employeeName, row.validatorName, row.typeLabel, row.status].some((f) => f.toLowerCase().includes(q))
 }
 
-export function LeaveList() {
+// newRequestPath: which real React "New Leave Request" route this list's
+// button opens — the two contexts this component is mounted under
+// (Users' /users-dashboard/hrm/leave/request vs Payroll's
+// /payroll/leave-request) render the exact same real form, just under a
+// different section so the sidebar/breadcrumb match wherever the list was
+// opened from.
+export function LeaveList({ newRequestPath = ROUTES.leaveRequest }: { newRequestPath?: string } = {}) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
@@ -165,14 +164,12 @@ export function LeaveList() {
             <span>–</span>
             <input type="date" value={to} onChange={(e) => handleToChange(e.target.value)} className="bg-transparent outline-none" />
           </div>
-          <a
-            href={stripBackendPrefix(LEGACY_NEW_LEAVE_REQUEST_URL)}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to={newRequestPath}
             className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
           >
             <Plus size={14} /> New Leave Request
-          </a>
+          </Link>
           <div className="relative">
             <button
               type="button"
@@ -282,9 +279,9 @@ export function LeaveList() {
                   pageRows.map((r) => (
                     <tr key={r.id} className="border-b border-border hover:bg-surface-hover/60">
                       <td className="px-4 py-3 text-brand">
-                        <a href={stripBackendPrefix(`/holiday/card.php?id=${r.id}`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
-                          {r.ref} <ExternalLink size={11} className="text-text-faint" />
-                        </a>
+                        <Link to={ROUTES.leaveDetail.replace(':id', String(r.id))} className="hover:underline">
+                          {r.ref}
+                        </Link>
                       </td>
                       <td className="px-4 py-3 text-text!">{r.employeeName || '—'}</td>
                       <td className="px-4 py-3 text-text-muted">{r.validatorName || '—'}</td>

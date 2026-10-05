@@ -1,10 +1,9 @@
 // Simplified world map (real continent outlines, not decorative blobs) —
 // derived from the legacy Ecuenta 9.0.0 dashboard's own "Sales by Country"
-// widget (a jVectorMap world map), with path points reduced via
-// Douglas-Peucker simplification since this is just a static backdrop and
-// doesn't need per-country precision. Marker/line positions and colors are
-// copied as-is from that reference so the three highlighted regions land in
-// the same spots (~USA, Zambia, India).
+// widget (a jsVectorMap "world_merc" map), with path points reduced via
+// Douglas-Peucker simplification since it doesn't need per-country precision.
+// The markers and lines are the classic widget's own (mapMarkers / mapLines,
+// see mainDashboardParser.ts), placed with that map's projection below.
 const CONTINENT_PATHS = [
   'M652 360L650 356L644 358L642 351L643 347L652 350L652 360Z',
   'M421 377L424 386L408 387L421 377Z',
@@ -137,44 +136,70 @@ const CONTINENT_PATHS = [
   'M509 449L509 444L522 441L523 452L508 465L509 477L502 484L504 457L497 453L504 451L509 458L509 449Z',
 ]
 
-const MARKERS = [
-  { cx: 203.3, cy: 188.1 },
-  { cx: 253.9, cy: 141.0 },
-  { cx: 94.3, cy: 128.2 },
-]
+// world_merc's own projection (jsvectormap: Mercator, central meridian 11.5,
+// earth radius 6381372) and inset bbox, then this SVG's scale(0.413333)
+// translate(0, 1.201809) — Zambia's [-15.4167, 28.2833] lands on (203.3, 188.1),
+// where the classic map draws it.
+const RADIUS = 6381372
+const CENTRAL_MERIDIAN = 11.5
+const BBOX = { x0: -20004297.151525836, x1: 20026572.394749384, y0: -18449355.69035302, y1: 7485321.539093307 }
+const MAP_W = 900
+const MAP_H = 583.0802520919394
+const SCALE = 0.413333
+const SHIFT_Y = 1.201809
 
-export function WorldMapDecoration() {
+function projectLatLng(lat: number, lng: number): { cx: number; cy: number } {
+  const x = RADIUS * (lng - CENTRAL_MERIDIAN) * (Math.PI / 180)
+  const y = -RADIUS * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+  const mapX = ((x - BBOX.x0) / (BBOX.x1 - BBOX.x0)) * MAP_W
+  const mapY = ((y - BBOX.y0) / (BBOX.y1 - BBOX.y0)) * MAP_H
+  return { cx: mapX * SCALE, cy: (mapY + SHIFT_Y) * SCALE }
+}
+
+export interface WorldMapMarker {
+  name: string
+  coords: [number, number]
+}
+
+export function WorldMapDecoration({
+  markers = [],
+  lines = [],
+  className = 'w-full h-auto block',
+}: {
+  markers?: WorldMapMarker[]
+  lines?: Array<{ from: string; to: string }>
+  className?: string
+}) {
+  const points = new Map(markers.map((m) => [m.name, { ...projectLatLng(m.coords[0], m.coords[1]), name: m.name }]))
   return (
-    <svg viewBox="0 0 372 242" className="w-full h-auto block" aria-hidden="true">
-      <g transform="scale(0.413333) translate(0, 1.201809)" className="text-text-faint" fill="currentColor" opacity="0.4">
+    <svg viewBox="0 0 372 242" className={className} role="img" aria-label={markers.length ? `Countries: ${markers.map((m) => m.name).join(', ')}` : 'World map'}>
+      <g transform={`scale(${SCALE}) translate(0, ${SHIFT_Y})`} className="text-text-faint" fill="currentColor" opacity="0.4">
         {CONTINENT_PATHS.map((d, i) => (
           <path key={i} d={d} />
         ))}
       </g>
-      <line
-        x1={MARKERS[1].cx}
-        y1={MARKERS[1].cy}
-        x2={MARKERS[0].cx}
-        y2={MARKERS[0].cy}
-        stroke="var(--color-brand)"
-        strokeOpacity="0.5"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeDasharray="0.5 5"
-      />
-      <line
-        x1={MARKERS[2].cx}
-        y1={MARKERS[2].cy}
-        x2={MARKERS[0].cx}
-        y2={MARKERS[0].cy}
-        stroke="var(--color-brand)"
-        strokeOpacity="0.5"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeDasharray="0.5 5"
-      />
-      {MARKERS.map((m, i) => (
-        <g key={i}>
+      {lines.map((line) => {
+        const from = points.get(line.from)
+        const to = points.get(line.to)
+        if (!from || !to) return null
+        return (
+          <line
+            key={`${line.from}-${line.to}`}
+            x1={from.cx}
+            y1={from.cy}
+            x2={to.cx}
+            y2={to.cy}
+            stroke="var(--color-brand)"
+            strokeOpacity="0.5"
+            strokeWidth="1.25"
+            strokeLinecap="round"
+            strokeDasharray="0.5 5"
+          />
+        )
+      })}
+      {[...points.values()].map((m) => (
+        <g key={m.name}>
+          <title>{m.name}</title>
           <circle cx={m.cx} cy={m.cy} r="10" fill="var(--color-brand)" opacity="0.15" />
           <circle
             cx={m.cx}
