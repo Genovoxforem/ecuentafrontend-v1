@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import {
+  fetchThirdParties,
+  fetchThirdPartySummary,
+  type ThirdPartyRow as FapiThirdPartyRow,
+} from '../../api/customers'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
-import type { ApiCustomerRow } from '../customers/customers.queries'
 
 export interface VendorsSummary {
   totalVendors: number
@@ -12,28 +15,13 @@ export interface VendorsSummary {
   vendors: ThirdPartyRow[]
 }
 
-interface CustomersListResponse {
-  success: boolean
-  customers: ApiCustomerRow[]
-  total_count: number
-}
-
-interface ThirdPartySummaryResponse {
-  success: boolean
-  type: string
-  total: number
-  created_this_month: number
-  outstanding_balance: number
-  default_country_parties: number
-  other_country_parties: number
-}
-
-// Vendor-specific nature label — a vendor that's also flagged as a customer
-// (client IN 1,3) shows "Vendor, Customer", otherwise just "Vendor". The
-// backend's `type` field is derived from `client` only (prospect/customer/
-// customer_prospect), so for vendors we check `client` directly to detect
-// the customer flag.
-export function toThirdPartyRow(item: ApiCustomerRow): ThirdPartyRow {
+/**
+ * Vendor-specific nature label — a vendor that's also flagged as a customer
+ * (client IN 1,3) shows "Vendor, Customer", otherwise just "Vendor". The
+ * backend's `type` field is derived from `client` only, so for vendors we
+ * check `client` directly to detect the customer flag.
+ */
+export function toThirdPartyRow(item: FapiThirdPartyRow): ThirdPartyRow {
   const isAlsoCustomer = item.client === 1 || item.client === 3
   return {
     id: item.id,
@@ -52,34 +40,34 @@ export function toThirdPartyRow(item: ApiCustomerRow): ThirdPartyRow {
   }
 }
 
-// /api/customers/index.php?action=list&type=vendor — same bearer-token-
-// authenticated endpoint as customers.queries.ts, filtered to vendors
-// (fournisseur=1). Summary stats come from action=summary&type=vendor,
-// computed server-side to match /societe/list.php's KPI block (including
-// the vendor-specific outstanding balance from facture_fourn, not facture).
-// Replaces the old /societe/api/list.php?type=f call which required the
-// DOLSESSID session cookie.
+/**
+ * Vendors list + summary KPIs.
+ *
+ * Uses the bearer-token-authenticated fapi endpoints:
+ *   GET /societe/fapi/list.php?type=vendor
+ *   GET /societe/fapi/summary.php?type=vendor
+ *
+ * These wrap the existing Dolibarr Societe business class and replicate
+ * /societe/list.php?type=f's server-side KPI computation, including the
+ * vendor-specific outstanding balance from facture_fourn (purchase invoices),
+ * not facture (sales invoices).
+ */
 export function useVendorsSummary() {
   return useQuery({
     queryKey: ['vendors', 'summary'],
     queryFn: async (): Promise<VendorsSummary> => {
-      const [listRes, summaryRes] = await Promise.all([
-        api.get<CustomersListResponse>('/customers/index.php', {
-          params: { action: 'list', type: 'vendor', limit: 1000 },
-        }),
-        api.get<ThirdPartySummaryResponse>('/customers/index.php', {
-          params: { action: 'summary', type: 'vendor' },
-        }),
+      const [listData, summary] = await Promise.all([
+        fetchThirdParties({ type: 'vendor', limit: 100, sort: 'name', direction: 'asc' }),
+        fetchThirdPartySummary('vendor'),
       ])
-      const parsed = listRes.data.customers ?? []
-      const vendors: ThirdPartyRow[] = parsed.map(toThirdPartyRow)
+      const vendors: ThirdPartyRow[] = listData.items.map(toThirdPartyRow)
 
       return {
-        totalVendors: summaryRes.data.total ?? parsed.length,
-        createdThisMonth: summaryRes.data.created_this_month ?? 0,
-        outstandingBalance: summaryRes.data.outstanding_balance ?? 0,
-        defaultCountryVendors: summaryRes.data.default_country_parties ?? 0,
-        otherCountryVendors: summaryRes.data.other_country_parties ?? 0,
+        totalVendors: summary.total ?? vendors.length,
+        createdThisMonth: summary.created_this_month ?? 0,
+        outstandingBalance: summary.outstanding_balance ?? 0,
+        defaultCountryVendors: summary.default_country_parties ?? 0,
+        otherCountryVendors: summary.other_country_parties ?? 0,
         vendors,
       }
     },

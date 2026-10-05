@@ -44,6 +44,25 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// fapi axios instance — for module-level fapi endpoints (e.g. /societe/fapi/*,
+// /contact/fapi/*, /compta/facture/fapi/*). These are bearer-token-authenticated
+// JSON API adapters that wrap the existing Dolibarr business classes. Uses an
+// empty baseURL so the full path (e.g. /societe/fapi/list.php) is resolved
+// same-origin via the Vite dev proxy (which already proxies /societe/*) or
+// directly in production (same-origin deployment).
+export const fapi = axios.create({
+  baseURL: '',
+  timeout: 15000,
+})
+
+fapi.interceptors.request.use((config) => {
+  const token = getStoredToken()
+  if (token) {
+    config.headers['X-API-Key'] = token
+  }
+  return config
+})
+
 let onUnauthorized: (() => void) | null = null
 export function registerUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler
