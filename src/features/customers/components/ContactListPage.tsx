@@ -15,35 +15,23 @@ const KIND_LABEL: Record<ContactKind, string> = {
   vendor: 'Vendors',
 }
 
-type SortKey = 'lastName' | 'firstName' | 'phone' | 'email' | 'thirdPartyCode'
+type SortKey = 'lastName' | 'firstName' | 'phone' | 'email' | 'thirdParty'
 
-// This page's real backend (contact/contacts-addresses-list-ajax.php) paginates
-// server-side, so only the current page's rows are ever in memory — sorting
-// applies within the loaded page, same as the rest of this app's other
-// server-paginated ZRA DataTables-backed lists (no full-dataset sort exists
-// to wire against without fetching everything, which this endpoint doesn't
-// support via a `length=-1` escape hatch the way societe/api/list.php does).
 function sortValue(r: ContactRow, key: SortKey): string | number {
   switch (key) {
     case 'lastName':
-      return r.lastName ?? ''
+      return r.lastname ?? ''
     case 'firstName':
-      return r.firstName ?? ''
+      return r.firstname ?? ''
     case 'phone':
-      return r.phone ?? ''
+      return r.phone_pro ?? ''
     case 'email':
       return r.email ?? ''
-    case 'thirdPartyCode':
-      return r.thirdPartyCode ?? ''
+    case 'thirdParty':
+      return r.third_party_name ?? r.third_party_code ?? ''
   }
 }
 
-// Real POST contact/contacts-addresses-list-ajax.php data (see
-// contacts.queries.ts) — genuine DataTables JSON, confirmed live. It only
-// returns 6 raw columns (no third-party name, visibility, environment or
-// status), so Third-Party shows the real customer/supplier code instead of
-// a fabricated name, and the 3 unavailable columns are left blank rather
-// than guessed — see the note under the table header.
 export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
@@ -62,8 +50,8 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
 
   function getExportData() {
     return {
-      headers: ['Last Name', 'First Name', 'Phone', 'Email', 'Third-Party Code'],
-      rows: sortedRows.map((r) => [r.lastName ?? '', r.firstName ?? '', r.phone ?? '', r.email ?? '', r.thirdPartyCode ?? '']),
+      headers: ['Last Name', 'First Name', 'Phone', 'Email', 'Third-Party'],
+      rows: sortedRows.map((r) => [r.lastname ?? '', r.firstname ?? '', r.phone_pro ?? '', r.email ?? '', r.third_party_name ?? r.third_party_code ?? '']),
     }
   }
 
@@ -100,9 +88,6 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
             </div>
             <TableExportButtons title="List Of Contacts" getExportData={getExportData} />
           </div>
-          <p className="px-4 pt-3 text-xs text-text-faint italic">
-            Visibility, Environment and Status aren't returned by the real Contacts list endpoint on this backend — shown blank.
-          </p>
 
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
@@ -112,28 +97,27 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
                   <Th sortKey="firstName" sort={sort} onSort={toggleSort}>First Name</Th>
                   <Th sortKey="phone" sort={sort} onSort={toggleSort}>Phone</Th>
                   <Th sortKey="email" sort={sort} onSort={toggleSort}>Email</Th>
-                  <Th sortKey="thirdPartyCode" sort={sort} onSort={toggleSort}>Third-Party</Th>
+                  <Th sortKey="thirdParty" sort={sort} onSort={toggleSort}>Third-Party</Th>
                   <Th>Visibility</Th>
-                  <Th>Environment</Th>
                   <Th>Status</Th>
                 </TheadRow>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-4 text-text-faint italic">
+                    <td colSpan={7} className="px-4 py-4 text-text-faint italic">
                       Loading…
                     </td>
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-4">
+                    <td colSpan={7} className="px-4 py-4">
                       <span className="text-danger">Could not load contacts.</span>
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-4 text-text-faint italic">
+                    <td colSpan={7} className="px-4 py-4 text-text-faint italic">
                       No Data Available In Table
                     </td>
                   </tr>
@@ -142,16 +126,19 @@ export function ContactListPage({ kind = 'customer' }: { kind?: ContactKind }) {
                     <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
                       <td className="px-4 py-3">
                         <Link to={detailRoute.replace(':id', String(r.id))} className="text-brand font-medium hover:underline">
-                          {r.lastName || '-'}
+                          {r.lastname || '-'}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-text!">{r.firstName || '-'}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.phone || '-'}</td>
+                      <td className="px-4 py-3 text-text!">{r.firstname || '-'}</td>
+                      <td className="px-4 py-3 text-text-muted">{r.phone_pro || r.phone_mobile || '-'}</td>
                       <td className="px-4 py-3 text-text-muted">{r.email || '-'}</td>
-                      <td className="px-4 py-3 text-text-muted">{r.thirdPartyCode || '-'}</td>
-                      <td className="px-4 py-3 text-text-faint">—</td>
-                      <td className="px-4 py-3 text-text-faint">—</td>
-                      <td className="px-4 py-3 text-text-faint">—</td>
+                      <td className="px-4 py-3 text-text-muted">{r.third_party_name || r.third_party_code || '-'}</td>
+                      <td className="px-4 py-3 text-text-faint">{r.priv === 1 ? 'Private' : 'Public'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
+                          {r.status === 1 ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
                     </tr>
                   ))
                 )}
