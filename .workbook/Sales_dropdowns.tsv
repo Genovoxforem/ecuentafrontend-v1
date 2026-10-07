@@ -1,0 +1,49 @@
+Screen	frontend_url	Dropdown field(s)	Source today (backend_url)	Source type	API status	Note
+Create customer / prospect	/customers/create, /prospects/create	Country, Currency, Legal form, Third-party type, Workforce, Incoterms, Sales rep, Customer & vendor categories, Customer group, NRC type	/societe/api/meta.php?action=wizard_options	JSON	JSON – exists	
+Create customer / prospect	/customers/create	State / Province (by country)	/societe/api/meta.php?action=states&country_id=	JSON	JSON – exists	
+Create customer / prospect	/customers/create	Language	/api/languages/	JSON	JSON – exists	
+Create order	/orders/create	Customer	/api/customers/	JSON	JSON – exists	
+Create order	/orders/create	Project	/api/projects.php	JSON	JSON – exists	
+Create order	/orders/create	Bank account	/api/bank_accounts.php	JSON	JSON – exists	
+Create order	/orders/create	Payment type	/api/payment_types.php	JSON	JSON – exists	
+Create order	/orders/create	Product	/api/products/	JSON	JSON – exists	
+Create order	/orders/create	Currency, Incoterms	/societe/api/meta.php?action=wizard_options	JSON	JSON – exists	
+Create order	/orders/create	Payment terms, Shipping method	/commande/salesorder/index_v2.php	HTML scrape	JSON exists – frontend can switch	both are in wizard_options (payment_terms, shipping)
+Create order	/orders/create	Availability delay	/commande/salesorder/index_v2.php	HTML scrape	NEW API needed	not in any JSON
+Create order	/orders/create	Warehouse	/product/stock/list.php	HTML scrape	NEW API needed	warehouses list
+Create quotation	/quotations/create	Customer, Product, Project, Payment type	/api/customers/, /api/products/, /api/projects.php, /api/payment_types.php	JSON	JSON – exists	
+Create quotation	/quotations/create	Payment terms, Shipping method	/comm/propal/index_v2.php	HTML scrape	JSON exists – frontend can switch	in wizard_options
+Create quotation	/quotations/create	Availability period, Source (demand reason)	/comm/propal/index_v2.php	HTML scrape	NEW API needed	not in any JSON
+Create invoice (quick / detailed)	/invoices/create/quick, /invoices/create	Customer, Product	/api/customers/, /api/products/	JSON	JSON – exists	
+Create invoice (quick / detailed)	/invoices/create/quick, /invoices/create	Payment terms, Currency	/societe/api/meta.php?action=wizard_options	JSON	JSON – exists	switched from HTML on 2026-10-05
+Create invoice (quick / detailed)	/invoices/create/quick, /invoices/create	Bank account, Payment mode	/api/bank_accounts.php, /api/payment_types.php	JSON	JSON – exists	
+Create invoice (quick / detailed)	/invoices/create/quick, /invoices/create	Warehouse	/product/stock/list.php	HTML scrape	NEW API needed	warehouses list
+Create invoice (quick / detailed)	/invoices/create	Project	/projet/projects-list-ajax.php	JSON (HTML cells)	JSON – exists	
+Create invoice (quick / detailed)	/invoices/create	Document template (model), Incoterms, Invoice types (Lpo / Export)	/compta/facture/card.php?action=create	HTML scrape	NEW API needed	incoterms also in wizard_options
+Create invoice (quick / detailed)	/invoices/create/quick	VAT rate of a line	VAT_RATES in QuickInvoiceCreateForm.tsx	Static list in code	Static list in code	hard-coded; no dictionary API used
+Create invoice (quick / detailed)	/invoices/create	Credit-note reason, Debit-note reason	CREDIT_NOTE_REASONS / DEBIT_NOTE_REASONS in code	Static list in code	Static list in code	
+Create contract	/contracts/create	Customer, Product, Project	/api/customers/, /api/products/, /api/projects.php	JSON	JSON – exists	
+Create contact	/contacts/create	Third party	/api/customers/	JSON	JSON – exists	
+Create contact	/contacts/create	Title, Country/State, Visibility	no source	Disabled in UI	Disabled in UI (no source)	selects are disabled; would need civility + country/state options
+Create customer group	/customer-groups/create	Discount method / type	codes fixed in customerGroups.queries.ts	Static list in code	Static list in code	
+Create rebate invoice	/invoices/rebates/create	Customer (+ invoices of that customer)	/custom/zra/rebate_create.php	HTML scrape	NEW API needed	customer list and invoice table
+Invoice detail	/invoices/:id	Contacts tab – contact types, internal users, external contacts, companies	/compta/sales/api/contacts.php	JSON	JSON exists – frontend can switch	actions getcontacttypes / getinternalusers / getexternalcontacts / getcompanies work; page still reads /compta/facture/contact.php
+Invoice detail	/invoices/:id	Validate / modify modals – warehouse	/compta/sales/card.php (#vm-warehouse, #um-warehouse)	HTML scrape	NEW API needed	warehouses list
+Invoice detail	/invoices/:id	Add-line product	/compta/sales/card.php (#nl-idprod)	HTML scrape	JSON exists – frontend can switch	/api/products/ already exists
+Invoice detail	/invoices/:id	Payment type, Bank account (record payment)	/api/payment_types.php, /api/bank_accounts.php	JSON	JSON – exists	
+Invoice detail	/invoices/:id	Linkable objects (orders, proposals…)	/compta/sales/api/documents.php?action=get_linkable_objects	JSON	JSON – exists	
+Order detail	/orders/:id	Contacts tab – internal users, types, companies, external contacts	/commande/contact.php	HTML scrape	NEW API needed	same shape as the invoice contacts API
+Order detail	/orders/:id	Shipments tab – warehouse / create-shipment options	/expedition/shipment.php	HTML scrape	NEW API needed	
+Order detail	/orders/:id	Stock consumptions – product, warehouse	/custom/consumption/card.php	HTML scrape	NEW API needed	
+Order detail	/orders/:id	Linked files – document template (model), language	/commande/document.php, /commande/card.php	HTML scrape	NEW API needed	
+Order detail	/orders/:id	Add event – % complete / status	fixed values in AddOrderEventModal.tsx	Static list in code	Static list in code	
+Quotation detail	/quotations/:id	Contacts tab – users, types, companies, contacts	/comm/propal/contact.php	HTML scrape	NEW API needed	
+Quotation detail	/quotations/:id	Stock consumptions – warehouse, product	/product/stock/list.php, /api/products/	HTML scrape + JSON	NEW API needed	warehouse list is scraped
+Quotation detail	/quotations/:id	Linked files – document template, language	/comm/propal/document.php	HTML scrape	NEW API needed	
+Quotation detail	/quotations/:id	Close as signed / not signed	fixed values in code	Static list in code	Static list in code	
+Customer detail	/customers/:id	Activity type / status / user	/societe/api/activities.php?action=meta	JSON	JSON – exists	
+Customer detail	/customers/:id	Notification action / contact	/societe/api/notify.php	JSON	JSON – exists	
+Customer detail	/customers/:id	Tickets filter – status / type / severity	/societe/api/tickets.php (filter_options)	JSON	JSON – exists	
+Statistics (orders)	/orders/statistics	Third party, Third-party type, Category, Created by, Status, Year	/societe/api/meta.php, /api/customers/	JSON	JSON – exists	filters use JSON; the statistics data itself is scraped
+Statistics (quotations / invoices)	/quotations/statistics, /invoices/statistics	Year / Third party	derived from the data	Derived	Static list in code	
+Invoice list	/invoices	Status filter (draft / unpaid / paid / abandoned)	fixed values in code	Static list in code	Static list in code	

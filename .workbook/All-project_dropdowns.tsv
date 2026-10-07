@@ -1,0 +1,44 @@
+Module	Dropdown field(s)	Backend page it is read from today	Source type	API status	Frontend file
+Sales – orders / quotations / invoices / customers	"see sheet ""Sales dropdowns"""				
+Warehouses (shared)	Warehouse picker – used by Sales orders, quotations, invoices, purchase invoices, stock transfer/correction/movements, racks, inventory, POS terminal setup	/product/stock/list.php	HTML scrape	NEW API needed	features/warehouses/warehouseExtras.queries.ts
+Warehouses	Inventory lines – warehouse, product	/product/inventory/card.php	HTML scrape	NEW API needed	features/warehouses/inventoryLines.ts
+Warehouses	Landed cost – product	/fourn/facture/landedcostlist.php	HTML scrape	NEW API needed	features/warehouses/
+Warehouses	Warehouse edit form options	/product/stock/card.php	HTML scrape	NEW API needed	features/warehouses/warehouseHtmlParser.ts
+Purchase orders	Create – payment terms, shipping, availability (same page layout as sales order create)	/commande/purchaseorder/index_v2.php	HTML scrape	NEW API needed	features/salesOrders/orderFormOptionsParser.ts
+Purchase orders	Document template (model), language	/fourn/commande/document.php	HTML scrape	NEW API needed	features/purchaseOrders/purchaseOrderCardParser.ts
+Purchase orders	Dispatch / reception – warehouse	/fourn/commande/dispatch.php	HTML scrape	NEW API needed	features/purchaseOrders/
+Vendor invoices	Purchase invoice – warehouse	/fourn/facture/purchase.php	HTML scrape	NEW API needed	features/vendorInvoices/vendorInvoices.queries.ts
+Supplier proposals	Create – vendor, payment terms, payment mode, bank account, project, shipping, currency, document model	/supplier_proposal/card.php?action=create	HTML scrape	NEW API needed	features/supplierProposals/supplierProposals.queries.ts
+Products	Edit wizard – default warehouse, manufacturer, country, units, weight/size units, packing, finished, statuses, categories	/productinfo/api/edit_wizard.php	HTML fragment scrape	NEW API needed	features/products/productLegacyParsers.ts
+Products / ZRA	Classification and product search	/custom/zra/productclassification.php, /custom/zra/product_search_api.php	JSON	JSON – exists	features/zra/createProduct.queries.ts
+Projects	Category create – parent category	/categories/card.php	HTML scrape	NEW API needed	features/projects/projectCategories.queries.ts
+Projects	Statistics – year filter	/projet/stats/index.php, /projet/tasks/stats/index.php	HTML scrape	NEW API needed	features/projects/statsHtmlParser.ts
+Loans	Loan type create – parent category; loan sub-types	/categories/card.php, /custom/loanmanagement/load_subtypes.php	HTML scrape	NEW API needed	features/loans/loans.queries.ts
+Expenses	Create expense report – employee, validator, VAT rate, project, vendor, product	/expensereport/card.php (create form)	HTML scrape	NEW API needed	features/expenses/expensePagesParser.ts
+Expenses	Advances / reimbursements / repayments / recurring – employee, expense report, template, frequency	/expensereport/* pages	HTML scrape	NEW API needed	features/expenses/expenseTabsParser.ts
+Expenses	Vendor search; payment type; bank account	/expense/ajax/entity_search.php, /api/payment_types.php, /api/bank_accounts.php	JSON	JSON – exists	features/expenses/expenses.queries.ts
+General ledger	Transaction create – journal, accounts	/accountancy/bookkeeping/card.php	HTML scrape	NEW API needed	features/generalLedger/
+General ledger	Default / product / tax / VAT accounts, opening balance – account pickers, country	/accountancy/admin/*.php	HTML scrape	NEW API needed	features/generalLedger/*Parser.ts
+General ledger	VAT report – invoice type, status	/compta/tva/quadri_detail.php	HTML scrape	NEW API needed	features/generalLedger/vatReportByRateParser.ts
+General ledger	Donation create – payment mode, project	donation create page	HTML scrape	NEW API needed	features/generalLedger/donationCreate.queries.ts
+General ledger	Dictionaries (VAT rates, tax accounts)	/admin/dict.php	HTML scrape	NEW API needed	features/generalLedger/dictionary.queries.ts
+Payroll	Mark attendance – shifts, absence type	/payroll/mark_attendance.php, /payroll/mark_attendance_ajax.php	HTML scrape	NEW API needed	features/payroll/markAttendanceParser.ts
+Payroll	Reports – employee / entity pickers	/payroll/atten_period_rip.php, absent_list.php, atten_emp_rip.php, gratuity_report.php, special_shift_salary_report.php	HTML scrape	NEW API needed	features/payroll/payrollStatutoryReports.queries.ts
+Payroll	Salary template – fee types, currency	/payroll/salary_temp.php	HTML scrape	NEW API needed	features/payroll/
+Payroll	Admin setup – tax fee account, expense category, device status	/custom/payroll/admin/tax_deduction.php, add_expense.php, device_settings.php	HTML scrape	NEW API needed	features/payroll/payrollAdminTabs.queries.ts
+Payroll	Deduction heads; shift timeline filters	/payroll/payroll_deduction.php, /payroll/shift_timeline.php	HTML scrape	NEW API needed	features/payroll/
+Payroll	Employee search	/payroll/ajax_search.php	JSON	JSON – exists	features/payroll/payrollAttendance.queries.ts
+Users / HR	Leave request – employee, leave type	/holiday/card.php	HTML scrape	NEW API needed	features/users/leave.queries.ts
+Users / HR	Shift assignment – shifts, alternate mode	/user/salarydetails.php	HTML scrape	NEW API needed	features/users/userDetailTabs.queries.ts
+Users / HR	Task activity – customer, user	/compta/resultat/task_activity.php, task_activity-kanban.php	HTML scrape	NEW API needed	features/users/taskActivityParser.ts
+Users / HR	User list, languages	/userprofile/api/users.php, /api/languages/	JSON	JSON – exists	features/users/users.queries.ts
+Tickets	Ticket type filter	/ticket/list.php	HTML scrape	NEW API needed	features/tickets/tickets.queries.ts
+Settings	Email templates – type, visibility, user; sender profile; language; file cache	/admin/mails_templates.php, /admin/mails_senderprofile_list.php, /admin/*.php	HTML scrape	NEW API needed	features/settings/
+POS admin	Terminal setup – admin user and other selects	/takepos/admin/terminal.php, setup.php, bar.php	HTML scrape	NEW API needed	features/posAdmin/
+Kitchen	Order filters	/kitchen/ordermanagement.php	HTML scrape	NEW API needed	features/kitchen/
+Hotel	Booking form – type, source, check-in type, room status, extras	/booking/reservation/booking.php	HTML scrape	NEW API needed	features/hotel/classicBookingFormParser.ts
+Hotel	Create room – floor, room type; rooms for booking	/booking/settings/create_room.php, /booking/reservation/reservation_ajax.php	HTML scrape	NEW API needed	features/hotel/createRoomFormParser.ts
+Banking	Bank account form options; entry detail	/compta/bank/card.php, /compta/bank/line.php, /compta/bank/budget.php	HTML scrape	NEW API needed	features/banking/
+Interventions	Job card – accessories	/fichinter/create.php	HTML scrape	NEW API needed	features/interventions/jobCard.queries.ts
+Tags / categories (all modules)	Tag tree / sidebar lists	/categories/api/index.php, /categories/tag-sidebarlist-ajax.php	JSON	JSON – exists	features/*/categories queries
+Shared dictionaries	Payment types, bank accounts, projects, countries/currencies/legal forms/incoterms/users/categories, languages, customer & contact search	/api/payment_types.php, /api/bank_accounts.php, /api/projects.php, /societe/api/meta.php, /api/languages/, /societe/fapi/search.php, /contact/fapi/search.php	JSON	JSON – exists	shared

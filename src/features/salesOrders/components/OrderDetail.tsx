@@ -45,8 +45,9 @@ import {
   useCloneOrder,
   useCancelOrder,
   useDeleteOrder,
+  useRemoveOrderLink,
 } from '../orderDetail.queries'
-import type { OrderDetail as OrderDetailData } from '../orderCardParser'
+import type { OrderDetail as OrderDetailData } from '../orderDetail.types'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { SendOrderEmailModal } from './SendOrderEmailModal'
 import { AddOrderEventModal } from './AddOrderEventModal'
@@ -415,6 +416,7 @@ function DetailsTab({
 }) {
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [showAddEventModal, setShowAddEventModal] = useState(false)
+  const removeLink = useRemoveOrderLink(id)
   return (
     <div className="space-y-4">
       {showEmailModal && id && <SendOrderEmailModal id={id} orderRef={data.ref} onClose={() => setShowEmailModal(false)} />}
@@ -558,6 +560,20 @@ function DetailsTab({
           <div className="flex flex-wrap gap-2">
             {data.actions.map((action) => {
               const danger = action.label === 'Cancel' || action.label === 'Delete'
+              // The backend flags actions the current user lacks rights for
+              // (butActionRefused in the legacy page) — render them locked,
+              // same as unwired actions below.
+              if (action.enabled === false) {
+                return (
+                  <span
+                    key={action.label}
+                    title="You don't have permission for this action."
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-neutral-bg! text-neutral-fg cursor-not-allowed"
+                  >
+                    <Lock size={11} className="opacity-70" /> {action.label}
+                  </span>
+                )
+              }
               const actionBtnCls = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors disabled:opacity-60 ${
                 danger ? 'bg-danger hover:opacity-90' : 'bg-brand hover:bg-brand-hover'
               }`
@@ -740,16 +756,16 @@ function DetailsTab({
                         <td className="py-2 px-3 text-right text-text-muted">{formatMoney(obj.amount)}</td>
                         <td className="py-2 px-3 text-text-muted">{obj.statusLabel}</td>
                         <td className="py-2 px-4 text-center">
-                          {obj.dellinkUrl && (
-                            <a
-                              href={stripBackendPrefix(obj.dellinkUrl)}
-                              target="_blank"
-                              rel="noreferrer"
+                          {obj.linkid != null && (
+                            <button
+                              type="button"
                               title="Remove link"
-                              className="inline-flex text-text-faint hover:text-danger"
+                              onClick={() => removeLink.mutate(obj.linkid!)}
+                              disabled={removeLink.isPending}
+                              className="inline-flex text-text-faint hover:text-danger disabled:opacity-50"
                             >
                               <Unlink size={14} />
-                            </a>
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -829,7 +845,7 @@ function LinkedFilesCard({ id, data }: { id: string | undefined; data: OrderDeta
 
   function handleGenerate() {
     if (!model) return
-    generateDoc.mutate({ token: docGenOptions.token, model, langId })
+    generateDoc.mutate({ model, langId })
   }
 
   return (
@@ -891,8 +907,8 @@ function LinkedFilesCard({ id, data }: { id: string | undefined; data: OrderDeta
                   <a href={stripBackendPrefix(doc.url)} target="_blank" rel="noreferrer" title="Preview" className="text-text-faint hover:text-text">
                     <Eye size={13} />
                   </a>
-                  {doc.deleteUrl && (
-                    <button type="button" title="Delete" onClick={() => deleteOrderDocument(doc.deleteUrl, doc.name, refetch, confirm)} className="text-text-faint hover:text-danger">
+                  {doc.deletable && (
+                    <button type="button" title="Delete" onClick={() => deleteOrderDocument(id, doc.name, refetch, confirm)} className="text-text-faint hover:text-danger">
                       <Trash2 size={13} />
                     </button>
                   )}

@@ -1,0 +1,202 @@
+Module name	Function	frontend_url	backend_url	HTTP method	Data source today	Backend URL exists on 5.10	Note
+Customers	List	/customers	/societe/fapi/list.php	GET	JSON API	Yes (needs API key)	type=customer
+Customers	List – summary cards	/customers	/societe/fapi/summary.php	GET	JSON API	Yes (needs API key)	
+Customers	List – sales-rep filter	/customers	/userprofile/api/users.php	GET	JSON API	Yes (200)	action=list / stats
+Customers	Create – form options	/customers/create	/societe/api/meta.php	GET	JSON API	Yes (400)	action=wizard_options
+Customers	Create – states by country	/customers/create	/societe/api/meta.php	GET	JSON API	Yes (400)	action=states&country_id=
+Customers	Create – languages	/customers/create	/api/languages/	GET	JSON API	Yes (200)	
+Customers	Create – CSRF token	/customers/create	/societe/list.php	GET	Legacy HTML page (scraped)	Yes (200)	token read from the page
+Customers	Create – save	/customers/create	/societe/api/societes.php	POST	JSON API	Yes (200)	action=create
+Customers	View	/customers/:id	/societe/api/societe.php	GET	JSON API	Yes (400)	
+Customers	Edit / update – save	/customers/:id	/societe/api/societes.php	POST	JSON API	Yes (200)	action=update
+Customers	Delete	/customers/:id	/societe/fapi/delete.php	DELETE	Not built in UI	Yes (needs API key)	API exists; no delete button in the UI
+Customers	Tab Transactions	/customers/:id	/societe/api/transactions.php	GET	JSON API	Yes (400)	
+Customers	Tab Activities – list	/customers/:id	/societe/api/activities.php	GET	JSON API	Yes (400)	
+Customers	Tab Activities – create	/customers/:id	/societe/api/activities.php	POST	JSON API	Yes (400)	action=create
+Customers	Tab Activities – update	/customers/:id	/societe/api/activities.php	POST	JSON API	Yes (400)	action=update
+Customers	Tab Activities – schedule	/customers/:id	/societe/api/activities.php	POST	JSON API	Yes (400)	action=schedule
+Customers	Tab Activities – close	/customers/:id	/societe/api/activities.php	POST	JSON API	Yes (400)	action=close
+Customers	Tab Activities – delete	/customers/:id	/societe/api/activities.php	POST	JSON API	Yes (400)	action=delete
+Customers	Tab Contacts – list	/customers/:id	/societe/api/contacts.php	GET	JSON API	Yes (400)	
+Customers	Tab Contacts – create	/customers/:id	/societe/api/contacts.php	POST	JSON API	Yes (400)	token from /societe/card.php
+Customers	Tab Contract-Follow	/customers/:id	/societe/api/contracts.php	GET	JSON API	Yes (400)	
+Customers	Tab Customer	/customers/:id	/societe/api/customer.php	GET	JSON API	Yes (400)	
+Customers	Tab Vendor	/customers/:id	/societe/api/supplier.php	GET	JSON API	Yes (400)	
+Customers	Tab Events/Agenda	/customers/:id	/societe/api/agenda.php	GET	JSON API	Yes (400)	
+Customers	Tab Projects	/customers/:id	/societe/api/projects.php	GET	JSON API	Yes (400)	
+Customers	Tab Tickets	/customers/:id	/societe/api/tickets.php	GET	JSON API	Yes (400)	
+Customers	Tab Expenses	/customers/:id	/societe/api/expenses.php	GET	JSON API	Yes (400)	
+Customers	Tab Related items	/customers/:id	/societe/api/consumption.php	GET	JSON API	Yes (400)	
+Customers	Tab Payment information – list	/customers/:id	/societe/api/paymentmodes.php	GET	JSON API	Yes (400)	
+Customers	Tab Payment information – create	/customers/:id	/societe/api/paymentmodes.php	POST	JSON API	Yes (400)	action=create
+Customers	Tab Notifications – list	/customers/:id	/societe/api/notify.php	GET	JSON API	Yes (400)	
+Customers	Tab Notifications – add	/customers/:id	/societe/api/notify.php	POST	JSON API	Yes (400)	action=add
+Customers	Tab Notes – save	/customers/:id	/societe/api/notes.php	POST	JSON API	Yes (400)	
+Customers	Tab Linked files – list	/customers/:id	/societe/api/documents.php	GET	JSON API	Yes (400)	
+Customers	Tab Linked files – upload	/customers/:id	/societe/api/documents.php	POST	JSON API	Yes (400)	action=add
+Customers	Tab Pricing groups	/customers/:id	/societe/api/pricing_groups.php	GET	JSON API	Yes (200)	
+Customers	Tab Accounts receivable	/customers/:id	/societe/api/accounting_ar.php	GET	JSON API	Yes (400)	
+Customers	Tab Accounts payable	/customers/:id	/societe/api/accounting_ap.php	GET	JSON API	Yes (400)	
+Customers	Tab General ledger	/customers/:id	/societe/api/general_ledger.php	GET	JSON API	Yes (400)	
+Customers	Advance payments of a customer	/customers/:id/advance-list	/compta/facture/advancelist_ajax.php	POST	JSON (HTML cells parsed)	Yes (200)	
+Prospects	List	/prospects	/societe/fapi/list.php	GET	JSON API	Yes (needs API key)	type=prospect
+Prospects	List – summary cards	/prospects	/societe/fapi/summary.php	GET	JSON API	Yes (needs API key)	
+Prospects	Create – save	/prospects/create	/societe/api/societes.php	POST	JSON API	Yes (200)	action=create (same form as customers)
+Customer groups	List	/customer-groups	/societe/new_card.php	GET	Legacy HTML page (scraped)	Yes (200)	action=list
+Customer groups	Create – save	/customer-groups/create	/societe/new_card_ajax.php	POST	Legacy page write (token form)	Yes (200)	action=add
+Customer groups	Edit / update – save	/customer-groups/:id/edit	/societe/new_card_ajax.php	POST	Legacy page write (token form)	Yes (200)	action=update_group_info
+Customer groups	Delete	/customer-groups	/societe/new_card.php	GET	Legacy page write (token form)	Yes (200)	action=delete&id=
+Customer tags	List (tree)	/customers/tags	/categories/api/index.php	GET	JSON API	Yes (200)	action=tree&type=customer
+Customer tags	Items of a tag	/customers/tags	/categories/api/index.php	GET	JSON API	Yes (200)	action=products
+Customer tags	Create – token	/customers/tags	/categories/card.php	GET	Legacy HTML page (scraped)	Yes (200)	action=create
+Customer tags	Create – save	/customers/tags	/categories/card.php	POST	Legacy page write (token form)	Yes (200)	action=add
+Customer tags	Edit / delete	/customers/tags	/categories/card.php	POST	Not built in UI	Yes (200)	not in the UI
+Import customers	Dataset list	/import/customers	/imports/import.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Import customers	Download template	/import/customers	/imports/emptyexample.php	GET	Legacy page write (token form)	Yes (200)	file download
+Import customers	Upload file / map fields / run import	/import/customers	/imports/import.php	POST	Not built in UI	Yes (200)	steps 3–5 not built
+Contacts	List	/contacts	/contact/fapi/list.php	GET	JSON API	Yes (needs API key)	type=customer
+Contacts	Create – save	/contacts/create	/contact/fapi/create.php	POST	JSON API	Yes (needs API key)	
+Contacts	View	/contacts/:id	/contact/fapi/get.php	GET	JSON API	Yes (needs API key)	
+Contacts	Edit / update	/contacts/:id	/contact/fapi/update.php	POST	Not built in UI	Yes (needs API key)	API exists; Modify button is disabled
+Contacts	Delete	/contacts/:id	/contact/fapi/delete.php	DELETE	Not built in UI	Yes (needs API key)	API exists; Delete button is disabled
+Contacts	Tab Personal data	/contacts/:id	/contact/perso.php	GET	Inert placeholder	Yes (200)	no API; tab is a layout only
+Contacts	Tab Related items	/contacts/:id	/contact/consumption.php	GET	Inert placeholder	Yes (200)	no API; tab is a layout only
+Contacts	Tab Note	/contacts/:id	/contact/note.php	GET	Inert placeholder	Yes (200)	no API; tab is a layout only
+Contacts	Tab Linked files	/contacts/:id	/contact/document.php	GET	Inert placeholder	Yes (200)	no API; tab is a layout only
+Contacts	Tab Events/Agenda	/contacts/:id	/contact/agenda.php	GET	Inert placeholder	Yes (200)	no API; tab is a layout only
+Contact tags	List (tree)	/contacts/tags	/categories/api/index.php	GET	JSON API	Yes (200)	action=tree&type=contact
+Contact tags	Create – save	/contacts/tags	/categories/card.php	POST	Legacy page write (token form)	Yes (200)	action=add
+Sales orders	List	/orders	/commande/salesoredr_ajax_list.php	POST	JSON (HTML cells parsed)	Yes (200)	
+Sales orders	Create – customer defaults	/orders/create	/api/salesorder/	GET	JSON API	Yes (needs API key)	action=get_customer
+Sales orders	Create – save / save+validate	/orders/create	/api/salesorder/	POST	JSON API	Yes (needs API key)	action=create
+Sales orders	Statistics	/orders/statistics	/commande/stats/index.php	GET	Legacy HTML page (scraped)	Yes (200)	year, socid, userid, typent_id, categ_id, object_status
+Sales orders	View (card)	/orders/:id	/commande/card.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Sales orders	Edit (restore to draft)	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_modif
+Sales orders	Validate	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_validate
+Sales orders	Reopen	/orders/:id	/commande/card.php	GET	Legacy page write (token form)	Yes (200)	action=reopen
+Sales orders	Classify delivered	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_shipped
+Sales orders	Classify billed / unbilled	/orders/:id	/commande/card.php	GET	Legacy page write (token form)	Yes (200)	action=classifybilled | classifyunbilled
+Sales orders	Clone	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_clone
+Sales orders	Cancel	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_cancel
+Sales orders	Delete	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_delete
+Sales orders	Generate document (PDF)	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=builddoc
+Sales orders	Send email	/orders/:id	/commande/card.php	POST	Legacy page write (token form)	Yes (200)	action=presend / send
+Sales orders	Create shipment	/orders/:id	/expedition/card.php	POST	Legacy page write (token form)	Yes (200)	action=add
+Sales orders	Tab Contacts – list	/orders/:id	/commande/contact.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Sales orders	Tab Contacts – add	/orders/:id	/commande/contact.php	POST	Legacy page write (token form)	Yes (200)	action=addcontact
+Sales orders	Tab Shipments	/orders/:id	/expedition/shipment.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Sales orders	Tab Stock consumptions – list	/orders/:id	/custom/consumption/card.php	GET	Legacy HTML page (scraped)	Yes (302)	type=commande
+Sales orders	Tab Stock consumptions – declare	/orders/:id	/custom/consumption/card.php	POST	Legacy page write (token form)	Yes (302)	action=conso
+Sales orders	Tab Notes – read	/orders/:id	/commande/fapi/get.php	GET	JSON API	Yes (needs API key)	
+Sales orders	Tab Notes – save	/orders/:id	/commande/note.php	POST	Legacy page write (token form)	Yes (200)	action=setnote_public / setnote_private
+Sales orders	Tab Linked files – list	/orders/:id	/commande/document.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Sales orders	Tab Linked files – upload / link	/orders/:id	/commande/document.php	POST	Legacy page write (token form)	Yes (200)	sendit / linkit
+Sales orders	Tab Linked files – delete	/orders/:id	/commande/document.php	GET	Legacy page write (token form)	Yes (200)	action=confirm_deletefile
+Sales orders	Tab Events/Agenda – list	/orders/:id	/commande/agenda.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Sales orders	Tab Events/Agenda – create event	/orders/:id	/comm/action/card.php	POST	Legacy page write (token form)	Yes (200)	action=add
+Sales orders	Edit lines (add / update / delete)	/orders/:id	/commande/fapi/lines.php	POST	Not built in UI	Yes (needs API key)	API exists; not in the UI
+Sales orders	Create invoice from order	/orders/:id/create-invoice	/commande/card.php	GET	Legacy HTML page (scraped)	Yes (200)	order read; invoice saved via the invoice create APIs
+Sales orders	Create contract from order	/orders/:id/create-contract	/contrat/api/contract_handler.php	POST	JSON API	Yes (400)	action=create
+Quotations	List	/quotations	/comm/propal/quotation_ajax_list.php	POST	JSON (HTML cells parsed)	Yes (200)	
+Quotations	Create – save / save+validate	/quotations/create	/comm/propal/api/proposal_handler.php	POST	JSON API	Yes (400)	action=create
+Quotations	Validate	/quotations/:id	/comm/propal/api/proposal_handler.php	GET	JSON API	Yes (400)	action=validate
+Quotations	Statistics	/quotations/statistics	/comm/propal/stats/index.php	GET	Legacy HTML page (scraped)	Yes (200)	year
+Quotations	View (card)	/quotations/:id	/comm/propal/card.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Quotations	Reopen	/quotations/:id	/comm/propal/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_reopen
+Quotations	Close as signed / not signed	/quotations/:id	/comm/propal/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_closeas
+Quotations	Classify billed	/quotations/:id	/comm/propal/card.php	GET	Legacy page write (token form)	Yes (200)	action=classifybilled
+Quotations	Clone	/quotations/:id	/comm/propal/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_clone
+Quotations	Delete	/quotations/:id	/comm/propal/card.php	POST	Legacy page write (token form)	Yes (200)	action=confirm_delete
+Quotations	Generate document (PDF)	/quotations/:id	/comm/propal/card.php	POST	Legacy page write (token form)	Yes (200)	action=builddoc
+Quotations	Send email	/quotations/:id	/comm/propal/card.php	POST	Legacy page write (token form)	Yes (200)	action=presend / send
+Quotations	Edit header / lines	/quotations/:id	/comm/propal/fapi/update.php	POST	Not built in UI	Yes (needs API key)	API exists (update.php, lines.php); not in the UI
+Quotations	Tab Contacts – list	/quotations/:id	/comm/propal/contact.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Quotations	Tab Contacts – add	/quotations/:id	/comm/propal/contact.php	POST	Legacy page write (token form)	Yes (200)	action=addcontact
+Quotations	Tab Notes – read	/quotations/:id	/comm/propal/fapi/get.php	GET	JSON API	Yes (needs API key)	
+Quotations	Tab Notes – save	/quotations/:id	/comm/propal/note.php	POST	Legacy page write (token form)	Yes (200)	action=setnote_public / setnote_private
+Quotations	Tab Linked files – list	/quotations/:id	/comm/propal/document.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Quotations	Tab Linked files – upload / link	/quotations/:id	/comm/propal/document.php	POST	Legacy page write (token form)	Yes (200)	
+Quotations	Tab Stock consumptions – declare	/quotations/:id	/custom/consumption/card.php	POST	Legacy page write (token form)	Yes (302)	action=conso&type=propal
+Quotations	Tab Events/Agenda	/quotations/:id	/comm/propal/agenda.php	GET	Legacy HTML page (scraped)	Yes (200)	
+Quotations	Create invoice from quotation	/quotations/:id/create-invoice	/compta/facture/card.php	POST	Inert placeholder	Yes (200)	form is disabled; origin=propal
+Quotations	Create contract from quotation	/quotations/:id/create-contract	/contrat/card.php	POST	Inert placeholder	Yes (200)	form is disabled; origin=propal
+Quotations	Create intervention from quotation	/quotations/:id/create-intervention	/fichinter/card.php	POST	Inert placeholder	Yes (200)	form is disabled; origin=propal
+Quotations	Consumption history	/quotations/:id/consumption-history	/custom/consumption/card.php	GET	Inert placeholder	Yes (302)	form is disabled; type=propal
+Contracts	List	/contracts	/contrat/list_ajax.php	POST	JSON (HTML cells parsed)	Yes (200)	
+Contracts	List – overview cards	/contracts	/contrat/list.php	GET	Legacy HTML page (scraped)	Yes (200)	8 counters scraped
+Contracts	Create – save	/contracts/create	/contrat/api/contract_handler.php	POST	JSON API	Yes (400)	action=create
+Contracts	View – header	/contracts/:id	/contrat/list_ajax.php	POST	JSON (HTML cells parsed)	Yes (200)	found in the list
+Contracts	View – service lines	/contracts/:id	/contrat/api/get_lines.php	GET	JSON API	Yes (400)	
+Contracts	Edit / modify	/contracts/:id	/contrat/fapi/update.php	POST	Not built in UI	Yes (needs API key)	API exists; button disabled
+Contracts	Clone	/contracts/:id	/contrat/card.php	POST	Not built in UI	Yes (200)	button disabled; legacy action=confirm_clone
+Contracts	Delete	/contracts/:id	/contrat/fapi/delete.php	DELETE	Not built in UI	Yes (needs API key)	API exists; button disabled
+Contracts	Activate / close all lines	/contracts/:id	/contrat/fapi/actions.php	POST	Not built in UI	Yes (needs API key)	API exists; buttons disabled
+Contracts	Create order / invoice from contract	/contracts/:id	/commande/card.php	POST	Not built in UI	Yes (200)	buttons disabled
+Contracts	Send email	/contracts/:id	/contrat/card.php	POST	Not built in UI	Yes (200)	button disabled
+Contracts	Add / edit / delete service line	/contracts/:id	/contrat/api/contract_lines_api.php	POST	Not built in UI	Yes (200)	API exists; not in the UI
+Contracts	Tab Contacts	/contracts/:id	/contrat/contact.php	GET	Inert placeholder	Yes (200)	no API; layout only
+Contracts	Tab Notes	/contracts/:id	/contrat/note.php	GET	Inert placeholder	Yes (200)	no API; layout only
+Contracts	Tab Follow up	/contracts/:id	/contrat/follow_up.php	GET	Inert placeholder	Yes (200)	no API; layout only
+Contracts	Tab Linked files	/contracts/:id	/contrat/document.php	GET	Inert placeholder	Yes (200)	no API; layout only
+Contracts	Tab Events/Agenda	/contracts/:id	/contrat/agenda.php	GET	Inert placeholder	Yes (200)	no API; layout only
+Contracts	Services details	/contracts/services	/contrat/api/services_list_api.php	GET	JSON API	Yes (400)	action=list
+Contracts	Services details – draft label	/contracts/services	/contrat/fapi/get.php	GET	JSON API	Yes (needs API key)	one call per contract with a not-running line
+Contracts	Contract report	/contracts/report	/contrat/list_ajax.php	POST	JSON (HTML cells parsed)	Yes (200)	
+Invoices	List / Abandoned / Statistics	/invoices, /invoices/abandoned, /invoices/statistics	/compta/facture/fapi/list.php	GET	JSON API	Yes (needs API key)	plus ?type=2 for credit notes
+Invoices	List – mark paid	/invoices	/api/invoices/mark_paid.php	POST	JSON API	Yes (needs API key)	
+Invoices	List – record payment	/invoices	/api/invoices/make_payment.php	POST	JSON API	Yes (needs API key)	
+Invoices	Quick create – save draft	/invoices/create/quick	/compta/facture/api/unified_invoice_api.php	POST	JSON API	Yes (400)	action=draft
+Invoices	Quick create – validate (+ payment)	/invoices/create/quick	/compta/facture/api/unified_invoice_api.php	POST	JSON API	Yes (400)	action=validate_cash | validate_card
+Invoices	Quick create – product price	/invoices/create/quick	/product/ajax/products.php	POST	JSON API	Yes (200)	action=fetch
+Invoices	Detailed create – standard	/invoices/create	/compta/facture/api/unified_invoice_api.php	POST	JSON API	Yes (400)	action=draft
+Invoices	Detailed create – Lpo / Export types	/invoices/create	/compta/facture/card.php	POST	Legacy page write (token form)	Yes (200)	action=add
+Invoices	Detailed create – form options (token, types, templates)	/invoices/create	/compta/facture/card.php	GET	Legacy HTML page (scraped)	Yes (200)	action=create
+Invoices	Detailed create – credit note	/invoices/create	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=createcreditnote
+Invoices	View	/invoices/:id	/compta/sales/api/invoice.php	GET	JSON API	Yes (200)	facid
+Invoices	View – debit-note flag	/invoices/:id	/compta/sales/card.php	GET	Legacy HTML page (scraped)	Yes (200)	reads DEBIT_NOTE_ENABLED from the page
+Invoices	Add line	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=addline
+Invoices	Update line	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=updateline
+Invoices	Delete line	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=deleteline
+Invoices	Validate	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=validate
+Invoices	Edit (back to draft)	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=modif
+Invoices	Clone	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=clone
+Invoices	Delete	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=delete
+Invoices	Reopen	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=reopen
+Invoices	Classify paid	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=classifypaid
+Invoices	Classify paid partially / delete payment / inline edit	/invoices/:id	/compta/sales/api/invoice.php	POST	Not built in UI	Yes (200)	actions classifypaidpartially, deletepayment, inlineedit exist; not in the UI
+Invoices	Create credit note	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=createcreditnote
+Invoices	Create debit note	/invoices/:id	/compta/sales/api/invoice.php	POST	JSON API	Yes (200)	action=createdebitnote
+Invoices	Record payment	/invoices/:id	/compta/sales/api/payment.php	POST	JSON API	Yes (200)	action=create_payment
+Invoices	Email – load	/invoices/:id	/compta/sales/api/email.php	GET	JSON API	Yes (200)	action=get_email_data
+Invoices	Email – send	/invoices/:id	/compta/sales/api/email.php	POST	JSON API	Yes (200)	action=send_email
+Invoices	POS receipt	/invoices/:id	/compta/sales/api/receipt.php	GET	JSON API	Yes (200)	
+Invoices	Sync to ZRA	/invoices/:id	/quicklinks_ajax.php	POST	JSON API	Yes (200)	
+Invoices	ZRA portal details	/invoices/:id	/compta/sales/api/zra.php	POST	JSON API	Yes (200)	action=selectinvoice
+Invoices	Convert to recurring template	/invoices/:id	/compta/sales/api/recurring_invoice.php	POST	JSON API	Yes (200)	action=create
+Invoices	Tab Contacts – list	/invoices/:id	/compta/facture/contact.php	GET	Legacy HTML page (scraped)	Yes (200)	JSON list API crashes on 5.10
+Invoices	Tab Contacts – add	/invoices/:id	/compta/facture/contact.php	POST	Legacy page write (token form)	Yes (200)	action=addcontact
+Invoices	Tab Direct debit orders	/invoices/:id	/compta/sales/api/standingorders.php	GET	JSON API	Yes (200)	create / delete actions exist; read-only in the UI
+Invoices	Tab Notes – read	/invoices/:id	/compta/sales/api/notes.php	GET	JSON API	Yes (200)	
+Invoices	Tab Notes – save	/invoices/:id	/compta/facture/note.php	POST	Legacy page write (token form)	Yes (200)	action=setnote_public / setnote_private
+Invoices	Tab Linked files – list	/invoices/:id	/compta/sales/api/documents.php	GET	JSON API	Yes (200)	
+Invoices	Tab Linked files – upload	/invoices/:id	/compta/sales/api/documents.php	POST	JSON API	Yes (200)	action=uploadfile
+Invoices	Tab Linked files – delete	/invoices/:id	/compta/sales/api/documents.php	POST	JSON API	Yes (200)	action=deletefile
+Invoices	Tab Linked files – generate PDF	/invoices/:id	/compta/sales/api/documents.php	POST	JSON API	Yes (200)	action=generate
+Invoices	Tab Linked files – add / delete link	/invoices/:id	/compta/sales/api/documents.php	POST	JSON API	Yes (200)	action=addlink | deletelink
+Invoices	Tab Linked files – linked objects	/invoices/:id	/compta/sales/api/documents.php	POST	JSON API	Yes (200)	get_linkable_objects / add_object_linked / delete_object_linked
+Invoices	Tab Events/Agenda – list	/invoices/:id	/compta/facture/agenda.php	GET	Legacy HTML page (scraped)	Yes (200)	"JSON API has no ""created by"" block"
+Invoices	Tab Events/Agenda – badge count	/invoices/:id	/compta/sales/api/agenda.php	GET	JSON API	Yes (200)	
+Invoices	Tab Shipment / GRN – read	/invoices/:id	/compta/sales/api/shipment.php	GET	JSON API	Yes (200)	action=get
+Invoices	Tab Shipment / GRN – save	/invoices/:id	/compta/sales/api/shipment.php	POST	JSON API	Yes (200)	action=save_shipment
+Invoices	Tab Ledger entry – read	/invoices/:id	/compta/sales/api/ledgerentry.php	GET	JSON API	Yes (200)	
+Invoices	Tab Ledger entry – delete	/invoices/:id	/compta/sales/api/ledgerentry.php	POST	JSON API	Yes (200)	action=delete
+Invoice templates	List	/invoices/templates	/compta/sales/api/recurring_invoices_list.php	GET	JSON API	Yes (200)	
+Invoice templates	Edit / delete / generate	/invoices/templates	/compta/sales/api/recurring_template.php	POST	Not built in UI	Yes (200)	API exists; page is read-only
+Invoices	Advance payment list	/invoices/advance-payments	/compta/facture/advancelist_ajax.php	POST	JSON (HTML cells parsed)	Yes (200)	
+Payments	List	/payments	/compta/paiement/list.php	GET	Legacy HTML page (scraped)	Yes (200)	newdatepicker=from - to
+Payments	Report	/payments/report	/compta/paiement/list.php	GET	Legacy HTML page (scraped)	Yes (200)	one month at a time
+Invoices	Due payments	/reports/receivables/unpaid-customer-list	/custom/customersowed/view/customers_owed_report.php	GET	Inert placeholder	NO – 404 not found	backend page does not exist (404)
+Rebate invoices	List	/invoices/rebates	/custom/zra/rebate_list.php	GET	Legacy HTML page (scraped)	Yes (200)	works only where Value Credit Notes is enabled
+Rebate invoices	Sync selected to ZRA	/invoices/rebates	/custom/zra/rebate_ajax.php	POST	JSON API	Yes (400)	action=sync
+Rebate invoices	Create – form (customers, invoices)	/invoices/rebates/create	/custom/zra/rebate_create.php	GET	Legacy HTML page (scraped)	Yes (200)	socid
+Rebate invoices	Create – save	/invoices/rebates/create	/custom/zra/rebate_create.php	POST	Legacy page write (token form)	Yes (200)	action=create_rebate

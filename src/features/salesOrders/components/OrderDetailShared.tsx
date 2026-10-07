@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import { fapi } from '../../../api/axios'
 import type { ConfirmInput } from '../../../shared/components/ConfirmDialog'
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
@@ -76,16 +77,11 @@ function StatCard({ icon: Icon, tone, label, value }: { icon: LucideIcon; tone: 
   )
 }
 
-// The real `.deletefilelink` href only ever lands on document.php's own
-// confirmation box (action=deletefile) — reading
-// core/actions_linkedfiles.inc.php directly shows the actual file removal
-// only happens on action=confirm_deletefile&confirm=yes. Since we render
-// our own confirm dialog above in place of that box, we go straight to
-// the real final action instead of fetching (and discarding) the
-// intermediate confirmation page — the previous version silently never
-// deleted anything.
-async function deleteOrderDocument(deleteUrl: string, name: string, refetch: () => void, confirm: (options: ConfirmInput) => Promise<boolean>) {
-  if (!deleteUrl) return
+// Deletes an attached file through commande/fapi/documents.php
+// (action=deletefile → dol_delete_file + thumbnail cleanup, same method the
+// legacy confirm_deletefile handler calls).
+async function deleteOrderDocument(orderId: string | undefined, name: string, refetch: () => void, confirm: (options: ConfirmInput) => Promise<boolean>) {
+  if (!orderId) return
   const ok = await confirm({
     title: 'Delete File?',
     message: (
@@ -95,8 +91,7 @@ async function deleteOrderDocument(deleteUrl: string, name: string, refetch: () 
     ),
   })
   if (!ok) return
-  const finalUrl = deleteUrl.replace('action=deletefile', 'action=confirm_deletefile') + '&confirm=yes'
-  await fetch(stripBackendPrefix(finalUrl), { credentials: 'same-origin' })
+  await fapi.post(`/commande/fapi/documents.php`, { action: 'deletefile', id: Number(orderId), name })
   refetch()
 }
 

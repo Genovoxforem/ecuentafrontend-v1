@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
-import { parseOrderListRow, type RawOrderListRow } from './orderListParser'
+import { fapi } from '../../api/axios'
 
 export interface OrderRow {
   id: number
@@ -29,66 +28,74 @@ export interface SalesOrdersSummary {
   orders: OrderRow[]
 }
 
-function toRow(raw: RawOrderListRow): OrderRow {
-  const parsed = parseOrderListRow(raw)
-  return {
-    id: parsed.id ?? 0,
-    ref: parsed.ref,
-    refCustomer: parsed.refCustomer,
-    projectRef: parsed.projectRef,
-    thirdParty: parsed.thirdParty,
-    socid: parsed.socid,
-    city: parsed.city,
-    zipCode: parsed.zipCode,
-    orderDate: parsed.orderDate,
-    plannedDelivery: parsed.plannedDelivery,
-    amountExclTax: parsed.amountExclTax,
-    author: parsed.author,
-    // The raw "shippable" cell is always a single blank space on this
-    // deployment (see orderListParser.ts's header comment) — not fabricated,
-    // it's a fixed false because the legacy page's own shippable calculation
-    // never runs here either.
-    shippable: false,
-    billed: parsed.billed,
-    status: parsed.statusLabel,
-  }
+interface FapiOrderRow {
+  id: number
+  ref: string
+  ref_client: string
+  fk_soc: number
+  third_party_name: string
+  third_party_town: string
+  third_party_zip: string
+  date_commande: string | null
+  date_delivery: string | null
+  total_ht: number
+  status_label: string
+  billed: number | null
+  author_login: string
+  author_firstname: string
+  author_lastname: string
+  project_ref: string | null
 }
 
-// The old /api/orders/summary/ and /api/orders/ endpoints this hook used to
-// call are a genuine 404 on this backend (Apache itself can't find a route —
-// confirmed live, unlike /api/products/ or /api/customers/ which 401 for a
-// missing API key). The real data source is commande/salesoredr_ajax_list.php,
-// the DataTables endpoint the classic Dolibarr order list
-// (commande/list.php) actually uses — same "dead REST route, real legacy
-// page" pattern already found for Warehouses/Inventory/Customers this
-// session. See orderListParser.ts for the per-column verification notes.
-//
-// length=-1 returns every matching row unpaginated (confirmed live: 72 of 72
-// in one call) — same convention as the Warehouse Stock Movements/Customers
-// list fixes, and OrdersList.tsx already does its own client-side
-// search/pagination over the full array, so this keeps that working
-// unchanged. Summary stats (total/this month/total amount/validated/draft)
-// have no equivalent endpoint any more, so they're computed client-side from
-// this same row list, matching this codebase's established convention.
+// ISO "YYYY-MM-DD[ hh:mm:ss]" → the "MM/DD/YYYY" display format the legacy
+// DataTables column carried (the ordersThisMonth filter below keys on it).
+function toDisplayDate(iso: string | null): string {
+  if (!iso) return ''
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : iso
+}
+
+// commande/fapi/list.php — the pure-JSON order list (entity-isolated,
+// commande.lire + sales-rep restrictions applied server-side). Replaces the
+// DataTables endpoint salesoredr_ajax_list.php, whose JSON cells were HTML
+// fragments needing client-side parsing.
 export function useSalesOrdersSummary() {
   return useQuery({
     queryKey: ['salesOrders', 'summary'],
     queryFn: async (): Promise<SalesOrdersSummary> => {
-      const form = new URLSearchParams()
-      form.set('draw', '1')
-      form.set('start', '0')
-      form.set('length', '-1')
-      form.set('search[value]', '')
-      const columns = ['cust_name', 'currency', 'labelcountry', 'typent_code', 'contact', 'cust_type', 'entity', 'date', 'tot_amount', 'author', 'shippable', 'billed', 'status']
-      columns.forEach((c, i) => form.set(`columns[${i}][data]`, c))
-      form.set('order[0][column]', '0')
-      form.set('order[0][dir]', 'desc')
-
-      const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords: number; aaData: RawOrderListRow[] }>(
-        '/commande/salesoredr_ajax_list.php?socid=0',
-        form,
+      // The UI does its own client-side search/pagination over the full
+      // array — pull up to the endpoint's max page size, then follow pages.
+      const first = await fapi.get<{ success: boolean; data: { items: FapiOrderRow[]; pagination: { total: number; pages: number } } }>(
+        '/commande/fapi/list.php?limit=500&sort=date_commande&direction=desc',
       )
-      const orders = (data.aaData ?? []).map(toRow)
+      let items = first.data.data.items ?? []
+      const { total, pages } = first.data.data.pagination
+      for (let p = 2; p <= pages; p++) {
+        const next = await fapi.get<{ success: boolean; data: { items: FapiOrderRow[] } }>(
+          `/commande/fapi/list.php?limit=500&page=${p}&sort=date_commande&direction=desc`,
+        )
+        items = items.concat(next.data.data.items ?? [])
+      }
+
+      const orders: OrderRow[] = items.map((o) => ({
+        id: o.id,
+        ref: o.ref,
+        refCustomer: o.ref_client ?? '',
+        projectRef: o.project_ref ?? '',
+        thirdParty: o.third_party_name ?? '',
+        socid: o.fk_soc || null,
+        city: o.third_party_town ?? '',
+        zipCode: o.third_party_zip ?? '',
+        orderDate: toDisplayDate(o.date_commande),
+        plannedDelivery: toDisplayDate(o.date_delivery),
+        amountExclTax: Number(o.total_ht) || 0,
+        author: (o.author_firstname || o.author_lastname) ? `${o.author_firstname} ${o.author_lastname}`.trim() : o.author_login,
+        // The legacy shippable calculation is gated on an undefined variable
+        // on this deployment and never runs — fixed false, not fabricated.
+        shippable: false,
+        billed: o.billed === 1,
+        status: o.status_label,
+      }))
 
       const now = new Date()
       const ordersThisMonth = orders.filter((o) => {
@@ -98,7 +105,7 @@ export function useSalesOrdersSummary() {
       }).length
 
       return {
-        totalOrders: data.iTotalDisplayRecords ?? orders.length,
+        totalOrders: total,
         ordersThisMonth,
         totalOrderAmount: orders.reduce((sum, o) => sum + o.amountExclTax, 0),
         validatedCount: orders.filter((o) => o.status === 'Validated').length,

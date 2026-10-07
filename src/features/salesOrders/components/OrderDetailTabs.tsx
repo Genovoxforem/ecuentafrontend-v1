@@ -35,7 +35,7 @@ import {
   useLinkOrderDocument,
   useCreateShipmentFromOrder,
 } from '../orderDetail.queries'
-import type { OrderDetail as OrderDetailData } from '../orderCardParser'
+import type { OrderDetail as OrderDetailData } from '../orderDetail.types'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { InfoRow, EditPencil, EventByAvatar, StatCard, deleteOrderDocument, type TabKey } from './OrderDetailShared'
 import { AddOrderEventModal } from './AddOrderEventModal'
@@ -401,7 +401,7 @@ function ConsumptionTab({ id }: { id: string | undefined }) {
       return
     }
     declareConsumption.mutate(
-      { token: formOptions.token, product, id_entrepot: warehouse, nbpiece, batch_number: batchNumber, label: effectiveLabel, eatby, sellby },
+      { product, id_entrepot: warehouse, nbpiece, batch_number: batchNumber, label: effectiveLabel, eatby, sellby },
       {
         onSuccess: () => {
           setNbpiece('')
@@ -571,7 +571,7 @@ function DocumentsTab({ id }: { id: string | undefined }) {
   function handleUpload() {
     if (!file) return
     uploadDoc.mutate(
-      { token: meta!.attachToken, file, savingDocMask: meta!.savingDocMask, useMask },
+      { file, savingDocMask: meta!.savingDocMask, useMask },
       { onSuccess: () => setFile(null) },
     )
   }
@@ -579,7 +579,7 @@ function DocumentsTab({ id }: { id: string | undefined }) {
   function handleLink() {
     if (!linkUrl.trim()) return
     linkDoc.mutate(
-      { token: meta!.attachToken, link: linkUrl.trim(), label: linkLabel.trim() },
+      { link: linkUrl.trim(), label: linkLabel.trim() },
       { onSuccess: () => { setLinkUrl(''); setLinkLabel('') } },
     )
   }
@@ -672,8 +672,8 @@ function DocumentsTab({ id }: { id: string | undefined }) {
                         <a href={stripBackendPrefix(doc.url)} target="_blank" rel="noreferrer" title="Preview" className="text-text-faint hover:text-text">
                           <Eye size={14} />
                         </a>
-                        {doc.deleteUrl && (
-                          <button type="button" title="Delete" onClick={() => deleteOrderDocument(doc.deleteUrl, doc.name, refetch, confirm)} className="text-text-faint hover:text-danger">
+                        {doc.deletable && (
+                          <button type="button" title="Delete" onClick={() => deleteOrderDocument(id, doc.name, refetch, confirm)} className="text-text-faint hover:text-danger">
                             <Trash2 size={14} />
                           </button>
                         )}

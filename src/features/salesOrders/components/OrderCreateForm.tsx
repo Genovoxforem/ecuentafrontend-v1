@@ -8,15 +8,13 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
-import { api } from '../../../api/axios'
-import { fetchLegacyDocument } from '../../../shared/legacyHtmlFetch'
+import { api, fapi } from '../../../api/axios'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions, callProductInfoFile } from '../../products/products.queries'
-import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
+import { useWarehouseOptions } from '../orderDetail.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
-import { parseOrderDictionaries, looksLikeLegacyLoginPage, type OrderDictionaries } from '../orderFormOptionsParser'
 import { QuickCustomerCreateModal } from './QuickCustomerCreateModal'
 import { QuickProductCreateModal } from './QuickProductCreateModal'
 
@@ -73,19 +71,27 @@ function useDictionary(path: string) {
   })
 }
 
-// The three dead dictionary endpoints' real replacement — see
-// orderFormOptionsParser.ts's header comment. commande/salesorder/index_v2.php
-// is a real, ~1600-line legacy page (the actual "New Order" wizard this
-// app's own form is modeled on) that renders these as plain <select>
-// options straight from the same DB tables; fetched once and cached like
-// any other legacy scrape in this app.
+// The three dead dictionary endpoints' real replacement —
+// commande/fapi/meta.php returns the same dictionary tables
+// (llx_c_availability / llx_c_shipment_mode / llx_c_payment_term) as JSON.
+interface OrderDictionaries {
+  availabilityDelays: DictionaryOption[]
+  shippingMethods: DictionaryOption[]
+  paymentTerms: DictionaryOption[]
+}
+
 function useOrderDictionaries() {
   return useQuery({
     queryKey: ['salesorder', 'dictionaries'],
     queryFn: async (): Promise<OrderDictionaries> => {
-      const doc = await fetchLegacyDocument('/commande/salesorder/index_v2.php')
-      if (looksLikeLegacyLoginPage(doc)) return { availabilityDelays: [], shippingMethods: [], paymentTerms: [] }
-      return parseOrderDictionaries(doc)
+      const { data } = await fapi.get<{ success: boolean; data: {
+        availability?: { value: string; label: string }[]
+        shipping_methods?: { value: string; label: string }[]
+        payment_terms?: { value: string; label: string }[]
+      } }>('/commande/fapi/meta.php')
+      const d = data.data
+      const map = (l: { value: string; label: string }[] | undefined) => (l ?? []).map((o) => ({ id: o.value, text: o.label }))
+      return { availabilityDelays: map(d.availability), shippingMethods: map(d.shipping_methods), paymentTerms: map(d.payment_terms) }
     },
     staleTime: 1000 * 60 * 10,
   })
@@ -346,7 +352,7 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
   // Availability delay/Shipping method/Payment Terms: also real, but from
   // commande/salesorder/index_v2.php's own rendered <select>s rather than a
   // REST route — see useOrderDictionaries above.
-  const warehouseList = useWarehouses()
+  const warehouseList = useWarehouseOptions().data ?? []
   const { data: lookups } = useCustomerLookups()
   const { data: customerDefaults } = useCustomerDefaults(customerId)
   const { data: draftProductCostPrice } = useProductCostPrice(draftProductId)

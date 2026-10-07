@@ -82,10 +82,10 @@ export function ContactDetail({ kind = 'customer' }: { kind?: ContactKind }) {
                 <Link to={listRoute} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text mb-1.5">
                   <ChevronLeft size={14} /> Contacts/Addresses
                 </Link>
-                <h2 className="text-lg font-bold text-text!">{contact.fullName || '—'}</h2>
+                <h2 className="text-lg font-bold text-text!">{contact.full_name || '—'}</h2>
                 <div className="text-xs text-text-muted mt-1 space-y-0.5">
                   <p>
-                    <span className="text-text-faint">Third-party code:</span> {contact.thirdPartyCode || '—'}
+                    <span className="text-text-faint">Third-party code:</span> {contact.third_party_code || '—'}
                   </p>
                   {contact.email && (
                     <p className="flex items-center gap-1">
@@ -141,7 +141,7 @@ export function ContactDetail({ kind = 'customer' }: { kind?: ContactKind }) {
   )
 }
 
-function ContactAddressTab({ contact }: { contact: { firstName: string | null; lastName: string | null; email: string | null; phone: string | null; thirdPartyCode: string | null } }) {
+function ContactAddressTab({ contact }: { contact: { firstname: string | null; lastname: string | null; email: string | null; phone_pro: string | null; third_party_code: string | null } }) {
   return (
     <div className="space-y-3">
       <TabTitle>Contact/Address</TabTitle>
@@ -149,19 +149,19 @@ function ContactAddressTab({ contact }: { contact: { firstName: string | null; l
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <div>
             <p className="text-text-faint text-xs">Last Name</p>
-            <p className="font-medium text-text!">{contact.lastName || '—'}</p>
+            <p className="font-medium text-text!">{contact.lastname || '—'}</p>
           </div>
           <div>
             <p className="text-text-faint text-xs">First Name</p>
-            <p className="font-medium text-text!">{contact.firstName || '—'}</p>
+            <p className="font-medium text-text!">{contact.firstname || '—'}</p>
           </div>
           <div>
             <p className="text-text-faint text-xs">Third-Party Code</p>
-            <p className="font-medium text-text!">{contact.thirdPartyCode || '—'}</p>
+            <p className="font-medium text-text!">{contact.third_party_code || '—'}</p>
           </div>
           <div>
             <p className="text-text-faint text-xs">Phone</p>
-            <p className="font-medium text-text!">{contact.phone || '—'}</p>
+            <p className="font-medium text-text!">{contact.phone_pro || '—'}</p>
           </div>
           <div>
             <p className="text-text-faint text-xs">Email</p>

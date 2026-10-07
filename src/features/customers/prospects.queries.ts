@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   fetchThirdParties,
   fetchThirdPartySummary,
-  type ThirdPartyRow as FapiThirdPartyRow,
 } from '../../api/customers'
 import { toThirdPartyRow } from './customers.queries'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'

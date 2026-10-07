@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseLegacyStats } from './legacyStatsParser'
+import { fapi } from '../../api/axios'
 
 export interface MonthlyStats {
   year: number
@@ -20,10 +19,9 @@ export interface OrderStatsFilters {
   status?: string
 }
 
-// commande/stats/index.php — the classic order statistics page, read through
-// legacyStatsParser.ts. Replaces GET /api/orders/stats/, which does not exist
-// on the backend (404) and left this page showing a row of zeros as if it were
-// real data. Blank filters are simply not sent (the page's own "all").
+// commande/fapi/stats.php — the same CommandeStats class the legacy page
+// builds (same SQL, same filters, same entity + sales-rep isolation), as
+// JSON. Blank filters are simply not sent (the page's own "all").
 export function useOrderStats(year: number, filters: OrderStatsFilters = {}) {
   const { socid, userid, typentId, categId, status } = filters
   return useQuery({
@@ -35,7 +33,22 @@ export function useOrderStats(year: number, filters: OrderStatsFilters = {}) {
       if (typentId) params.set('typent_id', typentId)
       if (categId) params.set('categ_id', categId)
       if (status) params.set('object_status', status)
-      return parseLegacyStats(await fetchLegacyDocument('/commande/stats/index.php', params), year)
+      const { data } = await fapi.get<{ success: boolean; data: {
+        count_by_month: Record<string, number[]>
+        amount_by_month: Record<string, number[]>
+        summary: { count: number; total_amount: number; average_amount: number }
+      }; message: string | null }>(`/commande/fapi/stats.php?${params.toString()}`)
+      const d = data.data
+      return {
+        year,
+        countByMonth: d.count_by_month ?? {},
+        amountByMonth: d.amount_by_month ?? {},
+        summary: {
+          count: d.summary?.count ?? 0,
+          totalAmount: d.summary?.total_amount ?? 0,
+          averageAmount: d.summary?.average_amount ?? 0,
+        },
+      }
     },
     placeholderData: (prev) => prev,
   })

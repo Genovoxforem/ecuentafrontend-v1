@@ -1,17 +1,32 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { parseOrderEmailDefaults, type OrderEmailDefaults } from './orderEmail'
+import { fapi } from '../../api/axios'
+import axios from 'axios'
+import type { OrderEmailDefaults } from './orderDetail.types'
 
-// GET action=presend&mode=init — see orderEmail.ts's header comment for why
-// this call itself (not just its parsed HTML) matters: it seeds the real
-// PHP SESSION with the order's latest generated document as a pending
-// attachment, same as loading the real legacy form would.
+// Backed by commande/fapi/email.php — the same CMailFile + ORDER_SENTBYMAIL
+// trigger path as core/actions_sendmails.inc.php, exposed as JSON. The GET
+// returns the same presend defaults (sender list, subject/message templates
+// with substitutions resolved, the order's latest generated document as the
+// pending attachment) that card.php?action=presend&mode=init renders.
 export function useOrderEmailDefaults(id: string | undefined, enabled: boolean) {
   return useQuery<OrderEmailDefaults>({
     queryKey: ['salesOrders', 'detail', id, 'emailDefaults'],
     queryFn: async () => {
-      const res = await fetch(`/commande/card.php?id=${id}&action=presend&mode=init`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseOrderEmailDefaults(await res.text())
+      const res = await fapi.get<{ success: boolean; data: {
+        sender_options?: { value: string; label: string }[]
+        default_from_type?: string
+        default_subject?: string
+        default_message?: string
+        attached_file?: { name: string } | null
+      }; message: string | null }>(`/commande/fapi/email.php?id=${id}`)
+      const d = res.data.data
+      return {
+        senderOptions: d.sender_options ?? [],
+        defaultFromType: d.default_from_type ?? 'user',
+        defaultSubject: d.default_subject ?? '',
+        defaultMessage: d.default_message ?? '',
+        attachedFileName: d.attached_file?.name ?? '',
+      }
     },
     enabled: enabled && !!id,
     staleTime: 0,
@@ -21,8 +36,6 @@ export function useOrderEmailDefaults(id: string | undefined, enabled: boolean) 
 
 export interface SendOrderEmailInput {
   id: string
-  token: string
-  returnUrl: string
   fromtype: string
   sendto: string
   sendtocc: string
@@ -31,53 +44,29 @@ export interface SendOrderEmailInput {
   attachments: File[]
 }
 
-// POST straight to the real commande/card.php?id=X endpoint with the exact
-// field names read off the real presend form (action=send, models=
-// order_send, trackid=ord<id>, sendmail=<submit button's own name/value>,
-// etc.) — see orderEmail.ts's header comment. Real backend action, not a
-// scrape: this is Dolibarr's own stock core/actions_sendmails.inc.php
-// handling a genuine SMTP send, included unmodified by commande/card.php.
+// POST multipart to commande/fapi/email.php — attachments ride the same
+// request (staged to the user's temp dir server-side), and the order's
+// latest generated document is attached automatically unless attach_doc=0.
 export function useSendOrderEmail() {
   return useMutation({
     mutationFn: async (input: SendOrderEmailInput) => {
       const body = new FormData()
-      body.append('token', input.token)
-      body.append('trackid', `ord${input.id}`)
-      body.append('inreplyto', '')
-      body.append('fromname', '')
-      body.append('frommail', '')
-      body.append('langsmodels', 'en_US')
-      body.append('action', 'send')
-      body.append('models', 'order_send')
-      body.append('models_id', '')
-      body.append('id', input.id)
-      body.append('returnurl', input.returnUrl)
-      body.append('fromtype', input.fromtype)
-      body.append('sendto', input.sendto)
-      body.append('sendtocc', input.sendtocc)
-      body.append('subject', input.subject)
-      body.append('message', input.message)
-      body.append('removedfile', '')
-      for (const file of input.attachments) body.append('addedfile[]', file)
-      body.append('sendmail', 'Send email')
-
-      const res = await fetch(`/commande/card.php?id=${input.id}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        body,
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      // Dolibarr re-renders the same card page either way — a failed send
-      // (bad recipient, SMTP error) shows a real "class=... error" banner;
-      // success shows no such banner (and usually a "Mail sent" confirmation
-      // div instead). Checked against real error/success markup, not guessed
-      // format strings.
-      const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
-      if (errorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = errorMatch[1]
-        throw new Error((div.textContent ?? 'The legacy backend rejected this email.').trim())
+      body.set('id', input.id)
+      body.set('fromtype', input.fromtype)
+      body.set('sendto', input.sendto)
+      body.set('sendtocc', input.sendtocc)
+      body.set('subject', input.subject)
+      body.set('message', input.message)
+      for (const file of input.attachments) body.append('attachments[]', file)
+      try {
+        const res = await fapi.post<{ success: boolean; message: string | null }>(`/commande/fapi/email.php`, body)
+        if (res.data && res.data.success === false) throw new Error(res.data.message || 'Send failed.')
+      } catch (e) {
+        if (axios.isAxiosError(e)) {
+          const msg = e.response?.data?.message
+          throw new Error(typeof msg === 'string' ? msg : `Backend returned ${e.response?.status ?? 'no response'}.`)
+        }
+        throw e
       }
     },
   })

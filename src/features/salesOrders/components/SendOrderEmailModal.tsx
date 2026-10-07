@@ -23,7 +23,7 @@ export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; ord
 
   useEffect(() => {
     if (!data) return
-    setFromtype(data.senderOptions.find((o) => o.value === 'company')?.value ?? data.senderOptions[0]?.value ?? '')
+    setFromtype(data.senderOptions.find((o) => o.value === data.defaultFromType)?.value ?? data.senderOptions[0]?.value ?? '')
     setSubject(data.defaultSubject)
     setMessage(data.defaultMessage)
   }, [data])
@@ -39,7 +39,7 @@ export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; ord
       return
     }
     if (!data) return
-    sendEmail.mutate({ id, token: data.token, returnUrl: data.returnUrl, fromtype, sendto, sendtocc, subject, message, attachments })
+    sendEmail.mutate({ id, fromtype, sendto, sendtocc, subject, message, attachments })
   }
 
   return (

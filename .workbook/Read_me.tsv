@@ -1,0 +1,24 @@
+Sales module – frontend / backend URL report	
+	
+Measured on	"Dev backend http://172.16.5.10, frontend branch ""rejo"", 2026-10-06."
+"Sheet ""Sales functions"""	One row per function (view, create, edit/update, save, clone, delete, actions, tabs). Columns follow the requested format: module name, frontend_url, backend_url. The last columns say how the data is read today and whether that backend URL answers on 5.10 (a bare GET with no parameters — nothing is written).
+"Sheet ""Sales dropdowns"""	Every dropdown in the Sales screens, where its options come from today, and whether an API is needed.
+"Sheet ""All-project dropdowns"""	"The same for every other module (extracted from the code, then grouped by hand). Rows marked ""NEW API needed"" read their options out of a legacy HTML page."
+Data source today	JSON API = a JSON endpoint. JSON (HTML cells parsed) = JSON whose cells are HTML strings. Legacy HTML page (scraped) = a PHP page downloaded and parsed in the browser. Legacy page write (token form) = a POST/GET to a classic PHP page with a security token. Not built in UI = the backend (or API) exists, the screen has no button. Inert placeholder = layout only, nothing is loaded or saved.
+Frontend URLs	"React routes (src/routes.ts). "":id"" is the record id."
+	
+Summary	
+JSON API	99
+JSON (HTML cells parsed)	7
+Legacy HTML page (scraped)	26
+Legacy page write (token form)	38
+Not built in UI	16
+Inert placeholder	15
+Total functions	201
+Backend URLs that do NOT exist on 5.10	1
+	
+Sales dropdown rows needing a NEW API	14
+Sales dropdown rows that can switch to an existing API	4
+Project-wide dropdown groups needing a NEW API	36
+	
+Known limits	The project-wide sheet is built from static analysis of the code; check a row before relying on it. Rows say which legacy page is read, not which API URL to build — the backend team chooses the URLs.
