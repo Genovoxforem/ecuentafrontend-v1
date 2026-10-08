@@ -288,14 +288,22 @@ function donutCounts(scripts: string, datasetLabel: string): number[] | null {
     .map((v) => Number(v) || 0)
 }
 
-function parseSide(pane: Element | null, scripts: string, kind: 'sales' | 'purchase'): DashSide {
+function parseSide(pane: Element | null, dashboard: Element, scripts: string, kind: 'sales' | 'purchase'): DashSide {
   const counts = donutCounts(scripts, kind === 'sales' ? 'Sales Distribution' : 'Purchase Distribution')
   const legend = Array.from(pane?.querySelectorAll('.erp-donut-legend > span') ?? [])
   const donut = legend.map((span, i) => {
     const label = text(span).replace(/\s*-?\d+(?:[.,]\d+)?\s*%\s*$/, '')
     return { label, count: counts?.[i] ?? null, percent: parseLegacyNumber(/(-?\d+(?:[.,]\d+)?)\s*%\s*$/.exec(text(span))?.[1] ?? '') ?? 0 }
   })
-  const lastCard = Array.from(pane?.querySelectorAll('.erp-card') ?? []).find((card) => /^last\s*7/i.test(text(card.querySelector('.erp-card__title'))))
+  // The row count in the title is a per-install setting (MAIN_SIZE_SHORTLIST):
+  // some installs print "Last 5 Sales", others "Last 7 Sales" — the number is
+  // not the page's own, so it is matched generically rather than pinned to 7.
+  // The title itself also isn't always `.erp-card__title`: 172.16.5.10 prints
+  // the classic Bootstrap `.card-title` inside the same `.erp-card` instead.
+  const lastCardTitle = kind === 'sales' ? /^last\s*\d+\s+sales\b/i : /^last\s*\d+\s+purchases?\b/i
+  const lastCard = Array.from(dashboard.querySelectorAll('.erp-card')).find((card) =>
+    lastCardTitle.test(text(card.querySelector('.erp-card__title, .card-title'))),
+  )
   const markerVar = kind === 'sales' ? 'mapMarkers' : 'mappMarkers'
   const lineVar = kind === 'sales' ? 'mapLines' : 'mappLines'
   const paneScripts = Array.from(pane?.querySelectorAll('script') ?? [], (s) => s.textContent ?? '').join('\n')
@@ -336,8 +344,8 @@ export function parseLegacyHomeDashboard(html: string): LegacyHomeDashboard | nu
   return {
     cashSession: badge.includes('open') ? 'open' : badge.includes('closed') ? 'closed' : null,
     kpis: Array.from(dash.querySelectorAll('.erp-metric'), parseKpi),
-    sales: parseSide(doc.getElementById('salesTab'), scripts, 'sales'),
-    purchase: parseSide(doc.getElementById('purchaseTab'), scripts, 'purchase'),
+    sales: parseSide(doc.getElementById('salesTab'), dash, scripts, 'sales'),
+    purchase: parseSide(doc.getElementById('purchaseTab'), dash, scripts, 'purchase'),
     banks: Array.from(dash.querySelectorAll('.erp-bank-row'), (row) => {
       const link = row.querySelector('.erp-bank-row__name a')
       return {

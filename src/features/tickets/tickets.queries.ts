@@ -1,4 +1,57 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
+
+// The classic list's status filter (search_fk_status): "openall" (unread to
+// on hold — what the Ticket / List / My Tickets menu entries open), "-1" every
+// ticket, "closeall" solved + deleted, or one fk_statut code.
+export const TICKET_STATUS_FILTERS: Array<{ value: string; label: string }> = [
+  { value: 'openall', label: '-- Open (All) --' },
+  { value: '-1', label: 'All' },
+  { value: '0', label: 'Unread' },
+  { value: '1', label: 'Read' },
+  { value: '2', label: 'Assigned' },
+  { value: '3', label: 'In progress' },
+  { value: '5', label: 'Waiting for reporter feedback' },
+  { value: '7', label: 'On hold' },
+  { value: 'closeall', label: '-- Closed (All) --' },
+  { value: '8', label: 'Solved' },
+  { value: '9', label: 'Deleted' },
+]
+
+// Request types (c_ticket_type) — no JSON source, so read off the classic
+// list page's own filter <select id="filter_type">.
+export function useTicketTypeOptions() {
+  return useQuery({
+    queryKey: ['tickets', 'type-options'],
+    queryFn: async (): Promise<Array<{ code: string; label: string }>> => {
+      const doc = await fetchLegacyDocument('/ticket/list.php')
+      return Array.from(doc.querySelectorAll('select#filter_type option'))
+        .map((o) => ({ code: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
+        .filter((o) => o.code)
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+
+// The classic list's quick status change (its Actions column): POST
+// ticket/ticket-status-change-ajax.php {track_id, new_status} → {success, message}.
+export function useChangeTicketStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ trackId, status }: { trackId: string; status: number }) => {
+      const res = await fetch('/ticket/ticket-status-change-ajax.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: new URLSearchParams({ track_id: trackId, new_status: String(status) }),
+      })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data = await parseLegacyJson<{ success: boolean; message?: string }>(res)
+      if (!data.success) throw new Error(data.message || 'Could not change the status.')
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+  })
+}
 
 // The 2 real JSON APIs wired here — confirmed by reading both files
 // directly. ticket_list_ajax.php is a real DataTables handler
@@ -123,6 +176,8 @@ export interface TicketListFilters {
   assignedToUserId?: string
   createdByUserId?: string
   search?: string
+  // Request type code (c_ticket_type) — the classic filter's search_type_code.
+  typeCode?: string
   // Real `projectid` param too (confirmed in the same source read: both
   // ticket_list_ajax.php and ticket_stats_ajax.php read $_POST['projectid']
   // and add "AND t.fk_project = X" server-side) — used to scope this list
@@ -146,6 +201,7 @@ export function useTicketsList(filters: TicketListFilters, page: number, length:
       if (filters.assignedToUserId) body.set('search_fk_user_assign', filters.assignedToUserId)
       if (filters.createdByUserId) body.set('search_fk_user_create', filters.createdByUserId)
       if (filters.search) body.set('search[value]', filters.search)
+      if (filters.typeCode) body.set('search_type_code', filters.typeCode)
       if (filters.projectId) body.set('projectid', String(filters.projectId))
       const res = await fetch('/ticket/ticket_list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)

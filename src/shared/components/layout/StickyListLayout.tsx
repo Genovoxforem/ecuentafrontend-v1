@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Card } from '../dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 
 // Page frame for a long list: the title, toolbar and filters stay at the top and only the rows scroll,
 // under a column header that stays put (and a total row that stays at the bottom).
@@ -8,10 +9,12 @@ import { Card } from '../dashboard/DashboardKit'
 // AppShell). `min-h-0` on every flex ancestor is what lets the row area shrink and scroll instead of
 // growing the page.
 export function StickyListLayout({ header, children }: { header: ReactNode; children: ReactNode }) {
+  const { theme } = useTheme()
+  const compact = theme === 'blue-metal'
   return (
-    <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 space-y-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">{header}</div>
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">{children}</div>
+    <div className="blue-density-list -m-6 flex-1 flex flex-col min-h-0">
+      <div className={`blue-density-header sticky -top-6 z-10 border-b border-border bg-white px-6 dark:bg-gray-950 ${compact ? 'space-y-2 py-2' : 'space-y-3 py-3'}`}>{header}</div>
+      <div className={`blue-density-list-content flex-1 flex flex-col min-h-0 px-6 ${compact ? 'space-y-3 py-3' : 'space-y-4 py-4'}`}>{children}</div>
     </div>
   )
 }

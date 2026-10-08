@@ -46,7 +46,7 @@ import {
   ChevronDown,
   Filter,
 } from 'lucide-react'
-import { Card, DetailMetricTile, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricRow, DetailMetricTile, ICON_STYLES, InfoChip, StatusPill, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ROUTES } from '../../../routes'
@@ -348,19 +348,9 @@ export function CustomerDetail() {
 
       <div
         className={`sticky top-0 z-10 -mx-6 overflow-hidden px-6 pt-4 pb-3 ${isBlueMetal ? 'rounded-xl border border-[#2879ad]' : 'bg-white dark:bg-gray-950'}`}
-        style={
-          isBlueMetal
-            ? {
-                backgroundImage: "linear-gradient(90deg, rgba(3,14,28,0.94) 0%, rgba(3,14,28,0.8) 52%, rgba(3,14,28,0.55) 100%), url('/blue-metal-dashboard.jpg')",
-                backgroundSize: 'cover',
-                backgroundPosition: 'center 48%',
-              }
-            : undefined
-        }
       >
-        {isBlueMetal && <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,121,206,0.2),transparent_58%,rgba(4,15,29,0.2))]" />}
         <div className="relative z-10">
-          <h1 className={`mb-3 flex items-center gap-2 text-xl font-bold ${isBlueMetal ? 'text-white' : 'text-text!'}`}>
+          <h1 className={`blue-integrated-page-title mb-3 flex items-center gap-2 text-xl font-bold ${isBlueMetal ? 'text-white' : 'text-text!'}`}>
             <Users2 size={22} className={isBlueMetal ? 'text-cyan-300' : 'text-brand'} />
             Customer Details
           </h1>
@@ -370,7 +360,7 @@ export function CustomerDetail() {
                 {/* logoUrl is a generic placeholder company icon on this
                     backend (not a real uploaded photo), so always fall back
                     to the initials badge rather than pass it through. */}
-                <Avatar name={data.name} size={64} rounded="lg" color="bg-brand" />
+                <Avatar name={data.name} size={64} rounded={isBlueMetal ? 'full' : 'lg'} color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'} />
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     {isEditing ? (
@@ -393,36 +383,58 @@ export function CustomerDetail() {
                     ) : (
                       <h2 className="text-lg font-bold text-text!">{displayName}</h2>
                     )}
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{natureBadge}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
-                      {data.status === 1 ? 'Active' : 'Closed'}
-                    </span>
-                    {data.zraStatus && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-bg text-success-fg text-xs font-medium">
-                        <BadgeCheck size={12} /> {data.zraStatus}
-                      </span>
+                    {isBlueMetal ? (
+                      <>
+                        <StatusPill tone="brand">{natureBadge}</StatusPill>
+                        <StatusPill tone={data.status === 1 ? 'success' : 'neutral'}>{data.status === 1 ? 'Active' : 'Closed'}</StatusPill>
+                        {data.zraStatus && (
+                          <StatusPill tone="success" icon={BadgeCheck}>
+                            {data.zraStatus}
+                          </StatusPill>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{natureBadge}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
+                          {data.status === 1 ? 'Active' : 'Closed'}
+                        </span>
+                        {data.zraStatus && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-bg text-success-fg text-xs font-medium">
+                            <BadgeCheck size={12} /> {data.zraStatus}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                   <p className="text-xs text-text-faint">
                     #{data.id} {data.codeCompta && `· ${data.codeCompta}`}
                   </p>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint">
-                    {data.codeClient && (
-                      <span className="flex items-center gap-1">
-                        <Building2 size={12} /> Customer code <span className="font-medium text-text!">{data.codeClient}</span>
-                      </span>
-                    )}
-                    {data.codeFournisseur && (
-                      <span className="flex items-center gap-1">
-                        <Building2 size={12} /> Supplier code <span className="font-medium text-text!">{data.codeFournisseur}</span>
-                      </span>
-                    )}
-                    {data.countryLabel && (
-                      <span className="flex items-center gap-1">
-                        <MapPin size={12} /> {data.countryLabel}
-                      </span>
-                    )}
-                  </div>
+                  {isBlueMetal ? (
+                    <div className="flex flex-wrap items-center gap-4 pt-1">
+                      {data.codeClient && <InfoChip icon={FileText} label="Customer code" value={data.codeClient} color="blue" />}
+                      {data.codeFournisseur && <InfoChip icon={Landmark} label="Supplier code" value={data.codeFournisseur} color="violet" />}
+                      {data.countryLabel && <InfoChip icon={MapPin} value={data.countryLabel} color="amber" />}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint">
+                      {data.codeClient && (
+                        <span className="flex items-center gap-1">
+                          <Building2 size={12} /> Customer code <span className="font-medium text-text!">{data.codeClient}</span>
+                        </span>
+                      )}
+                      {data.codeFournisseur && (
+                        <span className="flex items-center gap-1">
+                          <Building2 size={12} /> Supplier code <span className="font-medium text-text!">{data.codeFournisseur}</span>
+                        </span>
+                      )}
+                      {data.countryLabel && (
+                        <span className="flex items-center gap-1">
+                          <MapPin size={12} /> {data.countryLabel}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -451,7 +463,7 @@ export function CustomerDetail() {
                       onClick={startEditing}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                         isBlueMetal
-                          ? 'border-cyan-100/70 bg-slate-950/70 text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] hover:border-cyan-200 hover:bg-blue-800/90'
+                          ? 'border-sky-300/40 bg-brand text-white shadow-sm hover:bg-brand-hover'
                           : 'border-border text-text-muted font-medium hover:bg-surface-hover hover:text-text'
                       }`}
                     >
@@ -493,13 +505,13 @@ export function CustomerDetail() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <DetailMetricTile label="Quotations" value={<>{formatMoney(data.kpiQuotation)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiQuotationCount}</span></>} icon={FileText} />
-              <DetailMetricTile label="Orders" value={<>{formatMoney(data.kpiOrder)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOrderCount}</span></>} icon={ShoppingCart} />
-              <DetailMetricTile label="Invoices" value={<>{formatMoney(data.kpiInvoice)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiInvoiceCount}</span></>} icon={Receipt} />
-              <DetailMetricTile label="Outstanding" value={<>{formatMoney(data.kpiOutstanding)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOutstandingCount}</span></>} icon={BadgeDollarSign} />
-              <DetailMetricTile label="Advance" value={<>{formatMoney(data.advance)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiAdvanceCount}</span></>} icon={Wallet} />
-            </div>
+            <DetailMetricRow className="px-4 py-3 border-b border-border">
+              <DetailMetricTile label="Quotations" value={<>{formatMoney(data.kpiQuotation)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiQuotationCount}</span></>} icon={FileText} color="violet" />
+              <DetailMetricTile label="Orders" value={<>{formatMoney(data.kpiOrder)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOrderCount}</span></>} icon={ShoppingCart} color="green" />
+              <DetailMetricTile label="Invoices" value={<>{formatMoney(data.kpiInvoice)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiInvoiceCount}</span></>} icon={Receipt} color="blue" />
+              <DetailMetricTile label="Outstanding" value={<>{formatMoney(data.kpiOutstanding)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOutstandingCount}</span></>} icon={BadgeDollarSign} color="amber" />
+              <DetailMetricTile label="Advance" value={<>{formatMoney(data.advance)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiAdvanceCount}</span></>} icon={Wallet} color="rose" />
+            </DetailMetricRow>
 
             <div className="border-t border-border px-3 py-2.5">
               <div className="flex items-center gap-1.5">

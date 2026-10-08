@@ -1,10 +1,11 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Search, CalendarDays, X as XIcon } from 'lucide-react'
+import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Search, X as XIcon } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
 import { Avatar } from '../../../shared/components/Avatar'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
@@ -83,6 +84,7 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
+  const dateRange = useDateRange()
   const [searchParams, setSearchParams] = useSearchParams()
   // Real customer-scoping filter — reads OrderRow.socid (parsed from the
   // row's own third-party link, see orderListParser.ts). Lets a customer's
@@ -93,9 +95,16 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
 
   const customerScoped = useMemo(() => (customerId ? summary.orders.filter((o) => o.socid === customerId) : summary.orders), [summary.orders, customerId])
   const customerName = customerId ? customerScoped[0]?.thirdParty : null
-  const filteredOrders = useMemo(() => customerScoped.filter((o) => matchesSearch(o, deferredSearch)), [customerScoped, deferredSearch])
+  const filteredOrders = useMemo(
+    () => customerScoped.filter((o) => matchesSearch(o, deferredSearch) && dateRange.inRange(o.orderDate)),
+    [customerScoped, deferredSearch, dateRange],
+  )
   const { sorted: sortedOrders, sort, toggleSort } = useSortableRows<OrderRow, SortKey>(filteredOrders, sortValue)
   const pageOrders = sortedOrders.slice((page - 1) * perPage, page * perPage)
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -230,9 +239,7 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
               />
             </div>
             <TableExportButtons title="Orders" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-              <CalendarDays size={14} />
-            </button>
+            <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

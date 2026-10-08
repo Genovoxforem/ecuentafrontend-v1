@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LogOut, Plus, Info } from 'lucide-react'
+import { LogOut, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -79,14 +79,6 @@ export function HotelCheckOutListPage() {
         {isLoading && <LegacyLoadingCard label="Loading checkouts…" />}
         {isError && <LegacyErrorCard title="Couldn't load checkouts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">booking/reservation/checkout_list.php</code>. Booking Date isn't returned by the real Hotel Suite API
-            for checked-out bookings, so it's shown as "—" rather than substituting a different date under that label. Payment Status is derived from the
-            matching invoice (if one has been raised for this booking).
-          </p>
-        </Card>
 
         {checkouts && (
           <Card className="!p-0 overflow-hidden flex-1 min-h-0">

@@ -44,7 +44,8 @@ import {
   CalendarPlus,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useUser, useUserDetail } from '../users.queries'
@@ -2441,6 +2442,8 @@ function ClickToDialTab({ user, detail }: { user: NonNullable<ReturnType<typeof 
 
 export function UserDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { user, isLoading, isError, error } = useUser(id)
   const { detail } = useUserDetail(id)
   const toggleStatus = useToggleUserStatus(id)
@@ -2547,15 +2550,31 @@ export function UserDetail() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-bold text-text! text-xl">{user.name || user.login}</p>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${enabled ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
-                    {enabled ? <CheckCircle2 size={11} /> : <XCircle size={11} />} {enabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                  {user.isAdmin && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-warning-bg text-warning-fg">
-                      <Crown size={11} /> Admin
-                    </span>
+                  {isBlueMetal ? (
+                    <>
+                      <StatusPill tone={enabled ? 'success' : 'neutral'} icon={enabled ? CheckCircle2 : XCircle}>
+                        {enabled ? 'Enabled' : 'Disabled'}
+                      </StatusPill>
+                      {user.isAdmin && (
+                        <StatusPill tone="warning" icon={Crown}>
+                          Admin
+                        </StatusPill>
+                      )}
+                      <StatusPill tone="brand">{user.employee ? 'Employee' : 'Non-Employee'}</StatusPill>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${enabled ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
+                        {enabled ? <CheckCircle2 size={11} /> : <XCircle size={11} />} {enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      {user.isAdmin && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-warning-bg text-warning-fg">
+                          <Crown size={11} /> Admin
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand/10 text-brand">{user.employee ? 'Employee' : 'Non-Employee'}</span>
+                    </>
                   )}
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand/10 text-brand">{user.employee ? 'Employee' : 'Non-Employee'}</span>
                 </div>
                 <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-text-muted">
                   {user.designation && <span>{user.designation}</span>}

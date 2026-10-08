@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Wrench, Check, X, Plus, Trash2, LoaderCircle, Info, CheckCircle2 } from 'lucide-react'
+import { Wrench, Check, X, Plus, Trash2, LoaderCircle, CheckCircle2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
@@ -180,14 +180,6 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
     >
       <div className="flex flex-col gap-4 flex-1 shrink-0">
         <Card className="!h-auto shrink-0 space-y-4">
-          <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-            <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-            <p className="text-xs text-info-fg">
-              Backend page: <code className="font-mono">fichinter/create.php</code>. This form posts to that page's own real write (
-              <code className="font-mono">action=create_intervention</code>) — the job card is genuinely saved. "Ticket" isn't reproduced here: its real
-              dropdown needs Dolibarr's core REST API under a per-user API key, a different auth scheme this app has no existing wiring for.
-            </p>
-          </Card>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
             <Field label="Third-party" required>

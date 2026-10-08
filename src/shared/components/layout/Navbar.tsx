@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Sun, Moon, BarChart3, CreditCard, ChefHat, Settings, Bell, CalendarDays, LogIn, LogOut, ChevronDown, PanelLeft, LayoutList } from 'lucide-react'
+import { Search, Sun, Moon, BarChart3, CreditCard, ChefHat, Settings, Bell, CalendarDays, Headset, LogIn, LogOut, ChevronDown, PanelLeft, LayoutList } from 'lucide-react'
 import { useTheme } from '../../../context/ThemeContext'
 import { useSidebarStyle } from '../../../context/SidebarStyleContext'
 import { useAuth, type AuthUser } from '../../../features/auth/AuthContext'
@@ -15,8 +15,8 @@ import { useAttendanceStatus } from '../../../features/attendance/attendance.que
 import { useNotificationCount } from '../../../features/notifications/notifications.queries'
 import { useTodayNewLeadsCount } from '../../../features/projects/projects.queries'
 import { Avatar } from '../Avatar'
-import logoFull from '../../../assets/Ecuenta_logo.png'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
+import logoFull from '../../../assets/Ecuenta_logo.png'
 type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | 'apps' | null
 
 // Custom styled tooltip (replaces the native `title` attribute), shown below
@@ -80,50 +80,6 @@ function displayName(user: AuthUser | null) {
   return full || user?.login || 'User'
 }
 
-function useEntityLogo(entity: string | undefined) {
-  const storageKey = entity ? `ecuenta:entity-logo:${entity}` : ''
-  const [src, setSrc] = useState(() => (storageKey ? localStorage.getItem(storageKey) : null) || logoFull)
-
-  useEffect(() => {
-    if (!storageKey) return
-    const cached = localStorage.getItem(storageKey)
-    // Only a cached image counts — never something else that was stored under this key.
-    if (cached?.startsWith('data:image/')) {
-      setSrc(cached)
-      return
-    }
-
-    setSrc(logoFull)
-    const controller = new AbortController()
-    // Same-origin on purpose: this is fetch()ed (to cache it as a data URL), which
-    // a cross-origin backend URL blocks with CORS. Production runs on the backend's
-    // origin and the dev server proxies /viewimage.php (see vite.config.ts).
-    const logoUrl = `/viewimage.php?cache=1&modulepart=mycompany&file=logos%2FEcuenta_logo_png.png&entity=${encodeURIComponent(entity!)}`
-    fetch(logoUrl, { credentials: 'same-origin', signal: controller.signal })
-      .then((response) => {
-        // A session redirect or the SPA fallback also answers 200, with HTML.
-        if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) throw new Error('Company logo unavailable')
-        return response.blob()
-      })
-      .then((blob) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          if (typeof reader.result !== 'string') return
-          try {
-            localStorage.setItem(storageKey, reader.result)
-          } catch {}
-          setSrc(reader.result)
-        }
-        reader.readAsDataURL(blob)
-      })
-      .catch(() => setSrc(logoFull))
-
-    return () => controller.abort()
-  }, [entity, storageKey])
-
-  return src
-}
-
 function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`}>
@@ -174,7 +130,6 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
   }
 
   const isModern = sidebarStyle === 'modern'
-  const entityLogo = useEntityLogo(user?.entity)
 
   return (
     <nav
@@ -208,8 +163,28 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         style={isModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
       >
       <div className={`relative z-10 flex h-full shrink-0 items-center transition-[width] duration-300 ${sidebarOpen ? (isModern ? 'w-64' : 'w-80') : 'w-16'}`}>
-        <a href="/dashboard" className="flex min-w-0 flex-1 items-center justify-center px-2" aria-label="ECUENTA dashboard">
-          <img src={entityLogo} onError={(event) => { event.currentTarget.src = logoFull }} alt="ECUENTA" className={`w-auto object-contain transition-all duration-300 ${sidebarOpen ? 'h-9 max-w-44' : 'h-8 max-w-11'}`} />
+        <a
+          href="/dashboard"
+          aria-label="ECUENTA dashboard"
+          className={`mx-2 flex h-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-cyan-400/70 bg-[linear-gradient(145deg,rgba(8,57,78,0.96),rgba(3,24,43,0.98))] shadow-[inset_0_1px_0_rgba(103,232,249,0.2),0_0_12px_rgba(34,211,238,0.16)] ${
+            sidebarOpen ? 'w-[min(11rem,calc(100%-3rem))] px-2' : 'w-10'
+          }`}
+        >
+          {sidebarOpen ? (
+            <img
+              src={logoFull}
+              alt="ECUENTA"
+              className="h-8 w-auto max-w-full object-contain [filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]"
+            />
+          ) : (
+            <span className="relative h-8 w-8 shrink-0 overflow-hidden">
+              <img
+                src={logoFull}
+                alt="ECUENTA"
+                className="absolute left-0 top-1/2 h-8 w-auto max-w-none -translate-y-1/2 [filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]"
+              />
+            </span>
+          )}
         </a>
         <button
           type="button"
@@ -362,11 +337,18 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           {openPanel === 'notifications' && <NotificationsPanel onClose={closePanel} />}
         </div>
 
-        <IconButton title="Events" glow onClick={() => navigate(ROUTES.agenda)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
+        <IconButton title="Events" glow onClick={() => navigate(ROUTES.agenda)} className={`max-sm:hidden ${isModern ? MODERN_ICON_REST_COLOR : ''}`}>
           <CalendarDays size={19} />
         </IconButton>
 
-        <div className="relative" ref={openPanel === 'clock' ? panelRef : undefined}>
+        {/* The classic headset button ("Ticket Desk") — its launcher opens a separate Node app; the tickets module is the React equivalent. */}
+        <div className="max-sm:hidden">
+          <IconButton title="Ticket Desk" glow onClick={() => navigate(ROUTES.ticketList)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
+            <Headset size={19} />
+          </IconButton>
+        </div>
+
+        <div className="relative max-sm:hidden" ref={openPanel === 'clock' ? panelRef : undefined}>
           <IconButton
             title={attendance?.isClockedIn ? 'Clock Out' : 'Clock In'}
             active={openPanel === 'clock'}

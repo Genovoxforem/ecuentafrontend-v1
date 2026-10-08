@@ -20,6 +20,7 @@ export interface StatsResultsTable {
 
 export interface StatsChart {
   title: string
+  type: 'bar' | 'line' | 'pie' | 'doughnut'
   labels: string[]
   datasets: { label: string; data: number[] }[]
 }
@@ -32,6 +33,10 @@ export function parseYearOptions(doc: Document): SelectOption[] {
   const select = doc.querySelector<HTMLSelectElement>('select[name="year"]')
   if (!select) return []
   return Array.from(select.options).map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
+}
+
+export function parseSelectedYear(doc: Document): string {
+  return doc.querySelector<HTMLSelectElement>('select[name="year"]')?.value ?? ''
 }
 
 export function parseResultsTable(doc: Document, expectedFirstHeader: string): StatsResultsTable | null {
@@ -64,6 +69,8 @@ export function parseEmbeddedCharts(doc: Document): StatsChart[] {
 
   scripts.forEach((script, i) => {
     const text = script.textContent ?? ''
+    const chartTypeMatch = /\btype\s*:\s*['"]?(bar|line|pie|doughnut)['"]?/i.exec(text)
+    const chartType = (chartTypeMatch?.[1]?.toLowerCase() ?? 'bar') as StatsChart['type']
     const dataBlockMatch = /data:\s*\{([\s\S]*?)\n\s*\}\s*\}\s*\)/.exec(text)
     const block = dataBlockMatch?.[1] ?? text
     const labelsMatch = /labels:\s*\[([^\]]*)\]/.exec(block)
@@ -76,7 +83,7 @@ export function parseEmbeddedCharts(doc: Document): StatsChart[] {
       datasets.push({ label: m[1], data: parseJsArray(m[2]).map(Number) })
     }
 
-    charts.push({ title: titleDivs[i]?.textContent?.trim() ?? '', labels, datasets })
+    charts.push({ title: titleDivs[i]?.textContent?.trim() ?? '', type: chartType, labels, datasets })
   })
 
   return charts

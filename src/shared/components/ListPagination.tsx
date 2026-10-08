@@ -61,7 +61,7 @@ export function ListPagination({
     // the footer whenever the list was shorter than the viewport. -24px shifts the stick
     // point by exactly that inset so it clamps flush against main's true bottom instead.
     <div
-      className={`sticky -bottom-6 py-3 border-t border-border bg-white dark:bg-gray-950 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted ${
+      className={`blue-density-pagination sticky -bottom-6 py-3 border-t border-border bg-white dark:bg-gray-950 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted ${
         edgeToEdge ? 'px-6' : '-mx-3 px-3'
       }`}
     >

@@ -184,13 +184,11 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
               <p className="text-sm text-text-faint italic">No real API available on this backend for contact tags.</p>
             </div>
           </div>
-          <p className="text-xs text-text-faint italic mt-4">
-            Title, Fax, Pers. phone, Country, Visibility, Date of birth and Tags/categories have no real API on this backend — shown for layout reference only.
-          </p>
+          
         </Card>
       ) : (
         <Card>
-          <p className="text-sm text-text-faint italic mb-3">No real API available on this backend for contact social media fields — shown for layout reference only.</p>
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             <Field label="Facebook">
               <input disabled className={disabledClasses} />

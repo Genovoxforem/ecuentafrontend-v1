@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CreditCard, Info } from 'lucide-react'
+import { CreditCard } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { useUsersSummary } from '../../users/users.queries'
@@ -78,14 +78,6 @@ export function MakePaymentForm() {
           <CreditCard size={20} className="text-brand" /> Make Payment
         </h2>
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">payroll/payment.php</code>. Employee/Salary Type/Basic Salary below come from the real
-            Manage Salary List. Payable Salary and Generate Payroll/Pay All aren't wired to a real write — the real computation chains attendance,
-            approved advances/loans, allowances and PAYE tax in a way that can't be reproduced honestly here (see this file's own comment).
-          </p>
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>

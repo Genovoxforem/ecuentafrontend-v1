@@ -4,7 +4,8 @@ import { ChevronLeft, IdCard, User, Link2, StickyNote, Paperclip, CalendarClock,
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useContacts, type ContactKind } from '../contacts.queries'
+import { useContact, type ContactKind } from '../contacts.queries'
+import type { ContactDetail as ContactData } from '../../../api/contacts'
 
 const TABS = [
   { key: 'contact', label: 'Contact/Address', icon: IdCard },
@@ -25,27 +26,18 @@ function TabTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-function NoApiNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-text-faint italic mt-2">{children}</p>
-}
-
 const disabledBtn = 'flex items-center gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-1.5 text-sm font-medium text-text-faint cursor-not-allowed'
 
-// Real header/main data reused from contact/contacts-addresses-list-ajax.php
-// (see contacts.queries.ts), matched by id — the same "find in the already-
-// fetched list" pattern used for Contract Detail's header, since contact/
-// card.php, perso.php, note.php, document.php and agenda.php are all full
-// legacy HTML pages with no JSON API behind them (checked every one
-// directly). Those remaining tabs are design-only, matching the real
-// page's layout with inert controls, exactly like Contract Detail's
-// no-API tabs.
+// Header and Contact/Address come from contact/fapi/get.php (see
+// contacts.queries.ts). contact/perso.php, note.php, document.php and
+// agenda.php are still full legacy HTML pages with no JSON API behind them
+// (checked every one directly), so those remaining tabs are design-only,
+// matching the real page's layout with inert controls, exactly like
+// Contract Detail's no-API tabs.
 export function ContactDetail({ kind = 'customer' }: { kind?: ContactKind }) {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<TabKey>('contact')
-  // limit is passed as 25 because the real backend hardcodes its own page
-  // size to 25 regardless of what's requested (see contacts.queries.ts) —
-  // asking for more here would be misleading about what actually comes back.
-  const { data, isLoading, isError, error, refetch } = useContacts(kind, '', 1, 25)
+  const { data: contact, isLoading, isError, error, refetch } = useContact(id)
   const listRoute = kind === 'vendor' ? ROUTES.vendorContactList : ROUTES.contactList
 
   if (isLoading) {
@@ -55,19 +47,10 @@ export function ContactDetail({ kind = 'customer' }: { kind?: ContactKind }) {
       </div>
     )
   }
-  if (isError || !data) {
+  if (isError || !contact) {
     return (
       <div className="-m-6 flex-1 flex flex-col min-h-0 p-6">
-        <LegacyErrorCard title="Couldn't load contact" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
-      </div>
-    )
-  }
-
-  const contact = data.items.find((c) => c.id === Number(id))
-  if (!contact) {
-    return (
-      <div className="-m-6 flex-1 flex flex-col min-h-0 p-6">
-        <LegacyErrorCard title="Contact not found" message={`No contact with id ${id} in the first 25 rows the real backend returns (it hardcodes its own page size) — try the list's search box to narrow it down first.`} onRetry={() => refetch()} />
+        <LegacyErrorCard title="Couldn't load contact" message={error instanceof Error ? error.message : `No contact with id ${id}.`} onRetry={() => refetch()} />
       </div>
     )
   }
@@ -141,35 +124,37 @@ export function ContactDetail({ kind = 'customer' }: { kind?: ContactKind }) {
   )
 }
 
-function ContactAddressTab({ contact }: { contact: { firstname: string | null; lastname: string | null; email: string | null; phone_pro: string | null; third_party_code: string | null } }) {
+function ContactAddressTab({ contact }: { contact: ContactData }) {
+  const phones = [
+    contact.phone_pro && `${contact.phone_pro} (work)`,
+    contact.phone_mobile && `${contact.phone_mobile} (mobile)`,
+    contact.phone_perso && `${contact.phone_perso} (personal)`,
+  ].filter(Boolean)
+  const address = [contact.address, [contact.zip, contact.town].filter(Boolean).join(' '), contact.country].filter(Boolean).join(', ')
+  const fields: Array<[string, string]> = [
+    ['Last Name', contact.lastname],
+    ['First Name', contact.firstname],
+    ['Third-Party', [contact.third_party_name, contact.third_party_code && `(${contact.third_party_code})`].filter(Boolean).join(' ')],
+    ['Job Position', contact.poste],
+    ['Phone', phones.join(' · ')],
+    ['Fax', contact.fax],
+    ['Email', contact.email],
+    ['Address', address],
+    ['Visibility', contact.priv ? 'Private' : 'Public'],
+  ]
   return (
     <div className="space-y-3">
       <TabTitle>Contact/Address</TabTitle>
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-3 text-sm">
-          <div>
-            <p className="text-text-faint text-xs">Last Name</p>
-            <p className="font-medium text-text!">{contact.lastname || '—'}</p>
-          </div>
-          <div>
-            <p className="text-text-faint text-xs">First Name</p>
-            <p className="font-medium text-text!">{contact.firstname || '—'}</p>
-          </div>
-          <div>
-            <p className="text-text-faint text-xs">Third-Party Code</p>
-            <p className="font-medium text-text!">{contact.third_party_code || '—'}</p>
-          </div>
-          <div>
-            <p className="text-text-faint text-xs">Phone</p>
-            <p className="font-medium text-text!">{contact.phone_pro || '—'}</p>
-          </div>
-          <div>
-            <p className="text-text-faint text-xs">Email</p>
-            <p className="font-medium text-text!">{contact.email || '—'}</p>
-          </div>
+          {fields.map(([label, value]) => (
+            <div key={label}>
+              <p className="text-text-faint text-xs">{label}</p>
+              <p className="font-medium text-text!">{value || '—'}</p>
+            </div>
+          ))}
         </div>
       </Card>
-      <NoApiNote>Title, Job Position, Address and Visibility aren't returned by the real Contacts list endpoint on this backend — not shown to avoid guessing.</NoApiNote>
     </div>
   )
 }
@@ -183,7 +168,7 @@ function PersonalDataTab() {
           Modify
         </button>
       </div>
-      <NoApiNote>This tab has no real JSON API on the current backend (contact/perso.php is a full legacy page) — shown for layout reference only.</NoApiNote>
+      
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
@@ -204,7 +189,7 @@ function RelatedItemsTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Related Items</TabTitle>
-      <NoApiNote>This tab has no real JSON API on the current backend — shown for layout reference only.</NoApiNote>
+      
       <Card className="!h-auto !p-0 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -236,7 +221,7 @@ function NoteTab() {
           Save
         </button>
       </div>
-      <NoApiNote>This tab has no real JSON API on the current backend (contact/note.php is a full legacy page) — nothing typed here is saved.</NoApiNote>
+      
       <Card className="!h-auto">
         <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={4} className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
       </Card>
@@ -248,7 +233,7 @@ function LinkedFilesTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Linked Files</TabTitle>
-      <NoApiNote>This tab has no real JSON API on the current backend (contact/document.php is a full legacy page) — controls below are inert.</NoApiNote>
+      
       <Card className="!h-auto">
         <div className="flex flex-wrap items-center gap-3">
           <input type="file" disabled className="text-sm text-text-faint file:mr-3 file:rounded-md file:border file:border-input-border file:bg-surface-hover file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-text-faint cursor-not-allowed" />
@@ -268,7 +253,7 @@ function EventsAgendaTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Events/Agenda</TabTitle>
-      <NoApiNote>This tab has no real JSON API on the current backend (contact/agenda.php is a full legacy page) — shown for layout reference only.</NoApiNote>
+      
       <Card className="!h-auto !p-0 overflow-hidden">
         <table className="w-full text-sm">
           <thead>

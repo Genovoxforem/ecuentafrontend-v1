@@ -1,8 +1,9 @@
-import { type ComponentType } from 'react'
-import { Calculator, CalendarDays, FileText, ListChecks, LayoutList, Package, Percent, ReceiptText, RefreshCw, ShoppingCart } from 'lucide-react'
+import { type ComponentType, type ReactNode } from 'react'
+import { Calculator, CalendarDays, FileText, ListChecks, Package, Percent, ReceiptText, RefreshCw, ShoppingCart } from 'lucide-react'
 import { formatMoney } from '../../../utils/format'
 import { useZraManualSync } from '../zraActions.queries'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { useZraServerStatus, type ZraSummary, type ZraSyncDetailRow, type ZraSyncStat } from '../zra.queries'
 
 // The backend prints a negative amount as "-ZMW 2,220.43".
@@ -36,18 +37,14 @@ function StatCard({
 }) {
   const a = ACCENTS[accent]
   return (
-    <div className={`flex flex-col rounded-xl border border-border border-t-4 ${a.edge} bg-surface-alt p-4 shadow-sm`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className={`text-xs font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
-          <div className="mt-2.5 space-y-1">{children}</div>
-        </div>
-        <span className={`shrink-0 grid h-10 w-10 place-items-center rounded-lg ${a.tile}`}>
-          <Icon size={19} />
-        </span>
-      </div>
-      <p className={`mt-3 flex items-center gap-1.5 border-t border-dashed border-border pt-2.5 text-xs font-semibold ${a.meta}`}>
-        <MetaIcon size={12} /> {meta}
+    <div className={`relative flex flex-col rounded-xl border border-border border-t-2 ${a.edge} bg-surface-alt px-3 py-1.5 shadow-sm`}>
+      <span className={`absolute right-3 top-2 grid h-7 w-7 place-items-center rounded-lg ${a.tile}`}>
+        <Icon size={15} />
+      </span>
+      <p className={`pr-9 text-[11px] font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
+      <div className="mt-1 space-y-0.5">{children}</div>
+      <p className={`mt-1 flex items-center gap-1.5 whitespace-nowrap border-t border-dashed border-border pt-1 text-[11px] font-semibold ${a.meta}`}>
+        <MetaIcon size={11} /> {meta}
       </p>
     </div>
   )
@@ -56,11 +53,11 @@ function StatCard({
 function SyncStatCard({ label, stat, accent, icon, metaIcon, totalLabel = 'Total' }: { label: string; stat: ZraSyncStat; accent: Accent; icon: ComponentType<{ size?: number }>; metaIcon: ComponentType<{ size?: number }>; totalLabel?: string }) {
   return (
     <StatCard label={label} accent={accent} icon={icon} metaIcon={metaIcon} meta={`${totalLabel}: ${fmt(stat.totalAmount)}`}>
-      <p className="text-[15px] font-bold text-text!">
-        {fmt(stat.succeededAmount)} <span className="text-success">✓ Succeeded</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
+        {fmt(stat.succeededAmount)} <span className="text-[10px] text-success">✓ Succeeded</span>
       </p>
-      <p className="text-[15px] font-bold text-text!">
-        {fmt(stat.unsyncedAmount)} <span className="font-semibold text-text-muted">Unsynced</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
+        {fmt(stat.unsyncedAmount)} <span className="text-[10px] font-semibold text-text-muted">Unsynced</span>
       </p>
     </StatCard>
   )
@@ -70,13 +67,12 @@ function SyncStatCard({ label, stat, accent, icon, metaIcon, totalLabel = 'Total
 // the large green figure, the unsynced amount a lighter grey line.
 function IncomeCard({ stat }: { stat: ZraSyncStat }) {
   return (
-    <StatCard label="Income" accent="violet" icon={Calculator} metaIcon={Calculator} meta={`Combined Total: ${fmt(stat.totalAmount)}`}>
-      <p className="text-xl font-bold leading-tight text-success">
-        {fmt(stat.succeededAmount)} <span className="text-sm">✓</span>
+    <StatCard label="Income" accent="violet" icon={Calculator} metaIcon={Calculator} meta={`Combined: ${fmt(stat.totalAmount)}`}>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-success">
+        {fmt(stat.succeededAmount)} <span className="text-[10px]">✓ Succeeded</span>
       </p>
-      <p className="text-xs font-semibold text-success">Succeeded</p>
-      <p className="pt-1 text-base text-text-muted">
-        {fmt(stat.unsyncedAmount)} <span className="text-xs">Unsynced</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
+        {fmt(stat.unsyncedAmount)} <span className="text-[10px] font-semibold text-text-muted">Unsynced</span>
       </p>
     </StatCard>
   )
@@ -85,8 +81,8 @@ function IncomeCard({ stat }: { stat: ZraSyncStat }) {
 function PurchaseAmountCard({ amount }: { amount: number }) {
   return (
     <StatCard label="Purchase Amount" accent="green" icon={ShoppingCart} metaIcon={ShoppingCart} meta="Supplier Invoices">
-      <p className="text-[15px] font-bold text-text!">
-        {fmt(amount)} <span className="text-success">✓ Complete</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
+        {fmt(amount)} <span className="text-[10px] text-success">✓ Complete</span>
       </p>
     </StatCard>
   )
@@ -223,20 +219,20 @@ export function ZraOverview({
   summary,
   year,
   onYearChange,
+  tabs,
 }: {
   summary: ZraSummary
   year: number | null
   onYearChange: (year: number | null) => void
+  tabs?: ReactNode
 }) {
   return (
     <div className="space-y-5">
-      <Banner>
-        <h3 className="flex items-center gap-2.5 text-lg font-bold text-text!">
-          <LayoutList size={20} className="text-brand" /> ZRA Synchronization Overview
-        </h3>
+      {tabs && <div>{tabs}</div>}
+      <InBanner>
         <ZraStatusBox />
         <YearFilter value={year} onChange={onYearChange} />
-      </Banner>
+      </InBanner>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SyncStatCard label="Sales Invoices" stat={summary.salesInvoices} accent="blue" icon={ReceiptText} metaIcon={ReceiptText} />
@@ -252,7 +248,6 @@ export function ZraOverview({
         </h3>
         <div className="flex flex-wrap items-center gap-4">
           <ManualSyncButton />
-          <YearFilter value={year} onChange={onYearChange} />
         </div>
       </Banner>
 

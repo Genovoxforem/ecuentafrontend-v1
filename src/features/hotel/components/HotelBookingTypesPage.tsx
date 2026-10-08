@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CalendarCheck, Plus, Pencil, Trash2, X, LoaderCircle, Search, Info } from 'lucide-react'
+import { CalendarCheck, Plus, Pencil, Trash2, X, LoaderCircle, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToken } from '../hotel.queries'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
@@ -50,13 +50,6 @@ export function HotelBookingTypesPage() {
         </button>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">booking/settings/booking_types.php</code> — real and working. This uses the Hotel Suite API instead
-          (same underlying data, confirmed live), which is what the rest of this app's booking source options read from.
-        </p>
-      </Card>
 
       <Card className="!h-auto">
         <div className="flex items-end gap-3">

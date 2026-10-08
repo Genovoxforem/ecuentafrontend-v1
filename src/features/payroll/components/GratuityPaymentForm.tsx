@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Info, Receipt } from 'lucide-react'
+import { Receipt } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { ListPagination } from '../../../shared/components/ListPagination'
@@ -56,14 +56,6 @@ export function GratuityPaymentForm() {
           <Receipt size={20} className="text-brand" /> Gratuity Payment
         </h2>
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">payroll/gratuity_payment.php</code>. Its real employee/gratuity table comes from an HTML-fragment
-            endpoint, and its Pay All write needs pre-existing payment record ids that only exist inside that same fragment — neither is reproduced here, so
-            the table below stays empty and Pay All is disabled.
-          </p>
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>

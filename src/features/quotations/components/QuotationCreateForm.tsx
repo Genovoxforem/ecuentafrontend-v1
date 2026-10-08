@@ -9,7 +9,7 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
-import { api } from '../../../api/axios'
+import { api, fapi } from '../../../api/axios'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
@@ -31,13 +31,11 @@ interface ApiEnvelope<T> {
   data?: T
 }
 
-// comm/propal/index_v2.php (the real "New Quotation" page) renders
-// Availability Period / Source / Payment Terms / Shipping Method as plain
-// <select> options straight from their DB tables (selectAvailabilityDelay(),
-// selectInputReason(), select_conditions_paiements(), selectShippingMethod())
-// — same "dead REST route, real legacy page" pattern as Sales Orders' own
-// useOrderDictionaries (orderFormOptionsParser.ts), scraped from this page
-// directly instead since it's the actual real page these fields come from.
+// Availability Period / Source / Payment Terms / Shipping Method — the same
+// dictionary tables (llx_c_availability, llx_c_input_reason, llx_c_payment_term,
+// llx_c_shipment_mode) the classic "New Quotation" page lists, read as JSON
+// from commande/fapi/meta.php (Sales Orders' create form uses it too). Same
+// ids as the classic page's options; only some labels are worded differently.
 interface DictOption {
   id: string
   text: string
@@ -48,25 +46,21 @@ interface QuotationDictionaries {
   paymentTerms: DictOption[]
   shippingMethods: DictOption[]
 }
-function parseSelectOptions(doc: Document, name: string): DictOption[] {
-  const select = doc.querySelector(`select[name="${name}"]`)
-  if (!select) return []
-  return Array.from(select.querySelectorAll('option'))
-    .map((o) => ({ id: o.getAttribute('value') ?? '', text: (o.textContent ?? '').trim() }))
-    .filter((o) => o.id && o.id !== '0' && o.id !== '-1')
-}
+type MetaList = Array<{ value: string; label: string }> | undefined
 function useQuotationDictionaries() {
   return useQuery({
     queryKey: ['quotations', 'dictionaries'],
     queryFn: async (): Promise<QuotationDictionaries> => {
-      const res = await fetch('/comm/propal/index_v2.php', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const doc = new DOMParser().parseFromString(await res.text(), 'text/html')
+      const { data } = await fapi.get<{ success: boolean; message?: string | null; data: { availability?: MetaList; demand_reasons?: MetaList; payment_terms?: MetaList; shipping_methods?: MetaList } }>(
+        '/commande/fapi/meta.php',
+      )
+      if (!data.success) throw new Error(data.message || 'Could not load the form options.')
+      const map = (list: MetaList) => (list ?? []).filter((o) => o.value && o.value !== '0' && o.value !== '-1').map((o) => ({ id: String(o.value), text: o.label }))
       return {
-        availabilityDelays: parseSelectOptions(doc, 'availability_id'),
-        demandReasons: parseSelectOptions(doc, 'demand_reason_id'),
-        paymentTerms: parseSelectOptions(doc, 'cond_reglement_id'),
-        shippingMethods: parseSelectOptions(doc, 'shipping_method_id'),
+        availabilityDelays: map(data.data.availability),
+        demandReasons: map(data.data.demand_reasons),
+        paymentTerms: map(data.data.payment_terms),
+        shippingMethods: map(data.data.shipping_methods),
       }
     },
     staleTime: 1000 * 60 * 10,

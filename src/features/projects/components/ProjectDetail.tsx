@@ -28,7 +28,8 @@ import {
   Eye,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card, DetailMetricTile, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricRow, DetailMetricTile, SectionHeading, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { Avatar } from '../../../shared/components/Avatar'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useProjectsList, type ProjectRow } from '../projects.queries'
@@ -72,10 +73,6 @@ function TabTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-function NoApiNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-text-faint italic mt-2">{children}</p>
-}
-
 // Real header/main data reused from projet/projects-list-ajax.php (see
 // projects.queries.ts), matched by id — same "find in the already-fetched
 // list" pattern used for Contract Detail's header, since projet/card.php
@@ -86,10 +83,19 @@ function NoApiNote({ children }: { children: React.ReactNode }) {
 // fields this backend actually returns for a project. Tab bodies below are
 // design-only, matching the real page's layout with inert controls — except
 // Tasks and Time Spent, which link out to this app's own existing features.
+const PROJECT_STATUS_TONE: Record<string, 'neutral' | 'success' | 'danger'> = {
+  Draft: 'neutral',
+  Open: 'success',
+  Closed: 'danger',
+  Unknown: 'neutral',
+}
+
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<TabKey>('project')
   const { data, isLoading, isError, error, refetch } = useProjectsList('all')
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
 
   const tabsScrollRef = useRef<HTMLDivElement>(null)
   const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false)
@@ -155,11 +161,15 @@ export function ProjectDetail() {
           <Card className="!h-auto">
             <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
               <div className="flex items-start gap-4 min-w-[240px] flex-1">
-                <Avatar name={project.title} size={64} rounded="lg" color="bg-brand" />
+                <Avatar name={project.title} size={64} rounded={isBlueMetal ? 'full' : 'lg'} color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'} />
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-bold text-text!">{project.title}</h2>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[project.statusLabel]}`}>{project.statusLabel}</span>
+                    {isBlueMetal ? (
+                      <StatusPill tone={PROJECT_STATUS_TONE[project.statusLabel] ?? 'neutral'}>{project.statusLabel}</StatusPill>
+                    ) : (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[project.statusLabel]}`}>{project.statusLabel}</span>
+                    )}
                   </div>
                   <p className="text-xs text-text-faint">
                     #{project.id} · {project.ref}
@@ -207,12 +217,12 @@ export function ProjectDetail() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <DetailMetricTile label="Budget" value={project.budgetAmount || '—'} icon={Wallet} />
-              <DetailMetricTile label="Start Date" value={project.startDate || '—'} icon={CalendarClock} />
-              <DetailMetricTile label="End Date" value={project.endDate || '—'} icon={CalendarDays} />
-              <DetailMetricTile label="Visibility" value={project.visibility || '—'} icon={Eye} />
-            </div>
+            <DetailMetricRow className="px-4 py-3 border-b border-border">
+              <DetailMetricTile label="Budget" value={project.budgetAmount || '—'} icon={Wallet} color="violet" />
+              <DetailMetricTile label="Start Date" value={project.startDate || '—'} icon={CalendarClock} color="green" sparkline={false} />
+              <DetailMetricTile label="End Date" value={project.endDate || '—'} icon={CalendarDays} color="blue" sparkline={false} />
+              <DetailMetricTile label="Visibility" value={project.visibility || '—'} icon={Eye} color="amber" sparkline={false} />
+            </DetailMetricRow>
 
             <div className="border-t border-border px-3 py-2.5">
               <div className="flex items-center gap-1.5">
@@ -340,7 +350,7 @@ function ProjectNotesTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Notes</TabTitle>
-      <NoApiNote>projet/note.php has no JSON API (confirmed by reading it directly — this is the only Notes tab in this app without one) — both fields below are inert.</NoApiNote>
+      
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -490,26 +500,7 @@ function LinkedFilesCard() {
           <FilePlus2 size={14} /> Generate
         </button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium px-4 py-2.5">Document Template</th>
-              <th className="font-medium px-4 py-2.5">Language</th>
-              <th className="font-medium px-4 py-2.5">File</th>
-              <th className="font-medium px-4 py-2.5">Generated On</th>
-              <th className="font-medium px-4 py-2.5">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={5} className="px-4 py-6 text-center text-text-faint italic">
-                No documents generated — projet/card.php's document generator has no JSON API.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      
     </Card>
   )
 }
@@ -575,7 +566,7 @@ function EventsAgendaTab({ project }: { project: ProjectRow }) {
   return (
     <div className="space-y-3">
       <TabTitle>Events / Agenda</TabTitle>
-      <NoApiNote>projet/info.php has no JSON API (confirmed by reading it directly) — the filter row below is inert and the events table has no real data source.</NoApiNote>
+      
 
       <Card className="!h-auto">
         <InfoRow icon={Users2} label="Created By" value="—" />

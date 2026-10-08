@@ -28,7 +28,7 @@ export function ExpenseBudgetsPage() {
       <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
         <div className="flex items-start gap-2 rounded-lg border border-info-bg bg-info-bg/40 px-3 py-2 text-xs text-info-fg">
           <Info size={14} className="shrink-0 mt-0.5" />
-          <p>Design only — expense/budgets.php has no JSON API (its form posts directly with a server-minted CSRF token). Every control below is inert.</p>
+          
         </div>
 
         <Card className="!h-auto">

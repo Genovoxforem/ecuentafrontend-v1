@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Loader2 } from 'lucide-react'
-import { EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
+import { EMPTY_SECTION_HOME_PATH, MENU_UNAVAILABLE_SECTIONS } from '../../nav/pathSourceSections'
 import {
   House,
   Shield,
@@ -58,8 +58,6 @@ import { prefetchRoute } from '../../../app/routePrefetch'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 import { useTheme } from '../../../context/ThemeContext'
 import { getNavItemIcon } from '../../nav/getNavItemIcon'
-import logoFull from '../../../assets/Ecuenta_logo.png'
-import logoIcon from '../../../assets/log3.png'
 
 // Used only as a label->path lookup by buildNavSections now (see there) —
 // the actual section list, order, and item hierarchy come from GET
@@ -445,11 +443,11 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
   const { data: menu } = useAppMenu()
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
-  // React path (see buildNavSections) and covers the one frame before the
-  // request resolves.
+  // React path (see buildNavSections). Until the request answers, the sidebar
+  // shows no modules rather than the hard-coded list.
   const SECTIONS = useMemo(() => {
     const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
-    return sections.length > 0 ? sections : PATH_SOURCE_SECTIONS
+    return sections.length > 0 ? sections : MENU_UNAVAILABLE_SECTIONS
   }, [menu])
   const [hovering, setHovering] = useState(false)
   const expanded = open || hovering
@@ -487,16 +485,6 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
         {/* Content sits on its own layer with a drop-shadow (covers icons too, unlike text-shadow) so it stays
             legible against a genuinely transparent glass panel regardless of what's behind it. */}
         <div className="relative z-10 flex flex-col h-full" style={{ filter: MODERN_CONTENT_SHADOW }}>
-          {expanded && (
-            <div className="flex items-center justify-center h-12 mx-2.5 mt-4 mb-2 rounded-lg bg-white/90 px-2 shrink-0">
-              <img src={logoFull} alt="ECUENTA" className="h-full w-auto object-contain" />
-            </div>
-          )}
-          {!expanded && (
-            <div className="flex items-center justify-center w-10 h-10 mx-auto mt-4 mb-2 rounded-lg bg-white/90 p-1 shrink-0">
-              <img src={logoIcon} alt="ECUENTA" className="h-full w-full object-contain" />
-            </div>
-          )}
           {expanded && <p className="px-4 pb-2 text-[11px] font-bold tracking-widest text-white/35">MENU</p>}
 
           <div className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-2.5 pb-2 ${expanded ? '' : 'pt-5'}`}>

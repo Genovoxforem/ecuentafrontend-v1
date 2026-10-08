@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Info, Lock, Plus } from 'lucide-react'
+import { FileText, Lock, Plus } from 'lucide-react'
 import { useAsycudaVendorOptions } from '../asycudaPurchaseInvoice.queries'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
@@ -48,15 +48,6 @@ export function AsycudaPurchaseInvoiceCreate() {
         </button>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">fourn/facture/asycudapurchase.php</code>. Its line-item table and Save/Draft/Delete actions all go
-          through <code className="font-mono">invoiceajax.php</code>, which renders the whole panel as an HTML fragment on every action, not JSON — no data
-          contract to wire without scraping a 3,000+ line handler, so those fields are disabled. Vendor is real: it comes from{' '}
-          <code className="font-mono">societe/api/list.php</code>, the same live endpoint the Customers list uses.
-        </p>
-      </Card>
 
       <Card className="!h-auto">
         <Field label="Vendor" required>

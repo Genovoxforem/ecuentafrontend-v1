@@ -2,6 +2,7 @@ import { type ComponentType, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LayoutGrid, PieChart as PieChartIcon } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
+import { useTheme } from '../../../context/ThemeContext'
 import { formatMoney } from '../../../utils/format'
 
 // Shared building blocks for the "module dashboard" pages ported from the
@@ -22,21 +23,79 @@ export function fmtLongDate(d: Date) {
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`bg-surface-alt border border-border rounded-xl p-4 h-full flex flex-col ${className}`}>{children}</div>
+  return <div className={`app-card bg-surface-alt border border-border rounded-xl p-4 h-full flex flex-col ${className}`}>{children}</div>
 }
 
-export function DetailMetricTile({ label, value, icon: Icon }: { label: string; value: ReactNode; icon: ComponentType<{ size?: number; className?: string }> }) {
+// Purely a visual texture next to the number (same role as the page banner's
+// own background chart graphic, see PageBanner.tsx) — a fixed bar pattern
+// derived from the label text, not a plot of any real daily/weekly figures.
+// No per-tile time series exists on the backend for these totals, so this
+// never claims to show one: heights are deterministic (stable across
+// re-renders, same tile always looks the same) rather than random noise.
+function decorativeBarHeights(seed: string): number[] {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return Array.from({ length: 8 }, (_, i) => {
+    h = (h * 1103515245 + 12345) >>> 0
+    return 25 + (h % 75) + i // mild upward drift, same flavor as the reference tile
+  }).map((v) => Math.min(100, v))
+}
+
+function DecorativeSparkline({ seed, color }: { seed: string; color: string }) {
+  const heights = decorativeBarHeights(seed)
   return (
-    <div className="flex flex-1 min-w-[145px] items-center justify-between gap-3">
-      <div className="min-w-0">
-        <p className="truncate text-xs text-text-faint uppercase tracking-wide">{label}</p>
+    <span className="hidden lg:flex h-8 w-10 shrink-0 items-end gap-[2px]" aria-hidden="true">
+      {heights.map((v, i) => (
+        <i key={i} className="block w-[3px] rounded-sm" style={{ height: `${v}%`, background: color, opacity: 0.35 + (v / 100) * 0.55 }} />
+      ))}
+    </span>
+  )
+}
+
+const DETAIL_TILE_ACCENT: Record<IconColor, string> = {
+  blue: '#3b82f6',
+  cyan: '#06b6d4',
+  green: '#10b981',
+  amber: '#f59e0b',
+  rose: '#ec4899',
+  violet: '#8b5cf6',
+  indigo: '#6366f1',
+}
+
+export function DetailMetricTile({
+  label,
+  value,
+  icon: Icon,
+  color = 'blue',
+  sparkline = true,
+}: {
+  label: string
+  value: ReactNode
+  icon: ComponentType<{ size?: number; className?: string }>
+  color?: IconColor
+  // Off for tiles whose value isn't a running total (dates, labels, free text) —
+  // a trend-shaped decoration next to "Start Date: 01/01/2026" would be misleading.
+  sparkline?: boolean
+}) {
+  return (
+    <div className="flex flex-1 min-w-[175px] items-center gap-2.5 px-3 first:pl-1 last:pr-1">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${ICON_STYLES[color]}`}>
+        <Icon size={17} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] font-semibold text-text-faint uppercase tracking-wide">{label}</p>
         <p className="mt-0.5 truncate text-lg font-bold text-text!">{value}</p>
       </div>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand/25 bg-brand/10 text-brand">
-        <Icon size={16} />
-      </span>
+      {sparkline && <DecorativeSparkline seed={label} color={DETAIL_TILE_ACCENT[color]} />}
     </div>
   )
+}
+
+// Lays out a row of DetailMetricTile with a vertical divider between each —
+// the common KPI strip shared by every detail page (Customer, Project,
+// Warehouse, Inventory, Pay Run, ...).
+export function DetailMetricRow({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`flex flex-wrap items-center divide-x divide-border ${className}`}>{children}</div>
 }
 
 export function SectionHeading({ icon: Icon, children }: { icon: ComponentType<{ size?: number; className?: string }>; children: ReactNode }) {
@@ -58,6 +117,61 @@ export const ICON_STYLES = {
 } as const
 export type IconColor = keyof typeof ICON_STYLES
 
+// Solid-filled status pills for a detail page's identity row (Customer /
+// Active / "It is succeeded", ...) — same semantic tones every soft badge in
+// this app already uses, just filled solid rather than tinted, for the rows
+// that sit directly on the banner's own dark/photo surface where a soft tint
+// reads too faint.
+export type PillTone = 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
+const PILL_STYLES: Record<PillTone, string> = {
+  brand: 'bg-brand text-white',
+  success: 'bg-success text-white',
+  warning: 'bg-warning text-white',
+  danger: 'bg-danger text-white',
+  info: 'bg-info text-white',
+  neutral: 'bg-surface-hover text-text-muted',
+}
+
+export function StatusPill({ tone = 'neutral', icon: Icon, children }: { tone?: PillTone; icon?: ComponentType<{ size?: number }>; children: ReactNode }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${PILL_STYLES[tone]}`}>
+      {Icon && <Icon size={12} />}
+      {children}
+    </span>
+  )
+}
+
+// One of the small identity-row chips that pair a colored icon square with a
+// value (a customer/supplier code, a location, ...) — with an optional label
+// line above the value when there's room to name what the value is.
+export function InfoChip({
+  icon: Icon,
+  label,
+  value,
+  color = 'blue',
+}: {
+  icon: ComponentType<{ size?: number }>
+  label?: string
+  value: ReactNode
+  color?: IconColor
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 min-w-0">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ICON_STYLES[color]}`}>
+        <Icon size={15} />
+      </span>
+      {label ? (
+        <span className="min-w-0 leading-tight">
+          <span className="block text-[10px] text-text-faint whitespace-nowrap">{label}</span>
+          <span className="block text-sm font-semibold text-text! truncate">{value}</span>
+        </span>
+      ) : (
+        <span className="text-sm font-semibold text-text! truncate">{value}</span>
+      )}
+    </span>
+  )
+}
+
 export interface StatCardLink {
   label: string
   path: string
@@ -71,6 +185,7 @@ export function StatCard({
   listPath,
   newPath,
   extraLink,
+  className,
 }: {
   label: string
   count: number
@@ -79,16 +194,19 @@ export function StatCard({
   listPath?: string
   newPath?: string
   extraLink?: StatCardLink
+  className?: string
 }) {
+  const { theme } = useTheme()
+  const compact = theme === 'blue-metal'
   return (
-    <Card className="!p-3 flex flex-col gap-2">
+    <Card className={`${className ?? ''} ${compact ? 'blue-compact-card' : '!p-3'} flex flex-col ${compact ? 'gap-1' : 'gap-2'}`}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-          <p className="text-2xl font-bold text-text! mt-1">{count}</p>
+          <p className={`${compact ? 'text-sm mt-0' : 'text-2xl mt-1'} font-bold text-text!`}>{count}</p>
         </div>
-        <span className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-          <Icon size={18} />
+        <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-9 h-9 rounded-lg'} flex items-center justify-center ${ICON_STYLES[color]}`}>
+          <Icon size={compact ? 14 : 18} />
         </span>
       </div>
       <div className="flex items-center gap-3 text-xs">
@@ -121,19 +239,21 @@ export function TodayStatCard({
 }: {
   label: string
   value: string
-  caption: string
+  caption: ReactNode
   icon: ComponentType<{ size?: number }>
   color: IconColor
 }) {
+  const { theme } = useTheme()
+  const compact = theme === 'blue-metal'
   return (
-    <Card className="!p-3 !flex-row items-center justify-between gap-3">
+    <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div>
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className="text-xl font-bold text-text! mt-1">{value}</p>
-        <p className="text-xs text-text-faint mt-0.5">{caption}</p>
+        <p className={`${compact ? 'text-sm mt-0' : 'text-xl mt-1'} font-bold text-text!`}>{value}</p>
+        <div className="text-xs text-text-faint mt-0.5">{caption}</div>
       </div>
-      <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-        <Icon size={20} />
+      <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-10 h-10 rounded-lg'} flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <Icon size={compact ? 14 : 20} />
       </span>
     </Card>
   )
@@ -160,19 +280,21 @@ export function TwoValueStatCard({
   icon: ComponentType<{ size?: number }>
   color: IconColor
 }) {
+  const { theme } = useTheme()
+  const compact = theme === 'blue-metal'
   return (
-    <Card className="!p-3 !flex-row items-center justify-between gap-3">
+    <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div>
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className="text-xl font-bold text-text! mt-1">
+        <p className={`${compact ? 'text-sm mt-0' : 'text-xl mt-1'} font-bold text-text!`}>
           {primary} <span className="text-xs font-normal text-text-faint">{primaryLabel}</span>
         </p>
-        <p className="text-sm font-semibold text-text! mt-0.5">
+        <p className={`${compact ? 'text-xs mt-0' : 'text-sm mt-0.5'} font-semibold text-text!`}>
           {secondary} <span className="text-xs font-normal text-text-faint">{secondaryLabel}</span>
         </p>
       </div>
-      <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-        <Icon size={20} />
+      <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-10 h-10 rounded-lg'} flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <Icon size={compact ? 14 : 20} />
       </span>
     </Card>
   )
@@ -289,14 +411,16 @@ export function ActionGroupCard({
   title,
   actions,
   columns = 3,
+  className = '',
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
   actions: (ActionTileSpec & { path?: string })[]
   columns?: 2 | 3
+  className?: string
 }) {
   return (
-    <Card>
+    <Card className={className}>
       <SectionHeading icon={icon}>{title}</SectionHeading>
       <div className={`grid ${columns === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-2 mt-3`}>
         {actions.map((a, i) => (

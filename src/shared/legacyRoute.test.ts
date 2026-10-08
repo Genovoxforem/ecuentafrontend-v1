@@ -103,4 +103,20 @@ describe('resolveLegacyRoute', () => {
     expect(resolveLegacyRoute('')).toBeNull()
     expect(resolveLegacyRoute(null)).toBeNull()
   })
+
+  it('maps the Kitchen and payroll Core HR menu pages to their React pages', () => {
+    expect(resolveLegacyRoute('/kitchen/dashboard.php?idmenu=655112498')).toBe('/kitchen-dashboard')
+    expect(resolveLegacyRoute('/kitchen/ordermanagement.php?type=supplement&idmenu=655112500')).toBe('/kitchen-beverage-orders')
+    expect(resolveLegacyRoute('/kitchen/ordermanagement.php?idmenu=655112502')).toBe('/kitchen-order-management')
+    expect(resolveLegacyRoute('/payroll/award.php?idmenu=655112325')).toBe('/payroll/employee-award')
+    expect(resolveLegacyRoute('/payroll/resignations.php?action=create&idmenu=655112327')).toBe('/payroll/employee-resignation/new')
+    expect(resolveLegacyRoute('/payroll/resignations.php')).toBe('/payroll/employee-resignation')
+    // Payroll V2's own screens (features/payrollV2), told apart by the fragment.
+    expect(resolveLegacyRoute('/payroll_v2/index.php#payrun?idmenu=655112317')).toBe('/payroll-v2/pay-runs')
+    expect(resolveLegacyRoute('/payroll_v2/index.php#reports/summary?idmenu=655112322')).toBe('/payroll-v2/reports')
+    expect(resolveLegacyRoute('/payroll_v2/ess.php?idmenu=655112318')).toBe('/payroll-v2/self-service')
+    expect(resolveLegacyRoute('/payroll_v2/index.php#templates')).toBe('/payroll-v2/templates')
+    expect(resolveLegacyRoute('/payroll_v2/index.php#shifts')).toBe('/payroll-v2/shifts')
+    expect(resolveLegacyRoute('/payroll_v2/index.php#settings')).toBe('/payroll-v2/settings')
+  })
 })

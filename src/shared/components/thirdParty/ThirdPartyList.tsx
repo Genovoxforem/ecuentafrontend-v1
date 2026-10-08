@@ -98,16 +98,18 @@ export interface ThirdPartyStatSpec {
 }
 
 function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
+  const { theme } = useTheme()
+  const compact = theme === 'blue-metal'
   const Icon = stat.icon
   return (
-    <Card className="!p-3 !flex-row items-center justify-between gap-3">
+    <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{stat.label}</p>
-        <p className="text-xl font-bold text-text! mt-1">{stat.value}</p>
-        <p className="text-xs text-text-faint mt-0.5">{stat.caption}</p>
+        <p className={`${compact ? 'text-[10px] leading-3' : 'text-xs'} font-semibold text-text-muted uppercase tracking-wide`}>{stat.label}</p>
+        <p className={`${compact ? 'text-sm leading-5' : 'text-xl mt-1'} font-bold text-text!`}>{stat.value}</p>
+        <p className={`${compact ? 'text-[10px] leading-3' : 'text-xs mt-0.5'} text-text-faint`}>{stat.caption}</p>
       </div>
-      <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[stat.color]}`}>
-        <Icon size={20} />
+      <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-10 h-10 rounded-lg'} flex items-center justify-center ${ICON_STYLES[stat.color]}`}>
+        <Icon size={compact ? 14 : 20} />
       </span>
     </Card>
   )
@@ -315,23 +317,21 @@ export function ThirdPartyList({
           clamp flush against main's true top instead. See StickyFormShell.tsx for the full
           writeup. -mx-6 bleeds it edge-to-edge horizontally the same way. */}
       {!shellBannerActive && (
-        <div className={`sticky -top-6 z-10 -mx-6 border-b border-border ${showBanner ? 'bg-surface' : 'flex flex-wrap items-center justify-between gap-3 bg-white px-6 py-3 dark:bg-gray-950'}`}>
+        <div className={`blue-density-page-header sticky -top-6 z-10 -mx-6 border-b border-border ${showBanner ? 'bg-surface' : 'flex flex-wrap items-center justify-between gap-3 bg-white px-6 py-3 dark:bg-gray-950'}`}>
           {showBanner ? (
-          <div className="relative flex min-h-[86px] flex-wrap items-center justify-between gap-5 overflow-hidden px-6 py-3 sm:min-h-24 sm:px-8">
-            <img src={bannerImage} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,14,28,0.96)_0%,rgba(3,14,28,0.82)_43%,rgba(3,14,28,0.34)_100%)]" />
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,121,206,0.22),transparent_54%,rgba(4,15,29,0.24))]" />
-            <div className="relative z-10 flex min-w-0 items-center gap-4 text-white">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-cyan-200/50 bg-blue-500/20 text-cyan-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_22px_rgba(0,158,255,0.3)] backdrop-blur-sm sm:h-16 sm:w-16">
-                <HeaderIcon size={34} />
+          <div className="blue-theme-banner relative flex min-h-[58px] flex-wrap items-center justify-between gap-2 overflow-hidden border-b border-border bg-[#10283a] px-6 py-1.5 sm:min-h-[58px] sm:px-8">
+            <div className="absolute inset-0 bg-[#10283a]" />
+            <div className="relative z-10 flex min-w-0 items-center gap-3 text-white">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-300/35 bg-sky-500/10 text-sky-200">
+                <HeaderIcon size={20} />
               </span>
               <div className="min-w-0">
-                <h2 className="text-2xl font-bold text-white sm:text-3xl">{title}</h2>
-                {description && <p className="mt-1 text-sm text-blue-100/85 sm:text-base">{description}</p>}
+                <h2 className="text-lg font-semibold text-white">{title}</h2>
+                {description && <p className="text-xs text-slate-300">{description}</p>}
               </div>
             </div>
-            <Link to={newPath} className="relative z-10 inline-flex shrink-0 items-center gap-2 rounded-lg border border-cyan-200/50 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(0,125,255,0.34)] transition hover:brightness-110">
-              <Plus size={16} /> {newLabel}
+            <Link to={newPath} className="blue-theme-primary relative z-10 inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/15 bg-[#315f7a] px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f]">
+              <Plus size={14} /> {newLabel}
             </Link>
           </div>
           ) : (
@@ -355,7 +355,7 @@ export function ThirdPartyList({
         </div>
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-          <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+          <div className="blue-density-toolbar flex flex-wrap items-center gap-3 p-4 border-b border-border">
             <select
               value={perPage}
               onChange={(e) => setPerPage(Number(e.target.value))}
@@ -367,7 +367,7 @@ export function ThirdPartyList({
                 </option>
               ))}
             </select>
-            <div className="relative w-48">
+            <div className="blue-density-search relative w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 type="text"
@@ -378,7 +378,7 @@ export function ThirdPartyList({
               />
             </div>
             <TableExportButtons title={title} getExportData={getExportData} />
-            <div className="relative ml-auto" ref={dateMenuRef}>
+            <div className="blue-density-date relative ml-auto" ref={dateMenuRef}>
               <button
                 type="button"
                 onClick={() => setDateMenuOpen((v) => !v)}

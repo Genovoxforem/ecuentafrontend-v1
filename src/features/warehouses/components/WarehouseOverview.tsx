@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Warehouse,
@@ -13,8 +13,6 @@ import {
   ArrowDownRight,
   Zap,
   ClipboardList,
-  Truck,
-  PackageCheck,
   Shuffle,
   ListChecks,
   Bookmark,
@@ -23,7 +21,6 @@ import {
   ShoppingCart,
   FilePenLine,
   PackagePlus,
-  Plus,
   History,
   AlertOctagon,
 } from 'lucide-react'
@@ -31,6 +28,8 @@ import { ROUTES } from '../../../routes'
 import { Card, SectionHeading, ICON_STYLES, ActionGroupCard, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { useAllProductsRich, useProductOptions } from '../../products/products.queries'
+import { useWarehouseList } from '../warehouseExtras.queries'
 import { useRecentMovements, type WarehouseSummary } from '../warehouses.queries'
 
 const HERO_WASH: Record<string, string> = {
@@ -96,23 +95,6 @@ function MetricCard({
           )}
         </div>
       )}
-    </Card>
-  )
-}
-
-function ReservationCard({ label, value, icon: Icon, color, links }: { label: string; value: number; icon: ComponentType<{ size?: number }>; color: IconColor; links?: ReactNode }) {
-  return (
-    <Card className="group flex flex-col gap-2 !p-3 transition-all hover:shadow-md hover:-translate-y-0.5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-text-muted">{label}</p>
-          <p className="text-2xl font-bold text-text! mt-1">{value}</p>
-        </div>
-        <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3 ${ICON_STYLES[color]}`}>
-          <Icon size={20} />
-        </span>
-      </div>
-      {links}
     </Card>
   )
 }
@@ -198,24 +180,78 @@ function RecentMovements() {
   )
 }
 
+function RecentActivity() {
+  const { movements, isLoading, isError, error, refetch } = useRecentMovements()
+
+  if (isLoading) return <LegacyLoadingCard label="Loading recent warehouse activity…" />
+  if (isError) {
+    return <LegacyErrorCard title="Couldn't load recent warehouse activity" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  }
+  if (movements.length === 0) {
+    return <p className="py-4 text-center text-xs text-text-faint">No recent warehouse activity.</p>
+  }
+
+  return (
+    <div className="mt-2 divide-y divide-border">
+      {movements.slice(0, 4).map((movement) => (
+        <div key={movement.id} className="flex min-w-0 items-start gap-2 py-2 first:pt-0">
+          <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">
+            <History size={12} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-medium text-text!" title={movement.label || movement.typeLabel}>
+              {movement.label || movement.typeLabel || 'Stock movement'}
+            </p>
+            <p className="truncate text-[11px] text-text-faint">
+              {movement.productLabel}{movement.warehouseRef ? ` · ${movement.warehouseRef}` : ''}
+            </p>
+          </div>
+          <span className="shrink-0 whitespace-nowrap text-[10px] text-text-faint">{movement.dateFormatted}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
+  const { data: products = [] } = useProductOptions()
+  const { data: richProducts, isLoading: categoriesLoading, isError: categoriesError } = useAllProductsRich(0)
+  const { warehouses } = useWarehouseList()
+  const stockProducts = products.filter((product) => product.type === 'product')
+  const inStock = stockProducts.filter((product) => product.stock >= 5).length
+  const lowStock = stockProducts.filter((product) => product.stock > 0 && product.stock < 5).length
+  const outOfStock = stockProducts.filter((product) => product.stock <= 0).length
+  const stockStatusTotal = Math.max(inStock + lowStock + outOfStock, 1)
+  const inStockPercent = (inStock / stockStatusTotal) * 100
+  const lowStockPercent = (lowStock / stockStatusTotal) * 100
+  const stockStatusStyle = {
+    background: `conic-gradient(#13c8a3 0% ${inStockPercent}%, #f5b942 ${inStockPercent}% ${inStockPercent + lowStockPercent}%, #f04e78 ${inStockPercent + lowStockPercent}% 100%)`,
+  }
+  const warehouseValues = [...warehouses]
+    .sort((a, b) => b.inputStockValue - a.inputStockValue)
+    .slice(0, 5)
+  const maxWarehouseValue = Math.max(...warehouseValues.map((warehouse) => warehouse.inputStockValue), 1)
+  const categoryByProductRef = new Map((richProducts ?? []).map((product) => [product.ref, product.category.trim() || 'Uncategorized']))
+  const stockValueByCategory = products.reduce<Map<string, number>>((totals, product) => {
+    if (product.type !== 'product') return totals
+    const category = categoryByProductRef.get(product.ref) ?? 'Uncategorized'
+    totals.set(category, (totals.get(category) ?? 0) + product.stock * product.priceExclTax)
+    return totals
+  }, new Map())
+  const categoryValues = [...stockValueByCategory.entries()]
+    .map(([category, value]) => ({ category, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5)
+  const maxCategoryValue = Math.max(...categoryValues.map(({ value }) => value), 1)
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Warehouse size={20} className="text-brand" /> Warehouses area
-        </h2>
-        <Link to={ROUTES.stockCorrection} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          <Plus size={14} /> Stock correction
-        </Link>
-      </div>
 
       {summary.legacyStatsError && <LegacyStatsWarning message={summary.legacyStatsError} />}
 
-      <SectionHeading icon={BarChart2}>Statistics</SectionHeading>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Total Products In Stock" value={summary.totalProductsInStock} icon={Package} color="blue" hero />
-        <MetricCard label="Total Stock Quantity" value={summary.totalStockQuantity} icon={Boxes} color="indigo" hero />
+        <MetricCard label="Total Stock Quantity" value={summary.totalStockQuantity.toLocaleString()} icon={Boxes} color="indigo" hero />
         <MetricCard label="Total Stock Value" value={formatMoney(summary.totalStockValue)} icon={Banknote} color="cyan" hero />
         <MetricCard
           label="Warehouses"
@@ -226,7 +262,6 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           listPath={ROUTES.warehouseList}
           newPath={ROUTES.warehouseCreate}
         />
-
         <MetricCard
           label="Products Out of Stock"
           value={summary.productsOutOfStock}
@@ -234,60 +269,142 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           color="rose"
           alert={summary.productsOutOfStock > 0}
         />
-        <MetricCard label="Products Low Stock" value={summary.productsLowStock} icon={BatteryLow} color="cyan" />
-        <MetricCard label="Movements Today" value={summary.movementsToday} caption="View All Movements" icon={ArrowLeftRight} color="violet" />
-        <ActionGroupCard
-          icon={Zap}
-          title="Quick Actions"
-          actions={[
-            { icon: ShoppingCart, label: 'Replenishment', path: ROUTES.replenishment },
-            { icon: FilePenLine, label: 'Stock correction', path: ROUTES.stockCorrection },
-            { icon: PackagePlus, label: 'New inventory', path: ROUTES.inventoryCreate },
-          ]}
-        />
-
-        <MetricCard label="Inventories" value={summary.inventories} icon={ClipboardList} color="rose" listPath={ROUTES.inventoryList} newPath={ROUTES.inventoryCreate} />
-        <MetricCard
-          label="Shipments"
-          value={summary.shipments.total}
-          caption={`${summary.shipments.validated} Validated`}
-          icon={Truck}
-          color="blue"
-          listPath={ROUTES.shipmentList}
-        />
-        <MetricCard label="Receptions" value={summary.receptions.total} caption={`${summary.receptions.validated} Validated`} icon={PackageCheck} color="blue" />
-        <ActionGroupCard
-          icon={Shuffle}
-          title="Stock Transfer & Reports"
-          actions={[
-            { icon: Shuffle, label: 'Mass Transfer', path: ROUTES.massStockTransfer },
-            { icon: ListChecks, label: 'Movement Report', path: ROUTES.stockMovementReport },
-            { icon: BarChart2, label: 'Statistics' },
-          ]}
-        />
       </div>
 
-      <SectionHeading icon={History}>Recent Stock Movements</SectionHeading>
-      <RecentMovements />
-
-      <SectionHeading icon={Bookmark}>Stock Reservations</SectionHeading>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <ReservationCard label="Active Reservations" value={summary.reservations.active} icon={Bookmark} color="amber" />
-        <ReservationCard label="Total Reserved Qty" value={summary.reservations.totalReservedQty} icon={Boxes} color="violet" />
-        <ReservationCard label="Released" value={summary.reservations.released} icon={CheckCircle2} color="green" />
-        <ReservationCard
-          label="Consumed"
-          value={summary.reservations.consumed}
-          icon={CheckCheck}
-          color="green"
-          links={
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-text-faint cursor-default">View All</span>
-              <span className="text-text-faint cursor-default">Configure</span>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <Card className="!h-auto !p-3">
+          <SectionHeading icon={Warehouse}>Stock Value by Warehouse</SectionHeading>
+          {warehouseValues.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {warehouseValues.map((warehouse) => (
+                <div key={warehouse.id} className="grid grid-cols-[minmax(80px,1fr)_2fr_auto] items-center gap-2">
+                  <span className="truncate text-xs text-text-muted" title={warehouse.shortName || warehouse.ref}>{warehouse.shortName || warehouse.ref}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-surface-hover">
+                    <div
+                      className="h-full rounded-full bg-brand"
+                      style={{ width: `${Math.max((warehouse.inputStockValue / maxWarehouseValue) * 100, 2)}%` }}
+                    />
+                  </div>
+                  <span className="text-right text-xs font-semibold tabular-nums text-text!">{formatMoney(warehouse.inputStockValue)}</span>
+                </div>
+              ))}
             </div>
-          }
-        />
+          ) : (
+            <p className="mt-3 text-sm text-text-faint">Warehouse stock values are not available.</p>
+          )}
+        </Card>
+
+        <Card className="!h-auto !p-3">
+          <SectionHeading icon={BarChart2}>Stock by Category</SectionHeading>
+          {categoryValues.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {categoryValues.map(({ category, value }, index) => (
+                <div key={category} className="grid grid-cols-[minmax(70px,1fr)_1.4fr_auto] items-center gap-2">
+                  <span className="truncate text-xs text-text-muted" title={category}>{category}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-surface-hover">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max((value / maxCategoryValue) * 100, 2)}%`,
+                        backgroundColor: ['#168bff', '#13c8a3', '#f5b942', '#a76bf5', '#68a9dc'][index],
+                      }}
+                    />
+                  </div>
+                  <span className="text-right text-xs font-semibold tabular-nums text-text!">{formatMoney(value)}</span>
+                </div>
+              ))}
+              {stockValueByCategory.size > categoryValues.length && (
+                <p className="text-right text-[11px] text-text-faint">Top {categoryValues.length} categories by stock value</p>
+              )}
+            </div>
+          ) : categoriesLoading ? (
+            <p className="mt-3 text-sm text-text-faint">Loading product categories…</p>
+          ) : categoriesError ? (
+            <p className="mt-3 text-sm text-warning-fg">Product category stock values could not be loaded.</p>
+          ) : (
+            <p className="mt-3 text-sm text-text-faint">No categorized stock value is available.</p>
+          )}
+        </Card>
+
+        <Card className="!h-auto !p-3">
+          <SectionHeading icon={Package}>Stock Status</SectionHeading>
+          <div className="mt-3 flex items-center justify-center gap-5">
+            <div className="relative h-32 w-32 shrink-0 rounded-full" style={stockStatusStyle}>
+              <div className="absolute inset-4 grid place-content-center rounded-full bg-surface-alt text-center">
+                <span className="text-xl font-bold leading-none text-text!">{stockProducts.length.toLocaleString()}</span>
+                <span className="mt-1 text-[10px] text-text-faint">Products</span>
+              </div>
+            </div>
+            <div className="min-w-0 space-y-2 text-xs">
+              <StatusLegend color="bg-[#13c8a3]" label="In stock" value={inStock} total={stockProducts.length} />
+              <StatusLegend color="bg-[#f5b942]" label="Low stock" value={lowStock} total={stockProducts.length} />
+              <StatusLegend color="bg-[#f04e78]" label="Out of stock" value={outOfStock} total={stockProducts.length} />
+            </div>
+          </div>
+        </Card>
+
       </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        <OperationValue label="Products low stock" value={summary.productsLowStock} icon={BatteryLow} />
+        <OperationValue label="Movements today" value={summary.movementsToday} icon={ArrowLeftRight} />
+        <OperationValue label="Active reservations" value={summary.reservations.active} icon={Bookmark} />
+        <OperationValue label="Reserved quantity" value={summary.reservations.totalReservedQty} icon={Boxes} />
+        <OperationValue label="Released" value={summary.reservations.released} icon={CheckCircle2} />
+        <OperationValue label="Consumed" value={summary.reservations.consumed} icon={CheckCheck} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.8fr)]">
+        <div className="min-w-0 space-y-2">
+          <SectionHeading icon={History}>Recent Stock Movements</SectionHeading>
+          <RecentMovements />
+        </div>
+        <div className="min-w-0 space-y-2">
+          <SectionHeading icon={Zap}>Quick Actions</SectionHeading>
+          <ActionGroupCard
+            icon={Zap}
+            title="Quick Actions"
+            columns={2}
+            className="!h-auto"
+            actions={[
+              { icon: ShoppingCart, label: 'Replenishment', path: ROUTES.replenishment },
+              { icon: FilePenLine, label: 'Stock correction', path: ROUTES.stockCorrection },
+              { icon: PackagePlus, label: 'New inventory', path: ROUTES.inventoryCreate },
+              { icon: Shuffle, label: 'Mass transfer', path: ROUTES.massStockTransfer },
+              { icon: ListChecks, label: 'Movement report', path: ROUTES.stockMovementReport },
+              { icon: ClipboardList, label: 'Inventory list', path: ROUTES.inventoryList },
+            ]}
+          />
+          <Card className="!h-auto !p-3">
+            <div className="flex items-center justify-between">
+              <SectionHeading icon={History}>Recent Activity</SectionHeading>
+              <Link to={ROUTES.stockMovementsList} className="text-xs font-medium text-brand hover:underline">View all</Link>
+            </div>
+            <RecentActivity />
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatusLegend({ color, label, value, total }: { color: string; label: string; value: number; total: number }) {
+  const percent = total > 0 ? Math.round((value / total) * 100) : 0
+  return (
+    <div className="grid grid-cols-[8px_minmax(70px,1fr)_auto] items-center gap-2">
+      <span className={`h-2 w-2 rounded-full ${color}`} />
+      <span className="truncate text-text-muted">{label}</span>
+      <span className="whitespace-nowrap font-medium text-text!">{value.toLocaleString()} <span className="text-text-faint">({percent}%)</span></span>
+    </div>
+  )
+}
+
+function OperationValue({ label, value, icon: Icon }: { label: string; value: number; icon: ComponentType<{ size?: number; className?: string }> }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2">
+      <Icon size={15} className="shrink-0 text-brand" />
+      <span className="min-w-0 flex-1 truncate text-xs text-text-muted">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-text!">{value.toLocaleString()}</span>
     </div>
   )
 }

@@ -121,12 +121,12 @@
 html[data-theme='blue-metal'] {
    color-scheme: dark;
 
-   --color-table-header-from: #07518d;
-   --color-table-header-to: #087ad3;
-   --color-table-header-border: #258acb;
+   --color-table-header-from: #173c58;
+   --color-table-header-to: #20587d;
+   --color-table-header-border: #315f7e;
    --color-table-header-text: #f2f8ff;
-   --color-brand: #168bff;
-   --color-brand-hover: #42a3ff;
+   --color-brand: #256b92;
+   --color-brand-hover: #2d7eaa;
    --color-surface: #081421;
    --color-surface-alt: #0d2033;
    --color-surface-hover: #17334d;

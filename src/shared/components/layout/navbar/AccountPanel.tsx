@@ -18,6 +18,8 @@ import {
   RefreshCw,
   LifeBuoy,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ROUTES } from '../../../../routes'
 import { useGeneralSettings, useEntities } from '../../../../features/settings/settings.queries'
 import type { AuthUser } from '../../../../features/auth/AuthContext'
 import { Avatar } from '../../Avatar'
@@ -98,10 +100,22 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
       </div>
 
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-        <button type="button" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-brand/10 text-brand px-3 py-1.5 text-xs font-medium hover:bg-brand/15">
-          <User size={13} />
-          My Account
-        </button>
+        {/* The classic "My Account" opens the user's own profile (userprofile/index.php?id=<own id>). */}
+        {user ? (
+          <Link
+            to={ROUTES.userDetail.replace(':id', String(user.id))}
+            onClick={onClose}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-brand/10 text-brand px-3 py-1.5 text-xs font-medium hover:bg-brand/15"
+          >
+            <User size={13} />
+            My Account
+          </Link>
+        ) : (
+          <span className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-brand/10 text-brand px-3 py-1.5 text-xs font-medium opacity-50">
+            <User size={13} />
+            My Account
+          </span>
+        )}
         <button type="button" onClick={onLogout} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-danger/10 text-danger px-3 py-1.5 text-xs font-medium hover:bg-danger/15">
           <LogOut size={13} />
           Logout
@@ -164,13 +178,13 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
           <LifeBuoy size={14} className="text-brand" />
           Need Assistance?
         </p>
-        <div className="flex items-center justify-between text-sm text-brand py-1.5 px-2 -mx-2 rounded-md hover:bg-surface-hover cursor-pointer">
+        <a href="mailto:business@ecuenta.online" className="flex items-center justify-between text-sm text-brand py-1.5 px-2 -mx-2 rounded-md hover:bg-surface-hover">
           <span className="flex items-center gap-2">
             <Mail size={14} />
             Send an email
           </span>
           <ChevronRight size={14} />
-        </div>
+        </a>
         <div className="flex items-start gap-2 text-sm text-text-muted py-1.5 px-2 -mx-2 rounded-md">
           <Phone size={14} className="mt-0.5 shrink-0 text-text-faint" />
           <span>

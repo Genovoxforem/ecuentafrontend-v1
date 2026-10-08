@@ -16,7 +16,7 @@ import { useCreateInvoice, useCreateAndValidateInvoice, type NewInvoiceLine } fr
 import { usePaymentModes, usePaymentTerms, useBankAccountOptions, useCustomerInvoiceDefaults } from '../invoiceFormOptions.queries'
 import { useGeneralSettings } from '../../settings/settings.queries'
 import { formatMoney } from '../../../utils/format'
-import { useWarehouseList } from '../../warehouses/warehouseExtras.queries'
+import { useWarehousePickerOptions } from '../../warehouses/warehouseExtras.queries'
 
 // Invoice types matching the PHP invoice.php's <select id="inv_type">:
 // 0 = Normal/Standard, 6 = LPO, 7 = Export
@@ -85,10 +85,10 @@ export function QuickInvoiceCreateForm() {
   const [currencyRate, setCurrencyRate] = useState(1)
   const [lines, setLines] = useState<InvoiceLineState[]>([createEmptyLine()])
   const [bankAccountId, setBankAccountId] = useState('')
-  const { warehouses } = useWarehouseList()
+  const { data: warehouses = [] } = useWarehousePickerOptions()
   const [warehouseChoice, setWarehouseChoice] = useState('')
   // Like the classic page, default to the first open warehouse.
-  const warehouseId = warehouseChoice || String(warehouses.find((w) => !/closed/i.test(w.statusLabel))?.id ?? warehouses[0]?.id ?? '')
+  const warehouseId = warehouseChoice || String(warehouses.find((w) => w.open)?.id ?? warehouses[0]?.id ?? '')
   const [paymentModeCode, setPaymentModeCode] = useState('')
   const [paymentTermId, setPaymentTermId] = useState('')
   const [paymentDate, setPaymentDate] = useState(today)

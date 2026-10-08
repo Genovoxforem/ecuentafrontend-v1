@@ -130,7 +130,7 @@ function buildParams(filters: StockMovementFilters): URLSearchParams {
   return params
 }
 
-export function useStockMovementsList(filters: StockMovementFilters) {
+export function useStockMovementsList(filters: StockMovementFilters, enabled = true) {
   return useQuery({
     queryKey: ['warehouses', 'stockMovementsList', filters],
     queryFn: async (): Promise<StockMovementsPageData> => {
@@ -160,6 +160,7 @@ export function useStockMovementsList(filters: StockMovementFilters) {
       }
     },
     staleTime: 1000 * 30,
+    enabled,
   })
 }
 

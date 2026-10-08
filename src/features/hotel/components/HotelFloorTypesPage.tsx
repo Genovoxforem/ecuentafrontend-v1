@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Tag, Plus, Pencil, Trash2, X, LoaderCircle, Search, Info } from 'lucide-react'
+import { Tag, Plus, Pencil, Trash2, X, LoaderCircle, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToken } from '../hotel.queries'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
@@ -47,14 +47,6 @@ export function HotelFloorTypesPage() {
         </button>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">categories/index.php?type=24</code> — that page crashes with a PHP fatal error on this backend, so this
-          uses the real, working Hotel Suite API instead. New entries save via the same channel as Hotel Settings' Floors card, which is confirmed not to
-          persist on this backend yet, so this list stays empty until it does.
-        </p>
-      </Card>
 
       <Card className="!h-auto">
         <div className="flex items-end gap-3">

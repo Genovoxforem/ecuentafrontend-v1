@@ -43,6 +43,23 @@ const PATH_ALIASES: Record<string, string> = {
   // than inventing a fake standalone menu entry for either.
   [ROUTES.ledgerSubledger]: ROUTES.ledgerDashboard,
   [ROUTES.ledgerCreate]: ROUTES.ledgerDashboard,
+  // Payroll V2's tab bar reaches screens the backend's Payroll menu has no
+  // entry for; they sit under its Dashboard the same way.
+  [ROUTES.payrollV2Templates]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Shifts]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Settings]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Employees]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Advances]: ROUTES.payrollV2Dashboard,
+}
+
+// The page's own name, added after an aliased trail so the last crumb (and the
+// banner title read off it) names the page instead of the menu entry it sits under.
+const ALIAS_PAGE_TITLES: Record<string, string> = {
+  [ROUTES.payrollV2Templates]: 'Templates',
+  [ROUTES.payrollV2Shifts]: 'Shifts',
+  [ROUTES.payrollV2Settings]: 'Settings',
+  [ROUTES.payrollV2Employees]: 'Employees',
+  [ROUTES.payrollV2Advances]: 'Advances/Loans',
 }
 
 const DETAIL_ROUTES = Object.entries(ROUTES)
@@ -110,10 +127,11 @@ export function buildBreadcrumb(sections: NavSection[], pathname: string): Bread
   for (const section of sections) {
     if (sectionContainsPath(section, resolved)) {
       const chain = findBreadcrumbChain(section.items, resolved)
+      const pageTitle = ALIAS_PAGE_TITLES[pathname]
       return {
         sectionLabel: section.label,
         sectionKey: section.key,
-        crumbs: chain ?? [],
+        crumbs: pageTitle ? [...(chain ?? []), pageTitle] : (chain ?? []),
       }
     }
   }

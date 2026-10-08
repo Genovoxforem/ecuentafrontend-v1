@@ -4,10 +4,11 @@ import { LayoutGrid, Plus, X, Loader2, Search, ChevronDown, ChevronRight } from 
 import type { NavItem, NavLeafItem } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
-import { PATH_SOURCE_SECTIONS, EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
+import { PATH_SOURCE_SECTIONS, EMPTY_SECTION_HOME_PATH, MENU_UNAVAILABLE_SECTIONS } from '../../nav/pathSourceSections'
 import { prefetchRoute } from '../../../app/routePrefetch'
 import { useTheme } from '../../../context/ThemeContext'
 import { getNavItemIcon, getNavItemIconTileClass } from '../../nav/getNavItemIcon'
+import { ROUTES } from '../../../routes'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
@@ -300,11 +301,11 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const blueMetal = theme === 'blue-metal'
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
-  // React path (see buildNavSections) and covers the one frame before the
-  // request resolves.
+  // React path (see buildNavSections). Until the request answers, the sidebar
+  // shows no modules rather than the hard-coded list.
   const SECTIONS = useMemo(() => {
     const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
-    return sections.length > 0 ? sections : PATH_SOURCE_SECTIONS
+    return sections.length > 0 ? sections : MENU_UNAVAILABLE_SECTIONS
   }, [menu])
   const [activeKey, setActiveKey] = useState('home')
   const [hovering, setHovering] = useState(false)
@@ -339,7 +340,11 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, location))) ??
       (location.pathname.startsWith('/ledger/') ? SECTIONS.find((section) => section.key === 'general-ledger') : undefined) ??
       // Same for an expense's own card (/expenses/card/:id), which is opened from the Expenses pages.
-      (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined)
+      (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined) ??
+      // Payroll V2's own tab screens (Templates, Shifts, Settings…) have no menu entry; they belong with its Dashboard.
+      (location.pathname.startsWith(`${ROUTES.payrollV2Dashboard}/`)
+        ? SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, { ...location, pathname: ROUTES.payrollV2Dashboard, search: '' })))
+        : undefined)
     if (currentSection) setActiveKey(currentSection.key)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [SECTIONS, location.pathname, location.search])
@@ -446,23 +451,25 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
         onMouseLeave={() => setHovering(false)}
       >
         <div className="soft-scrollbar w-64 h-full overflow-y-auto overflow-x-hidden px-4 pb-5">
-          <div className={`sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-surface ${blueMetal ? 'px-2 pt-4 pb-3' : 'pt-4 pb-3'}`}>
-            {blueMetal ? (
-              <>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-brand shadow-sm">
-                  <ActiveIcon size={21} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-base font-bold text-text">{active.label}</h2>
-                  <p className="truncate text-[11px] text-text-faint">{sectionSubtitle(active.key)}</p>
-                </div>
-              </>
-            ) : (
-              <span className="flex-1 text-sm font-bold tracking-wide text-brand uppercase">{active.label}</span>
-            )}
-            <button type="button" onClick={onClose} title="Close menu" className="p-1 rounded-md text-text hover:bg-surface-alt">
-              <X size={16} strokeWidth={2.5} />
-            </button>
+          <div className={`sticky top-0 z-10 bg-surface ${blueMetal ? 'px-2 pt-4' : 'pt-4'}`}>
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              {blueMetal ? (
+                <>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-brand shadow-sm">
+                    <ActiveIcon size={21} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-base font-bold text-text">{active.label}</h2>
+                    <p className="truncate text-[11px] text-text-faint">{sectionSubtitle(active.key)}</p>
+                  </div>
+                </>
+              ) : (
+                <span className="flex-1 text-sm font-bold tracking-wide text-brand uppercase">{active.label}</span>
+              )}
+              <button type="button" onClick={onClose} title="Close menu" className="p-1 rounded-md text-text hover:bg-surface-alt">
+                <X size={16} strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
           {blueMetal && (
             <label className="relative mt-3 mb-2 block">

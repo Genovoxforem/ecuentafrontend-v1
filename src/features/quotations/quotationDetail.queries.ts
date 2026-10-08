@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
+import { fapi } from '../../api/axios'
+import { fetchQuotation, quotationAction } from '../../api/quotations'
+import { htmlToText } from '../../shared/htmlToText'
 import { parseQuotationCard, type QuotationCard } from './quotationCardParser'
 import { parseQuotationAgenda, type QuotationAgendaData } from './quotationAgendaParser'
 // comm/propal/contact.php and comm/propal/document.php render the exact
@@ -27,7 +29,60 @@ async function fetchHtml(url: string): Promise<string> {
 export function useQuotationCard(id: string | undefined) {
   return useQuery<QuotationCard>({
     queryKey: ['quotations', 'detail', id],
-    queryFn: async () => parseQuotationCard(await fetchHtml(`/comm/propal/card.php?id=${id}`), Number(id)),
+    queryFn: async () => {
+      const [html, quotation] = await Promise.all([
+        fetchHtml(`/comm/propal/card.php?id=${id}`),
+        fetchQuotation(Number(id)),
+      ])
+      const parsed = parseQuotationCard(html, Number(id))
+      const parsedLines = new Map(parsed.lines.map((line) => [line.id, line]))
+      const apiActions = quotation.actions
+
+      return {
+        ...parsed,
+        id: quotation.id,
+        ref: quotation.ref,
+        refCustomer: quotation.ref_client,
+        thirdPartyName: quotation.third_party_name,
+        socid: quotation.fk_soc,
+        projectRef: quotation.project_ref ?? parsed.projectRef,
+        projectId: quotation.project_id,
+        statusLabel: quotation.status_label,
+        statusCode: quotation.fk_statut,
+        amountHt: quotation.total_ht,
+        amountVat: quotation.total_vat,
+        amountTtc: quotation.total_ttc,
+        lines: quotation.lines.map((line) => {
+          const previous = parsedLines.get(line.id) ?? parsedLines.get(line.rowid)
+          return {
+            ...previous,
+            id: line.id || line.rowid,
+            productId: line.product_id ?? previous?.productId ?? 0,
+            productLabel: line.label || previous?.productLabel || '',
+            description: line.description || previous?.description || '',
+            qty: line.qty,
+            unitPriceExcl: line.pu_ht,
+            vatRate: line.tva_tx,
+            vatCode: previous?.vatCode ?? '',
+            discountValue: previous?.discountValue ?? 0,
+            discountType: previous?.discountType ?? '1',
+            buyingPrice: previous?.buyingPrice ?? 0,
+            totalHt: line.total_ht,
+            totalTva: line.total_tva,
+            totalTtc: line.total_ttc,
+          }
+        }),
+        actions: {
+          ...parsed.actions,
+          canValidate: !!apiActions.can_validate,
+          canModify: !!apiActions.can_edit,
+          canReopen: !!apiActions.can_reopen,
+          canCloseAsAcceptedRefused: !!(apiActions.can_sign || apiActions.can_refuse),
+          canClone: !!apiActions.can_clone,
+          canDelete: !!apiActions.can_delete,
+        },
+      }
+    },
     enabled: !!id,
   })
 }
@@ -45,13 +100,7 @@ function invalidateDetail(queryClient: ReturnType<typeof useQueryClient>, id: st
 export function useValidateQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await axios.get<{ success?: boolean; error?: string }>('/comm/propal/api/proposal_handler.php', {
-        params: { action: 'validate', id },
-        validateStatus: () => true,
-      })
-      if (data.error) throw new Error(data.error)
-    },
+    mutationFn: async (id: string) => quotationAction(Number(id), 'validate'),
     onSuccess: (_data, id) => invalidateDetail(queryClient, id),
   })
 }
@@ -90,19 +139,21 @@ export function useReopenQuotation() {
   })
 }
 
-// "Close as Accepted/Refused" — the real decision step for a Validated
-// quotation (statut===1): sets it to Signed(2) or NotSigned(3). Read
-// directly from the real #closeasconfirmModal form.
+// "Close as Accepted/Refused" — the decision step for a Validated quotation
+// (statut 1 → Signed 2 / Not signed 3), through comm/propal/fapi/actions.php
+// `sign` / `refuse`: the same Propal::cloture($user, status, note) the classic
+// #closeas form runs, the note stored as the private note. (Its reopen, clone
+// and close actions differ from the classic buttons, so those stay on card.php.)
 export function useCloseAsQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, statut, notePrivate }: { id: string; statut: '2' | '3'; notePrivate: string }) => {
-      const html = await fetchHtml(`/comm/propal/card.php?id=${id}`)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const token = doc.querySelector('#closeas-form input[name="token"]')?.getAttribute('value') ?? ''
-      const body = new URLSearchParams({ token, action: 'confirm_closeas', confirm: 'yes', statut, note_private: notePrivate })
-      const res = await fetch(`/comm/propal/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const { data } = await fapi.post<{ success: boolean; message?: string | null }>(
+        '/comm/propal/fapi/actions.php',
+        { id: Number(id), action: statut === '2' ? 'sign' : 'refuse', note: notePrivate },
+        { validateStatus: () => true },
+      )
+      if (!data?.success) throw new Error(data?.message || 'Could not close the quotation.')
     },
     onSuccess: (_data, { id }) => invalidateDetail(queryClient, id),
   })
@@ -227,35 +278,23 @@ export function useAddQuotationContact(id: string | undefined) {
   })
 }
 
-// --- Notes tab (comm/propal/note.php) --------------------------------------
+// --- Notes tab ---------------------------------------------------------------
 
-// core/tpl/notes.tpl.php's real markup (confirmed live): each note's
-// current value sits in a `.tagtdremove` div that's the next sibling of the
-// `.tagtd` div holding that note's own <label> — not inside an editable
-// <textarea> at all in the page's default (non-edit-mode) view. Read
-// directly rather than guessed, since the real page only turns a note into
-// an editable field after clicking its own pencil icon first.
+// Read from comm/propal/fapi/get.php (a couple of KB of JSON, which carries
+// both notes) instead of the 1.25 MB comm/propal/note.php page. Saving still
+// posts to note.php below — that is where the form's token lives.
 export interface QuotationNotes {
   notePublic: string
   notePrivate: string
-}
-
-function parseQuotationNotes(doc: Document): QuotationNotes {
-  function findValue(label: string): string {
-    const labelEl = Array.from(doc.querySelectorAll('label.form-label')).find((l) => (l.textContent ?? '').trim() === label)
-    const keyDiv = labelEl?.closest('.tagtd')
-    const valueDiv = keyDiv?.nextElementSibling
-    return (valueDiv?.textContent ?? '').trim()
-  }
-  return { notePublic: findValue('Note (public)'), notePrivate: findValue('Note (private)') }
 }
 
 export function useQuotationNotes(id: string | undefined) {
   return useQuery<QuotationNotes>({
     queryKey: ['quotations', 'detail', id, 'notes'],
     queryFn: async () => {
-      const html = await fetchHtml(`/comm/propal/note.php?id=${id}`)
-      return parseQuotationNotes(new DOMParser().parseFromString(html, 'text/html'))
+      const quotation = await fetchQuotation(Number(id))
+      if (!quotation) throw new Error('Could not load the notes.')
+      return { notePublic: htmlToText(quotation.note_public), notePrivate: htmlToText(quotation.note_private) }
     },
     enabled: !!id,
   })

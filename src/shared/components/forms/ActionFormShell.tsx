@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, Info, LoaderCircle } from 'lucide-react'
+import { ArrowLeft, Check, LoaderCircle } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 
 // Shared chrome for the Payroll "Add X" forms that DO have a real write
@@ -10,8 +10,7 @@ import { Card } from '../dashboard/DashboardKit'
 // success/error state, and the honest "no list" note underneath.
 export function ActionFormShell({
   icon: Icon,
-  title,
-  sourcePath,
+  title,
   children,
   onSubmit,
   isPending,
@@ -19,8 +18,7 @@ export function ActionFormShell({
   successMessage,
   errorMessage,
   onAddAnother,
-  backTo,
-  writeEndpointPath = 'payroll/ajax.php',
+  backTo,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -54,15 +52,6 @@ export function ActionFormShell({
         )}
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">{sourcePath}</code>. This form posts directly to that page's own real write endpoint (
-          <code className="font-mono">{writeEndpointPath}</code>) — the record is genuinely saved. There's no matching JSON read endpoint though, so the list
-          {backTo ? " you came from only reflects what's been created in this browser session" : ' below is not shown here'}; view the classic page to
-          confirm what's really on the backend.
-        </p>
-      </Card>
 
       {isSuccess ? (
         <Card className="!h-auto flex flex-col items-center gap-2 py-8 text-center">

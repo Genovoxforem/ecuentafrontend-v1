@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { Wallet2, Info, ChevronLeft, Loader2, AlertTriangle, Eye, Download } from 'lucide-react'
+import { Wallet2, ChevronLeft, Loader2, AlertTriangle, Eye, Download } from 'lucide-react'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { stripBackendPrefix } from '../customerDetailTabs.queries'
@@ -31,14 +31,6 @@ export function AdvanceListPage() {
           </h2>
         </div>
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">compta/facture/advance_list.php</code>. Rows and "Total Advance Amount" below are real. "Total Used
-            Advance"/"Total Remaining Advance" aren't shown — the real backend computes them but never puts them in this list's own JSON response, so
-            they're left out rather than shown as a fake 0.00.
-          </p>
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="!h-auto">

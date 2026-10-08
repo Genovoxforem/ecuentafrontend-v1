@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Receipt, Info, Search } from 'lucide-react'
+import { Receipt, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -94,13 +94,6 @@ export function CheckDepositListView() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">compta/paiement/cheque/list.php</code> — a classic full-page-reload page, no JSON API. There's no real data source to populate this table
-            from yet, so it will always be empty; search/sort/pagination/export are still shown for consistency with the rest of the app.
-          </p>
-        </Card>
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">

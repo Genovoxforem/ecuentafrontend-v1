@@ -23,7 +23,8 @@ import {
   ClipboardCheck,
   Tags,
 } from 'lucide-react'
-import { Card, DetailMetricTile } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricRow, DetailMetricTile, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -72,6 +73,8 @@ function ActionIconLink({ href, icon: Icon, label }: { href: string; icon: typeo
 export function InventoryDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { data, isLoading, isError, error, refetch } = useInventoryDetail(id)
   const [tab, setTab] = useState<'card' | 'inventory'>('card')
   const [showAddEvent, setShowAddEvent] = useState(false)
@@ -129,13 +132,17 @@ export function InventoryDetail() {
           <Card className="!h-auto">
             <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
               <div className="flex items-start gap-4 min-w-[240px] flex-1">
-                <span className="flex items-center justify-center w-16 h-16 rounded-lg bg-brand text-white shrink-0">
+                <span className={`flex items-center justify-center w-16 h-16 bg-brand text-white shrink-0 ${isBlueMetal ? 'rounded-full' : 'rounded-lg'}`}>
                   <ClipboardList size={28} />
                 </span>
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-bold text-text!">{data.label || `Inventory #${data.id}`}</h2>
-                    {data.statusLabel && <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{data.statusLabel}</span>}
+                    {data.statusLabel && (isBlueMetal ? (
+                      <StatusPill tone="brand">{data.statusLabel}</StatusPill>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{data.statusLabel}</span>
+                    ))}
                   </div>
                   <p className="text-xs text-text-faint">#{data.id}</p>
                   {data.warehouseId && (
@@ -197,11 +204,11 @@ export function InventoryDetail() {
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <DetailMetricTile label="Label" value={data.label || '—'} icon={Tags} />
-              <DetailMetricTile label="Product" value={data.productLabel || '—'} icon={Package} />
-              <DetailMetricTile label="Value Date" value={data.valueDate || '—'} icon={CalendarDays} />
-            </div>
+            <DetailMetricRow className="px-4 py-3 border-b border-border">
+              <DetailMetricTile label="Label" value={data.label || '—'} icon={Tags} color="violet" sparkline={false} />
+              <DetailMetricTile label="Product" value={data.productLabel || '—'} icon={Package} color="green" sparkline={false} />
+              <DetailMetricTile label="Value Date" value={data.valueDate || '—'} icon={CalendarDays} color="blue" sparkline={false} />
+            </DetailMetricRow>
 
             <div className="border-t border-border px-3 py-2.5">
               <div className="flex items-center gap-1 bg-surface rounded-full p-1 w-fit">

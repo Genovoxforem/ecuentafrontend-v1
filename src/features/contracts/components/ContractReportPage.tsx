@@ -4,7 +4,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useContractsSummary, type ContractRow } from '../contracts.queries'
+import { useContractsList, type ContractRow } from '../contracts.queries'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none'
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -84,14 +84,14 @@ function StatTile({ label, value, tone }: { label: string; value: string | numbe
 // Re-scheduled, Not Yet Completed, Missed Comments, Sales By
 // Price-Category/Product) are shown honestly as zero rather than guessed.
 export function ContractReportPage() {
-  const { data: summary } = useContractsSummary()
+  const { data: contractRows } = useContractsList()
   const [thirdPartyFilter, setThirdPartyFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
 
-  const contracts = useMemo(() => summary?.contracts ?? [], [summary])
+  const contracts = useMemo(() => contractRows ?? [], [contractRows])
   const thirdParties = useMemo(() => Array.from(new Set(contracts.map((c) => c.thirdParty))).sort(), [contracts])
 
   const filtered = useMemo(

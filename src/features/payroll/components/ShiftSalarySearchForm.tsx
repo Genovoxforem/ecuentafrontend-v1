@@ -27,7 +27,6 @@ interface RowState {
 // from the real user list instead, same approach as Mark Attendance.
 export function ShiftSalarySearchForm({
   title,
-  sourcePath,
   shiftId,
   unitLabel,
 }: {
@@ -101,9 +100,7 @@ export function ShiftSalarySearchForm({
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
             <Wallet size={20} className="text-brand" /> {title}
           </h2>
-          <p className="text-xs text-text-faint italic mt-0.5">
-            Backend page: <code className="font-mono">{sourcePath}</code>
-          </p>
+          
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">

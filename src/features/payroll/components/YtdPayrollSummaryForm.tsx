@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart, Eye, Info, X } from 'lucide-react'
+import { BarChart, Eye, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { useUsersSummary } from '../../users/users.queries'
@@ -103,14 +103,6 @@ export function YtdPayrollSummaryForm() {
           <BarChart size={20} className="text-brand" /> YTD Payroll Summary
         </h2>
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">payroll/ytd_summary.php</code>. Employee Name below reflects the real employee roster. Net Salary and
-            Paid Amount stay "-", and the view action's Payment Details popup always reads "Nothing Found" — both confirmed directly: that data only ever
-            comes from Make Payment's write, deliberately left unbuilt there (see Make Payment's own banner).
-          </p>
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>

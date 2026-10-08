@@ -36,8 +36,9 @@ import {
   CircleDollarSign,
   type LucideIcon,
 } from 'lucide-react'
-import { Card, DetailMetricTile } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricRow, DetailMetricTile, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
+import { useTheme } from '../../../context/ThemeContext'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -91,6 +92,8 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
 // Stock Movements tab already has an unrelated icon-based StatTile.
 export function WarehouseDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { data, isLoading, isError, error, refetch } = useWarehouseDetail(id)
   const [tab, setTab] = useState<WarehouseTab>('warehouse')
   const [productSearchId, setProductSearchId] = useState('')
@@ -156,15 +159,19 @@ export function WarehouseDetail() {
           <Card className="!h-auto">
             <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
               <div className="flex items-start gap-4 min-w-[240px] flex-1">
-                <span className="flex items-center justify-center w-16 h-16 rounded-lg bg-brand text-white shrink-0">
+                <span className={`flex items-center justify-center w-16 h-16 bg-brand text-white shrink-0 ${isBlueMetal ? 'rounded-full' : 'rounded-lg'}`}>
                   <Warehouse size={28} />
                 </span>
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.statusLabel === 'Open' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
-                      {data.statusLabel}
-                    </span>
+                    {isBlueMetal ? (
+                      <StatusPill tone={data.statusLabel === 'Open' ? 'success' : 'neutral'}>{data.statusLabel}</StatusPill>
+                    ) : (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.statusLabel === 'Open' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
+                        {data.statusLabel}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-text-faint">
                     #{data.id}
@@ -224,12 +231,12 @@ export function WarehouseDetail() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <DetailMetricTile label="Total Products" value={String(data.totalProductsCount)} icon={Package} />
-              <DetailMetricTile label="Different Products" value={String(data.differentProductsCount)} icon={Boxes} />
-              <DetailMetricTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} icon={CircleDollarSign} />
-              <DetailMetricTile label="Latest Movement" value={data.latestMovement || 'None'} icon={CalendarClock} />
-            </div>
+            <DetailMetricRow className="px-4 py-3 border-b border-border">
+              <DetailMetricTile label="Total Products" value={String(data.totalProductsCount)} icon={Package} color="violet" />
+              <DetailMetricTile label="Different Products" value={String(data.differentProductsCount)} icon={Boxes} color="green" />
+              <DetailMetricTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} icon={CircleDollarSign} color="amber" />
+              <DetailMetricTile label="Latest Movement" value={data.latestMovement || 'None'} icon={CalendarClock} color="blue" sparkline={false} />
+            </DetailMetricRow>
 
             <div className="border-t border-border px-3 py-2.5">
               <div className="flex items-center gap-1 bg-surface rounded-full p-1 w-fit">

@@ -82,7 +82,7 @@ export function PendingSalesInvoicesList() {
     // Full available height — see PendingPurchaseInvoicesList.tsx for the write-up on why
     // the sticky header block and ListPagination are flex-column siblings around the one
     // scrolling middle region, instead of a short fixed-height box.
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
         <ListHeader icon={<FileText size={20} className="text-brand" />} title="ZRA Pending Sales Invoices" count={total} />
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -120,7 +120,7 @@ export function PendingSalesInvoicesList() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>

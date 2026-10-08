@@ -20,14 +20,27 @@ export function ZraModule() {
 
   return (
     <div className="space-y-5">
-      <ZraTabs value={tab} onChange={setTab} />
       {tab === 'monitor' ? (
-        <ZraMonitorTab />
+        <>
+          <ZraTabs value={tab} onChange={setTab} />
+          <ZraMonitorTab />
+        </>
       ) : (
         <>
-          {isError && <p className="text-sm text-danger">Could not load the ZRA dashboard.</p>}
-          {!summary && !isError && <p className="text-sm text-text-muted">Loading…</p>}
-          {summary && <ZraOverview summary={summary} year={year} onYearChange={setYear} />}
+          {!summary && (
+            <>
+              <ZraTabs value={tab} onChange={setTab} />
+              {isError ? <p className="text-sm text-danger">Could not load the ZRA dashboard.</p> : <p className="text-sm text-text-muted">Loading…</p>}
+            </>
+          )}
+          {summary && !isError && (
+            <ZraOverview
+              summary={summary}
+              year={year}
+              onYearChange={setYear}
+              tabs={<ZraTabs value={tab} onChange={setTab} embedded />}
+            />
+          )}
         </>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Package } from 'lucide-react'
 import { useZraItemDetails, type ZraItemDetail } from '../zra.queries'
-import { ListHeader, EmptyRow, PER_PAGE, SearchBox } from './ZraListChrome'
+import { EmptyRow, PER_PAGE, SearchBox } from './ZraListChrome'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -101,68 +101,67 @@ export function ZraItemDetailsList() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
-        <ListHeader icon={<Package size={20} className="text-brand" />} title="Item Details" count={items.length} />
-
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-text-muted">Item Code</span>
-              <input
-                type="text"
-                value={lastReqDtInput}
-                onChange={(e) => setLastReqDtInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && setLastReqDt(lastReqDtInput.trim() || undefined)}
-                className="h-10 w-64 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => setLastReqDt(lastReqDtInput.trim() || undefined)}
-              className="h-10 px-4 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
-            >
-              Fetch Details
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-56">
-              <SearchBox
-                value={searchInput}
-                onChange={setSearchInput}
-                onSubmit={() => {
-                  setPage(1)
-                  setSearch(searchInput.trim())
-                }}
-                placeholder="Search…"
-              />
-            </div>
-            <select
-              value={perPage}
-              onChange={(e) => {
-                setPerPage(Number(e.target.value))
-                setPage(1)
-              }}
-              className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <TableExportButtons title="Item Details" getExportData={getExportData} />
-          </div>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <InBanner>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2">
+            <span className="text-sm text-text-muted whitespace-nowrap">Item Code</span>
+            <input
+              type="text"
+              value={lastReqDtInput}
+              onChange={(e) => setLastReqDtInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && setLastReqDt(lastReqDtInput.trim() || undefined)}
+              className="w-56 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setLastReqDt(lastReqDtInput.trim() || undefined)}
+            className="px-4 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+          >
+            Fetch Details
+          </button>
+          {data?.resultMessage && (
+            <span className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
+              {data.resultCode}-{data.resultMessage}
+            </span>
+          )}
         </div>
+      </InBanner>
 
-        {data?.resultMessage && (
-          <p className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
-            {data.resultCode}-{data.resultMessage}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm text-text-muted">{items.length} items</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-64 max-w-full">
+            <SearchBox
+              value={searchInput}
+              onChange={setSearchInput}
+              onSubmit={() => {
+                setPage(1)
+                setSearch(searchInput.trim())
+              }}
+              placeholder="Search…"
+            />
+          </div>
+          <select
+            value={perPage}
+            onChange={(e) => {
+              setPerPage(Number(e.target.value))
+              setPage(1)
+            }}
+            className="px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <TableExportButtons title="Item Details" getExportData={getExportData} />
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>

@@ -57,7 +57,7 @@ function StatTile({ label, value, icon: Icon, color }: { label: string; value: n
 // tally of the current on-screen state (defaults + whatever the user has
 // toggled), not a separate backend count — the real form has no other
 // source for them, since every employee always starts "marked" present.
-export function ManualShiftAttendanceForm({ shiftId, title, sourcePath }: { shiftId: 3 | 4; title: string; sourcePath: string }) {
+export function ManualShiftAttendanceForm({ shiftId, title }: { shiftId: 3 | 4; title: string; sourcePath: string }) {
   const [date, setDate] = useState(todayIso())
   const [employeeFilter, setEmployeeFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -143,9 +143,7 @@ export function ManualShiftAttendanceForm({ shiftId, title, sourcePath }: { shif
           <div>
             <h2 className="text-lg font-bold text-text!">{title}</h2>
             <p className="text-xs text-text-faint mt-0.5">{subtitle}</p>
-            <p className="text-[11px] text-text-faint italic mt-0.5">
-              Backend page: <code className="font-mono">{sourcePath}</code>
-            </p>
+            
           </div>
         </div>
 

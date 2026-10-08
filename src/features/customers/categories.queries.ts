@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from '../generalLedger/bindLines.queries'
+import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // 1=vendor/supplier (Categorie::TYPE_SUPPLIER), 2=customer, 4=contact.
 export type CategoryType = 1 | 2 | 4
@@ -109,44 +108,24 @@ export async function fetchCategoryItems(type: CategoryType, categoryId?: number
   return out
 }
 
-// The classic "New tag/category" form (categories/card.php?action=create&type=…)
-// — read for its fresh CSRF token, then posted the way the page itself does:
-// token, action=add, addcat, type, type_id, label, description, color, parent
-// (-1 = no parent). A successful add redirects to categories/index.php; a
-// refusal re-renders the form with a showToast(…, "error") message.
+// POST categories/api/index.php action=create — the JSON create the classic
+// tags page's own "new tag" modal uses: label, description, color (hex, stored
+// without the #, as the classic form saves it) and fk_parent (0 = top level).
 export function useCreateCategory(type: CategoryType) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { label: string; description?: string; color?: string; parentId?: number }) => {
-      const name = TYPE_NAME[type]
-      const doc = await fetchLegacyDocument('/categories/card.php', new URLSearchParams({ action: 'create', type: name, type_id: String(type) }))
-      const token = doc.querySelector<HTMLInputElement>('form input[name="action"][value="add"]')?.form?.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
-      if (!token) throw new Error('Could not open the new tag form.')
       const body = new URLSearchParams({
-        token,
-        action: 'add',
-        addcat: 'addcat',
-        id: '',
-        type: name,
-        type_id: String(type),
-        backtopage: '',
-        urlfrom: '',
+        action: 'create',
+        type: TYPE_NAME[type],
         label: input.label,
         description: input.description ?? '',
         color: (input.color ?? '').replace('#', ''),
-        parent: String(input.parentId ?? -1),
+        fk_parent: String(input.parentId && input.parentId > 0 ? input.parentId : 0),
       })
-      const res = await fetch(`/categories/card.php?type=${name}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const err = toastMessages(html).find((m) => m.type === 'error')
-      if (err) throw new Error(err.message)
+      const res = await fetch('/categories/api/index.php', { method: 'POST', credentials: 'same-origin', body })
+      const json = await parseLegacyJson<{ success: boolean; error?: string }>(res)
+      if (!json.success) throw new Error(json.error || `Could not create the tag (backend returned ${res.status}).`)
       return { ok: true }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),

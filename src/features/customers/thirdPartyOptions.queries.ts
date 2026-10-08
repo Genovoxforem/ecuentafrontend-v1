@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { useLanguageOptions } from '../users/users.queries'
-import { useCustomerGroupsSummary } from './customerGroups.queries'
 import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
 
 // societe/card.php?type=c|f|p hardcodes this exact 3-option list inline
@@ -41,6 +40,9 @@ interface WizardOptionsResponse {
   categories_customer: Array<{ id: number; label: string }>
   categories_supplier: Array<{ id: number; label: string }>
   nrc_types: Array<{ id: string; label: string }>
+  // Both lists open with an { id: 0, label: '—' } "none" entry.
+  payment_terms?: Array<{ id: number; label: string }>
+  custom_groups?: Array<{ id: number; label: string }>
   default_country_id: number | null
 }
 
@@ -67,6 +69,11 @@ export interface CustomerLookups {
   salesReps: Array<{ id: number; name: string }>
   custCategories: Array<{ id: number; label: string }>
   vendorCategories: Array<{ id: number; label: string }>
+  // llx_c_payment_term — the same rows, ids and order as the classic order and
+  // invoice forms' <select name="cond_reglement_id"> (compared live on 172.16.5.10).
+  paymentTerms: Array<{ id: number; label: string }>
+  // llx_custom_group — the same groups societe/new_card.php lists.
+  customerGroups: Array<{ id: number; label: string }>
 }
 
 function dedupeByLabel<T extends { label: string }>(rows: T[]): T[] {
@@ -80,38 +87,45 @@ function dedupeByLabel<T extends { label: string }>(rows: T[]): T[] {
   return result
 }
 
+// Exported so other features' dropdowns (the invoice forms' payment terms and
+// currencies) read this same cached response, through `select`, instead of
+// downloading a legacy page to scrape one <select> from it.
+export const customerLookupsQuery = queryOptions({
+  queryKey: ['customers', 'wizardOptions'],
+  queryFn: async (): Promise<CustomerLookups> => {
+    const data = await fetchWizardOptions()
+    return {
+      defaultCountryId: data.default_country_id,
+      countries: data.countries.map((c) => ({ id: c.id, label: c.label })),
+      currencies: data.currencies.map((c) => ({ code: c.code, name: c.label })),
+      // This global (unfiltered-by-country) legal-forms list genuinely has
+      // duplicate labels across different countries' forms sharing a name
+      // (e.g. "Sociedad Anónima" appears under at least 3 different ids —
+      // confirmed live) — the <select>s this feeds key/look up by label
+      // text (see ThirdPartyCreateForm.tsx's selectedBusinessEntityId),
+      // same constraint every other dropdown in this app already has, so
+      // duplicates are collapsed to their first occurrence rather than
+      // producing duplicate React keys.
+      legalForms: dedupeByLabel(data.juridical),
+      typent: data.typent.filter((t) => t.label).map((t) => ({ id: t.id, label: t.label })),
+      effectifs: data.effectif.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label })),
+      incoterms: data.incoterms.filter((i) => i.id > 0).map((i) => ({ id: i.id, code: i.label })),
+      salesReps: data.users.map((u) => ({ id: u.id, name: u.name })),
+      custCategories: data.categories_customer.map((c) => ({ id: c.id, label: c.label })),
+      vendorCategories: data.categories_supplier.map((c) => ({ id: c.id, label: c.label })),
+      paymentTerms: (data.payment_terms ?? []).filter((t) => t.id > 0).map((t) => ({ id: t.id, label: t.label })),
+      customerGroups: (data.custom_groups ?? []).filter((g) => g.id > 0).map((g) => ({ id: g.id, label: g.label })),
+    }
+  },
+  staleTime: 1000 * 60 * 10,
+  // Real, working endpoint (confirmed live) — unlike the old /customers/
+  // lookups/ this replaced, a failure here is more likely transient (e.g.
+  // a race against establishLegacySession() still finishing) than a
+  // permanent 404, so default retry behavior applies.
+})
+
 export function useCustomerLookups() {
-  return useQuery({
-    queryKey: ['customers', 'wizardOptions'],
-    queryFn: async (): Promise<CustomerLookups> => {
-      const data = await fetchWizardOptions()
-      return {
-        defaultCountryId: data.default_country_id,
-        countries: data.countries.map((c) => ({ id: c.id, label: c.label })),
-        currencies: data.currencies.map((c) => ({ code: c.code, name: c.label })),
-        // This global (unfiltered-by-country) legal-forms list genuinely has
-        // duplicate labels across different countries' forms sharing a name
-        // (e.g. "Sociedad Anónima" appears under at least 3 different ids —
-        // confirmed live) — the <select>s this feeds key/look up by label
-        // text (see ThirdPartyCreateForm.tsx's selectedBusinessEntityId),
-        // same constraint every other dropdown in this app already has, so
-        // duplicates are collapsed to their first occurrence rather than
-        // producing duplicate React keys.
-        legalForms: dedupeByLabel(data.juridical),
-        typent: data.typent.filter((t) => t.label).map((t) => ({ id: t.id, label: t.label })),
-        effectifs: data.effectif.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label })),
-        incoterms: data.incoterms.filter((i) => i.id > 0).map((i) => ({ id: i.id, code: i.label })),
-        salesReps: data.users.map((u) => ({ id: u.id, name: u.name })),
-        custCategories: data.categories_customer.map((c) => ({ id: c.id, label: c.label })),
-        vendorCategories: data.categories_supplier.map((c) => ({ id: c.id, label: c.label })),
-      }
-    },
-    staleTime: 1000 * 60 * 10,
-    // Real, working endpoint (confirmed live) — unlike the old /customers/
-    // lookups/ this replaced, a failure here is more likely transient (e.g.
-    // a race against establishLegacySession() still finishing) than a
-    // permanent 404, so default retry behavior applies.
-  })
+  return useQuery(customerLookupsQuery)
 }
 
 // GET societe/api/meta.php?action=states&country_id=X — the real endpoint
@@ -152,8 +166,12 @@ export interface SocieteFormContext {
 export async function fetchSocieteFormContext(): Promise<SocieteFormContext> {
   const res = await fetch('/societe/list.php?type=c', { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status} fetching form context.`)
+
   const html = await res.text()
-  const tokenMatch = html.match(/name=["']token["']\s+value=["']([a-f0-9]+)["']/) ?? html.match(/societeToken\s*=\s*['"]([a-f0-9]+)['"]/)
+  const tokenMatch =
+    html.match(/name=["']token["'][\s\S]*?value=["']([^"']+)["']/i) ??
+    html.match(/societeToken\s*=\s*['"]([^'"]+)['"]/i)
+
   if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
   return { token: tokenMatch[1] }
 }
@@ -180,13 +198,14 @@ export interface ThirdPartyFormOptions {
 // Combined hook that fetches all form options needed for the Third Party creation form
 export function useThirdPartyFormOptions() {
   const { data: languageOptions, isLoading: languagesLoading } = useLanguageOptions()
-  const { data: groupsSummary, isError: groupsIsError, error: groupsError } = useCustomerGroupsSummary()
   const { data: lookups, isLoading: lookupsLoading, isError: lookupsIsError, error: lookupsError } = useCustomerLookups()
 
-  const optionsUnavailable = (lookupsIsError && isBackendUnavailable(lookupsError)) || (groupsIsError && isBackendUnavailable(groupsError))
+  const optionsUnavailable = lookupsIsError && isBackendUnavailable(lookupsError)
 
   const languages = languageOptions?.map((lang) => ({ value: lang.code, label: lang.label })) ?? []
-  const customerGroups = groupsSummary?.groups?.map((group) => ({ value: String(group.id), label: group.label })) ?? []
+  // From wizard_options too, rather than downloading the 1.25 MB
+  // societe/new_card.php group list page just for this dropdown.
+  const customerGroups = lookups?.customerGroups?.map((group) => ({ value: String(group.id), label: group.label })) ?? []
 
   const options: ThirdPartyFormOptions = {
     countries: lookups?.countries?.map((c) => ({ value: String(c.id), label: c.label })) ?? [],

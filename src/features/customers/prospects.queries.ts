@@ -1,8 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  fetchThirdParties,
-  fetchThirdPartySummary,
-} from '../../api/customers'
+import { fetchThirdParties, fetchThirdPartySummary } from '../../api/customers'
 import { toThirdPartyRow } from './customers.queries'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
 
