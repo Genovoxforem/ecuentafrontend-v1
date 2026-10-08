@@ -85,7 +85,7 @@ export function AppShell({ children }: AppShellProps) {
             items means the page's `-m-6` only pulls it to the top edge of
             the scroll container (negating its padding), never into the
             breadcrumb row above. */}
-        <main className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-hidden bg-surface border-t border-border ${theme === 'blue-metal' ? 'blue-theme-shell' : ''}`}>
+        <main className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-hidden bg-surface border-t border-border ${theme === 'blue-metal' ? 'blue-theme-shell m-6' : ''}`}>
           {/* In the blue-metal theme the banner below carries the breadcrumb itself
               (see PageBanner.tsx) — this row would just repeat it above a second time. */}
           {showBreadcrumb && theme !== 'blue-metal' && (
@@ -103,7 +103,13 @@ export function AppShell({ children }: AppShellProps) {
               No visual effect on pages that don't opt in: a single non-growing flex child sizes
               to its own content along the column axis exactly like normal block flow, and
               stretches to fill the width either way. */}
-          <div ref={routeContentRef} id="route-page-content" data-list-banner={hasListBanner ? 'true' : undefined} data-page-banner={theme === 'blue-metal' ? 'true' : undefined} data-detail-page={isDetailPage ? 'true' : undefined} className="flex min-h-0 min-w-0 flex-col flex-1 overflow-y-auto soft-scrollbar p-6">
+          {/* A classic (non-overlay) OS scrollbar reserves its own width inside this
+              scroll container, so the page content renders a few px narrower than the
+              banner above it (which sits outside the scroll container and never shrinks).
+              blue-metal hides the scrollbar track entirely (no-scrollbar) instead of just
+              thinning it (soft-scrollbar) so that width never gets reserved in the first
+              place — scrolling itself still works, only its visual affordance is gone. */}
+          <div ref={routeContentRef} id="route-page-content" data-list-banner={hasListBanner ? 'true' : undefined} data-page-banner={theme === 'blue-metal' ? 'true' : undefined} data-detail-page={isDetailPage ? 'true' : undefined} className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-y-auto p-6 ${theme === 'blue-metal' ? 'no-scrollbar' : 'soft-scrollbar'}`}>
             <ContentLoader>{children}</ContentLoader>
           </div>
         </main>

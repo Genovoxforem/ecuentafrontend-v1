@@ -19,10 +19,9 @@ import {
   LoaderCircle,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, InfoChip, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-
-
+import { useTheme } from '../../../context/ThemeContext'
 
 import { useContractsList } from '../contracts.queries'
 import { useContractApiDetail, useContractLines, useContractOperation, useDeleteContract, useUpdateContract, contractLineStatusLabel } from '../contractDetail.queries'
@@ -55,6 +54,8 @@ const operationBtn = 'flex items-center gap-1.5 rounded-lg border border-input-b
 export function ContractDetail() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<TabKey>('card')
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { data: contracts, isLoading, isError, error, refetch } = useContractsList()
 
   if (isLoading) {
@@ -89,39 +90,71 @@ export function ContractDetail() {
         <div className="px-6">
           <Card className="!h-auto">
             <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
-              <div>
-                <Link to={ROUTES.contractList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text mb-1.5">
-                  <ChevronLeft size={14} /> Contracts
-                </Link>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-text!">Service Contract Details</h2>
-                </div>
-                <div className="text-xs text-text-muted mt-1.5 space-y-0.5">
-                  <p>
-                    <span className="text-text-faint">Ref No:</span> <span className="font-medium text-text!">{contract.ref}</span>
-                  </p>
-                  <p>
-                    <span className="text-text-faint">Ref. customer:</span> {contract.refCustomer || <span className="italic">—</span>}
-                    {'  '}
-                    <span className="text-text-faint">Ref. vendor:</span> {contract.refVendor || <span className="italic">—</span>}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <span className="text-text-faint">Third-party:</span>{' '}
-                    {contract.thirdPartyId ? (
-                      <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="text-brand hover:underline font-medium">
-                        {contract.thirdParty}
-                      </Link>
+              <div className="flex items-start gap-4 min-w-[240px] flex-1">
+                <span className={`flex items-center justify-center w-16 h-16 bg-brand text-white shrink-0 ${isBlueMetal ? 'rounded-full' : 'rounded-lg'}`}>
+                  <FileEdit size={28} />
+                </span>
+                <div className="space-y-1.5 pt-0.5">
+                  <Link to={ROUTES.contractList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text">
+                    <ChevronLeft size={14} /> Contracts
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-bold text-text!">{contract.ref}</h2>
+                    {isBlueMetal ? (
+                      <StatusPill tone="brand">
+                        {totalServices} Service{totalServices === 1 ? '' : 's'}
+                      </StatusPill>
                     ) : (
-                      <span className="font-medium text-text!">{contract.thirdParty}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand/10 text-brand">
+                        {totalServices} Service{totalServices === 1 ? '' : 's'}
+                      </span>
                     )}
-                    {contract.thirdPartySubtitle && <span className="text-text-faint">({contract.thirdPartySubtitle})</span>}
-                  </p>
+                  </div>
+                  {isBlueMetal ? (
+                    <div className="flex flex-wrap items-center gap-4">
+                      {contract.thirdParty && (
+                        <InfoChip
+                          icon={Users2}
+                          label="Third-party"
+                          value={
+                            contract.thirdPartyId ? (
+                              <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="hover:underline">
+                                {contract.thirdParty}
+                              </Link>
+                            ) : (
+                              contract.thirdParty
+                            )
+                          }
+                          color="blue"
+                        />
+                      )}
+                      {(contract.refCustomer || contract.refVendor) && (
+                        <InfoChip icon={FileEdit} label="Ref. customer / vendor" value={`${contract.refCustomer || '—'} / ${contract.refVendor || '—'}`} color="violet" />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted space-y-0.5">
+                      <p>
+                        <span className="text-text-faint">Ref. customer:</span> {contract.refCustomer || <span className="italic">—</span>}
+                        {'  '}
+                        <span className="text-text-faint">Ref. vendor:</span> {contract.refVendor || <span className="italic">—</span>}
+                      </p>
+                      <p className="flex items-center gap-1">
+                        <span className="text-text-faint">Third-party:</span>{' '}
+                        {contract.thirdPartyId ? (
+                          <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="text-brand hover:underline font-medium">
+                            {contract.thirdParty}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-text!">{contract.thirdParty}</span>
+                        )}
+                        {contract.thirdPartySubtitle && <span className="text-text-faint">({contract.thirdPartySubtitle})</span>}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="text-sm text-text-muted">
-                <p className="font-medium text-text!">
-                  {totalServices} Service{totalServices === 1 ? '' : 's'}
-                </p>
                 <p className="text-xs">
                   {contract.notRunning} not running · {contract.inProgress} in progress · {contract.expired} expired · {contract.closed} closed
                 </p>

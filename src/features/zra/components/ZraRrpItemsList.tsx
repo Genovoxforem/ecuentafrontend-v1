@@ -75,24 +75,23 @@ export function ZraRrpItemsList() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
-        <ListHeader icon={<Tags size={20} className="text-brand" />} title="RRP Item Details" count={items.length} />
-
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-text-muted">Item Code</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <ListHeader icon={<Tags size={16} className="text-brand" />} count={items.length} />
+            <label className="flex items-center gap-2">
+              <span className="text-sm text-text-muted whitespace-nowrap">Item Code</span>
               <input
                 type="text"
                 value={lastReqDtInput}
                 onChange={(e) => setLastReqDtInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && setLastReqDt(lastReqDtInput.trim() || undefined)}
-                className="h-10 w-64 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+                className="h-9 w-56 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
               />
             </label>
             <button
               type="button"
               onClick={() => setLastReqDt(lastReqDtInput.trim() || undefined)}
-              className="h-10 px-4 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+              className="h-9 px-4 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
             >
               Fetch Details
             </button>

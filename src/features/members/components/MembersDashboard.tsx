@@ -96,7 +96,7 @@ export function MembersDashboard() {
                       <Cell fill={STATUS_COLORS.draft} />
                     </Pie>
                     <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11.55 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -117,8 +117,8 @@ export function MembersDashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.byType}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="type" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} width={24} allowDecimals={false} />
+                    <XAxis dataKey="type" tick={{ fontSize: 10.5 }} />
+                    <YAxis tick={{ fontSize: 10.5 }} width={24} allowDecimals={false} />
                     <Tooltip />
                     <Bar dataKey="draft" stackId="a" fill={STATUS_COLORS.draft} name="To validate" />
                     <Bar dataKey="outOfDate" stackId="a" fill={STATUS_COLORS.outOfDate} name="Out of date" />

@@ -50,10 +50,10 @@ export function PayrollAnalytics() {
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
-              <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} width={76} tickFormatter={(value: number) => formatMoney(value)} />
-              <Tooltip formatter={(value) => formatMoney(num(value))} contentStyle={{ background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <XAxis dataKey="month" tick={{ fontSize: 12.6, fill: 'var(--color-text-muted)' }} />
+              <YAxis tick={{ fontSize: 12.6, fill: 'var(--color-text-muted)' }} width={76} tickFormatter={(value: number) => formatMoney(value)} />
+              <Tooltip formatter={(value) => formatMoney(num(value))} contentStyle={{ background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 12.6 }} />
+              <Legend wrapperStyle={{ fontSize: 12.6 }} />
               <Line type="monotone" dataKey="Gross" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="Net" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="PAYE" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />

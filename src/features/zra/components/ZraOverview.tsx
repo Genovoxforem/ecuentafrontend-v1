@@ -10,13 +10,27 @@ import { useZraServerStatus, type ZraSummary, type ZraSyncDetailRow, type ZraSyn
 const fmt = (n: number) => `${n < 0 ? '-' : ''}ZMW ${formatMoney(Math.abs(n))}`
 
 // One accent per card, as on the backend dashboard: a coloured top edge, a
-// matching label, and a tinted icon tile.
+// matching label, and a tinted icon tile. Built from the app's own theme
+// tokens (tokens.css) rather than Tailwind's stock color scale, so each
+// theme's own palette shows here too — the stock blue-600/cyan-600/etc
+// classes never changed with the theme, which is why this screen looked
+// visually disconnected from the rest of the app under blue-metal.
 const ACCENTS = {
-  blue: { edge: 'border-t-blue-500', label: 'text-blue-600 dark:text-blue-400', tile: 'bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400', meta: 'text-blue-600 dark:text-blue-400' },
-  cyan: { edge: 'border-t-cyan-500', label: 'text-cyan-600 dark:text-cyan-400', tile: 'bg-cyan-50 text-cyan-500 dark:bg-cyan-500/10 dark:text-cyan-400', meta: 'text-cyan-600 dark:text-cyan-400' },
-  violet: { edge: 'border-t-violet-500', label: 'text-violet-600 dark:text-violet-400', tile: 'bg-violet-50 text-violet-500 dark:bg-violet-500/10 dark:text-violet-400', meta: 'text-violet-600 dark:text-violet-400' },
-  amber: { edge: 'border-t-amber-500', label: 'text-amber-600 dark:text-amber-400', tile: 'bg-amber-50 text-amber-500 dark:bg-amber-500/10 dark:text-amber-400', meta: 'text-amber-600 dark:text-amber-400' },
-  green: { edge: 'border-t-emerald-500', label: 'text-emerald-600 dark:text-emerald-400', tile: 'bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-400', meta: 'text-emerald-600 dark:text-emerald-400' },
+  blue: { edge: 'border-t-[var(--color-info-fg)]', label: 'text-[var(--color-info-fg)]', tile: 'bg-[var(--color-info-bg)] text-[var(--color-info-fg)]', meta: 'text-[var(--color-info-fg)]' },
+  cyan: {
+    edge: 'border-t-[var(--color-accent-cyan-2)]',
+    label: 'text-[var(--color-accent-cyan-2)]',
+    tile: 'bg-[color-mix(in_srgb,var(--color-accent-cyan-2)_16%,transparent)] text-[var(--color-accent-cyan-2)]',
+    meta: 'text-[var(--color-accent-cyan-2)]',
+  },
+  violet: {
+    edge: 'border-t-[var(--color-brand)]',
+    label: 'text-[var(--color-brand)]',
+    tile: 'bg-[color-mix(in_srgb,var(--color-brand)_14%,transparent)] text-[var(--color-brand)]',
+    meta: 'text-[var(--color-brand)]',
+  },
+  amber: { edge: 'border-t-[var(--color-warning-fg)]', label: 'text-[var(--color-warning-fg)]', tile: 'bg-[var(--color-warning-bg)] text-[var(--color-warning-fg)]', meta: 'text-[var(--color-warning-fg)]' },
+  green: { edge: 'border-t-[var(--color-success-fg)]', label: 'text-[var(--color-success-fg)]', tile: 'bg-[var(--color-success-bg)] text-[var(--color-success-fg)]', meta: 'text-[var(--color-success-fg)]' },
 } as const
 type Accent = keyof typeof ACCENTS
 
@@ -37,14 +51,14 @@ function StatCard({
 }) {
   const a = ACCENTS[accent]
   return (
-    <div className={`relative flex flex-col rounded-xl border border-border border-t-2 ${a.edge} bg-surface-alt px-3 py-1.5 shadow-sm`}>
-      <span className={`absolute right-3 top-2 grid h-7 w-7 place-items-center rounded-lg ${a.tile}`}>
-        <Icon size={15} />
+    <div className={`relative flex flex-col rounded-xl border border-border border-t-[3px] ${a.edge} bg-surface-alt px-4 py-3 shadow-sm`}>
+      <span className={`absolute right-4 top-3.5 grid h-9 w-9 place-items-center rounded-lg ${a.tile}`}>
+        <Icon size={18} />
       </span>
-      <p className={`pr-9 text-[11px] font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
-      <div className="mt-1 space-y-0.5">{children}</div>
-      <p className={`mt-1 flex items-center gap-1.5 whitespace-nowrap border-t border-dashed border-border pt-1 text-[11px] font-semibold ${a.meta}`}>
-        <MetaIcon size={11} /> {meta}
+      <p className={`pr-10 text-xs font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
+      <div className="mt-2 space-y-1">{children}</div>
+      <p className={`mt-2 flex items-center gap-1.5 whitespace-nowrap border-t border-dashed border-border pt-2 text-xs font-semibold ${a.meta}`}>
+        <MetaIcon size={12} /> {meta}
       </p>
     </div>
   )
@@ -53,11 +67,11 @@ function StatCard({
 function SyncStatCard({ label, stat, accent, icon, metaIcon, totalLabel = 'Total' }: { label: string; stat: ZraSyncStat; accent: Accent; icon: ComponentType<{ size?: number }>; metaIcon: ComponentType<{ size?: number }>; totalLabel?: string }) {
   return (
     <StatCard label={label} accent={accent} icon={icon} metaIcon={metaIcon} meta={`${totalLabel}: ${fmt(stat.totalAmount)}`}>
-      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
-        {fmt(stat.succeededAmount)} <span className="text-[10px] text-success">✓ Succeeded</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-sm font-bold leading-5 text-text!">
+        {fmt(stat.succeededAmount)} <span className="text-xs text-success">✓ Succeeded</span>
       </p>
-      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
-        {fmt(stat.unsyncedAmount)} <span className="text-[10px] font-semibold text-text-muted">Unsynced</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-sm font-bold leading-5 text-text!">
+        {fmt(stat.unsyncedAmount)} <span className="text-xs font-semibold text-text-muted">Unsynced</span>
       </p>
     </StatCard>
   )
@@ -68,11 +82,11 @@ function SyncStatCard({ label, stat, accent, icon, metaIcon, totalLabel = 'Total
 function IncomeCard({ stat }: { stat: ZraSyncStat }) {
   return (
     <StatCard label="Income" accent="violet" icon={Calculator} metaIcon={Calculator} meta={`Combined: ${fmt(stat.totalAmount)}`}>
-      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-success">
-        {fmt(stat.succeededAmount)} <span className="text-[10px]">✓ Succeeded</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-sm font-bold leading-5 text-success">
+        {fmt(stat.succeededAmount)} <span className="text-xs">✓ Succeeded</span>
       </p>
-      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
-        {fmt(stat.unsyncedAmount)} <span className="text-[10px] font-semibold text-text-muted">Unsynced</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-sm font-bold leading-5 text-text!">
+        {fmt(stat.unsyncedAmount)} <span className="text-xs font-semibold text-text-muted">Unsynced</span>
       </p>
     </StatCard>
   )
@@ -81,8 +95,8 @@ function IncomeCard({ stat }: { stat: ZraSyncStat }) {
 function PurchaseAmountCard({ amount }: { amount: number }) {
   return (
     <StatCard label="Purchase Amount" accent="green" icon={ShoppingCart} metaIcon={ShoppingCart} meta="Supplier Invoices">
-      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-xs font-bold leading-5 text-text!">
-        {fmt(amount)} <span className="text-[10px] text-success">✓ Complete</span>
+      <p className="flex items-baseline justify-between gap-1.5 whitespace-nowrap text-sm font-bold leading-5 text-text!">
+        {fmt(amount)} <span className="text-xs text-success">✓ Complete</span>
       </p>
     </StatCard>
   )

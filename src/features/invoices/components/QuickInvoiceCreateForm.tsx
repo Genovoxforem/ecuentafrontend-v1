@@ -314,7 +314,7 @@ export function QuickInvoiceCreateForm() {
       header={
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <Zap size={20} className="text-brand" /> New Quick Invoice
+            <Zap size={20} className="text-brand" /> Create Quick Invoice
           </h2>
           <div className="flex items-center gap-3">
             {selectedCustomer && (

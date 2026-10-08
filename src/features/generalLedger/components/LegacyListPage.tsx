@@ -129,46 +129,6 @@ export function LegacyListPage({
                 <Plus size={14} /> {addTo.label}
               </Link>
             )}
-            {/* Some backend pages ignore `limit` and print every row; no pager then. */}
-            {data.rows.length <= limit && (
-              <>
-                <select
-                  value={limit}
-                  onChange={(e) => {
-                    setLimit(Number(e.target.value))
-                    clearSelection()
-                    setPage(0)
-                  }}
-                  className={selectCls}
-                  title="Rows per page"
-                >
-                  {[10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={page === 0}
-                  onClick={() => goToPage(page - 1)}
-                  className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40"
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="grid h-9 min-w-9 place-items-center rounded-md bg-brand px-2 text-sm text-white">{page + 1}</span>
-                <button
-                  type="button"
-                  disabled={data.rows.length < limit}
-                  onClick={() => goToPage(page + 1)}
-                  className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40"
-                  aria-label="Next page"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </>
-            )}
           </div>
         </div>
       }
@@ -284,11 +244,57 @@ export function LegacyListPage({
           </table>
         </form>
       </ScrollCard>
-      {searchable && (
-        <p className="text-sm text-text-muted">
-          Showing {rows.length === 0 ? 0 : 1} to {rows.length} of {rows.length} entries{needle && rows.length !== data.rows.length ? ` (filtered from ${data.rows.length})` : ''}
-        </p>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          {/* Some backend pages ignore `limit` and print every row; no pager then. */}
+          {data.rows.length <= limit && (
+            <select
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value))
+                clearSelection()
+                setPage(0)
+              }}
+              className={selectCls}
+              title="Rows per page"
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          )}
+          {searchable && (
+            <p className="text-sm text-text-muted">
+              Showing {rows.length === 0 ? 0 : 1} to {rows.length} of {rows.length} entries{needle && rows.length !== data.rows.length ? ` (filtered from ${data.rows.length})` : ''}
+            </p>
+          )}
+        </div>
+        {data.rows.length <= limit && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => goToPage(page - 1)}
+              className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="grid h-9 min-w-9 place-items-center rounded-md bg-brand px-2 text-sm text-white">{page + 1}</span>
+            <button
+              type="button"
+              disabled={data.rows.length < limit}
+              onClick={() => goToPage(page + 1)}
+              className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40"
+              aria-label="Next page"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
     </StickyListLayout>
   )
 }

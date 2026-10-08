@@ -11,7 +11,6 @@ export interface ProspectsSummary {
   otherCountryCustomers: number
   customers: ThirdPartyRow[]
 }
-
 /**
  * Prospects list + summary KPIs.
  *

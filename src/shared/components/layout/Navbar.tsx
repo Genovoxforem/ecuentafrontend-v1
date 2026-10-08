@@ -82,9 +82,9 @@ function displayName(user: AuthUser | null) {
 
 function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`}>
-      <path d="M7.66699 12.6668L3.66699 8.00016L7.66699 3.3335" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-      <path opacity="0.5" d="M12.667 12.6668L8.66699 8.00016L12.667 3.3335" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={`transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`}>
+      <path d="M13.5 19L6 12l7.5-7" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 19l-7.5-7L21 5" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -133,7 +133,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
 
   return (
     <nav
-      className={`relative h-14 pr-4 ${isModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg'}`}
+      className={`relative h-[67px] pr-6 ${isModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg'}`}
     >
       {isModern && (
         <>
@@ -162,19 +162,19 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         className="relative z-30 flex items-center justify-between gap-4 h-full w-full"
         style={isModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
       >
-      <div className={`relative z-10 flex h-full shrink-0 items-center transition-[width] duration-300 ${sidebarOpen ? (isModern ? 'w-64' : 'w-80') : 'w-16'}`}>
+      <div className={`relative z-10 flex h-full shrink-0 items-center transition-[width] duration-300 ${sidebarOpen ? (isModern ? 'w-[230px]' : 'w-[259px]') : 'w-[58px]'}`}>
         <a
           href="/dashboard"
           aria-label="ECUENTA dashboard"
-          className={`mx-2 flex h-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-cyan-400/70 bg-[linear-gradient(145deg,rgba(8,57,78,0.96),rgba(3,24,43,0.98))] shadow-[inset_0_1px_0_rgba(103,232,249,0.2),0_0_12px_rgba(34,211,238,0.16)] ${
-            sidebarOpen ? 'w-[min(11rem,calc(100%-3rem))] px-2' : 'w-10'
+          className={`mx-2 translate-y-1 flex h-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[linear-gradient(145deg,rgba(8,57,78,0.96),rgba(3,24,43,0.98))] shadow-[inset_0_1px_0_rgba(103,232,249,0.2),0_0_12px_rgba(34,211,238,0.16)] ${
+            sidebarOpen ? 'w-[min(11rem,calc(100%-3rem))] px-2' : 'w-8'
           }`}
         >
           {sidebarOpen ? (
             <img
               src={logoFull}
               alt="ECUENTA"
-              className="h-8 w-auto max-w-full object-contain [filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]"
+              className="h-10 w-auto max-w-full object-contain [filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]"
             />
           ) : (
             <span className="relative h-8 w-8 shrink-0 overflow-hidden">
@@ -191,7 +191,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           onClick={onToggleSidebar}
           aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          className="absolute right-0 flex h-8 w-8 translate-x-1/2 items-center justify-center rounded-lg border border-border bg-surface text-text-muted shadow-sm transition-colors hover:bg-surface-alt hover:text-brand"
+          className={`absolute ${sidebarOpen ? 'right-0 h-10 w-10' : 'right-[-6px] h-9 w-9'} flex translate-x-1/2 items-center justify-center rounded-xl border border-[#168bff]/70 bg-[linear-gradient(145deg,#102b40,#071522)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_12px_rgba(22,139,255,0.24)] transition-all hover:border-[#66caff] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_16px_rgba(22,139,255,0.42)]`}
         >
           <SidebarToggleIcon expanded={sidebarOpen} />
         </button>
@@ -223,7 +223,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center gap-1 shrink-0">
+      <div className="relative z-10 flex items-center gap-2 shrink-0">
         <div className="hidden md:flex items-center rounded-full bg-surface-alt p-1 mr-1" title="Sidebar style">
           <button
             type="button"
@@ -341,9 +341,9 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           <CalendarDays size={19} />
         </IconButton>
 
-        {/* The classic headset button ("Ticket Desk") — its launcher opens a separate Node app; the tickets module is the React equivalent. */}
+        {/* Match the legacy headset launcher: it starts TicketDesk, passes the signed-in user, then redirects. */}
         <div className="max-sm:hidden">
-          <IconButton title="Ticket Desk" glow onClick={() => navigate(ROUTES.ticketList)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
+          <IconButton title="Ticket Desk" glow onClick={() => window.location.assign(ROUTES.ticketDesk)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
             <Headset size={19} />
           </IconButton>
         </div>

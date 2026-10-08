@@ -129,10 +129,10 @@ export function BankGraphicsTab({ entries, account }: { entries: BankEntryRow[];
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={monthData.movements} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-            <XAxis dataKey="day" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-            <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v)} width={70} />
+            <XAxis dataKey="day" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v)} width={70} />
             <Tooltip content={<MoneyTooltip currencyCode={account.currencyCode} />} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12.6 }} />
             <Bar dataKey="Credit" fill="var(--color-success-fg)" radius={[2, 2, 0, 0]} />
             <Bar dataKey="Debit" fill="var(--color-danger-fg)" radius={[2, 2, 0, 0]} />
           </BarChart>
@@ -146,8 +146,8 @@ export function BankGraphicsTab({ entries, account }: { entries: BankEntryRow[];
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={monthData.balance} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-            <XAxis dataKey="day" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-            <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v)} width={70} domain={['auto', 'auto']} />
+            <XAxis dataKey="day" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v)} width={70} domain={['auto', 'auto']} />
             <Tooltip content={<MoneyTooltip currencyCode={account.currencyCode} />} />
             <Line type="stepAfter" dataKey="Balance" stroke="var(--color-brand)" strokeWidth={2} dot={false} connectNulls />
           </LineChart>
@@ -169,10 +169,10 @@ export function BankGraphicsTab({ entries, account }: { entries: BankEntryRow[];
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={yearData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-            <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-            <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v)} width={70} />
+            <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v)} width={70} />
             <Tooltip content={<MoneyTooltip currencyCode={account.currencyCode} />} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12.6 }} />
             <Bar dataKey="Credit" fill="var(--color-success-fg)" radius={[2, 2, 0, 0]} />
             <Bar dataKey="Debit" fill="var(--color-danger-fg)" radius={[2, 2, 0, 0]} />
           </BarChart>

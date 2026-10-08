@@ -12,8 +12,8 @@ import { ROUTES } from '../../../routes'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
-const RAIL_WIDTH_CLASS = 'w-[72px]'
-const RAIL_WIDTH_OFFSET_CLASS = 'left-[72px]'
+const RAIL_WIDTH_CLASS = 'w-[65px]'
+const RAIL_WIDTH_OFFSET_CLASS = 'left-[65px]'
 
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a
@@ -398,7 +398,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const expanded = open || hovering
 
   return (
-    <div className={`relative flex h-full shrink-0 bg-rail-bg transition-[width] duration-300 ease-in-out ${expanded ? 'w-[328px]' : RAIL_WIDTH_CLASS}`} onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
+    <div className={`relative flex h-full shrink-0 bg-rail-bg transition-[width] duration-300 ease-in-out ${expanded ? 'w-[295px]' : RAIL_WIDTH_CLASS}`} onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
         {/* <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2"> */}
         <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
@@ -445,13 +445,14 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
 
       <div
         className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-all duration-300 ease-in-out translate-x-0 z-[1] rounded-tl-2xl ${
-          expanded ? 'relative w-64 flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 w-0`
+          expanded ? 'relative w-[230px] flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 w-0`
         }`}
         onMouseEnter={() => !open && setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         <div className="soft-scrollbar w-64 h-full overflow-y-auto overflow-x-hidden px-4 pb-5">
           <div className={`sticky top-0 z-10 bg-surface ${blueMetal ? 'px-2 pt-4' : 'pt-4'}`}>
+            <h2 className="mb-3 px-1 text-sm font-bold tracking-[0.18em] text-text-muted">MENU</h2>
             <div className="flex items-center gap-3 border-b border-border pb-3">
               {blueMetal ? (
                 <>

@@ -17,10 +17,10 @@ export function StatMiniChart({ series, color }: { series: ProductStatSeries; co
       </div>
       <ResponsiveContainer width="100%" height={140}>
         <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-          <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={10} tickLine={false} axisLine={false} interval={0} />
+          <XAxis dataKey="month" stroke="var(--color-text-faint)" fontSize={10.5} tickLine={false} axisLine={false} interval={0} />
           <Tooltip
             cursor={{ fill: 'var(--color-surface-hover)' }}
-            contentStyle={{ fontSize: 12, background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 8px' }}
+            contentStyle={{ fontSize: 12.6, background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '6px 8px' }}
           />
           <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
         </BarChart>

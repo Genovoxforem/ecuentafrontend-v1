@@ -46,6 +46,7 @@ export const ROUTES = {
   racksList: '/warehouses/rack/racks-list',
   productRackAssign: '/warehouses/rack/assign-products',
   budget: '/budget',
+  ticketDesk: '/custom/ticketdesk/launch.php',
   ticketList: '/tickets/list',
   ticketMyAssigned: '/tickets/my-assigned',
   ticketStatistics: '/tickets/statistics',

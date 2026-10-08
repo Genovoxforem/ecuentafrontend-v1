@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from 'recharts'
 import type { StatsChart } from '../statsHtmlParser'
 
 // Fixed categorical order (never reassigned by which series happens to be
@@ -57,16 +57,45 @@ export function StatsBarChart({ chart }: { chart: StatsChart }) {
     )
   }
 
+  if (chart.type === 'line') {
+    return (
+      <div>
+        <p className="mb-2 text-center text-sm font-medium text-text-muted">{chart.title}</p>
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
+            <XAxis dataKey="label" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} width={40} />
+            <Tooltip />
+            {chart.datasets.length > 1 && <Legend wrapperStyle={{ fontSize: 12.6 }} />}
+            {chart.datasets.map((dataset, index) => (
+              <Line
+                key={dataset.label}
+                dataKey={dataset.label}
+                name={dataset.label}
+                type="monotone"
+                stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
+
   return (
     <div>
       <p className="text-center text-sm font-medium text-text-muted mb-2">{chart.title}</p>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} barGap={2}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+          <XAxis dataKey="label" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} width={32} />
           <Tooltip />
-          {chart.datasets.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+          {chart.datasets.length > 1 && <Legend wrapperStyle={{ fontSize: 12.6 }} />}
           {chart.datasets.map((ds, i) => (
             <Bar key={ds.label} dataKey={ds.label} fill={SERIES_COLORS[i % SERIES_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={28} />
           ))}

@@ -6,7 +6,11 @@ export function getBackendUrl(): string {
 
 export function resolveBackendAsset(path: string | null | undefined): string {
   if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
+  if (/^https?:\/\//i.test(path)) {
+    const assetUrl = new URL(path)
+    const backendOrigin = new URL(getBackendUrl()).origin
+    return assetUrl.origin === backendOrigin ? `${assetUrl.pathname}${assetUrl.search}${assetUrl.hash}` : path
+  }
   const origin = new URL(getBackendUrl()).origin
   return `${origin}${path.startsWith('/') ? '' : '/'}${path}`
 }

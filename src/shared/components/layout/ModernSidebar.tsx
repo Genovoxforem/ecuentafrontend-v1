@@ -454,13 +454,13 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
 
   return (
     <div
-      className={`relative h-full shrink-0 transition-[width] duration-300 ease-in-out ${open ? 'w-64' : 'w-16'}`}
+      className={`relative h-full shrink-0 transition-[width] duration-300 ease-in-out ${open ? 'w-[230px]' : 'w-[58px]'}`}
       onMouseEnter={() => !open && setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
       <aside
         className={`h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
-          open ? 'relative w-64' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-64' : 'w-16'}`
+          open ? 'relative w-[230px]' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-[230px]' : 'w-[58px]'}`
         }`}
       >
         {/* Solid dark base — the glass tint (MODERN_GLASS_BG at 0.22 alpha) is
@@ -485,7 +485,9 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
         {/* Content sits on its own layer with a drop-shadow (covers icons too, unlike text-shadow) so it stays
             legible against a genuinely transparent glass panel regardless of what's behind it. */}
         <div className="relative z-10 flex flex-col h-full" style={{ filter: MODERN_CONTENT_SHADOW }}>
-          {expanded && <p className="px-4 pb-2 text-[11px] font-bold tracking-widest text-white/35">MENU</p>}
+          {expanded && (
+            <h2 className="px-4 pb-3 pt-4 text-sm font-bold tracking-[0.18em] text-white/75">MENU</h2>
+          )}
 
           <div className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-2.5 pb-2 ${expanded ? '' : 'pt-5'}`}>
             {expanded ? (

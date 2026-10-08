@@ -190,7 +190,7 @@ export function AsycudaPurchaseInvoiceCreate() {
         </Card>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="-mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-[22px] py-3">
         <div className="text-sm text-text-muted">
           Total Amount: <span className="text-text-faint">0.00 ZMW</span>
           <br />

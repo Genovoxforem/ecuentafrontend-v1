@@ -146,7 +146,7 @@ export function ExpensePaymentsList() {
               </tbody>
             </table>
           </ScrollCard>
-          <div className="-mx-6 -mb-4">
+          <div className="-mx-[22px] -mb-4">
             <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} edgeToEdge />
           </div>
         </>

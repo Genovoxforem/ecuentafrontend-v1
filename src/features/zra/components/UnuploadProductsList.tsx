@@ -93,9 +93,9 @@ export function UnuploadProductsList() {
     // scrolling middle region, instead of a short fixed-height box.
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
-        <ListHeader icon={<Package size={20} className="text-brand" />} title="Un-uploaded Products/services" count={total} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
+            <ListHeader icon={<Package size={16} className="text-brand" />} count={total} />
             <label className="flex items-center gap-2 text-sm text-text-muted">
               <select
                 value={perPage}

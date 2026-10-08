@@ -124,11 +124,11 @@ export type IconColor = keyof typeof ICON_STYLES
 // reads too faint.
 export type PillTone = 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 const PILL_STYLES: Record<PillTone, string> = {
-  brand: 'bg-brand text-white',
-  success: 'bg-success text-white',
-  warning: 'bg-warning text-white',
-  danger: 'bg-danger text-white',
-  info: 'bg-info text-white',
+  brand: 'bg-brand text-white brightness-90',
+  success: 'bg-success text-white brightness-90',
+  warning: 'bg-warning text-white brightness-90',
+  danger: 'bg-danger text-white brightness-90',
+  info: 'bg-info text-white brightness-90',
   neutral: 'bg-surface-hover text-text-muted',
 }
 

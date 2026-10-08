@@ -27,12 +27,12 @@ export function GlassCard({
   return (
     <div className={`rounded-2xl border border-border bg-surface shadow-sm transition-shadow hover:shadow-md hover:shadow-black/5 ${className}`}>
       {(header || action) && (
-        <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
+        <div className="flex items-center justify-between gap-3 px-4 pt-3.5 pb-2.5">
           {header}
           {action}
         </div>
       )}
-      <div className={header || action ? 'px-5 pb-5' : 'p-5'}>{children}</div>
+      <div className={header || action ? 'px-4 pb-4' : 'p-4'}>{children}</div>
     </div>
   )
 }
@@ -51,8 +51,8 @@ export function CardHeader({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className={`shrink-0 w-9 h-9 rounded-xl grid place-items-center ${ICON_BG[tone]}`}>
-        <Icon size={17} />
+      <span className={`shrink-0 w-8 h-8 rounded-xl grid place-items-center ${ICON_BG[tone]}`}>
+        <Icon size={16} />
       </span>
       <div className="min-w-0">
         <h3 className="font-semibold text-text leading-tight truncate">{title}</h3>

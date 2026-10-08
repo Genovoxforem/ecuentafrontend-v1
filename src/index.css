@@ -1,10 +1,33 @@
   @import 'tailwindcss';
-@import './theme/tokens.css';
+  @import './theme/tokens.css';
 
-@custom-variant dark (&:where(.dark, .dark *));
+  @custom-variant dark (&:where(.dark, .dark *));
+
+  @theme {
+    /* Tailwind's spacing scale (p-*, m-*, gap-*, w-*, h-*, etc. for the
+       numbered scale) is every multiple of this one unit (default 0.25rem).
+       Shrinking only this — not --text-* below, not html's root font-size —
+       tightens layout (padding, gaps, component sizing) by 10% without
+       touching how large or legible any text reads, keeping the two
+       concerns independently tunable. */
+    --spacing: 0.225rem;
+    --text-xs: 0.7875rem;
+    --text-sm: 0.91875rem;
+    --text-base: 1.05rem;
+    --text-lg: 1.18125rem;
+    --text-xl: 1.3125rem;
+    --text-2xl: 1.575rem;
+    --text-3xl: 1.96875rem;
+    --text-4xl: 2.3625rem;
+    --text-5xl: 3.15rem;
+    --text-6xl: 3.9375rem;
+    --text-7xl: 4.725rem;
+    --text-8xl: 6.3rem;
+    --text-9xl: 8.4rem;
+  }
 
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: Poppins, Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -105,7 +128,7 @@ html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div
   content: var(--detail-title);
   display: block;
   margin-bottom: 0.75rem;
-  font-size: 1.25rem;
+  font-size: 1.3125rem;
   font-weight: 700;
   line-height: 1.75rem;
   color: #fff;
@@ -213,8 +236,14 @@ html[data-theme='blue-metal'] .app-card.blue-compact-card {
   padding: 6px !important;
 }
 
+/* Excludes `overflow-auto`: a table's own scroll wrapper also happens to
+   carry this exact bg-surface-alt+border-border+rounded-xl combo for its
+   panel look, but giving it padding-top breaks its sticky <thead> — padding
+   is reserved space inside the scrollport, not a scroll-clipping boundary,
+   so scrolled-past rows could still be painted inside that top padding strip
+   and peek out above the header instead of being fully covered by it. */
 html[data-theme='blue-metal'] #route-page-content
-  :is(div, section, article)[class~='bg-surface-alt'][class~='border-border'][class~='rounded-xl']:not([class~='!p-0']) {
+  :is(div, section, article)[class~='bg-surface-alt'][class~='border-border'][class~='rounded-xl']:not([class~='!p-0']):not([class~='overflow-auto']) {
   padding: 10px !important;
 }
 
@@ -230,13 +259,13 @@ html[data-theme='blue-metal'] #route-page-content .invoice-summary-card {
 
 html[data-theme='blue-metal'] #route-page-content .invoice-summary-label,
 html[data-theme='blue-metal'] #route-page-content .invoice-summary-caption {
-  font-size: 0.625rem;
+  font-size: 0.65625rem;
   line-height: 1rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content .invoice-summary-value {
   margin-top: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   line-height: 1.25rem;
 }
 
@@ -253,7 +282,7 @@ html[data-theme='blue-metal'] #route-page-content .invoice-summary-icon > svg {
 
 html[data-theme='blue-metal'] table {
   width: 100%;
-  font-size: 0.75rem;
+  font-size: 0.7875rem;
   line-height: 1.25;
 }
 
@@ -270,7 +299,7 @@ html[data-theme='blue-metal'] .blue-density-toolbar {
 html[data-theme='blue-metal'] .blue-density-toolbar > select {
   height: 22px;
   padding: 2px 4px;
-  font-size: 10px;
+  font-size: 10.5px;
 }
 
 html[data-theme='blue-metal'] .blue-density-search {
@@ -282,7 +311,7 @@ html[data-theme='blue-metal'] .blue-density-search > input {
   padding-top: 2px;
   padding-bottom: 2px;
   padding-right: 6px;
-  font-size: 10px;
+  font-size: 10.5px;
 }
 
 html[data-theme='blue-metal'] .blue-density-search > svg {
@@ -303,7 +332,7 @@ html[data-theme='blue-metal'] .blue-density-export > button {
   min-height: 22px;
   gap: 4px;
   padding: 2px 5px;
-  font-size: 10px;
+  font-size: 10.5px;
 }
 
 html[data-theme='blue-metal'] .blue-density-export > button > svg {
@@ -315,7 +344,7 @@ html[data-theme='blue-metal'] .blue-density-date > button {
   min-height: 22px;
   gap: 4px;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 10.5px;
 }
 
 html[data-theme='blue-metal'] .blue-density-date > button > svg {
@@ -362,13 +391,33 @@ html[data-theme='blue-metal'] #route-page-content {
 }
 
 html[data-theme='blue-metal'] #route-page-content table {
-  font-size: 0.8125rem;
+  font-size: 0.853125rem;
   line-height: 1.3;
 }
 
-html[data-theme='blue-metal'] #route-page-content table th,
+/* The default table border-spacing (2px) leaves a gap between the sticky
+   <thead> and the row beneath it, so while scrolling, the gap briefly shows
+   that row's own background/content peeking out above the header instead of
+   the header fully covering it. collapse removes that gap everywhere. */
+#route-page-content table {
+  border-collapse: collapse;
+}
+
 html[data-theme='blue-metal'] #route-page-content table td {
-  padding: 0.2rem 0.3rem;
+  padding: 0.45rem 0.6rem;
+}
+
+/* Taller than data cells on purpose — a cramped sortable header row is both
+   harder to read and harder to click. Solid background on <thead> itself
+   (not just the <tr>/<th> inside it) so its sticky box has no seam a scrolled
+   row can show through at the boundary — the thin sliver of the next row
+   that used to peek out above the header as the table scrolled. */
+html[data-theme='blue-metal'] #route-page-content table th {
+  padding: 0.65rem 0.6rem;
+}
+
+html[data-theme='blue-metal'] #route-page-content table thead {
+  background-color: var(--color-brand);
 }
 
 html[data-theme='blue-metal'] #route-page-content a.text-brand {
@@ -376,6 +425,18 @@ html[data-theme='blue-metal'] #route-page-content a.text-brand {
   text-decoration: underline;
   text-decoration-color: rgb(102 183 237 / 45%);
   text-underline-offset: 2px;
+}
+
+/* Several tables (and non-table rows, e.g. a dataset-picker list) put
+   `text-brand` on a <td>/<span>/wrapper and leave the actual link/text with
+   only `hover:underline`, so it inherits the plain (dim) --color-brand
+   instead of the brighter link color above — this catches every one of
+   those, wherever `.text-brand` shows up as page text, not just on an
+   anchor directly. Icons styled via `text-brand` (badges, section headers)
+   are excluded since those read fine at the dimmer brand shade and aren't
+   what "make the blue font brighter" is about. */
+html[data-theme='blue-metal'] #route-page-content :is(span, div, p, td, th, a).text-brand:not(:has(> svg:only-child)) {
+  color: var(--blue-link) !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content a:focus-visible,
@@ -395,7 +456,7 @@ html[data-theme='blue-metal'] #route-page-content a.blue-theme-primary {
 html[data-theme='blue-metal'] #route-page-content .blue-density-toolbar > select,
 html[data-theme='blue-metal'] #route-page-content .blue-density-search > input {
   height: 26px;
-  font-size: 0.75rem;
+  font-size: 0.7875rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-density-export > button,
@@ -403,7 +464,7 @@ html[data-theme='blue-metal'] #route-page-content .blue-density-date > button {
   min-height: 26px;
   padding-top: 3px;
   padding-bottom: 3px;
-  font-size: 0.75rem;
+  font-size: 0.7875rem;
 }
 
 html[data-theme='blue-metal'] .blue-density-header {
@@ -427,7 +488,7 @@ html[data-theme='blue-metal'] .blue-density-pagination {
   gap: 0.5rem;
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
-  font-size: 0.8125rem;
+  font-size: 0.853125rem;
   line-height: 1.25rem;
 }
 
@@ -441,7 +502,7 @@ html[data-theme='blue-metal'] .blue-density-pagination button {
 
 html[data-theme='blue-metal'] .blue-theme-shell label:not(.sr-only) {
   color: var(--color-text-muted);
-  font-size: 0.8125rem;
+  font-size: 0.853125rem;
   font-weight: 600;
   line-height: 1.35;
 }
@@ -455,7 +516,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea {
   border-radius: 0.375rem;
   background-color: var(--color-input-bg);
   color: var(--color-text);
-  font-size: 0.875rem;
+  font-size: 0.91875rem;
   line-height: 1.35;
 }
 
@@ -560,6 +621,29 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
   display: none;
 }
 
+/* App-wide: every scroll container (tables, sidebars, dropdowns, modals, the
+   page body, ...) keeps scrolling but never shows its scrollbar track/thumb —
+   the same behavior `.no-scrollbar` opts individual elements into, applied
+   universally instead of needing that class on each one. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* A minimum visible gap between table cells for any table that doesn't
+   already set its own td/th padding — a safety net, not an override: any
+   component's own padding class (always a higher-specificity class selector)
+   wins over this plain type-selector fallback. */
+#route-page-content table :is(td, th) {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
 /* Minimal Bootstrap-lookalike rules for legacy HTML fragments embedded
    verbatim from the real ecuenta9 ZRA AJAX endpoints (see
    AsycudaImportList.tsx) — this app doesn't load Bootstrap, so those
@@ -576,7 +660,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
 .legacy-html .badge {
   display: inline-block;
   padding: 0.2em 0.55em;
-  font-size: 0.7rem;
+  font-size: 0.735rem;
   font-weight: 600;
   border-radius: 0.25rem;
 }
@@ -584,7 +668,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
 .legacy-html .btn {
   display: inline-block;
   padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
+  font-size: 0.7875rem;
   font-weight: 500;
   border-radius: 0.375rem;
   border: none;
@@ -593,7 +677,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
   line-height: 1.2;
 }
 .legacy-html .btn:hover { opacity: 0.9; }
-.legacy-html .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.7rem; }
+.legacy-html .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.735rem; }
 .legacy-html .btn-success { background: var(--color-success); }
 .legacy-html .btn-danger { background: var(--color-danger); }
 .legacy-html .btn-warning,
@@ -618,7 +702,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
    have their own header treatment above).
    ========================================================================== */
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) {
-  --page-gutter: 1.5rem;
+  --page-gutter: 22px;
   --page-top-gap: 0.75rem;
   --page-control-height: 2.25rem;
   /* 40% shorter than the 5.5rem these cards used to be; the type and icon
@@ -673,19 +757,19 @@ html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([
 }
 
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:first-child {
-  font-size: 0.625rem;
+  font-size: 0.65625rem;
   line-height: 0.75rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:nth-child(2) {
   margin-top: 0;
-  font-size: 0.9375rem;
+  font-size: 0.984375rem;
   line-height: 1.125rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:nth-child(n + 3) {
   margin-top: 0;
-  font-size: 0.625rem;
+  font-size: 0.65625rem;
   line-height: 0.75rem;
 }
 
@@ -712,7 +796,7 @@ html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] :is(b
 html[data-theme='blue-metal'] .blue-theme-banner .blue-theme-primary {
   min-height: var(--page-control-height, 2.25rem);
   padding: 0.375rem 1rem;
-  font-size: 0.875rem;
+  font-size: 0.91875rem;
   line-height: 1.25rem;
   border-radius: 0.5rem;
 }
@@ -727,7 +811,7 @@ html[data-theme='blue-metal'] .blue-theme-banner :is(input:not([type='checkbox']
 html[data-theme='blue-metal'] .blue-theme-banner :is(button, a)[class~='bg-brand'] {
   min-height: 2.25rem;
   padding: 0.375rem 1rem;
-  font-size: 0.875rem;
+  font-size: 0.91875rem;
   line-height: 1.25rem;
   border-radius: 0.5rem;
 }
@@ -736,7 +820,7 @@ html[data-theme='blue-metal'] .blue-theme-banner :is(button, a)[class~='bg-brand
    (their `-mx-6` made them wider than the page, so the body started flush against the sidebar and
    the header was cut off on the right). */
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] {
-  --page-gutter: 1.5rem;
+  --page-gutter: 22px;
   --page-top-gap: 0.75rem;
 }
 
@@ -765,7 +849,8 @@ html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > [cl
    ========================================================================== */
 html[data-theme='blue-metal'] .blue-theme-banner {
   --blue-banner-bg: #10283a;
-  border-bottom-width: 0;
+  border-bottom: 1px solid rgba(148, 197, 255, 0.14);
+  margin-bottom: 4px;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-banner-continues {
@@ -860,30 +945,39 @@ html[data-theme='blue-metal'] #route-page-content .blue-stat-card :is(p, div, sp
 /* Tailwind's size classes are explicit on each element, so each step is
    remapped rather than inherited. */
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-3xl'] {
-  font-size: 1.125rem !important;
+  font-size: 1.18125rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-2xl'] {
-  font-size: 1.0625rem !important;
+  font-size: 1.115625rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-xl'] {
-  font-size: 0.9375rem !important;
+  font-size: 0.984375rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-lg'] {
-  font-size: 0.875rem !important;
+  font-size: 0.91875rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-base'],
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-sm'] {
-  font-size: 0.75rem !important;
+  font-size: 0.7875rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-xs'],
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-[11px]'] {
-  font-size: 0.625rem !important;
+  font-size: 0.65625rem !important;
 }
+
+html [class~='text-[7px]'] { font-size: 7.35px; }
+html [class~='text-[8px]'] { font-size: 8.4px; }
+html [class~='text-[9px]'] { font-size: 9.45px; }
+html [class~='text-[10px]'] { font-size: 10.5px; }
+html [class~='text-[10.5px]'] { font-size: 11.025px; }
+html [class~='text-[11px]'] { font-size: 11.55px; }
+html [class~='text-[11.5px]'] { font-size: 12.075px; }
+html [class~='text-[13px]'] { font-size: 13.65px; }
 
 /* The icon tile beside or above the number. */
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card span:has(> svg),

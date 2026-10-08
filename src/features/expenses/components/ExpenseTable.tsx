@@ -35,13 +35,13 @@ export function ExpenseTable<T>({
 }) {
   const t = useDataTable({ rows, searchText, sortValue: (row, key) => columns.find((c) => c.key === key)?.sortValue?.(row) ?? '', defaultSort })
   return (
-    <div className="space-y-3">
+    <div className="flex-1 flex flex-col min-h-0 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <PerPageSelect value={t.perPage} onChange={t.setPerPage} />
         <SearchBox value={t.search} onChange={t.setSearch} placeholder={searchPlaceholder} />
       </div>
-      <Card className="!h-auto !p-0 overflow-hidden">
-        <div className="overflow-x-auto">
+      <Card className="!h-auto !p-0 overflow-hidden flex-1 min-h-0">
+        <div className="h-full overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface">
@@ -79,7 +79,7 @@ export function ExpenseTable<T>({
           </table>
         </div>
       </Card>
-      <div className="-mx-6">
+      <div className="-mx-[22px]">
         <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} edgeToEdge />
       </div>
     </div>

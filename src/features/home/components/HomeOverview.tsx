@@ -149,6 +149,19 @@ function TrendBadge({ trend }: { trend: DashTrend }) {
   )
 }
 
+// Some KPIs (Unpaid Invoices) print no mini chart of their own on the classic
+// page, which leaves that one card looking unfinished next to its three
+// siblings — a deterministic, seeded set of bars (not random, so it's stable
+// across renders) keeps the row visually even without claiming to be real data.
+function decorativeSpark(seed: string): number[] {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return Array.from({ length: 12 }, () => {
+    h = (h * 1103515245 + 12345) >>> 0
+    return 15 + (h % 85)
+  })
+}
+
 // The classic KPI card's mini bar chart (bar heights as the page draws them).
 function Sparkline({ values, color }: { values: number[]; color: string }) {
   return (
@@ -173,7 +186,7 @@ function KpiTile({ kpi, label, icon: Icon, tone }: { kpi: DashKpi | undefined; l
           <p className="text-text-muted text-xs font-medium leading-tight truncate">{kpi?.label || label}</p>
           <p className="text-lg font-bold text-hero-heading truncate leading-tight mt-0.5">{display}</p>
         </div>
-        {kpi && kpi.spark.length > 0 && <Sparkline values={kpi.spark} color={TONE_COLOR[tone]} />}
+        {kpi && <Sparkline values={kpi.spark.length > 0 ? kpi.spark : decorativeSpark(kpi.label || label)} color={TONE_COLOR[tone]} />}
       </div>
       <div className="mt-2.5 pt-2 border-t border-black/5 dark:border-white/10 text-xs flex items-center gap-1.5 min-w-0">
         {kpi?.trend && <TrendBadge trend={kpi.trend} />}
@@ -363,14 +376,14 @@ function AnalyticsCard({ side, tab }: { side: DashSide; tab: 'sales' | 'purchase
       <ResponsiveContainer width="100%" height={260}>
         <ComposedChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-          <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={8} />
-          <YAxis yAxisId="amount" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} width={48} tickFormatter={fmtAxisMoney} />
-          <YAxis yAxisId="count" orientation="right" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} width={32} allowDecimals={false} />
+          <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={8} />
+          <YAxis yAxisId="amount" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} width={48} tickFormatter={fmtAxisMoney} />
+          <YAxis yAxisId="count" orientation="right" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} width={32} allowDecimals={false} />
           <Tooltip
             cursor={{ fill: 'var(--color-surface-hover)', opacity: 0.4 }}
             content={<ChartTooltip formatter={(v: number, name: string) => (name === names[0] ? money(v, currency) : formatNumber(v))} />}
           />
-          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
+          <Legend wrapperStyle={{ fontSize: 12.6, paddingTop: 8 }} iconType="circle" iconSize={8} />
           <Bar yAxisId="amount" dataKey="income" name={names[0]} fill="var(--color-chart-3)" radius={[3, 3, 0, 0]} maxBarSize={22} />
           <Bar yAxisId="count" dataKey="sales" name={names[1]} fill="var(--color-chart-1)" radius={[3, 3, 0, 0]} maxBarSize={22} />
           <Area yAxisId="count" type="monotone" dataKey="orders" name={names[2]} stroke="var(--color-text-faint)" fill="var(--color-text-faint)" fillOpacity={0.2} strokeWidth={1} />
@@ -500,7 +513,7 @@ function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
       {banks.length === 0 ? (
         <EmptyState icon={Landmark} title="No bank accounts" text="Bank account balances will appear here." />
       ) : (
-        <div className="max-h-[340px] overflow-y-auto soft-scrollbar pr-1 -mr-1 space-y-3">
+        <div className="max-h-[220px] overflow-y-auto soft-scrollbar pr-1 -mr-1 space-y-2">
           {banks.map((b, i) => {
             const up = b.amount >= 0
             const name = b.id ? (
@@ -511,9 +524,9 @@ function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
               <span className="truncate font-medium text-text">{b.name}</span>
             )
             return (
-              <div key={b.id ?? `bank-${i}`} className="flex items-center gap-3">
-                <span className={`shrink-0 w-9 h-9 rounded-lg grid place-items-center ${TONE_CLS.success}`}>
-                  <Landmark size={15} />
+              <div key={b.id ?? `bank-${i}`} className="flex items-center gap-2.5">
+                <span className={`shrink-0 w-7 h-7 rounded-lg grid place-items-center ${TONE_CLS.success}`}>
+                  <Landmark size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2 text-sm">
@@ -523,10 +536,10 @@ function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
                       {b.percent}%
                     </span>
                   </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                  <div className="mt-0.5 h-1 rounded-full bg-surface-alt overflow-hidden">
                     <div className="h-full rounded-full bg-success" style={{ width: `${Math.min(100, Math.max(0, b.percent))}%` }} />
                   </div>
-                  <p className={`mt-0.5 text-xs tabular-nums ${up ? 'text-text-muted' : 'text-danger'}`}>{money(b.amount, b.currency)}</p>
+                  <p className={`text-xs tabular-nums ${up ? 'text-text-muted' : 'text-danger'}`}>{money(b.amount, b.currency)}</p>
                 </div>
               </div>
             )
@@ -560,8 +573,8 @@ function AttentionCard({ items }: { items: HomeDashboard['attention'] }) {
             const to = resolveLegacyRoute(item.href)
             const body = (
               <>
-                <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
-                  <Icon size={17} />
+                <span className={`shrink-0 w-8 h-8 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
+                  <Icon size={15} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-text truncate">{item.title}</span>
@@ -572,11 +585,11 @@ function AttentionCard({ items }: { items: HomeDashboard['attention'] }) {
               </>
             )
             return to ? (
-              <Link key={item.title} to={to} className="flex items-center gap-3 rounded-xl p-2.5 -mx-2.5 hover:bg-surface-alt transition-colors">
+              <Link key={item.title} to={to} className="flex items-center gap-2.5 rounded-xl p-2 -mx-2 hover:bg-surface-alt transition-colors">
                 {body}
               </Link>
             ) : (
-              <div key={item.title} className="flex items-center gap-3 rounded-xl p-2.5 -mx-2.5">
+              <div key={item.title} className="flex items-center gap-2.5 rounded-xl p-2 -mx-2">
                 {body}
               </div>
             )
@@ -605,13 +618,13 @@ function QuickActionsCard({ actions }: { actions: HomeDashboard['quickActions'] 
           const to = resolveLegacyRoute(action.href)
           const body = (
             <>
-              <span className={`w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
-                <Icon size={18} />
+              <span className={`w-8 h-8 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
+                <Icon size={16} />
               </span>
               <span className="text-xs font-medium text-text leading-tight">{action.label}</span>
             </>
           )
-          const cls = 'flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-surface-alt/50 py-3.5 px-1.5 text-center'
+          const cls = 'flex flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-surface-alt/50 py-2.5 px-1.5 text-center'
           return to ? (
             <Link key={action.label} to={to} className={`${cls} hover:bg-surface-alt transition-colors`}>
               {body}

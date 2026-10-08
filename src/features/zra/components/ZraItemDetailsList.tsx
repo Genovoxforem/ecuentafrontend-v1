@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useZraItemDetails, type ZraItemDetail } from '../zra.queries'
 import { EmptyRow, PER_PAGE, SearchBox } from './ZraListChrome'
-import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -102,8 +101,9 @@ export function ZraItemDetailsList() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <InBanner>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-text-muted shrink-0">{items.length} items</span>
           <label className="flex items-center gap-2">
             <span className="text-sm text-text-muted whitespace-nowrap">Item Code</span>
             <input
@@ -121,17 +121,6 @@ export function ZraItemDetailsList() {
           >
             Fetch Details
           </button>
-          {data?.resultMessage && (
-            <span className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
-              {data.resultCode}-{data.resultMessage}
-            </span>
-          )}
-        </div>
-      </InBanner>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-sm text-text-muted">{items.length} items</span>
-        <div className="flex flex-wrap items-center gap-3">
           <div className="w-64 max-w-full">
             <SearchBox
               value={searchInput}
@@ -159,6 +148,11 @@ export function ZraItemDetailsList() {
           </select>
           <TableExportButtons title="Item Details" getExportData={getExportData} />
         </div>
+        {data?.resultMessage && (
+          <p className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
+            {data.resultCode}-{data.resultMessage}
+          </p>
+        )}
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">

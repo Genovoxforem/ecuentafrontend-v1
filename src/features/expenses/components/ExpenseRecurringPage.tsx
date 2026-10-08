@@ -88,8 +88,8 @@ export function ExpenseRecurringPage() {
   ]
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+    <div className="-m-6 flex-1 flex flex-col min-h-0 p-6 space-y-4">
+      <h2 className="shrink-0 flex items-center gap-2 text-lg font-bold text-text!">
         <RefreshCw size={20} className="text-brand" /> Recurring Expenses
       </h2>
 
@@ -101,8 +101,8 @@ export function ExpenseRecurringPage() {
         <>
           {data.canCreate && (
             <FormCard icon={<Plus size={15} />} title="Create Recurring Expense">
-              <form onSubmit={submit} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
-                <Field label="Template Expense Report" className="md:col-span-2">
+              <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+                <Field label="Template Expense Report" className="w-56 max-w-full">
                   <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={`${controlCls} w-full`}>
                     {data.templates.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -111,7 +111,7 @@ export function ExpenseRecurringPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Frequency">
+                <Field label="Frequency" className="w-36">
                   <select value={frequency ?? data.frequencies.find((f) => f.selected)?.value ?? ''} onChange={(e) => setFrequency(e.target.value)} className={`${controlCls} w-full`}>
                     {data.frequencies.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -120,7 +120,7 @@ export function ExpenseRecurringPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Start Date">
+                <Field label="Start Date" className="w-44">
                   <div className="flex gap-2">
                     <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className={`${controlCls} min-w-0 flex-1`} />
                     <button type="button" onClick={() => setDateStart(iso(new Date()))} className="h-9 shrink-0 rounded-md border border-input-border px-3 text-sm text-text hover:bg-surface-hover">
@@ -128,7 +128,7 @@ export function ExpenseRecurringPage() {
                     </button>
                   </div>
                 </Field>
-                <Field label="End Date">
+                <Field label="End Date" className="w-44">
                   <div className="flex gap-2">
                     <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className={`${controlCls} min-w-0 flex-1`} />
                     <button type="button" onClick={() => setDateEnd(iso(new Date()))} className="h-9 shrink-0 rounded-md border border-input-border px-3 text-sm text-text hover:bg-surface-hover">
@@ -136,22 +136,20 @@ export function ExpenseRecurringPage() {
                     </button>
                   </div>
                 </Field>
-                <Field label="Auto Create">
+                <Field label="Auto Create" className="w-28">
                   <select value={autoCreate} onChange={(e) => setAutoCreate(e.target.value)} className={`${controlCls} w-full`}>
                     <option value="0">No</option>
                     <option value="1">Yes</option>
                   </select>
                 </Field>
-                <div className="flex items-center gap-3 md:col-span-6">
-                  <button
-                    type="submit"
-                    disabled={create.isPending}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    <Save size={14} /> {create.isPending ? 'Creating…' : 'Create Recurring Expense'}
-                  </button>
-                  <FormProblem message={problem} />
-                </div>
+                <button
+                  type="submit"
+                  disabled={create.isPending}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <Save size={14} /> {create.isPending ? 'Creating…' : 'Create Recurring Expense'}
+                </button>
+                <FormProblem message={problem} />
               </form>
             </FormCard>
           )}

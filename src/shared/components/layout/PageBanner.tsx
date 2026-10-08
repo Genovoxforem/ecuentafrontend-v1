@@ -48,6 +48,15 @@ const BANNER_ACTIONS: Record<string, Array<{ label: string; path: string }>> = {
   ],
 }
 
+// The nav menu's own crumb for a route is sometimes too generic next to the
+// page's real name (the classic page's own title, which the page's merged
+// header used to show before it got hidden under the banner) — this wins
+// over that crumb for the routes listed here.
+const TITLE_OVERRIDES: Record<string, string> = {
+  invoiceList: 'Sales Invoices',
+  ledgerDashboard: 'Operations - View By Accounting Account (Ledger)',
+}
+
 function routeMatches(pattern: string, pathname: string) {
   const patternParts = pattern.split('/').filter(Boolean)
   const pathParts = pathname.split('/').filter(Boolean)
@@ -109,7 +118,7 @@ function titlesMatch(a: string, b: string) {
 
 // A banner title the route only generically describes — the page's own heading
 // says what it actually is, so that heading becomes the banner's title.
-const GENERIC_TITLES = new Set(['home', 'dashboard', 'index', 'overview', 'list', 'card', 'workspace', 'area', 'menu'])
+const GENERIC_TITLES = new Set(['home', 'dashboard', 'index', 'overview', 'list', 'card', 'workspace', 'area', 'menu', 'settings'])
 
 interface HoistedAction {
   html: string
@@ -145,13 +154,13 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
   const fallbackTitle = actionMatch
     ? `${/^(Create|New)$/i.test(actionMatch[2]) ? 'New' : 'Edit'} ${`${actionMatch[1]} ${actionMatch[3]}`.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').trim()}`
     : routeKey
-      ? routeKey.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').trim()
+      ? routeKey.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').replace(/^[a-z]/, (c) => c.toUpperCase()).trim()
       : pathname.split('/').filter(Boolean).at(-1)?.replace(/[-_]/g, ' ') ?? 'Workspace'
-  const title = crumb && !/^list$/i.test(crumb)
+  const title = (routeKey && TITLE_OVERRIDES[routeKey]) || (crumb && !/^list$/i.test(crumb)
     ? crumb
     : route
       ? routeTitle(route.key, route.kind)
-      : fallbackTitle
+      : fallbackTitle)
   const createPath = route?.kind === 'list' ? routeCreatePath(route.key) : undefined
   const actions = route?.kind !== 'list'
     ? []
@@ -308,7 +317,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
   if (theme !== 'blue-metal') return null
 
   return (
-    <div className="blue-theme-banner relative -mx-6 flex min-h-[72px] flex-col justify-center gap-1.5 overflow-hidden border-b border-border px-7 py-3 sm:min-h-[76px] sm:px-9 sm:py-3.5">
+    <div className="blue-theme-banner relative -mx-6 flex min-h-[50px] flex-col justify-center gap-2 overflow-hidden border-b border-border px-[22px] py-2 sm:min-h-[54px] sm:py-2.5">
       {/* Same generic photo on every banner (list and detail alike) — there's no
           sensible way to pick a different one per page type without it looking
           arbitrary, so one image stands for "this is the app's banner surface"
@@ -318,7 +327,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           banner strip itself carries the photo, so the merged header still
           reads as "photo band, then one solid panel", not a repeating image. */}
       <div
-        className="absolute inset-0 bg-cover bg-[position:right_center]"
+        className="absolute inset-[6px] bg-cover bg-[position:right_center]"
         style={{ backgroundImage: "url('/blue-metal-dashboard.jpg')" }}
       />
       {/* The banner is a very short, very wide crop of a normal-aspect photo, so
@@ -336,13 +345,12 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
         <Breadcrumb sections={sections} isModern />
       </div>
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3 text-white">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-300/35 bg-sky-500/10 text-sky-200">
-            <PageIcon size={20} />
+        <div className="flex min-w-0 items-center gap-2.5 text-white">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-300/35 bg-sky-500/10 text-sky-200">
+            <PageIcon size={16} />
           </span>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-white">{shownTitle}</h1>
-            <p className="text-xs text-slate-300">{subtitle}</p>
+            <h1 className="text-base font-semibold text-white">{shownTitle}</h1>
           </div>
         </div>
       {hoisted.length > 0 && (

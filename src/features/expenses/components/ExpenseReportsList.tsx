@@ -172,7 +172,7 @@ export function ExpenseReportsList() {
               </tbody>
             </table>
           </ScrollCard>
-          <div className="-mx-6 -mb-4">
+          <div className="-mx-[22px] -mb-4">
             <ListPagination page={page + 1} perPage={perPage} total={data.filtered} onPageChange={(p) => setPage(p - 1)} edgeToEdge />
           </div>
         </>

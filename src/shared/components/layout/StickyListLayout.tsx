@@ -13,17 +13,20 @@ export function StickyListLayout({ header, children }: { header: ReactNode; chil
   const compact = theme === 'blue-metal'
   return (
     <div className="blue-density-list -m-6 flex-1 flex flex-col min-h-0">
-      <div className={`blue-density-header sticky -top-6 z-10 border-b border-border bg-white px-6 dark:bg-gray-950 ${compact ? 'space-y-2 py-2' : 'space-y-3 py-3'}`}>{header}</div>
-      <div className={`blue-density-list-content flex-1 flex flex-col min-h-0 px-6 ${compact ? 'space-y-3 py-3' : 'space-y-4 py-4'}`}>{children}</div>
+      <div className={`blue-density-header sticky -top-6 z-10 border-b border-border bg-white px-[22px] dark:bg-gray-950 ${compact ? 'space-y-2 py-2' : 'space-y-3 py-3'}`}>{header}</div>
+      <div className={`blue-density-list-content flex-1 flex flex-col min-h-0 px-[22px] ${compact ? 'space-y-3 py-3' : 'space-y-4 py-4'}`}>{children}</div>
     </div>
   )
 }
 
-// The card that holds the rows. It is as tall as its rows up to the space that is left, then scrolls
-// inside itself, so a short list is not stretched and a long one never pushes the page down.
+// The card that holds the rows. flex-1 fills the space left on the page (so a
+// short list's pagination/footer still lands at the same spot a long list's
+// does, instead of sitting right under a few rows with a dead gap below it);
+// a long list scrolls inside this card's own box rather than growing past it
+// and pushing the page down.
 export function ScrollCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <Card className={`!h-auto !p-0 overflow-hidden flex-initial min-h-0 ${className}`}>
+    <Card className={`!h-auto !p-0 overflow-hidden flex-1 min-h-0 ${className}`}>
       <div className="flex-1 min-h-0 overflow-auto">{children}</div>
     </Card>
   )

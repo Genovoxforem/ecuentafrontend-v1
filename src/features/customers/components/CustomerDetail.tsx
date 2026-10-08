@@ -122,7 +122,7 @@ function SectionIcon({ icon: Icon, color }: { icon: React.ComponentType<{ size?:
 
 function SectionHeader({ icon, color, children }: { icon: React.ComponentType<{ size?: number; className?: string }>; color: IconColor; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 mb-3">
+    <div className="flex items-center gap-2 mb-2">
       <SectionIcon icon={icon} color={color} />
       <h3 className="font-semibold text-text!">{children}</h3>
     </div>
@@ -145,7 +145,7 @@ function TabTitle({ children, className = '' }: { children: React.ReactNode; cla
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border last:border-0">
+    <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-border last:border-0">
       <span className="text-xs text-text-faint shrink-0">{label}</span>
       <span className="text-sm text-text! text-right">{value || <span className="text-text-faint">—</span>}</span>
     </div>
@@ -159,7 +159,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 function EditableRow({ label, value, editing, onChange }: { label: string; value: string; editing: boolean; onChange: (v: string) => void }) {
   if (!editing) return <InfoRow label={label} value={value} />
   return (
-    <div className="flex items-center justify-between gap-4 py-1.5 border-b border-border last:border-0">
+    <div className="flex items-center justify-between gap-4 py-1 border-b border-border last:border-0">
       <span className="text-xs text-text-faint shrink-0">{label}</span>
       <input
         type="text"
@@ -355,13 +355,19 @@ export function CustomerDetail() {
             Customer Details
           </h1>
           <Card className={`!h-auto ${isBlueMetal ? '!border-white/20 !bg-transparent !shadow-none' : ''}`}>
-            <div className={`flex flex-wrap items-start justify-between gap-4 p-4 border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
-              <div className="flex items-start gap-4 min-w-[240px] flex-1">
+            {/* pt-[0.6rem] pb-[0.45rem] match the padding the shared blue-metal
+                sticky-header CSS gives every other detail page (index.css
+                ~L83); this page's Card-wrapped header falls outside that rule
+                (its own padding gets zeroed, see ~L752), so it's matched here
+                explicitly instead of drifting to its own values. px-[22px]
+                matches the banner's own left/right padding. */}
+            <div className={`flex flex-wrap items-center justify-between gap-2.5 pt-[0.6rem] px-[22px] pb-[0.45rem] border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
+              <div className="flex items-center gap-2.5 min-w-[240px] flex-1">
                 {/* logoUrl is a generic placeholder company icon on this
                     backend (not a real uploaded photo), so always fall back
                     to the initials badge rather than pass it through. */}
-                <Avatar name={data.name} size={64} rounded={isBlueMetal ? 'full' : 'lg'} color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'} />
-                <div className="space-y-1.5 pt-0.5">
+                <Avatar name={data.name} size={32} rounded={isBlueMetal ? 'full' : 'lg'} color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'} />
+                <div className={isBlueMetal ? 'flex flex-wrap items-center gap-x-4 gap-y-1' : 'space-y-1 pt-0.5'}>
                   <div className="flex flex-wrap items-center gap-2">
                     {isEditing ? (
                       <div className="flex items-center gap-1.5">
@@ -407,16 +413,20 @@ export function CustomerDetail() {
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-text-faint">
-                    #{data.id} {data.codeCompta && `· ${data.codeCompta}`}
-                  </p>
                   {isBlueMetal ? (
-                    <div className="flex flex-wrap items-center gap-4 pt-1">
+                    <>
+                      <p className="text-xs text-text-faint shrink-0">
+                        #{data.id} {data.codeCompta && `· ${data.codeCompta}`}
+                      </p>
                       {data.codeClient && <InfoChip icon={FileText} label="Customer code" value={data.codeClient} color="blue" />}
                       {data.codeFournisseur && <InfoChip icon={Landmark} label="Supplier code" value={data.codeFournisseur} color="violet" />}
                       {data.countryLabel && <InfoChip icon={MapPin} value={data.countryLabel} color="amber" />}
-                    </div>
+                    </>
                   ) : (
+                    <>
+                    <p className="text-xs text-text-faint">
+                      #{data.id} {data.codeCompta && `· ${data.codeCompta}`}
+                    </p>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint">
                       {data.codeClient && (
                         <span className="flex items-center gap-1">
@@ -434,6 +444,7 @@ export function CustomerDetail() {
                         </span>
                       )}
                     </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -505,7 +516,7 @@ export function CustomerDetail() {
               </div>
             )}
 
-            <DetailMetricRow className="px-4 py-3 border-b border-border">
+            <DetailMetricRow className="px-[22px] py-3 border-b border-border">
               <DetailMetricTile label="Quotations" value={<>{formatMoney(data.kpiQuotation)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiQuotationCount}</span></>} icon={FileText} color="violet" />
               <DetailMetricTile label="Orders" value={<>{formatMoney(data.kpiOrder)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOrderCount}</span></>} icon={ShoppingCart} color="green" />
               <DetailMetricTile label="Invoices" value={<>{formatMoney(data.kpiInvoice)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiInvoiceCount}</span></>} icon={Receipt} color="blue" />
@@ -513,19 +524,19 @@ export function CustomerDetail() {
               <DetailMetricTile label="Advance" value={<>{formatMoney(data.advance)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiAdvanceCount}</span></>} icon={Wallet} color="rose" />
             </DetailMetricRow>
 
-            <div className="border-t border-border px-3 py-2.5">
+            <div className="border-t border-border px-[22px] py-1.5">
               <div className="flex items-center gap-1.5">
                 {canScrollTabsLeft && (
                   <button
                     type="button"
                     onClick={() => scrollTabs(-1)}
                     aria-label="Scroll tabs left"
-                    className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
+                    className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
                   >
-                    <ChevronLeft size={14} />
+                    <ChevronLeft size={12} />
                   </button>
                 )}
-                <div ref={tabsScrollRef} className="flex items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar bg-surface rounded-full p-1 flex-1 min-w-0">
+                <div ref={tabsScrollRef} className="flex items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar bg-surface rounded-full p-0.5 flex-1 min-w-0">
                   {TABS.filter((t) => (t.key !== 'customer' || customerTabLabel(data)) && (t.key !== 'vendor' || data.isVendor)).map(({ key, label, icon: Icon }) => {
                     const displayLabel = key === 'customer' ? customerTabLabel(data) : label
                     // Real count from the same profile fetch (task_count +
@@ -537,12 +548,12 @@ export function CustomerDetail() {
                         key={key}
                         type="button"
                         onClick={() => setTab(key)}
-                        className={`flex items-center gap-1.5 shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                        className={`flex items-center gap-1.5 shrink-0 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                           tab === key ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:text-text hover:bg-surface-hover'
                         }`}
                       >
-                        <Icon size={14} className="shrink-0" /> {displayLabel}
-                        {badgeCount > 0 && <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badgeCount}</span>}
+                        <Icon size={12} className="shrink-0" /> {displayLabel}
+                        {badgeCount > 0 && <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badgeCount}</span>}
                       </button>
                     )
                   })}
@@ -552,9 +563,9 @@ export function CustomerDetail() {
                     type="button"
                     onClick={() => scrollTabs(1)}
                     aria-label="Scroll tabs right"
-                    className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
+                    className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
                   >
-                    <ChevronRight size={14} />
+                    <ChevronRight size={12} />
                   </button>
                 )}
               </div>
@@ -563,7 +574,7 @@ export function CustomerDetail() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-[22px] py-3 space-y-4 no-scrollbar">
         {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} onEdit={startEditing} />}
         {tab === 'notes' && <NotesTab data={data} socid={id} />}
         {tab === 'transactions' && <TransactionsTab socid={id} />}
@@ -627,8 +638,8 @@ function ThirdPartyTab({
   return (
     <div className="space-y-4">
       <Card className="!h-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 p-4">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 py-2 px-4">
+          <div className="flex items-center gap-2.5">
             <SectionIcon icon={Info} color="blue" />
             <div>
               <h3 className="font-semibold text-text!">Third party</h3>
@@ -653,7 +664,7 @@ function ThirdPartyTab({
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       <Card className="!h-auto">
         <SectionHeader icon={Info} color="blue">
           Identification
@@ -727,7 +738,7 @@ function ThirdPartyTab({
         <SectionHeader icon={CalendarClock} color="green">
           Status
         </SectionHeader>
-        <div className="flex items-baseline justify-between gap-4 py-2 border-b border-border">
+        <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-border">
           <span className="text-xs text-text-faint shrink-0">Status</span>
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
             {data.status === 1 ? 'Active' : 'Closed'}

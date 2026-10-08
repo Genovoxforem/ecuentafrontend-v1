@@ -115,31 +115,33 @@ export function ZraStockList() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
-        <ListHeader icon={<Warehouse size={20} className="text-brand" />} title="ZRA Stock List" count={items.length} />
         {data?.resultMessage && (
           <p className={`text-sm ${data.resultCode === '000' ? 'text-text-faint' : 'text-warning-fg'}`}>
             {data.resultCode}-{data.resultMessage}
           </p>
         )}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm text-text-muted">
-            <select
-              value={perPage}
-              onChange={(e) => {
-                setPerPage(Number(e.target.value))
-                setPage(1)
-              }}
-              className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            entries per page
-          </label>
-          <TableExportButtons title="ZRA Stock List" getExportData={getExportData} />
+          <div className="flex flex-wrap items-center gap-3">
+            <ListHeader icon={<Warehouse size={16} className="text-brand" />} count={items.length} />
+            <label className="flex items-center gap-2 text-sm text-text-muted">
+              <select
+                value={perPage}
+                onChange={(e) => {
+                  setPerPage(Number(e.target.value))
+                  setPage(1)
+                }}
+                className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              entries per page
+            </label>
+            <TableExportButtons title="ZRA Stock List" getExportData={getExportData} />
+          </div>
         </div>
       </div>
 

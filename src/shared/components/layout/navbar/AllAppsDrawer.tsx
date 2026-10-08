@@ -163,12 +163,12 @@ export function AllAppsDrawer({
   // bar instead of the viewport — the drawer came out see-through and cut off in the modern style.
   return createPortal(
     <>
-      <div data-navbar-layer className="fixed inset-0 top-14 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div data-navbar-layer className="fixed inset-0 top-[67px] z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div
         data-navbar-layer
         role="dialog"
         aria-label="All apps"
-        className={`fixed top-14 right-0 bottom-0 z-40 w-full bg-surface border-l border-border shadow-2xl flex flex-col animate-[allAppsSlideIn_0.22s_ease-out] transition-[max-width] duration-200 ${
+        className={`fixed top-[67px] right-0 bottom-0 z-40 w-full bg-surface border-l border-border shadow-2xl flex flex-col animate-[allAppsSlideIn_0.22s_ease-out] transition-[max-width] duration-200 ${
           wide ? 'max-w-full' : 'max-w-md sm:max-w-lg lg:max-w-2xl'
         }`}
       >

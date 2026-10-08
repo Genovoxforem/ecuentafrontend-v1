@@ -7,7 +7,7 @@ export type { NotificationItem }
 
 // The legacy navbar bell's own sub-tabs, with the `type` value each one sends.
 export const NOTIFICATION_FILTERS = [
-  { type: '', label: 'View All' },
+  { type: '', label: 'All' },
   { type: '1', label: 'Tasks' },
   { type: '2', label: 'Contracts' },
   { type: '3', label: 'Orders' },
