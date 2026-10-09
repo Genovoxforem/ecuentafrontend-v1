@@ -359,9 +359,9 @@ export function CustomerDetail() {
                 sticky-header CSS gives every other detail page (index.css
                 ~L83); this page's Card-wrapped header falls outside that rule
                 (its own padding gets zeroed, see ~L752), so it's matched here
-                explicitly instead of drifting to its own values. px-[22px]
+                explicitly instead of drifting to its own values. px-[16px]
                 matches the banner's own left/right padding. */}
-            <div className={`flex flex-wrap items-center justify-between gap-2.5 pt-[0.6rem] px-[22px] pb-[0.45rem] border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
+            <div className={`flex flex-wrap items-center justify-between gap-2.5 pt-[0.6rem] px-[16px] pb-[0.45rem] border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
               <div className="flex items-center gap-2.5 min-w-[240px] flex-1">
                 {/* logoUrl is a generic placeholder company icon on this
                     backend (not a real uploaded photo), so always fall back
@@ -516,7 +516,7 @@ export function CustomerDetail() {
               </div>
             )}
 
-            <DetailMetricRow className="px-[22px] py-3 border-b border-border">
+            <DetailMetricRow className="px-[16px] py-3 border-b border-border">
               <DetailMetricTile label="Quotations" value={<>{formatMoney(data.kpiQuotation)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiQuotationCount}</span></>} icon={FileText} color="violet" />
               <DetailMetricTile label="Orders" value={<>{formatMoney(data.kpiOrder)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOrderCount}</span></>} icon={ShoppingCart} color="green" />
               <DetailMetricTile label="Invoices" value={<>{formatMoney(data.kpiInvoice)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiInvoiceCount}</span></>} icon={Receipt} color="blue" />
@@ -524,7 +524,7 @@ export function CustomerDetail() {
               <DetailMetricTile label="Advance" value={<>{formatMoney(data.advance)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiAdvanceCount}</span></>} icon={Wallet} color="rose" />
             </DetailMetricRow>
 
-            <div className="border-t border-border px-[22px] py-1.5">
+            <div className="border-t border-border px-[16px] py-1.5">
               <div className="flex items-center gap-1.5">
                 {canScrollTabsLeft && (
                   <button
@@ -574,7 +574,7 @@ export function CustomerDetail() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-[22px] py-3 space-y-4 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-[16px] py-3 space-y-4 no-scrollbar">
         {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} onEdit={startEditing} />}
         {tab === 'notes' && <NotesTab data={data} socid={id} />}
         {tab === 'transactions' && <TransactionsTab socid={id} />}

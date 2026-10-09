@@ -54,14 +54,6 @@ const TONE_CLS: Record<StatTone, string> = {
   danger: 'bg-danger-bg text-danger-fg',
 }
 
-const TONE_COLOR: Record<StatTone, string> = {
-  brand: 'var(--color-brand)',
-  success: 'var(--color-success)',
-  warning: 'var(--color-warning)',
-  info: 'var(--color-info)',
-  danger: 'var(--color-danger)',
-}
-
 // The classic donut's colours: theme colour, light blue, grey, amber.
 const DONUT_COLORS: Record<string, string> = {
   completed: 'var(--color-chart-1)',
@@ -173,24 +165,34 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   )
 }
 
-function KpiTile({ kpi, label, icon: Icon, tone }: { kpi: DashKpi | undefined; label: string; icon: LucideIcon; tone: StatTone }) {
+function KpiTile({ kpi, label, icon: Icon, accent }: { kpi: DashKpi | undefined; label: string; icon: LucideIcon; accent: string }) {
   const value = kpi?.value ?? null
   const display = value === null ? '—' : kpi?.currency ? money(value, kpi.currency) : formatNumber(value)
   return (
-    <div className="min-w-0 rounded-xl bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10 px-4 py-3.5 backdrop-blur-sm">
+    <div
+      data-kpi-tile
+      className="min-w-0 rounded-xl border px-5 py-4 backdrop-blur-sm"
+      style={{
+        borderColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
+        backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} 22%, transparent) 0%, color-mix(in srgb, ${accent} 6%, transparent) 100%)`,
+      }}
+    >
       <div className="flex items-center gap-3">
-        <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
-          <Icon size={17} />
+        <span
+          className="shrink-0 w-[3.75rem] h-[3.75rem] rounded-xl grid place-items-center text-white shadow-md"
+          style={{ backgroundImage: `linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 70%, #000))` }}
+        >
+          <Icon size={28} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-text-muted text-xs font-medium leading-tight truncate">{kpi?.label || label}</p>
-          <p className="text-lg font-bold text-hero-heading truncate leading-tight mt-0.5">{display}</p>
+          <p className="text-text-muted font-medium leading-tight truncate" style={{ fontSize: 13 }}>{kpi?.label || label}</p>
+          <p className="font-bold text-hero-heading truncate leading-tight mt-1" style={{ fontSize: 22 }}>{display}</p>
+          <div className="mt-1 flex items-center gap-1.5 min-w-0" style={{ fontSize: 12.5 }}>
+            {kpi?.trend && <TrendBadge trend={kpi.trend} />}
+            <span className="text-text-faint truncate">{kpi ? kpi.meta : 'Not available'}</span>
+          </div>
         </div>
-        {kpi && <Sparkline values={kpi.spark.length > 0 ? kpi.spark : decorativeSpark(kpi.label || label)} color={TONE_COLOR[tone]} />}
-      </div>
-      <div className="mt-2.5 pt-2 border-t border-black/5 dark:border-white/10 text-xs flex items-center gap-1.5 min-w-0">
-        {kpi?.trend && <TrendBadge trend={kpi.trend} />}
-        <span className="text-text-faint truncate">{kpi ? kpi.meta : 'Not available'}</span>
+        {kpi && <Sparkline values={kpi.spark.length > 0 ? kpi.spark : decorativeSpark(kpi.label || label)} color={accent} />}
       </div>
     </div>
   )
@@ -272,10 +274,10 @@ function DonutCard({ side, tab, onTab }: { side: DashSide; tab: 'sales' | 'purch
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-5">
-          <div className="w-36 h-36 relative shrink-0 mx-auto sm:mx-0">
+          <div className="w-[8.5rem] h-[8.5rem] relative shrink-0 mx-auto sm:mx-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={hasData ? slices : [{ label: 'none', value: 1 }]} dataKey="value" nameKey="label" innerRadius={50} outerRadius={68} paddingAngle={hasData ? 2 : 0} stroke="none" isAnimationActive>
+                <Pie data={hasData ? slices : [{ label: 'none', value: 1 }]} dataKey="value" nameKey="label" innerRadius="72%" outerRadius="96%" paddingAngle={hasData ? 2 : 0} stroke="none" isAnimationActive>
                   {(hasData ? slices : [{ label: 'none', value: 1 }]).map((s) => (
                     <Cell key={s.label} fill={hasData ? (DONUT_COLORS[s.label.toLowerCase()] ?? 'var(--color-chart-2)') : 'var(--color-surface-hover)'} />
                   ))}
@@ -611,8 +613,8 @@ const QUICK_ACTION_ICONS: Array<[RegExp, LucideIcon, StatTone]> = [
 
 function QuickActionsCard({ actions }: { actions: HomeDashboard['quickActions'] }) {
   return (
-    <GlassCard header={<CardHeader icon={Zap} title="Quick Actions" tone="brand" />}>
-      <div className="grid grid-cols-3 gap-2.5">
+    <GlassCard className="flex-1" header={<CardHeader icon={Zap} title="Quick Actions" tone="brand" />}>
+      <div className="grid h-full auto-rows-fr grid-cols-3 gap-2.5">
         {actions.map((action) => {
           const [, Icon, tone] = QUICK_ACTION_ICONS.find(([re]) => re.test(action.label)) ?? [null, Zap, 'brand' as StatTone]
           const to = resolveLegacyRoute(action.href)
@@ -648,10 +650,10 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
   const currency = dashboard.kpis.todaySales?.currency || dashboard.kpis.unpaid?.currency || 'ZMW'
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-full flex-1 flex-col gap-4">
       {/* ── Greeting + today's KPI cards ─────────────────────────────────── */}
       <div
-        className="relative overflow-hidden rounded-2xl p-5 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)] border border-border shadow-sm"
+        className="relative shrink-0 overflow-hidden rounded-2xl p-5 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)] border border-border shadow-sm"
         style={
           theme === 'blue-metal'
             ? {
@@ -665,7 +667,7 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl">{getGreetingEmoji()}</span>
+              <span className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/30 text-xl">{getGreetingEmoji()}</span>
               <h2 className="text-xl font-bold text-hero-heading">
                 {getGreeting()}, {username}!
               </h2>
@@ -687,29 +689,29 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
           </div>
         </div>
 
-        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <KpiTile kpi={dashboard.kpis.todaySales} label="Today's Sales" icon={ShoppingCart} tone="brand" />
-          <KpiTile kpi={dashboard.kpis.todayPurchase} label="Today's Purchase" icon={ShoppingBag} tone="info" />
-          <KpiTile kpi={dashboard.kpis.unpaid} label="Unpaid Invoices" icon={FileText} tone="warning" />
-          <KpiTile kpi={dashboard.kpis.zraSigned} label="ZRA Signed Invoices" icon={ShieldCheck} tone="success" />
+        <div data-no-stat-shrink className="relative z-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <KpiTile kpi={dashboard.kpis.todaySales} label="Today's Sales" icon={ShoppingCart} accent="#1d8bff" />
+          <KpiTile kpi={dashboard.kpis.todayPurchase} label="Today's Purchase" icon={ShoppingBag} accent="#10c9a0" />
+          <KpiTile kpi={dashboard.kpis.unpaid} label="Unpaid Invoices" icon={FileText} accent="#f59e0b" />
+          <KpiTile kpi={dashboard.kpis.zraSigned} label="ZRA Signed Invoices" icon={ShieldCheck} accent="#8b5cf6" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch flex-1">
         {/* ── Sales / Purchase tab: donut, analytics, last 7, by country ── */}
-        <div className="xl:col-span-9 space-y-4 min-w-0">
+        <div className="xl:col-span-9 flex flex-col gap-4 min-w-0">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <DonutCard side={side} tab={tab} onTab={setTab} />
             <AnalyticsCard key={tab} side={side} tab={tab} />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="grid flex-1 grid-cols-1 lg:grid-cols-12 gap-4">
             <Last7Card rows={side.last7} tab={tab} currency={currency} />
             <CountryCard side={side} tab={tab} currency={currency} />
           </div>
         </div>
 
         {/* ── Bank balances, attention items, quick actions ─────────────── */}
-        <div className="xl:col-span-3 space-y-4 min-w-0">
+        <div className="xl:col-span-3 flex flex-col gap-4 min-w-0">
           <BankCard banks={dashboard.banks} />
           <AttentionCard items={dashboard.attention} />
           <QuickActionsCard actions={dashboard.quickActions} />

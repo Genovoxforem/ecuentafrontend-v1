@@ -191,7 +191,13 @@ export function ZraStockList() {
         </table>
       </div>
 
-      <ListPagination page={page} perPage={perPage} total={items.length} onPageChange={setPage} />
+      <div className="-mx-6 -mb-6">
+
+
+        <ListPagination page={page} perPage={perPage} total={items.length} onPageChange={setPage} />
+
+
+      </div>
 
       {selected && <DetailsModal item={selected} onClose={() => setSelected(null)} />}
     </div>

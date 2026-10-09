@@ -79,9 +79,7 @@ export function ExpenseTable<T>({
           </table>
         </div>
       </Card>
-      <div className="-mx-[22px]">
-        <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} edgeToEdge />
-      </div>
+      <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} />
     </div>
   )
 }

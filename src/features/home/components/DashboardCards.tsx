@@ -25,14 +25,14 @@ export function GlassCard({
   action?: ReactNode
 }) {
   return (
-    <div className={`rounded-2xl border border-border bg-surface shadow-sm transition-shadow hover:shadow-md hover:shadow-black/5 ${className}`}>
+    <div className={`rounded-2xl border border-border bg-surface shadow-sm transition-shadow hover:shadow-md hover:shadow-black/5 flex flex-col ${className}`}>
       {(header || action) && (
         <div className="flex items-center justify-between gap-3 px-4 pt-3.5 pb-2.5">
           {header}
           {action}
         </div>
       )}
-      <div className={header || action ? 'px-4 pb-4' : 'p-4'}>{children}</div>
+      <div className={`flex-1 min-h-0 ${header || action ? 'px-4 pb-4' : 'p-4'}`}>{children}</div>
     </div>
   )
 }

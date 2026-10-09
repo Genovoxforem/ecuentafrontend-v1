@@ -317,7 +317,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
   if (theme !== 'blue-metal') return null
 
   return (
-    <div className="blue-theme-banner relative -mx-6 flex min-h-[50px] flex-col justify-center gap-2 overflow-hidden border-b border-border px-[22px] py-2 sm:min-h-[54px] sm:py-2.5">
+    <div className="blue-theme-banner relative -mx-6 flex min-h-[50px] flex-col justify-center gap-2 overflow-hidden border-b border-border px-[16px] py-2 sm:min-h-[54px] sm:py-2.5">
       {/* Same generic photo on every banner (list and detail alike) — there's no
           sensible way to pick a different one per page type without it looking
           arbitrary, so one image stands for "this is the app's banner surface"

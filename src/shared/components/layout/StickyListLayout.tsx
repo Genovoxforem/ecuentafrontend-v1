@@ -13,8 +13,8 @@ export function StickyListLayout({ header, children }: { header: ReactNode; chil
   const compact = theme === 'blue-metal'
   return (
     <div className="blue-density-list -m-6 flex-1 flex flex-col min-h-0">
-      <div className={`blue-density-header sticky -top-6 z-10 border-b border-border bg-white px-[22px] dark:bg-gray-950 ${compact ? 'space-y-2 py-2' : 'space-y-3 py-3'}`}>{header}</div>
-      <div className={`blue-density-list-content flex-1 flex flex-col min-h-0 px-[22px] ${compact ? 'space-y-3 py-3' : 'space-y-4 py-4'}`}>{children}</div>
+      <div className={`blue-density-header sticky -top-6 z-10 border-b border-border bg-white px-[16px] dark:bg-gray-950 ${compact ? 'space-y-2 py-2' : 'space-y-3 py-3'}`}>{header}</div>
+      <div className={`blue-density-list-content flex-1 flex flex-col min-h-0 px-[16px] ${compact ? 'space-y-3 py-3' : 'space-y-4 py-4'}`}>{children}</div>
     </div>
   )
 }

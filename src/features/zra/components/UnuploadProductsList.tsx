@@ -182,7 +182,13 @@ export function UnuploadProductsList() {
         </table>
       </div>
 
-      <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+      <div className="-mx-6 -mb-6">
+
+
+        <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+
+
+      </div>
     </div>
   )
 }

@@ -37,7 +37,8 @@ export function AsycudaPurchaseInvoiceCreate() {
   const selectedVendor = vendors?.find((v) => v.id === Number(vendorId))
 
   return (
-    <div className="space-y-4">
+    <div className="-m-6 flex flex-1 flex-col">
+     <div className="flex-1 space-y-4 px-[16px] py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-text!">
           <Lock size={16} className="text-text-faint" />
@@ -190,7 +191,9 @@ export function AsycudaPurchaseInvoiceCreate() {
         </Card>
       </div>
 
-      <div className="-mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-[22px] py-3">
+     </div>
+
+      <div className="sticky -bottom-6 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-[16px] py-3">
         <div className="text-sm text-text-muted">
           Total Amount: <span className="text-text-faint">0.00 ZMW</span>
           <br />

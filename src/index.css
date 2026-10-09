@@ -4,26 +4,29 @@
   @custom-variant dark (&:where(.dark, .dark *));
 
   @theme {
-    /* Tailwind's spacing scale (p-*, m-*, gap-*, w-*, h-*, etc. for the
-       numbered scale) is every multiple of this one unit (default 0.25rem).
-       Shrinking only this — not --text-* below, not html's root font-size —
-       tightens layout (padding, gaps, component sizing) by 10% without
-       touching how large or legible any text reads, keeping the two
-       concerns independently tunable. */
-    --spacing: 0.225rem;
-    --text-xs: 0.7875rem;
-    --text-sm: 0.91875rem;
-    --text-base: 1.05rem;
-    --text-lg: 1.18125rem;
-    --text-xl: 1.3125rem;
-    --text-2xl: 1.575rem;
-    --text-3xl: 1.96875rem;
-    --text-4xl: 2.3625rem;
-    --text-5xl: 3.15rem;
-    --text-6xl: 3.9375rem;
-    --text-7xl: 4.725rem;
-    --text-8xl: 6.3rem;
-    --text-9xl: 8.4rem;
+    /* Emulates a browser zoom-out of ~28% total (0.8 x 0.9, applied in two
+       passes): spacing (p-*, m-*, gap-*, w-*, h-*, etc.) and every
+       --text-* size below are both scaled by the same factor, so text and
+       layout shrink together uniformly like real browser zoom, without
+       using CSS `zoom` itself — zoom breaks every `h-screen`/100vh shell
+       in this app (AppShell, PosLayout, HotelSuiteLayout) because it
+       rescales rendering but not what 100vh resolves to, so those shells
+       render at full window height then get visually shrunk, leaving a
+       blank gap at the bottom of every page instead of filling it. */
+    --spacing: 0.18rem;
+    --text-xs: 0.567rem;
+    --text-sm: 0.6615rem;
+    --text-base: 0.756rem;
+    --text-lg: 0.8505rem;
+    --text-xl: 0.945rem;
+    --text-2xl: 1.134rem;
+    --text-3xl: 1.4175rem;
+    --text-4xl: 1.701rem;
+    --text-5xl: 2.268rem;
+    --text-6xl: 2.835rem;
+    --text-7xl: 3.402rem;
+    --text-8xl: 4.536rem;
+    --text-9xl: 6.048rem;
   }
 
 :root {
@@ -128,7 +131,7 @@ html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div
   content: var(--detail-title);
   display: block;
   margin-bottom: 0.75rem;
-  font-size: 1.3125rem;
+  font-size: 0.945rem;
   font-weight: 700;
   line-height: 1.75rem;
   color: #fff;
@@ -259,13 +262,13 @@ html[data-theme='blue-metal'] #route-page-content .invoice-summary-card {
 
 html[data-theme='blue-metal'] #route-page-content .invoice-summary-label,
 html[data-theme='blue-metal'] #route-page-content .invoice-summary-caption {
-  font-size: 0.65625rem;
+  font-size: 0.4725rem;
   line-height: 1rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content .invoice-summary-value {
   margin-top: 0;
-  font-size: 1.05rem;
+  font-size: 0.756rem;
   line-height: 1.25rem;
 }
 
@@ -282,7 +285,7 @@ html[data-theme='blue-metal'] #route-page-content .invoice-summary-icon > svg {
 
 html[data-theme='blue-metal'] table {
   width: 100%;
-  font-size: 0.7875rem;
+  font-size: 0.567rem;
   line-height: 1.25;
 }
 
@@ -299,7 +302,7 @@ html[data-theme='blue-metal'] .blue-density-toolbar {
 html[data-theme='blue-metal'] .blue-density-toolbar > select {
   height: 22px;
   padding: 2px 4px;
-  font-size: 10.5px;
+  font-size: 7.56px;
 }
 
 html[data-theme='blue-metal'] .blue-density-search {
@@ -311,7 +314,7 @@ html[data-theme='blue-metal'] .blue-density-search > input {
   padding-top: 2px;
   padding-bottom: 2px;
   padding-right: 6px;
-  font-size: 10.5px;
+  font-size: 7.56px;
 }
 
 html[data-theme='blue-metal'] .blue-density-search > svg {
@@ -332,7 +335,7 @@ html[data-theme='blue-metal'] .blue-density-export > button {
   min-height: 22px;
   gap: 4px;
   padding: 2px 5px;
-  font-size: 10.5px;
+  font-size: 7.56px;
 }
 
 html[data-theme='blue-metal'] .blue-density-export > button > svg {
@@ -344,7 +347,7 @@ html[data-theme='blue-metal'] .blue-density-date > button {
   min-height: 22px;
   gap: 4px;
   padding: 2px 6px;
-  font-size: 10.5px;
+  font-size: 7.56px;
 }
 
 html[data-theme='blue-metal'] .blue-density-date > button > svg {
@@ -391,7 +394,7 @@ html[data-theme='blue-metal'] #route-page-content {
 }
 
 html[data-theme='blue-metal'] #route-page-content table {
-  font-size: 0.853125rem;
+  font-size: 0.61425rem;
   line-height: 1.3;
 }
 
@@ -405,6 +408,24 @@ html[data-theme='blue-metal'] #route-page-content table {
 
 html[data-theme='blue-metal'] #route-page-content table td {
   padding: 0.45rem 0.6rem;
+  font-size: 0.61425rem;
+}
+
+/* Pages whose root is a plain stacked block (space-y-*) used to stop at their content, leaving the
+   rest of the screen empty. Let the root fill the page and its last panel absorb the spare height. */
+html[data-theme='blue-metal'] #route-page-content > [class*='space-y-']:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+html[data-theme='blue-metal'] #route-page-content > [class*='space-y-']:first-child > :last-child:is([class*='rounded'], .app-card) {
+  flex: 1 1 auto;
+}
+
+/* One minimum row height for every table; rows with wrapped/multi-line content still grow. */
+html[data-theme='blue-metal'] #route-page-content table tbody > tr {
+  height: 2.4rem;
 }
 
 /* Taller than data cells on purpose — a cramped sortable header row is both
@@ -414,6 +435,7 @@ html[data-theme='blue-metal'] #route-page-content table td {
    that used to peek out above the header as the table scrolled. */
 html[data-theme='blue-metal'] #route-page-content table th {
   padding: 0.65rem 0.6rem;
+  font-size: 0.567rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content table thead {
@@ -456,7 +478,7 @@ html[data-theme='blue-metal'] #route-page-content a.blue-theme-primary {
 html[data-theme='blue-metal'] #route-page-content .blue-density-toolbar > select,
 html[data-theme='blue-metal'] #route-page-content .blue-density-search > input {
   height: 26px;
-  font-size: 0.7875rem;
+  font-size: 0.567rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-density-export > button,
@@ -464,7 +486,7 @@ html[data-theme='blue-metal'] #route-page-content .blue-density-date > button {
   min-height: 26px;
   padding-top: 3px;
   padding-bottom: 3px;
-  font-size: 0.7875rem;
+  font-size: 0.567rem;
 }
 
 html[data-theme='blue-metal'] .blue-density-header {
@@ -488,8 +510,20 @@ html[data-theme='blue-metal'] .blue-density-pagination {
   gap: 0.5rem;
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
-  font-size: 0.853125rem;
+  font-size: 0.61425rem;
   line-height: 1.25rem;
+}
+
+/* A footer bar placed inside StickyListLayout/StickyFormShell's content wrapper would otherwise sit
+   inset by that wrapper's own horizontal gutter; bleed it back out by exactly that amount so every
+   list footer spans the same full width, with its text at the same x, however the page nests it. */
+:is(.blue-density-list-content, .blue-density-form-content) > .blue-density-pagination {
+  margin-left: calc(var(--page-gutter, 16px) * -1);
+  margin-right: calc(var(--page-gutter, 16px) * -1);
+}
+
+html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-list-content, .blue-density-form-content) > .blue-density-pagination {
+  margin-bottom: calc(var(--page-top-gap) * -1);
 }
 
 html[data-theme='blue-metal'] .blue-density-pagination > div {
@@ -502,7 +536,7 @@ html[data-theme='blue-metal'] .blue-density-pagination button {
 
 html[data-theme='blue-metal'] .blue-theme-shell label:not(.sr-only) {
   color: var(--color-text-muted);
-  font-size: 0.853125rem;
+  font-size: 0.61425rem;
   font-weight: 600;
   line-height: 1.35;
 }
@@ -516,7 +550,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea {
   border-radius: 0.375rem;
   background-color: var(--color-input-bg);
   color: var(--color-text);
-  font-size: 0.91875rem;
+  font-size: 0.6615rem;
   line-height: 1.35;
 }
 
@@ -660,7 +694,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
 .legacy-html .badge {
   display: inline-block;
   padding: 0.2em 0.55em;
-  font-size: 0.735rem;
+  font-size: 0.5292rem;
   font-weight: 600;
   border-radius: 0.25rem;
 }
@@ -668,7 +702,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
 .legacy-html .btn {
   display: inline-block;
   padding: 0.3rem 0.6rem;
-  font-size: 0.7875rem;
+  font-size: 0.567rem;
   font-weight: 500;
   border-radius: 0.375rem;
   border: none;
@@ -677,7 +711,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
   line-height: 1.2;
 }
 .legacy-html .btn:hover { opacity: 0.9; }
-.legacy-html .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.735rem; }
+.legacy-html .btn-sm { padding: 0.18rem 0.396rem; font-size: 0.588rem; }
 .legacy-html .btn-success { background: var(--color-success); }
 .legacy-html .btn-danger { background: var(--color-danger); }
 .legacy-html .btn-warning,
@@ -702,7 +736,7 @@ html[data-theme='blue-metal'] .blue-theme-shell textarea::placeholder {
    have their own header treatment above).
    ========================================================================== */
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) {
-  --page-gutter: 22px;
+  --page-gutter: 16px;
   --page-top-gap: 0.75rem;
   --page-control-height: 2.25rem;
   /* 40% shorter than the 5.5rem these cards used to be; the type and icon
@@ -757,19 +791,19 @@ html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([
 }
 
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:first-child {
-  font-size: 0.65625rem;
+  font-size: 0.4725rem;
   line-height: 0.75rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:nth-child(2) {
   margin-top: 0;
-  font-size: 0.984375rem;
+  font-size: 0.70875rem;
   line-height: 1.125rem;
 }
 
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:nth-child(n + 3) {
   margin-top: 0;
-  font-size: 0.65625rem;
+  font-size: 0.4725rem;
   line-height: 0.75rem;
 }
 
@@ -796,7 +830,7 @@ html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] :is(b
 html[data-theme='blue-metal'] .blue-theme-banner .blue-theme-primary {
   min-height: var(--page-control-height, 2.25rem);
   padding: 0.375rem 1rem;
-  font-size: 0.91875rem;
+  font-size: 0.6615rem;
   line-height: 1.25rem;
   border-radius: 0.5rem;
 }
@@ -811,7 +845,7 @@ html[data-theme='blue-metal'] .blue-theme-banner :is(input:not([type='checkbox']
 html[data-theme='blue-metal'] .blue-theme-banner :is(button, a)[class~='bg-brand'] {
   min-height: 2.25rem;
   padding: 0.375rem 1rem;
-  font-size: 0.91875rem;
+  font-size: 0.6615rem;
   line-height: 1.25rem;
   border-radius: 0.5rem;
 }
@@ -820,7 +854,7 @@ html[data-theme='blue-metal'] .blue-theme-banner :is(button, a)[class~='bg-brand
    (their `-mx-6` made them wider than the page, so the body started flush against the sidebar and
    the header was cut off on the right). */
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] {
-  --page-gutter: 22px;
+  --page-gutter: 16px;
   --page-top-gap: 0.75rem;
 }
 
@@ -878,7 +912,7 @@ html[data-theme='blue-metal'] #route-page-content .blue-banner-continues:not(:ha
    class hooks outrank the detail-page card styling further up this file. */
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] .blue-banner-continues .app-card[class~='bg-surface-alt'][class~='rounded-xl'],
 html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] .blue-banner-continues > div[class~='rounded-xl'],
-html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] .blue-banner-continues > div > div[class~='rounded-xl'] {
+html[data-theme='blue-metal'] #route-page-content[data-page-banner='true'] .blue-banner-continues > div > div[class~='rounded-xl']:not([data-kpi-tile]) {
   border-color: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -945,39 +979,39 @@ html[data-theme='blue-metal'] #route-page-content .blue-stat-card :is(p, div, sp
 /* Tailwind's size classes are explicit on each element, so each step is
    remapped rather than inherited. */
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-3xl'] {
-  font-size: 1.18125rem !important;
+  font-size: 0.8505rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-2xl'] {
-  font-size: 1.115625rem !important;
+  font-size: 0.80325rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-xl'] {
-  font-size: 0.984375rem !important;
+  font-size: 0.70875rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-lg'] {
-  font-size: 0.91875rem !important;
+  font-size: 0.6615rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-base'],
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-sm'] {
-  font-size: 0.7875rem !important;
+  font-size: 0.567rem !important;
 }
 
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-xs'],
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card [class~='text-[11px]'] {
-  font-size: 0.65625rem !important;
+  font-size: 0.4725rem !important;
 }
 
-html [class~='text-[7px]'] { font-size: 7.35px; }
-html [class~='text-[8px]'] { font-size: 8.4px; }
-html [class~='text-[9px]'] { font-size: 9.45px; }
-html [class~='text-[10px]'] { font-size: 10.5px; }
-html [class~='text-[10.5px]'] { font-size: 11.025px; }
-html [class~='text-[11px]'] { font-size: 11.55px; }
-html [class~='text-[11.5px]'] { font-size: 12.075px; }
-html [class~='text-[13px]'] { font-size: 13.65px; }
+html [class~='text-[7px]'] { font-size: 5.292px; }
+html [class~='text-[8px]'] { font-size: 6.048px; }
+html [class~='text-[9px]'] { font-size: 6.804px; }
+html [class~='text-[10px]'] { font-size: 7.56px; }
+html [class~='text-[10.5px]'] { font-size: 7.938px; }
+html [class~='text-[11px]'] { font-size: 8.316px; }
+html [class~='text-[11.5px]'] { font-size: 8.694px; }
+html [class~='text-[13px]'] { font-size: 9.828px; }
 
 /* The icon tile beside or above the number. */
 html[data-theme='blue-metal'] #route-page-content .blue-stat-card span:has(> svg),

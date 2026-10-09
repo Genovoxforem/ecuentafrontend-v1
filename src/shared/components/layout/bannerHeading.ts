@@ -159,7 +159,7 @@ export function findStatCards(content: HTMLElement): HTMLElement[] {
 
   for (const candidate of Array.from(content.querySelectorAll<HTMLElement>('.app-card, [class*="rounded-"][class*="border"]'))) {
     const parent = candidate.parentElement
-    if (!parent || rows.has(parent)) continue
+    if (!parent || rows.has(parent) || parent.closest('[data-no-stat-shrink]')) continue
     const style = getComputedStyle(parent)
     // A row of them: a grid, or a flex row of equal-looking tiles.
     if (!style.display.includes('grid') && !(style.display.includes('flex') && style.flexDirection.startsWith('row'))) continue

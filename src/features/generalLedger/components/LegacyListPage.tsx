@@ -244,7 +244,7 @@ export function LegacyListPage({
           </table>
         </form>
       </ScrollCard>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="blue-density-pagination sticky -bottom-6 py-3 border-t border-border bg-white dark:bg-gray-950 px-[16px] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {/* Some backend pages ignore `limit` and print every row; no pager then. */}
           {data.rows.length <= limit && (

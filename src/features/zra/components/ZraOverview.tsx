@@ -51,11 +51,13 @@ function StatCard({
 }) {
   const a = ACCENTS[accent]
   return (
-    <div className={`relative flex flex-col rounded-xl border border-border border-t-[3px] ${a.edge} bg-surface-alt px-4 py-3 shadow-sm`}>
-      <span className={`absolute right-4 top-3.5 grid h-9 w-9 place-items-center rounded-lg ${a.tile}`}>
-        <Icon size={18} />
-      </span>
-      <p className={`pr-10 text-xs font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
+    <div className={`flex min-w-0 flex-col rounded-xl border border-border border-t-[3px] ${a.edge} bg-surface-alt px-4 py-3 shadow-sm`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className={`min-w-0 truncate text-xs font-bold uppercase tracking-wide ${a.label}`}>{label}</p>
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${a.tile}`}>
+          <Icon size={16} />
+        </span>
+      </div>
       <div className="mt-2 space-y-1">{children}</div>
       <p className={`mt-2 flex items-center gap-1.5 whitespace-nowrap border-t border-dashed border-border pt-2 text-xs font-semibold ${a.meta}`}>
         <MetaIcon size={12} /> {meta}

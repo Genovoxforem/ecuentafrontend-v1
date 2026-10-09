@@ -458,7 +458,7 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
           </Card>
         )}
       </div>
-      <ListPagination page={page} perPage={perPage} total={data?.filtered ?? 0} onPageChange={setPage} edgeToEdge={!embedded} />
+      <ListPagination page={page} perPage={perPage} total={data?.filtered ?? 0} onPageChange={setPage} nested={embedded} />
     </div>
   )
 }

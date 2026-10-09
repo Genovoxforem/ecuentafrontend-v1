@@ -231,7 +231,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       {/* In the blue-metal theme the page banner carries this title and both buttons (PageBanner's BANNER_ACTIONS). */}
-      <div data-hide-under-banner className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-[22px] py-3 dark:bg-gray-950">
+      <div data-hide-under-banner className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-[16px] py-3 dark:bg-gray-950">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <ShoppingCart size={20} className="text-brand" /> Sales Invoices
         </h2>
@@ -245,7 +245,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-[22px] py-4">
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-[16px] py-4">
         {statusFilter === undefined && urlStatus !== undefined && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
             <span className="text-text!">
