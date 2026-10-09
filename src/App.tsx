@@ -227,6 +227,7 @@ const LoanCustomerCreateModule = lazy(() => import('./modules/loans/LoanCustomer
 const BudgetModule = lazy(() => import('./modules/budget/BudgetModule').then((m) => ({ default: m.BudgetModule })))
 const TicketsListModule = lazy(() => import('./modules/tickets/TicketsListModule').then((m) => ({ default: m.TicketsListModule })))
 const MyAssignedTicketsModule = lazy(() => import('./modules/tickets/MyAssignedTicketsModule').then((m) => ({ default: m.MyAssignedTicketsModule })))
+const TicketDeskModule = lazy(() => import('./modules/tickets/TicketDeskModule').then((m) => ({ default: m.TicketDeskModule })))
 const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatisticsModule').then((m) => ({ default: m.TicketStatisticsModule })))
 const TicketCreateModule = lazy(() => import('./modules/tickets/TicketCreateModule').then((m) => ({ default: m.TicketCreateModule })))
 const JobCardsListModule = lazy(() => import('./modules/interventions/JobCardsListModule').then((m) => ({ default: m.JobCardsListModule })))
@@ -497,6 +498,10 @@ const AgendaModule = lazy(() => import('./modules/agenda/AgendaModule').then((m)
 const ReportingModule = lazy(() => import('./modules/agenda/ReportingModule').then((m) => ({ default: m.ReportingModule })))
 const EventCategoriesModule = lazy(() => import('./modules/agenda/EventCategoriesModule').then((m) => ({ default: m.EventCategoriesModule })))
 
+const PosV2Page = lazy(() => import('./pos2/PosV2'))
+const PosPublicMenuPage = lazy(() => import('./pos2/PublicMenuV2'))
+const PosWaiterPage = lazy(() => import('./pos2/WaiterOrderV2'))
+const PosCustomerDisplayPage = lazy(() => import('./pos2/CustomerDisplayV2'))
 const PosLayout = lazy(() => import('./pos/layouts/DashboardLayout'))
 const PosHome = lazy(() => import('./pos/features/pos/Components/PosHome'))
 const PosProductsPage = lazy(() => import('./pos/features/products/Components/ProductsPage'))
@@ -543,6 +548,38 @@ function App() {
                       {/* Full-bleed, own chrome (PosNavbar/PosSidebar) — not wrapped in
                     AppLayout's admin Navbar/Sidebar, same as pos_standalone was
                     full-screen on its own. See src/pos/layouts/DashboardLayout.jsx. */}
+                      <Route
+                        path={ROUTES.posPublicMenu}
+                        element={
+                          <RouteBoundary>
+                            <PosPublicMenuPage />
+                          </RouteBoundary>
+                        }
+                      />
+                      <Route
+                        path={ROUTES.posWaiter}
+                        element={
+                          <RouteBoundary>
+                            <PosWaiterPage />
+                          </RouteBoundary>
+                        }
+                      />
+                      <Route
+                        path={ROUTES.posCustomerDisplay}
+                        element={
+                          <RouteBoundary>
+                            <PosCustomerDisplayPage />
+                          </RouteBoundary>
+                        }
+                      />
+                      <Route
+                        path={ROUTES.posV2}
+                        element={
+                          <RouteBoundary>
+                            <PosV2Page />
+                          </RouteBoundary>
+                        }
+                      />
                       <Route
                         path="/pos"
                         element={
@@ -1973,6 +2010,14 @@ function App() {
                           element={
                             <RouteBoundary>
                               <MyAssignedTicketsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.ticketDesk}
+                          element={
+                            <RouteBoundary>
+                              <TicketDeskModule />
                             </RouteBoundary>
                           }
                         />

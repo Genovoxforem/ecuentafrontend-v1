@@ -43,19 +43,19 @@
 
   /* Surface / text / border: the "every card looks like this" pattern. */
   --color-surface: #ffffff;
-  --color-surface-alt: #f9fafb;
-  --color-surface-hover: #e5e7eb;
+  --color-surface-alt: #f2f5f9;
+  --color-surface-hover: #dde3ec;
   --color-input-bg: #ffffff;
-  --color-border: #e5e7eb;
-  --color-input-border: #d1d5db;
+  --color-border: #b9c2d0;
+  --color-input-border: #94a0b2;
   /* Darkened 40% off the original light-mode values (#111827/#6b7280/#9ca3af)
      project-wide, for stronger text contrast. */
-  --color-text: #0a0e17;
-  --color-text-muted: #40444d;
-  --color-text-faint: #5e6269;
+  --color-text: #05080f;
+  --color-text-muted: #2c3039;
+  --color-text-faint: #444952;
 
   /* Sidebar icon-rail background — distinct from card surfaces. */
-  --color-rail-bg: #eef1f6;
+  --color-rail-bg: #eef4fc;
 
   /* Accent tokens referenced by the Navbar/Sidebar "spooky" glow effect —
      the teal-to-cyan gradient that echoes the Ecuenta logo mark. */

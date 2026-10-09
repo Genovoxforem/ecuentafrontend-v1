@@ -166,28 +166,30 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
 }
 
 function KpiTile({ kpi, label, icon: Icon, accent }: { kpi: DashKpi | undefined; label: string; icon: LucideIcon; accent: string }) {
+  const { theme } = useTheme()
+  const light = theme === 'light'
   const value = kpi?.value ?? null
   const display = value === null ? '—' : kpi?.currency ? money(value, kpi.currency) : formatNumber(value)
   return (
     <div
       data-kpi-tile
-      className="min-w-0 rounded-xl border px-5 py-4 backdrop-blur-sm"
+      className="min-w-0 rounded-xl border px-4 py-2.5 backdrop-blur-sm"
       style={{
-        borderColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
-        backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} 22%, transparent) 0%, color-mix(in srgb, ${accent} 6%, transparent) 100%)`,
+        borderColor: `color-mix(in srgb, ${accent} ${light ? 45 : 32}%, transparent)`,
+        backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} ${light ? 14 : 12}%, ${light ? '#ffffff' : '#0b1a2b'}) 0%, color-mix(in srgb, ${accent} ${light ? 4 : 3}%, ${light ? '#ffffff' : '#08131f'}) 100%)`,
       }}
     >
       <div className="flex items-center gap-3">
         <span
-          className="shrink-0 w-[3.75rem] h-[3.75rem] rounded-xl grid place-items-center text-white shadow-md"
-          style={{ backgroundImage: `linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 70%, #000))` }}
+          className="shrink-0 w-12 h-12 rounded-lg grid place-items-center text-white shadow-sm"
+          style={{ backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} 88%, #fff), color-mix(in srgb, ${accent} 78%, #000))` }}
         >
-          <Icon size={28} />
+          <Icon size={22} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-text-muted font-medium leading-tight truncate" style={{ fontSize: 13 }}>{kpi?.label || label}</p>
-          <p className="font-bold text-hero-heading truncate leading-tight mt-1" style={{ fontSize: 22 }}>{display}</p>
-          <div className="mt-1 flex items-center gap-1.5 min-w-0" style={{ fontSize: 12.5 }}>
+          <p className="text-text-muted font-medium leading-tight truncate" style={{ fontSize: 11 }}>{kpi?.label || label}</p>
+          <p className="font-bold text-hero-heading truncate leading-tight mt-1" style={{ fontSize: 18 }}>{display}</p>
+          <div className="mt-1 flex items-center gap-1.5 min-w-0" style={{ fontSize: 10.5 }}>
             {kpi?.trend && <TrendBadge trend={kpi.trend} />}
             <span className="text-text-faint truncate">{kpi ? kpi.meta : 'Not available'}</span>
           </div>
@@ -478,7 +480,7 @@ function CountryCard({ side, tab, currency }: { side: DashSide; tab: 'sales' | '
       {side.countries.length === 0 ? (
         <EmptyState icon={Inbox} title="No country data" text="Regional totals will appear here." />
       ) : (
-        <div className="space-y-2.5">
+        <div className="max-h-[7.5rem] space-y-2.5 overflow-y-auto soft-scrollbar pr-1">
           {side.countries.map((c) => (
             <div key={`${c.code}-${c.name}`} className="flex items-center gap-2.5 text-sm">
               <span className="w-6 shrink-0">
@@ -511,11 +513,11 @@ function CountryCard({ side, tab, currency }: { side: DashSide; tab: 'sales' | '
 
 function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
   return (
-    <GlassCard header={<CardHeader icon={Landmark} title="Bank Details" tone="success" />} action={<ViewAll to={ROUTES.bankingAccounts} />}>
+    <GlassCard className="xl:grow xl:basis-0" header={<CardHeader icon={Landmark} title="Bank Details" tone="success" />} action={<ViewAll to={ROUTES.bankingAccounts} />}>
       {banks.length === 0 ? (
         <EmptyState icon={Landmark} title="No bank accounts" text="Bank account balances will appear here." />
       ) : (
-        <div className="max-h-[220px] overflow-y-auto soft-scrollbar pr-1 -mr-1 space-y-2">
+        <div className="space-y-2">
           {banks.map((b, i) => {
             const up = b.amount >= 0
             const name = b.id ? (
@@ -564,7 +566,7 @@ function attentionIcon(href: string, title: string): LucideIcon {
 
 function AttentionCard({ items }: { items: HomeDashboard['attention'] }) {
   return (
-    <GlassCard header={<CardHeader icon={AlertTriangle} title="Needs Your Attention" tone="warning" />}>
+    <GlassCard className="xl:grow xl:basis-0" header={<CardHeader icon={AlertTriangle} title="Needs Your Attention" tone="warning" />}>
       {items.length === 0 ? (
         <EmptyState icon={CheckCircle2} title="All clear" text="Nothing requires your attention right now." />
       ) : (
@@ -613,8 +615,8 @@ const QUICK_ACTION_ICONS: Array<[RegExp, LucideIcon, StatTone]> = [
 
 function QuickActionsCard({ actions }: { actions: HomeDashboard['quickActions'] }) {
   return (
-    <GlassCard className="flex-1" header={<CardHeader icon={Zap} title="Quick Actions" tone="brand" />}>
-      <div className="grid h-full auto-rows-fr grid-cols-3 gap-2.5">
+    <GlassCard className="xl:grow xl:basis-0" header={<CardHeader icon={Zap} title="Quick Actions" tone="brand" />}>
+      <div className="grid auto-rows-[minmax(4.5rem,6.5rem)] grid-cols-3 gap-2.5">
         {actions.map((action) => {
           const [, Icon, tone] = QUICK_ACTION_ICONS.find(([re]) => re.test(action.label)) ?? [null, Zap, 'brand' as StatTone]
           const to = resolveLegacyRoute(action.href)
@@ -690,10 +692,10 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
         </div>
 
         <div data-no-stat-shrink className="relative z-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <KpiTile kpi={dashboard.kpis.todaySales} label="Today's Sales" icon={ShoppingCart} accent="#1d8bff" />
-          <KpiTile kpi={dashboard.kpis.todayPurchase} label="Today's Purchase" icon={ShoppingBag} accent="#10c9a0" />
-          <KpiTile kpi={dashboard.kpis.unpaid} label="Unpaid Invoices" icon={FileText} accent="#f59e0b" />
-          <KpiTile kpi={dashboard.kpis.zraSigned} label="ZRA Signed Invoices" icon={ShieldCheck} accent="#8b5cf6" />
+          <KpiTile kpi={dashboard.kpis.todaySales} label="Today's Sales" icon={ShoppingCart} accent="#3b82f6" />
+          <KpiTile kpi={dashboard.kpis.todayPurchase} label="Today's Purchase" icon={ShoppingBag} accent="#14b8a6" />
+          <KpiTile kpi={dashboard.kpis.unpaid} label="Unpaid Invoices" icon={FileText} accent="#d99a2b" />
+          <KpiTile kpi={dashboard.kpis.zraSigned} label="ZRA Signed Invoices" icon={ShieldCheck} accent="#7c6ff0" />
         </div>
       </div>
 
@@ -711,10 +713,12 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
         </div>
 
         {/* ── Bank balances, attention items, quick actions ─────────────── */}
-        <div className="xl:col-span-3 flex flex-col gap-4 min-w-0">
+        <div className="xl:col-span-3 min-w-0 xl:relative">
+          <div className="flex flex-col gap-4 xl:absolute xl:inset-0">
           <BankCard banks={dashboard.banks} />
           <AttentionCard items={dashboard.attention} />
           <QuickActionsCard actions={dashboard.quickActions} />
+          </div>
         </div>
       </div>
     </div>

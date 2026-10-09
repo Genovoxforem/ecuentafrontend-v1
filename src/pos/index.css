@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.pos-light, .pos-light *)));
 
 @keyframes toast-in {
   from {
@@ -118,4 +118,11 @@
 }
 .pos-app p {
   margin: 0;
+}
+
+/* POS V2 screens use the main app's typeface and text colour rather than the V1 POS font. */
+.pos-v2-root,
+.pos-v2-root * {
+  font-family: Poppins, Inter, system-ui, sans-serif;
+  letter-spacing: normal;
 }

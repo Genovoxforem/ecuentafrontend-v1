@@ -17,7 +17,7 @@ import { useTodayNewLeadsCount } from '../../../features/projects/projects.queri
 import { Avatar } from '../Avatar'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 import logoFull from '../../../assets/Ecuenta_logo.png'
-type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | 'apps' | null
+type PanelName = 'account' | 'settings' | 'notifications' | 'daily-summary' | 'clock' | 'apps' | 'pos' | null
 
 // Custom styled tooltip (replaces the native `title` attribute), shown below
 // the icon on hover via CSS-only group-hover, plus an optional glow ring for
@@ -51,7 +51,7 @@ function IconButton({
           active ? 'bg-brand/10 text-brand' : className ? 'hover:bg-surface-alt' : 'text-text-muted hover:bg-surface-alt hover:text-text'
         } ${className} ${
           glow
-            ? 'hover:-translate-y-0.5 hover:text-(--color-accent-teal-2) hover:shadow-[0_0_0_1px_var(--color-accent-teal-2),0_0_14px_var(--color-accent-teal-2),0_0_22px_var(--color-accent-cyan-2)]'
+            ? 'hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 dark:hover:bg-transparent dark:hover:text-(--color-accent-teal-2) dark:hover:shadow-[0_0_0_1px_var(--color-accent-teal-2),0_0_14px_var(--color-accent-teal-2),0_0_22px_var(--color-accent-cyan-2)]'
             : ''
         }`}
       >
@@ -60,7 +60,7 @@ function IconButton({
       {title && (
         <span
           role="tooltip"
-          className={`pointer-events-none absolute top-full z-40 mt-2 whitespace-nowrap rounded-md border border-(--color-accent-teal-2)/40 bg-gray-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 dark:bg-gray-700 ${
+          className={`pointer-events-none absolute top-full z-[70] mt-2 whitespace-nowrap rounded-md border border-(--color-accent-teal-2)/40 bg-gray-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 dark:bg-gray-700 ${
             tooltipAlign === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2'
           }`}
         >
@@ -82,9 +82,8 @@ function displayName(user: AuthUser | null) {
 
 function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={`transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`}>
-      <path d="M13.5 19L6 12l7.5-7" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M21 19l-7.5-7L21 5" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={`transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`}>
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -130,12 +129,17 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
   }
 
   const isModern = sidebarStyle === 'modern'
+  const darkModern = isModern && theme !== 'light'
+  const lightSurface = theme === 'light'
+  const logoFilter = lightSurface
+    ? '[filter:brightness(0.62)_saturate(1.8)_contrast(1.2)_drop-shadow(0_0_0.6px_rgba(7,38,64,0.7))]'
+    : '[filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]'
 
   return (
     <nav
-      className={`relative h-[67px] pr-6 ${isModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg'}`}
+      className={`relative h-[67px] pr-6 ${darkModern ? 'dark' : `flex items-center justify-between gap-4 bg-rail-bg ${lightSurface ? 'border-b border-slate-200' : ''}`}`}
     >
-      {isModern && (
+      {darkModern && (
         <>
           {/* Solid dark base — same reason as ModernSidebar: the glass tint at
               0.22 alpha is see-through, so without this the navbar washes out
@@ -152,7 +156,6 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
               backgroundImage: theme === 'blue-metal' ? 'linear-gradient(135deg, rgba(66,200,255,0.2), rgba(22,139,255,0.05) 38%, transparent 68%)' : MODERN_GLASS_SHEEN,
             }}
           />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
         </>
       )}
       {/* z-30, above the z-10 pinned headers and footers that pages stick inside <main>: the
@@ -160,28 +163,28 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           the page's own header (later in the DOM) painted over them. */}
       <div
         className="relative z-30 flex items-center justify-between gap-4 h-full w-full"
-        style={isModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
+        style={darkModern ? { filter: MODERN_CONTENT_SHADOW } : undefined}
       >
       <div className={`relative z-10 flex h-full shrink-0 items-center transition-[width] duration-300 ${sidebarOpen ? (isModern ? 'w-[230px]' : 'w-[259px]') : 'w-[58px]'}`}>
         <a
           href="/dashboard"
           aria-label="ECUENTA dashboard"
-          className={`mx-2 translate-y-1 flex h-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[linear-gradient(145deg,rgba(8,57,78,0.96),rgba(3,24,43,0.98))] shadow-[inset_0_1px_0_rgba(103,232,249,0.2),0_0_12px_rgba(34,211,238,0.16)] ${
-            sidebarOpen ? 'w-[min(11rem,calc(100%-3rem))] px-2' : 'w-8'
+          className={`ml-1 mr-2 translate-y-1 flex h-[2.72rem] shrink-0 items-center justify-start overflow-hidden ${
+            sidebarOpen ? 'w-[min(13.2rem,calc(100%-3rem))] pl-2 pr-1' : 'w-[2.37rem]'
           }`}
         >
           {sidebarOpen ? (
             <img
               src={logoFull}
               alt="ECUENTA"
-              className="h-10 w-auto max-w-full object-contain [filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]"
+              className={`h-[2.27rem] w-auto max-w-full object-contain ${logoFilter}`}
             />
           ) : (
-            <span className="relative h-8 w-8 shrink-0 overflow-hidden">
+            <span className="relative h-[2.37rem] w-[2.37rem] shrink-0 overflow-hidden">
               <img
                 src={logoFull}
                 alt="ECUENTA"
-                className="absolute left-0 top-1/2 h-8 w-auto max-w-none -translate-y-1/2 [filter:brightness(0)_saturate(100%)_invert(78%)_sepia(69%)_saturate(1200%)_hue-rotate(138deg)_brightness(100%)_contrast(100%)] drop-shadow-[0_0_5px_rgba(34,211,238,0.45)]"
+                className={`absolute left-0 top-1/2 h-[2.37rem] w-auto max-w-none -translate-y-1/2 ${logoFilter}`}
               />
             </span>
           )}
@@ -191,7 +194,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           onClick={onToggleSidebar}
           aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          className={`absolute ${sidebarOpen ? 'right-0 h-10 w-10' : 'right-[-6px] h-9 w-9'} flex translate-x-1/2 items-center justify-center rounded-xl border border-[#168bff]/70 bg-[linear-gradient(145deg,#102b40,#071522)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_12px_rgba(22,139,255,0.24)] transition-all hover:border-[#66caff] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_16px_rgba(22,139,255,0.42)]`}
+          className={`absolute ${sidebarOpen ? '-right-[5px]' : 'right-[-11px]'} h-7 w-7 flex translate-x-1/2 items-center justify-center rounded-full transition-colors ${lightSurface ? 'text-slate-500 hover:bg-slate-200/70 hover:text-slate-800' : 'border border-white/20 bg-[#0b1f33] text-white/80 hover:border-[#66caff] hover:bg-[#12304a] hover:text-white'}`}
         >
           <SidebarToggleIcon expanded={sidebarOpen} />
         </button>
@@ -199,7 +202,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
 
       <div className="relative z-10 flex-1 flex items-center gap-3 max-w-xl min-w-0">
         <div
-          className="flex-1 min-w-[110px] flex items-center gap-2 h-9 px-3 rounded-full bg-surface-alt text-text-faint cursor-text"
+          className="flex-1 min-w-[110px] flex items-center gap-2 h-9 px-3 rounded-full border border-slate-400/70 dark:border-slate-500/80 bg-surface-alt text-text-faint cursor-text"
           onClick={() => {
             setOpenPanel('apps')
             searchInputRef.current?.focus()
@@ -286,26 +289,52 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
             glow
             active={openPanel === 'daily-summary'}
             onClick={() => togglePanel('daily-summary')}
-            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+            className={darkModern ? MODERN_ICON_REST_COLOR : ''}
           >
             <BarChart3 size={19} />
           </IconButton>
           {openPanel === 'daily-summary' && <DailySummaryPanel onClose={closePanel} />}
         </div>
 
-        <div className="hidden lg:block">
+        <div className="relative hidden lg:block">
           <IconButton
             title="POS"
             glow
-            onClick={() => navigate('/pos')}
-            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+            active={openPanel === 'pos'}
+            onClick={() => togglePanel('pos')}
+            className={darkModern ? MODERN_ICON_REST_COLOR : ''}
           >
             <CreditCard size={19} />
           </IconButton>
+          {openPanel === 'pos' && (
+            <div className="absolute right-0 top-full z-[60] mt-2 w-56 overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl">
+              <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-text-faint">Open point of sale</p>
+              {[
+                { label: 'POS V1', sub: 'Classic layout', to: ROUTES.pos },
+                { label: 'POS V2', sub: 'New design', to: ROUTES.posV2 },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  onClick={() => {
+                    closePanel()
+                    navigate(o.to)
+                  }}
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left hover:bg-surface-alt"
+                >
+                  <CreditCard size={16} className="shrink-0 text-brand" />
+                  <span>
+                    <span className="block text-sm font-semibold text-text">{o.label}</span>
+                    <span className="block text-xs text-text-faint">{o.sub}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="hidden lg:block">
-          <IconButton title="Kitchen" glow onClick={() => navigate(ROUTES.kitchenDashboard)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
+          <IconButton title="Kitchen" glow onClick={() => navigate(ROUTES.kitchenDashboard)} className={darkModern ? MODERN_ICON_REST_COLOR : ''}>
             <ChefHat size={19} />
           </IconButton>
         </div>
@@ -316,7 +345,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
             glow
             active={openPanel === 'settings'}
             onClick={() => togglePanel('settings')}
-            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+            className={darkModern ? MODERN_ICON_REST_COLOR : ''}
           >
             <Settings size={19} />
           </IconButton>
@@ -329,7 +358,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
             glow
             active={openPanel === 'notifications'}
             onClick={() => togglePanel('notifications')}
-            className={isModern ? MODERN_ICON_REST_COLOR : ''}
+            className={darkModern ? MODERN_ICON_REST_COLOR : ''}
           >
             <Bell size={19} />
             {notificationCount > 0 && <Badge count={notificationCount} color="bg-danger" />}
@@ -337,13 +366,13 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           {openPanel === 'notifications' && <NotificationsPanel onClose={closePanel} />}
         </div>
 
-        <IconButton title="Events" glow onClick={() => navigate(ROUTES.agenda)} className={`max-sm:hidden ${isModern ? MODERN_ICON_REST_COLOR : ''}`}>
+        <IconButton title="Events" glow onClick={() => navigate(ROUTES.agenda)} className={`max-sm:hidden ${darkModern ? MODERN_ICON_REST_COLOR : ''}`}>
           <CalendarDays size={19} />
         </IconButton>
 
         {/* Match the legacy headset launcher: it starts TicketDesk, passes the signed-in user, then redirects. */}
         <div className="max-sm:hidden">
-          <IconButton title="Ticket Desk" glow onClick={() => window.location.assign(ROUTES.ticketDesk)} className={isModern ? MODERN_ICON_REST_COLOR : ''}>
+          <IconButton title="Ticket Desk" glow onClick={() => navigate(ROUTES.ticketDesk)} className={darkModern ? MODERN_ICON_REST_COLOR : ''}>
             <Headset size={19} />
           </IconButton>
         </div>

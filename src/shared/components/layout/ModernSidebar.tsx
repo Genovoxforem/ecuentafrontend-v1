@@ -449,6 +449,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
     const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
     return sections.length > 0 ? sections : MENU_UNAVAILABLE_SECTIONS
   }, [menu])
+  const lightMode = theme === 'light'
   const [hovering, setHovering] = useState(false)
   const expanded = open || hovering
 
@@ -459,7 +460,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
       onMouseLeave={() => setHovering(false)}
     >
       <aside
-        className={`h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
+        className={`${lightMode ? 'modern-sb-light' : ''} h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
           open ? 'relative w-[230px]' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-[230px]' : 'w-[58px]'}`
         }`}
       >
@@ -469,22 +470,22 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
             of the "always dark" panel the design calls for. This base layer makes
             the sidebar actually dark regardless of theme, while the glass tint and
             sheen layered on top still give the glossy-glass reading. */}
-        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : 'bg-gray-900'}`} />
+        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : lightMode ? 'bg-slate-50' : 'bg-gray-900'}`} />
         {/* Flat translucent tint, no blur — plain glass rather than frosted glass. Kept on its own childless layer,
             separate from the content below, purely so the drop-shadow on the content layer never touches this tint. */}
-        <div
+        {!lightMode && <div
           className="absolute inset-0"
           style={{
             backgroundColor: theme === 'blue-metal' ? 'rgba(6, 17, 29, 0.42)' : MODERN_GLASS_BG,
             backgroundImage: theme === 'blue-metal' ? 'linear-gradient(135deg, rgba(66,200,255,0.2), rgba(22,139,255,0.05) 38%, transparent 68%)' : MODERN_GLASS_SHEEN,
           }}
-        />
+        />}
         {/* No top glass-highlight line here — this top edge sits directly against the navbar's bottom edge (not a real
             outer edge), so a highlight line here would just recreate the seam. Navbar keeps the one at its own true top. */}
 
         {/* Content sits on its own layer with a drop-shadow (covers icons too, unlike text-shadow) so it stays
             legible against a genuinely transparent glass panel regardless of what's behind it. */}
-        <div className="relative z-10 flex flex-col h-full" style={{ filter: MODERN_CONTENT_SHADOW }}>
+        <div className="relative z-10 flex flex-col h-full" style={lightMode || theme === 'blue-metal' ? undefined : { filter: MODERN_CONTENT_SHADOW }}>
           {expanded && (
             <h2 className="px-4 pb-3 pt-4 text-sm font-bold tracking-[0.18em] text-white/75">MENU</h2>
           )}
@@ -493,7 +494,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
             {expanded ? (
               <MenuList sections={SECTIONS} navigate={navigate} location={location} blueMetal={theme === 'blue-metal'} />
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-4">
                 {SECTIONS.map((section) => {
                   const Icon = PHOSPHOR_ICON[section.key] ?? section.icon
                   const isCurrent = sectionContainsCurrent(section, location)
@@ -506,7 +507,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                           if (!open && onOpen) onOpen()
                           if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
                         }}
-                        className={`w-full flex items-center justify-center h-10 rounded-xl transition-colors ${
+                        className={`relative w-full flex items-center justify-center h-11 rounded-xl transition-colors ${
                           theme === 'blue-metal'
                             ? isCurrent
                               ? 'bg-[#168bff]/20 text-white'
@@ -519,15 +520,15 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                         <span
                           className={
                             theme === 'blue-metal'
-                              ? `flex h-8 w-8 items-center justify-center rounded-md border ${
+                              ? `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-lg border ${
                                   isCurrent
-                                    ? 'border-[#66caff] bg-[linear-gradient(145deg,#2aa9ff,#0754a5)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_12px_rgba(22,139,255,0.45)]'
-                                    : 'border-[#2b6e9f] bg-[linear-gradient(145deg,#173958,#091522)] text-[#6acfff] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_8px_rgba(22,139,255,0.18)]'
+                                    ? 'border-[#8fdcff] bg-[linear-gradient(145deg,#38b6ff,#0a63c0)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_14px_rgba(56,182,255,0.6)]'
+                                    : 'border-[#3f8fcc] bg-[linear-gradient(145deg,#1f4d78,#0b2238)] text-[#9ee3ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_8px_rgba(22,139,255,0.25)] group-hover/rail:border-[#7ad0ff] group-hover/rail:text-white'
                                 }`
                               : 'contents'
                           }
                         >
-                          <Icon size={20} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
+                          <Icon size={21} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
                         </span>
                       </button>
                     </div>

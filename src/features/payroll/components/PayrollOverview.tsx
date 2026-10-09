@@ -50,24 +50,16 @@ function ShiftsCard({ shifts, templates }: { shifts: number; templates: number }
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between text-sm">
-        <span className="flex items-center gap-1.5 text-text!">
+        <p className="flex items-center gap-1.5 text-text!">
           <Clock size={14} className="text-blue-500" /> Shifts
-        </span>
+        </p>
         <span className="text-xl font-bold text-text!">{shifts}</span>
       </div>
       <div className="flex items-center justify-between text-sm">
-        <span className="flex items-center gap-1.5 text-text!">
+        <p className="flex items-center gap-1.5 text-text!">
           <FileText size={14} className="text-blue-500" /> Templates
-        </span>
+        </p>
         <span className="text-xl font-bold text-text!">{templates}</span>
-      </div>
-      <div className="flex items-center gap-3 text-xs">
-        <StatLink>
-          <Clock size={11} /> Shifts
-        </StatLink>
-        <StatLink>
-          <FileText size={11} /> Templates
-        </StatLink>
       </div>
     </Card>
   )

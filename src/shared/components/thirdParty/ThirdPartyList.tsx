@@ -105,7 +105,7 @@ function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div className="min-w-0">
         <p className={`${compact ? 'text-[10px] leading-3' : 'text-xs'} font-semibold text-text-muted uppercase tracking-wide`}>{stat.label}</p>
-        <p className={`${compact ? 'text-sm leading-5' : 'text-xl mt-1'} font-bold text-text!`}>{stat.value}</p>
+        <p className={`${compact ? 'text-lg leading-5' : 'text-xl mt-1'} font-bold text-text!`}>{stat.value}</p>
         <p className={`${compact ? 'text-[10px] leading-3' : 'text-xs mt-0.5'} text-text-faint`}>{stat.caption}</p>
       </div>
       <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-10 h-10 rounded-lg'} flex items-center justify-center ${ICON_STYLES[stat.color]}`}>
