@@ -333,7 +333,6 @@ const VariantAttributeDetailModule = lazy(() => import('./modules/products/Varia
 const KitchenModule = lazy(() => import('./modules/kitchen/KitchenModule').then((m) => ({ default: m.KitchenModule })))
 const KitchenDashboardModule = lazy(() => import('./modules/kitchen/KitchenDashboardModule').then((m) => ({ default: m.KitchenDashboardModule })))
 const BeverageOrdersModule = lazy(() => import('./modules/kitchen/BeverageOrdersModule').then((m) => ({ default: m.BeverageOrdersModule })))
-const CreateOrderModule = lazy(() => import('./modules/kitchen/CreateOrderModule').then((m) => ({ default: m.CreateOrderModule })))
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
 const HotelRoomsModule = lazy(() => import('./modules/hotel/HotelRoomsModule').then((m) => ({ default: m.HotelRoomsModule })))
 const HotelReservationsModule = lazy(() => import('./modules/hotel/HotelReservationsModule').then((m) => ({ default: m.HotelReservationsModule })))
@@ -2916,7 +2915,7 @@ function App() {
                           path={ROUTES.kitchenCreateOrder}
                           element={
                             <RouteBoundary>
-                              <CreateOrderModule />
+                              <Navigate to={ROUTES.posWaiter} replace />
                             </RouteBoundary>
                           }
                         />
