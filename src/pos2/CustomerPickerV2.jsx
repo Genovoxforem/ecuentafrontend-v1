@@ -62,17 +62,17 @@ export default function CustomerPickerV2() {
             >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-500 text-sm font-bold text-white">{selected ? initials(selected.name) : "?"}</span>
                 <span className="min-w-0 flex-1 leading-tight">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Customer</span>
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Customer</span>
                     <span className="block truncate text-sm font-bold">{selected ? selected.name : "Select customer"}</span>
-                    {selected && <span className="block truncate text-[11px] text-slate-400">TPIN: {selected.tpin || "—"}</span>}
+                    {selected && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">TPIN: {selected.tpin || "—"}</span>}
                 </span>
-                <ChevronDown size={16} className="shrink-0 text-slate-400" />
+                <ChevronDown size={16} className="shrink-0 text-slate-500 dark:text-slate-400" />
             </button>
 
             {open && (
                 <div className="absolute left-0 right-0 z-30 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800">
                     <div className="flex items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-600">
-                        <Search size={14} className="text-slate-400" />
+                        <Search size={14} className="text-slate-500 dark:text-slate-400" />
                         <input
                             autoFocus
                             value={query}
@@ -91,17 +91,17 @@ export default function CustomerPickerV2() {
                     )}
                     <div className="soft-scrollbar max-h-60 overflow-y-auto border-t border-slate-200 dark:border-slate-600">
                         {query.trim().length < 2 ? (
-                            <p className="px-3 py-3 text-xs text-slate-400">Type at least 2 characters to search.</p>
+                            <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">Type at least 2 characters to search.</p>
                         ) : loading ? (
-                            <p className="px-3 py-3 text-xs text-slate-400">Searching…</p>
+                            <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">Searching…</p>
                         ) : customers.length === 0 ? (
-                            <p className="px-3 py-3 text-xs text-slate-400">No customers found.</p>
+                            <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">No customers found.</p>
                         ) : (
                             customers.map((c) => (
                                 <button key={c.id} type="button" onClick={() => pick(c)} className="block w-full border-b border-slate-100 px-3 py-2 text-left last:border-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">
                                     <span className="block truncate text-sm font-semibold">{c.name}</span>
                                     <span className="block text-xs text-blue-600">TPIN: {c.tpin || "—"}</span>
-                                    <span className="block truncate text-xs text-slate-400">{c.phone || c.email || ""}</span>
+                                    <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{c.phone || c.email || ""}</span>
                                 </button>
                             ))
                         )}

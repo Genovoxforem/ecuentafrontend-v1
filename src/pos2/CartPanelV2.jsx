@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Receipt, Trash2, Lock, XCircle, Save, Pencil, Utensils, ShoppingBag, ChevronDown } from "lucide-react";
+import { Receipt, Trash2, Lock, XCircle, Save, Pencil, GitBranch, Utensils, ShoppingBag, ChevronDown } from "lucide-react";
 import CustomerPickerV2 from "./CustomerPickerV2";
 import TableChooserV2 from "./TableChooserV2";
 import EditCartItemModal from "../pos/features/cart/Components/EditCartItemModal";
+import SplitPaymentV2 from "./SplitPaymentV2";
 import PaymentModal from "../pos/features/payment/PaymentModal";
 import ConfirmDialog from "../pos/components/ConfirmDialog";
 import useAuthStore from "../pos/stores/authStore";
@@ -34,6 +35,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
     const { saveDraft, savingDraft, draftInvoice } = usePayment();
     const [editingItem, setEditingItem] = useState(null);
     const [paymentOpen, setPaymentOpen] = useState(false);
+    const [splitOpen, setSplitOpen] = useState(false);
     const [tablesOpen, setTablesOpen] = useState(false);
     const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
     const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
@@ -50,7 +52,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
         <div className="flex h-full w-[380px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
             <div className="flex items-center justify-between">
                 <p className="text-lg font-bold">Current order</p>
-                <p className="flex items-center gap-2 text-xs text-slate-400">
+                <p className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     {ref}
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{status}</span>
                 </p>
@@ -71,9 +73,9 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                         onClick={() => setTablesOpen(true)}
                         className="flex w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-slate-200 px-2 py-1.5 text-left hover:border-blue-500 dark:border-slate-700"
                     >
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Table</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Table</span>
                         <span className="flex max-w-full items-center gap-1 truncate text-sm font-semibold">
-                            {selectedTable ? selectedTable.label : "Select"} <ChevronDown size={13} className="shrink-0 text-slate-400" />
+                            {selectedTable ? selectedTable.label : "Select"} <ChevronDown size={13} className="shrink-0 text-slate-500 dark:text-slate-400" />
                         </span>
                     </button>
                     <div className="min-w-0 flex-1">
@@ -98,7 +100,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
 
             <div className="soft-scrollbar mt-3 min-h-0 flex-1 overflow-y-auto border-t border-dashed border-slate-200 pt-3 dark:border-slate-700">
                 {cart.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
+                    <div className="flex h-full flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400">
                         <span className="mb-3 grid h-16 w-16 place-items-center rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600">
                             <Receipt size={26} />
                         </span>
@@ -164,7 +166,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                 <div className="flex items-baseline justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
                     <span className="text-sm font-bold">Total due</span>
                     <span className="text-3xl font-bold tabular-nums">
-                        <span className="mr-1 text-xs font-medium text-slate-400">ZMW</span>
+                        <span className="mr-1 text-xs font-medium text-slate-500 dark:text-slate-400">ZMW</span>
                         {formatAmount(total)}
                     </span>
                 </div>
@@ -177,11 +179,20 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                         disabled={cart.length === 0 || !cashSessionOpen || savingDraft || !!draftInvoice}
                         onClick={saveDraft}
                         title={draftInvoice ? `Draft saved — ${draftInvoice.ref}` : "Hold this sale as a draft"}
-                        className="flex w-28 items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                        className="flex w-24 items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
                     >
                         <Save size={15} /> {savingDraft ? "Saving…" : draftInvoice ? "Held" : "Hold"}
                     </button>
                 )}
+                <button
+                    type="button"
+                    disabled={cart.length === 0 || !cashSessionOpen || !!checkoutBlockedReason || !!pendingInvoice}
+                    onClick={() => setSplitOpen(true)}
+                    title="Split the bill across payment methods"
+                    className="flex w-24 items-center justify-center gap-2 rounded-xl border border-slate-300 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                    <GitBranch size={15} /> Split
+                </button>
                 <button
                     type="button"
                     disabled={cart.length === 0 || !cashSessionOpen || !!checkoutBlockedReason}
@@ -195,6 +206,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
 
             {tablesOpen && <TableChooserV2 onClose={() => setTablesOpen(false)} />}
             <EditCartItemModal item={editingItem} onClose={() => setEditingItem(null)} onSave={updateCartItem} onRemove={onRemove} />
+            {splitOpen && <SplitPaymentV2 onClose={() => setSplitOpen(false)} />}
             <PaymentModal open={paymentOpen} onClose={() => setPaymentOpen(false)} />
             <ConfirmDialog
                 open={confirmCancelOpen}

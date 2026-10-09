@@ -126,3 +126,36 @@
   font-family: Poppins, Inter, system-ui, sans-serif;
   letter-spacing: normal;
 }
+
+/* POS V2 / menu scrolling: smooth, contained, with slim overlay scrollbars that appear on hover. */
+.pos-v2-root .soft-scrollbar,
+.pos-v2-root.soft-scrollbar {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.25s ease;
+}
+.pos-v2-root .soft-scrollbar:hover {
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+.pos-v2-root .soft-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.pos-v2-root .soft-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pos-v2-root .soft-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.25s ease;
+}
+.pos-v2-root .soft-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.55);
+}
+.pos-v2-root .soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.85);
+}

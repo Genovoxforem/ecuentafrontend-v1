@@ -96,7 +96,7 @@ export default function TableChooserV2({ onClose, onPick }) {
                     <span className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/40"><Utensils size={26} /></span>
                     <div className="flex-1">
                         <p className="text-xl font-bold">Choose a dining table</p>
-                        <p className="text-sm text-slate-400">Select an available table or open its current order</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Select an available table or open its current order</p>
                     </div>
                     <button type="button" onClick={onClose} className="grid h-11 w-11 place-items-center rounded-xl border border-slate-700 hover:bg-slate-800"><X size={18} /></button>
                 </div>
@@ -154,7 +154,7 @@ export default function TableChooserV2({ onClose, onPick }) {
                                         </span>
                                         <span className={view === "grid" ? "text-center" : "flex-1 text-left"}>
                                             <span className="block text-lg font-bold">{table.label}</span>
-                                            <span className="block text-xs text-slate-400">Floor {table.floor ?? "-"}</span>
+                                            <span className="block text-xs text-slate-500 dark:text-slate-400">Floor {table.floor ?? "-"}</span>
                                         </span>
                                         {table.occupied && table.itemCount > 0 && (
                                             <span className="flex flex-col items-center gap-1">

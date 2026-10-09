@@ -117,10 +117,10 @@ export default function WaiterOrderV2() {
     const navBtn = (active) => `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold ${active ? "bg-blue-500/15 text-blue-700 dark:text-blue-300" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`;
 
     return (
-        <div style={{ background: dark ? "#0f172a" : "#f8fafc" }} className={`pos-app pos-v2-root flex h-screen overflow-hidden ${dark ? "dark bg-slate-900 text-white" : "pos-light bg-slate-50 text-slate-900"}`} onClick={() => menuOpen && setMenuOpen(false)}>
+        <div style={{ background: dark ? "#0f172a" : "#eef2f7" }} className={`pos-app pos-v2-root flex h-screen overflow-hidden ${dark ? "dark bg-slate-900 text-white" : "pos-light bg-slate-100 text-slate-900"}`} onClick={() => menuOpen && setMenuOpen(false)}>
             <aside className="flex w-[236px] shrink-0 flex-col border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 <div className="px-4 pb-2 pt-5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Waiter</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Waiter</p>
                     <p className="text-lg font-bold">Navigate</p>
                 </div>
                 <div className="space-y-1 px-2">
@@ -130,7 +130,7 @@ export default function WaiterOrderV2() {
                     <button type="button" onClick={() => navigate(ROUTES.kitchenBeverageOrders)} className={navBtn(false)}><Wine size={16} /> Bar orders</button>
                 </div>
                 <div className="px-4 pb-2 pt-5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Browse</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Browse</p>
                     <p className="text-lg font-bold">Categories</p>
                 </div>
                 <nav className="soft-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-2">
@@ -147,30 +147,30 @@ export default function WaiterOrderV2() {
                 <header className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
                     <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-lg font-bold">E</span>
                     <div className="leading-tight">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Taste of India</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Taste of India</p>
                         <p className="text-base font-bold">Waiter Order</p>
                     </div>
                     <div className="flex max-w-xl flex-1 items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-3">
-                        <Search size={16} className="text-slate-400" />
+                        <Search size={16} className="text-slate-500 dark:text-slate-400" />
                         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products..." className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" />
                     </div>
                     <div className="relative ml-auto" onClick={(e) => e.stopPropagation()}>
                         <button type="button" title="Terminal menu" onClick={() => setMenuOpen((o) => !o)} className="flex h-10 items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-3 text-sm font-semibold hover:border-blue-500">
-                            <i className="h-2 w-2 rounded-full bg-emerald-500" /> Terminal {terminal} <ChevronDown size={14} className="text-slate-400" />
+                            <i className="h-2 w-2 rounded-full bg-emerald-500" /> Terminal {terminal} <ChevronDown size={14} className="text-slate-500 dark:text-slate-400" />
                         </button>
                         {menuOpen && (
                             <div className="absolute right-0 top-12 z-40 w-72 rounded-xl border border-slate-200 bg-white p-1.5 text-slate-800 shadow-2xl dark:border-slate-600 dark:bg-slate-800 dark:text-white">
-                                <p className="px-3 py-2 text-xs text-slate-400">Terminal {terminal} · Waiter</p>
+                                <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Terminal {terminal} · Waiter</p>
                                 {[
                                     [Home, "Home", () => navigate(ROUTES.home)],
                                     [Monitor, "POS screen", () => navigate(ROUTES.posV2)],
                                     [BookOpen, "Public menu", () => window.open(ROUTES.posPublicMenu, "_blank")],
                                     [RefreshCw, "Sync products & customers", () => setSyncAsk(true)],
                                 ].map(([I, label, fn]) => (
-                                    <button key={label} type="button" onClick={() => { setMenuOpen(false); fn(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700"><I size={15} className="text-slate-400" /> {label}</button>
+                                    <button key={label} type="button" onClick={() => { setMenuOpen(false); fn(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700"><I size={15} className="text-slate-500 dark:text-slate-400" /> {label}</button>
                                 ))}
                                 <div className="my-1 border-t border-slate-200 dark:border-slate-600" />
-                                <button type="button" onClick={() => { setMenuOpen(false); setDark((d) => !d); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700"><Moon size={15} className="text-slate-400" /> Light / dark theme</button>
+                                <button type="button" onClick={() => { setMenuOpen(false); setDark((d) => !d); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700"><Moon size={15} className="text-slate-500 dark:text-slate-400" /> Light / dark theme</button>
                                 <button type="button" onClick={() => { mainLogout(); navigate(ROUTES.login); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-slate-700"><Power size={15} /> Sign out</button>
                             </div>
                         )}
@@ -178,9 +178,9 @@ export default function WaiterOrderV2() {
                 </header>
                 <div className="flex min-h-0 flex-1">
                     <section className="soft-scrollbar min-w-0 flex-1 overflow-y-auto p-4">
-                        <p className="mb-3 text-xl font-bold">New order {selectedTable && <span className="ml-2 text-sm font-normal text-slate-400">Table {selectedTable.label}</span>}</p>
+                        <p className="mb-3 text-xl font-bold">New order {selectedTable && <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">Table {selectedTable.label}</span>}</p>
                         {loading ? (
-                            <p className="py-16 text-center text-sm text-slate-400">Loading products…</p>
+                            <p className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">Loading products…</p>
                         ) : (
                             <>
                                 <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
@@ -205,15 +205,15 @@ export default function WaiterOrderV2() {
                             </div>
                             <div className="mt-3 flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
                                 <span className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-200 dark:bg-slate-700 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300"><Utensils size={14} /> Dine in</span>
-                                <span className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm text-slate-400"><ShoppingBag size={14} /> TakeAway</span>
+                                <span className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm text-slate-500 dark:text-slate-400"><ShoppingBag size={14} /> TakeAway</span>
                             </div>
                             <button type="button" onClick={() => setTablesOpen(true)} className="mt-3 flex w-24 flex-col rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-left hover:border-blue-500">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Table</span>
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Table</span>
                                 <span className="text-sm font-semibold">{selectedTable ? selectedTable.label : "Select"}</span>
                             </button>
                             <div className="soft-scrollbar mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto border-t border-dashed border-slate-200 dark:border-slate-700 pt-3">
                                 {cart.length === 0 ? (
-                                    <p className="py-10 text-center text-sm text-slate-400">Tap a product to add it to this table’s order.</p>
+                                    <p className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">Tap a product to add it to this table’s order.</p>
                                 ) : (
                                     cart.map((i) => (
                                         <div key={i.id} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">

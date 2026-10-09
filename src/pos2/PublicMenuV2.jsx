@@ -15,7 +15,7 @@ import BANNER from "./menu-header.png";
 // same JSON as the POS; photos show when a product has one (the API has no dish descriptions).
 export default function PublicMenuV2() {
     const { categories } = useCategories();
-    const { products, loading } = useProducts({ search: "" });
+    const { products, loading } = useProducts({ search: "", withUom: false });
     const [query, setQuery] = useState("");
     const [hasBanner, setHasBanner] = useState(true);
     const [active, setActive] = useState(null);
@@ -78,7 +78,7 @@ export default function PublicMenuV2() {
                     <button type="button" aria-label="Scroll categories" onClick={() => document.getElementById("chips")?.scrollBy({ left: 360, behavior: "smooth" })} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white"><ChevronRight size={16} /></button>
                 </div>
 
-                <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pr-2">
+                <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pr-2 [scroll-snap-type:y_proximity]">
                 {loading && <p className="py-20 text-center text-slate-500">Loading menu…</p>}
                 {!loading && shown.length === 0 && <p className="py-20 text-center text-slate-500">No dishes found.</p>}
 
@@ -86,7 +86,7 @@ export default function PublicMenuV2() {
                     const all = active !== null || expanded[s.id];
                     const items = all ? s.items : s.items.slice(0, PAGE);
                     return (
-                        <section key={s.id} className="mb-8">
+                        <section key={s.id} className="mb-8 [scroll-snap-align:start]">
                             <div className="flex items-center gap-3">
                                 <span className="font-serif text-xl" style={{ color: GOLD }}>{String(i + 1).padStart(2, "0")}</span>
                                 <h2 className="font-serif text-2xl uppercase tracking-wide">{s.label}</h2>

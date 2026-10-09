@@ -63,13 +63,13 @@ const getUomMap = () => {
     return uomMapPromise;
 };
 
-export const fetchProducts = async ({ categoryId, search } = {}) => {
+export const fetchProducts = async ({ categoryId, search, withUom = true } = {}) => {
     const params = new URLSearchParams();
     if (categoryId) params.set("category", categoryId);
     if (search) params.set("search", search);
 
     const query = params.toString();
-    const [data, uomMap] = await Promise.all([get(`/api/pos/products/index.php${query ? `?${query}` : ""}`), getUomMap()]);
+    const [data, uomMap] = await Promise.all([get(`/api/pos/products/index.php${query ? `?${query}` : ""}`), withUom ? getUomMap() : Promise.resolve({})]);
 
     return data.products.map((raw) => {
         const product = normalizeProduct(raw);

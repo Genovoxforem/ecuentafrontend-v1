@@ -22,7 +22,7 @@ function Stat({ icon: Icon, label, value, tone }) {
         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
             <span className={`grid h-10 w-10 place-items-center rounded-xl ${tone}`}><Icon size={18} /></span>
             <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
                 <p className="text-xl font-bold tabular-nums">{value}</p>
             </div>
         </div>
@@ -82,7 +82,7 @@ export default function InvoiceHistoryV2({ onClose }) {
                     <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-500/15 text-blue-500"><History size={20} /></span>
                     <div className="flex-1 leading-tight">
                         <p className="text-lg font-bold">Invoice history</p>
-                        <p className="text-xs text-slate-400">Today · {label}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Today · {label}</p>
                     </div>
                     <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 dark:border-slate-700"><X size={16} /></button>
                 </div>
@@ -94,20 +94,20 @@ export default function InvoiceHistoryV2({ onClose }) {
                         ))}
                     </div>
                     <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm dark:border-slate-700">
-                        <Calendar size={14} className="text-slate-400" />
+                        <Calendar size={14} className="text-slate-500 dark:text-slate-400" />
                         <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setRange("custom"); }} className="bg-transparent outline-none" />
-                        <span className="text-slate-400">–</span>
+                        <span className="text-slate-500 dark:text-slate-400">–</span>
                         <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setRange("custom"); }} className="bg-transparent outline-none" />
                     </label>
                     <label className="flex min-w-[14rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
-                        <Search size={14} className="text-slate-400" />
+                        <Search size={14} className="text-slate-500 dark:text-slate-400" />
                         <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load(from, to, query)} placeholder="Invoice no., customer or reference" className="min-w-0 flex-1 bg-transparent outline-none" />
                     </label>
                     <button type="button" onClick={() => load(from, to, query)} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"><Filter size={14} /> Apply</button>
                 </div>
 
                 <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                    <div className="mb-3 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+                    <div className="mb-3 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         <span>Payments received</span>
                         <span className="normal-case">ZMW {formatAmount(state.payments?.total || 0)} · {state.payments?.totalCount || 0} payments</span>
                     </div>
@@ -115,7 +115,7 @@ export default function InvoiceHistoryV2({ onClose }) {
                         {state.payments?.payments?.length ? (
                             <div className="flex flex-wrap gap-x-6 gap-y-1">
                                 {state.payments.payments.map((p) => (
-                                    <span key={p.code || p.label}>{p.label}: <b>ZMW {formatAmount(p.amount)}</b> <span className="text-slate-400">({p.count})</span></span>
+                                    <span key={p.code || p.label}>{p.label}: <b>ZMW {formatAmount(p.amount)}</b> <span className="text-slate-500 dark:text-slate-400">({p.count})</span></span>
                                 ))}
                             </div>
                         ) : (
@@ -131,11 +131,11 @@ export default function InvoiceHistoryV2({ onClose }) {
                     </div>
 
                     {state.loading ? (
-                        <p className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Loader2 size={16} className="animate-spin" /> Loading invoices…</p>
+                        <p className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500 dark:text-slate-400"><Loader2 size={16} className="animate-spin" /> Loading invoices…</p>
                     ) : state.error ? (
                         <p className="py-12 text-center text-sm text-red-500">{state.error}</p>
                     ) : state.entries.length === 0 ? (
-                        <div className="py-10 text-center text-slate-400">
+                        <div className="py-10 text-center text-slate-500 dark:text-slate-400">
                             <span className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600"><Receipt size={26} /></span>
                             <p className="font-semibold text-slate-600 dark:text-slate-300">No invoices in this period</p>
                             <p className="text-xs">Pick another date range or tap “All”.</p>
@@ -167,7 +167,7 @@ export default function InvoiceHistoryV2({ onClose }) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-700">
-                    <p className="mr-auto flex items-center gap-2 text-xs text-slate-400"><Info size={13} className="text-blue-500" /> Tap an unpaid invoice to collect its payment</p>
+                    <p className="mr-auto flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"><Info size={13} className="text-blue-500" /> Tap an unpaid invoice to collect its payment</p>
                     <button type="button" disabled={!state.entries.length} onClick={() => exportReportExcel(exportArgs)} className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"><FileSpreadsheet size={15} className="text-emerald-500" /> Excel</button>
                     <button type="button" disabled={!state.entries.length} onClick={() => exportReportPDF(exportArgs)} className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"><FileDown size={15} className="text-red-500" /> PDF</button>
                     <button type="button" onClick={onClose} className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700">Close</button>
