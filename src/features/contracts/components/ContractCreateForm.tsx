@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { FileEdit, Check, X, LoaderCircle, Plus, Trash2 } from 'lucide-react'
+import { Check, X, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { api } from '../../../api/axios'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -176,11 +176,7 @@ export function ContractCreateForm({
 
   return (
     <StickyFormShell
-      header={
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <FileEdit size={20} className="text-brand" /> New Contract
-        </h2>
-      }
+      header={<></>}
       footerLeft={
         <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel

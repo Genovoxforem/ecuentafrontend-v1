@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { List, Search, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Clock3, RefreshCcw, FileText, Landmark } from 'lucide-react'
+import { Search, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Clock3, RefreshCcw, FileText, Landmark } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -227,14 +227,6 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
     // page shell + sticky header are dropped since the host page already provides
     // its own header/tabs and isn't a bounded-height flex ancestor.
     <div className={embedded ? 'space-y-4' : '-m-6 flex-1 flex flex-col min-h-0'}>
-      {!embedded && (
-        <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <List size={20} className="text-brand" /> List Entries
-          </h2>
-        </div>
-      )}
-
       <div className={embedded ? 'space-y-4' : 'flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4'}>
         {!embedded && (
           <div className="flex items-center gap-2">

@@ -199,16 +199,16 @@ export function VatAccountsList() {
         <Percent size={20} className="text-brand" /> Vat accounts
       </h2>
 
-      <Card className="!h-auto">
+      <Card className="!h-auto !flex-row flex-wrap items-end gap-4">
         {(missing || add.isError) && (
           <div role="alert" className={`mb-3 ${errorCls}`}>
             {missing || (add.error instanceof Error ? add.error.message : 'Adding failed.')}
           </div>
         )}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ValueFields v={values} set={(p) => setValues((cur) => ({ ...cur, ...p }))} page={data} />
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="flex shrink-0 items-end">
           <button type="button" disabled={add.isPending} onClick={submitAdd} className="flex items-center gap-1.5 h-9 rounded-md bg-brand px-4 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
             {add.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add
           </button>

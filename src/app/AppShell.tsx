@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from '../shared/components/layout/Sidebar'
 import { ModernSidebar } from '../shared/components/layout/ModernSidebar'
@@ -13,6 +13,7 @@ import { buildNavSections } from '../shared/nav/buildNavSections'
 import { PATH_SOURCE_SECTIONS } from '../shared/nav/pathSourceSections'
 import { LayoutGrid } from 'lucide-react'
 import { ROUTES } from '../routes'
+import { installAutoPagination } from '../shared/autoPaginate'
 import { useTheme } from '../context/ThemeContext'
 
 interface AppShellProps {
@@ -40,6 +41,11 @@ export function AppShell({ children }: AppShellProps) {
   const isDetailPage = isDetailPagePath(location.pathname)
   // Dashboard is the landing page — no breadcrumb there, only on inner pages.
   const showBreadcrumb = location.pathname !== '/dashboard' && location.pathname !== '/'
+
+  useEffect(() => {
+    const content = routeContentRef.current
+    return content ? installAutoPagination(content) : undefined
+  }, [])
 
   useLayoutEffect(() => {
     const content = routeContentRef.current

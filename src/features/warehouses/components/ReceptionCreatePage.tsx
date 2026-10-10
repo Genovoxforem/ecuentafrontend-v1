@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PackageCheck, Search, Loader2, AlertTriangle } from 'lucide-react'
+import { Search, Loader2, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { ListPagination } from '../../../shared/components/ListPagination'
@@ -58,12 +58,6 @@ export function ReceptionCreatePage() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <PackageCheck size={20} className="text-brand" /> Waiting For Reception
-        </h2>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isError && (
           <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">

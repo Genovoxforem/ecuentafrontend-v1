@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useState } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link } from 'react-router-dom'
-import { Box, Package, Wrench, Search, Plus, Filter } from 'lucide-react'
+import { Package, Wrench, Search, Plus, Filter } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -155,14 +156,11 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   return (
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white p-2.5 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Box size={20} className="text-brand" /> Product List
-        </h2>
+      <InBanner>
         <Link to={ROUTES.productCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
           <Plus size={14} /> New
         </Link>
-      </div>
+      </InBanner>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

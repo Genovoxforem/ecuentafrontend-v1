@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Warehouse, ArrowLeftRight, ExternalLink, Search } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { resolveBackendAsset } from '../../../api/backends'
 import { useProductStocksReport } from '../products.queries'
@@ -25,10 +25,6 @@ export function ProductStocksPage() {
 
   return (
     <div className="space-y-3">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Warehouse size={20} className="text-brand" /> Stocks and Location of Products
-      </h2>
-
       {isError && <LegacyErrorCard title="Couldn't load stock levels" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
       {isLoading && <LegacyLoadingCard label="Loading real stock levels from the legacy backend…" />}
 

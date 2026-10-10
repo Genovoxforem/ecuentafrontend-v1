@@ -147,12 +147,12 @@ export function TaxAccountsList() {
         <Receipt size={20} className="text-brand" /> Tax accounts
       </h2>
 
-      <Card className="!h-auto">
+      <Card className="!h-auto !flex-row flex-wrap items-end gap-4">
         {add.isError && <div className="mb-3 whitespace-pre-line rounded-lg border border-danger/40 bg-danger-bg/50 px-3.5 py-2.5 text-sm text-danger">{add.error instanceof Error ? add.error.message : 'Adding failed.'}</div>}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <ValueFields v={values} set={setVals} countries={data.countries} accounts={data.accounts} />
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="flex shrink-0 items-end">
           <button
             type="button"
             disabled={add.isPending}

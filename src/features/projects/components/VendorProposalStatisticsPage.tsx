@@ -102,7 +102,7 @@ export function VendorProposalStatisticsPage() {
           <h2 className="text-sm font-semibold text-text!">Filters</h2>
           {selectedYear && <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">{selectedYear}</span>}
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(6,minmax(0,1fr))_auto]">
           <label className="min-w-0">
             <span className="mb-1 block text-xs font-medium text-text-muted">Third-party</span>
             <select value={socid} onChange={(event) => setSocid(event.target.value)} className={selectCls}>
@@ -143,8 +143,7 @@ export function VendorProposalStatisticsPage() {
               {(data?.yearOptions ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="flex gap-2">
           <button
             type="button"
             onClick={() => void refetch()}
@@ -157,6 +156,7 @@ export function VendorProposalStatisticsPage() {
           <button type="button" onClick={resetFilters} className="h-9 rounded-lg border border-border px-4 text-sm font-medium text-text-muted transition hover:bg-surface-hover">
             Reset
           </button>
+        </div>
         </div>
       </Card>
 

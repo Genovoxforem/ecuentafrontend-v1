@@ -1,8 +1,5 @@
 import { useState, type ComponentType } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  ListChecks,
-  ChevronRight,
   BarChart3,
   ClipboardCheck,
   LoaderCircle,
@@ -21,7 +18,6 @@ import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/da
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { ROUTES } from '../../../routes'
 import { formatDate } from '../../../utils/format'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { useTaskActivityKanbanForm, useRunTaskActivityKanbanReport, useRunCombinedActivitiesReport, type TaskActivityType, type CombinedActivityRow } from '../taskActivity.queries'
@@ -181,23 +177,6 @@ export function ActivitiesDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <ListChecks size={20} className="text-brand" /> Task / Activities Details
-        </h2>
-        <div className="flex items-center gap-1.5 text-xs text-text-faint mt-1">
-          <Link to={ROUTES.usersDashboard} className="hover:text-brand hover:underline">
-            Users
-          </Link>
-          <ChevronRight size={12} />
-          <Link to={ROUTES.activitiesDetail} className="hover:text-brand hover:underline">
-            Activities List
-          </Link>
-          <ChevronRight size={12} />
-          <span className="text-text-muted">Task / Activities Details</span>
-        </div>
-      </div>
-
       {formIsError && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           {formError instanceof Error ? formError.message : "Couldn't load this report's form."}

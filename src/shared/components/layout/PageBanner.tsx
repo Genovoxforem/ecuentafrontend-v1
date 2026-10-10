@@ -55,6 +55,8 @@ const BANNER_ACTIONS: Record<string, Array<{ label: string; path: string }>> = {
 const TITLE_OVERRIDES: Record<string, string> = {
   invoiceList: 'Sales Invoices',
   ledgerDashboard: 'Operations - View By Accounting Account (Ledger)',
+  kitchenBeverageOrders: 'Beverage Order Management',
+  kitchenOrderManagement: 'Kitchen Order Management',
 }
 
 function routeMatches(pattern: string, pathname: string) {
@@ -354,7 +356,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           </div>
         </div>
       {hoisted.length > 0 && (
-        <div className="relative z-10 flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        <div className="relative z-10 ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {hoisted.map((action, index) => (
             <button
               key={`${index}-${action.label}`}
@@ -362,26 +364,26 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
               disabled={action.disabled}
               title={action.label}
               onClick={() => hoistedEls.current[index]?.click()}
-              className="blue-theme-primary inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md border border-white/15 bg-[#315f7a] px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f] disabled:opacity-50"
+              className="blue-theme-primary inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-white/20 bg-[#3b718f] px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f] disabled:opacity-50"
               dangerouslySetInnerHTML={{ __html: action.html }}
             />
           ))}
         </div>
       )}
       {actions.length > 0 && (
-        <div className="relative z-10 flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        <div className={`relative z-10 flex min-w-0 max-w-full flex-wrap items-center gap-2 ${hoisted.length > 0 ? '' : 'ml-auto'}`}>
           {actions.map((action) => (
             <Link
               key={action.path}
               to={action.path}
-              className="blue-theme-primary inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md border border-white/15 bg-[#315f7a] px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f]"
+              className="blue-theme-primary inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-white/20 bg-[#3b718f] px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f]"
             >
               <Plus size={16} /> {action.label}
             </Link>
           ))}
         </div>
       )}
-      <div ref={setBannerSlot} className="relative z-10 flex min-w-0 flex-wrap items-center gap-3 empty:hidden" />
+      <div ref={setBannerSlot} className={`relative z-10 flex min-w-0 flex-wrap items-center gap-3 empty:hidden ${hoisted.length > 0 || actions.length > 0 ? '' : 'ml-auto'}`} />
       </div>
     </div>
   )

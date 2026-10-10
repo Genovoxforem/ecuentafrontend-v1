@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { PackageCheck } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useCustomerOptions } from '../../customers/customerOptions'
@@ -41,10 +40,6 @@ export function ReceptionStatisticsPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <PackageCheck size={20} className="text-brand" /> Statistics for receptions
-      </h2>
-
       <div className="inline-block rounded-md bg-brand/10 text-brand text-sm font-semibold px-4 py-2">By month/year</div>
 
       <Card className="!h-auto">

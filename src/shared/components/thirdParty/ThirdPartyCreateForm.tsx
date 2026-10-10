@@ -2,7 +2,6 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Users2,
   Check,
   X,
   LoaderCircle,
@@ -571,16 +570,6 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
       headerClassName="pt-1.5 pb-2.5"
       header={
         <>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center justify-center w-11 h-10 rounded-xl bg-brand/10 text-brand shrink-0">
-              <Users2 size={22} />
-            </span>
-            <div>
-              <h2 className="text-lg font-bold text-text!">New Third Party</h2>
-              {/* <p className="text-xs text-text-faint">Add a new prospect, customer, or vendor to your records</p> */}
-            </div>
-          </div>
-
           {/* Vendor/Prospect used to show a warning banner here explaining that
               /api/customer/?action=create always saved a plain customer
               regardless of variant. That's no longer true — this form now

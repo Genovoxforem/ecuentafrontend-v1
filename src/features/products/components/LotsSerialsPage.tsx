@@ -1,4 +1,3 @@
-import { Hash } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useLotSerialsReport } from '../products.queries'
@@ -15,10 +14,6 @@ export function LotsSerialsPage() {
 
   return (
     <div className="space-y-3">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Hash size={20} className="text-brand" /> List Of Lot/Serials
-      </h2>
-
       {isError && <LegacyErrorCard title="Couldn't load lots/serials" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
       {isLoading && <LegacyLoadingCard label="Loading real lot/serial records from the legacy backend…" />}
 

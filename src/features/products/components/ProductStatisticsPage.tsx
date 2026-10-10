@@ -1,4 +1,3 @@
-import { ChartPie } from 'lucide-react'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useProductStatsReport } from '../products.queries'
@@ -33,14 +32,11 @@ export function StatMiniChart({ series, color }: { series: ProductStatSeries; co
 // — see productLegacyParsers.ts / useProductStatsReport. type distinguishes
 // Products vs Services, confirmed to return genuinely different real
 // numbers on this backend.
-export function ProductStatisticsPage({ type, title }: { type: 0 | 1; title: string }) {
+export function ProductStatisticsPage({ type }: { type: 0 | 1; title?: string }) {
   const { data: series, isLoading, isError, error, refetch } = useProductStatsReport(type)
 
   return (
     <div className="space-y-3">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ChartPie size={20} className="text-brand" /> {title}
-      </h2>
 
       {isError && <LegacyErrorCard title="Couldn't load statistics" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
       {isLoading && <LegacyLoadingCard label="Loading real usage statistics from the legacy backend…" />}

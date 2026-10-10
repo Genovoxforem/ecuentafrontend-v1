@@ -366,7 +366,7 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-x-4 gap-y-3">
         <div>
           <label className="block text-sm mb-1 text-danger">Product*</label>
           <SearchableSelect

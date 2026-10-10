@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FileSpreadsheet, LoaderCircle, Search } from 'lucide-react'
+import { LoaderCircle, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -78,16 +78,6 @@ export function YtdEarningsDeductionsForm() {
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
       <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950 space-y-3">
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <FileSpreadsheet size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">YTD Earnings & Deductions</h2>
-            <p className="text-xs text-text-faint mt-0.5">Year-to-date earnings and deductions, by month or by fiscal year.</p>
-          </div>
-        </div>
-
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs text-danger mb-1">Search Type *</label>
