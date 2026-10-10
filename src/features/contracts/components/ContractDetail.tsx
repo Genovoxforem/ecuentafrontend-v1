@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ChevronLeft,
   FileEdit,
@@ -9,18 +9,22 @@ import {
   Paperclip,
   CalendarClock,
   Mail,
+  Check,
   Pencil,
   Copy,
   Trash2,
   Search,
   Link2,
   Upload,
+  LoaderCircle,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, InfoChip, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useContractsSummary } from '../contracts.queries'
-import { useContractLines, contractLineStatusLabel } from '../contractDetail.queries'
+import { useTheme } from '../../../context/ThemeContext'
+
+import { useContractsList } from '../contracts.queries'
+import { useContractApiDetail, useContractLines, useContractOperation, useDeleteContract, useUpdateContract, contractLineStatusLabel } from '../contractDetail.queries'
 
 const TABS = [
   { key: 'card', label: 'Contract Card', icon: FileEdit },
@@ -44,16 +48,15 @@ function TabTitle({ children, count }: { children: React.ReactNode; count?: numb
   )
 }
 
-function NoApiNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-text-faint italic mt-2">{children}</p>
-}
-
 const disabledBtn = 'flex items-center gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-1.5 text-sm font-medium text-text-faint cursor-not-allowed'
+const operationBtn = 'flex items-center gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover disabled:text-text-faint disabled:cursor-not-allowed disabled:opacity-60'
 
 export function ContractDetail() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<TabKey>('card')
-  const { data: summary, isLoading, isError, error, refetch } = useContractsSummary()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
+  const { data: contracts, isLoading, isError, error, refetch } = useContractsList()
 
   if (isLoading) {
     return (
@@ -62,7 +65,7 @@ export function ContractDetail() {
       </div>
     )
   }
-  if (isError || !summary) {
+  if (isError || !contracts) {
     return (
       <div className="-m-6 flex-1 flex flex-col min-h-0 p-6">
         <LegacyErrorCard title="Couldn't load contract" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
@@ -70,7 +73,7 @@ export function ContractDetail() {
     )
   }
 
-  const contract = summary.contracts.find((c) => c.id === Number(id))
+  const contract = contracts.find((c) => c.id === Number(id))
   if (!contract) {
     return (
       <div className="-m-6 flex-1 flex flex-col min-h-0 p-6">
@@ -87,39 +90,71 @@ export function ContractDetail() {
         <div className="px-6">
           <Card className="!h-auto">
             <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
-              <div>
-                <Link to={ROUTES.contractList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text mb-1.5">
-                  <ChevronLeft size={14} /> Contracts
-                </Link>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-text!">Service Contract Details</h2>
-                </div>
-                <div className="text-xs text-text-muted mt-1.5 space-y-0.5">
-                  <p>
-                    <span className="text-text-faint">Ref No:</span> <span className="font-medium text-text!">{contract.ref}</span>
-                  </p>
-                  <p>
-                    <span className="text-text-faint">Ref. customer:</span> {contract.refCustomer || <span className="italic">—</span>}
-                    {'  '}
-                    <span className="text-text-faint">Ref. vendor:</span> {contract.refVendor || <span className="italic">—</span>}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <span className="text-text-faint">Third-party:</span>{' '}
-                    {contract.thirdPartyId ? (
-                      <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="text-brand hover:underline font-medium">
-                        {contract.thirdParty}
-                      </Link>
+              <div className="flex items-start gap-4 min-w-[240px] flex-1">
+                <span className={`flex items-center justify-center w-16 h-16 bg-brand text-white shrink-0 ${isBlueMetal ? 'rounded-full' : 'rounded-lg'}`}>
+                  <FileEdit size={28} />
+                </span>
+                <div className="space-y-1.5 pt-0.5">
+                  <Link to={ROUTES.contractList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text">
+                    <ChevronLeft size={14} /> Contracts
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-bold text-text!">{contract.ref}</h2>
+                    {isBlueMetal ? (
+                      <StatusPill tone="brand">
+                        {totalServices} Service{totalServices === 1 ? '' : 's'}
+                      </StatusPill>
                     ) : (
-                      <span className="font-medium text-text!">{contract.thirdParty}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand/10 text-brand">
+                        {totalServices} Service{totalServices === 1 ? '' : 's'}
+                      </span>
                     )}
-                    {contract.thirdPartySubtitle && <span className="text-text-faint">({contract.thirdPartySubtitle})</span>}
-                  </p>
+                  </div>
+                  {isBlueMetal ? (
+                    <div className="flex flex-wrap items-center gap-4">
+                      {contract.thirdParty && (
+                        <InfoChip
+                          icon={Users2}
+                          label="Third-party"
+                          value={
+                            contract.thirdPartyId ? (
+                              <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="hover:underline">
+                                {contract.thirdParty}
+                              </Link>
+                            ) : (
+                              contract.thirdParty
+                            )
+                          }
+                          color="blue"
+                        />
+                      )}
+                      {(contract.refCustomer || contract.refVendor) && (
+                        <InfoChip icon={FileEdit} label="Ref. customer / vendor" value={`${contract.refCustomer || '—'} / ${contract.refVendor || '—'}`} color="violet" />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted space-y-0.5">
+                      <p>
+                        <span className="text-text-faint">Ref. customer:</span> {contract.refCustomer || <span className="italic">—</span>}
+                        {'  '}
+                        <span className="text-text-faint">Ref. vendor:</span> {contract.refVendor || <span className="italic">—</span>}
+                      </p>
+                      <p className="flex items-center gap-1">
+                        <span className="text-text-faint">Third-party:</span>{' '}
+                        {contract.thirdPartyId ? (
+                          <Link to={ROUTES.customerDetail.replace(':id', contract.thirdPartyId)} className="text-brand hover:underline font-medium">
+                            {contract.thirdParty}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-text!">{contract.thirdParty}</span>
+                        )}
+                        {contract.thirdPartySubtitle && <span className="text-text-faint">({contract.thirdPartySubtitle})</span>}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="text-sm text-text-muted">
-                <p className="font-medium text-text!">
-                  {totalServices} Service{totalServices === 1 ? '' : 's'}
-                </p>
                 <p className="text-xs">
                   {contract.notRunning} not running · {contract.inProgress} in progress · {contract.expired} expired · {contract.closed} closed
                 </p>
@@ -158,7 +193,72 @@ export function ContractDetail() {
 }
 
 function ContractCardTab({ id }: { id: string | undefined }) {
+  const navigate = useNavigate()
   const { data, isLoading, isError, error, refetch } = useContractLines(id)
+  const contractApi = useContractApiDetail(id)
+  const operation = useContractOperation(id)
+  const removeContract = useDeleteContract(id)
+  const updateContract = useUpdateContract(id)
+  const [operationError, setOperationError] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [editValues, setEditValues] = useState({ refCustomer: '', date: '', notePublic: '', notePrivate: '' })
+
+  function openEdit() {
+    const contract = contractApi.data
+    if (!contract?.actions.can_edit) return
+    setEditValues({
+      refCustomer: contract.ref_customer ?? '',
+      date: contract.date_contrat?.slice(0, 10) ?? '',
+      notePublic: contract.note_public ?? '',
+      notePrivate: contract.note_private ?? '',
+    })
+    setOperationError('')
+    setEditing(true)
+  }
+
+  async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setOperationError('')
+    try {
+      await updateContract.mutateAsync({
+        ref_customer: editValues.refCustomer,
+        date_contrat: editValues.date || undefined,
+        note_public: editValues.notePublic,
+        note_private: editValues.notePrivate,
+      })
+      setEditing(false)
+    } catch (err) {
+      setOperationError(err instanceof Error ? err.message : 'Could not update the contract.')
+    }
+  }
+
+  async function runForLines(action: 'activate_line' | 'close_line') {
+    if (!data) return
+    const eligible = data.lines.filter((line) => action === 'activate_line' ? line.statut === 0 : line.statut === 4)
+    let completed = 0
+    setOperationError('')
+    try {
+      for (const line of eligible) {
+        await operation.mutateAsync({ action, lineId: line.rowid })
+        completed += 1
+      }
+    } catch (err) {
+      setOperationError(
+        `${err instanceof Error ? err.message : 'The contract operation failed.'}${completed ? ` ${completed} line(s) were updated before the failure; refresh to review the result.` : ''}`,
+      )
+    }
+  }
+
+  async function handleDelete() {
+    if (!contractApi.data?.actions.can_delete || !window.confirm('Delete this contract? This cannot be undone.')) return
+    setOperationError('')
+    try {
+      await removeContract.mutateAsync()
+      navigate(ROUTES.contractList)
+    } catch (err) {
+      setOperationError(err instanceof Error ? err.message : 'Could not delete the contract.')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -167,8 +267,26 @@ function ContractCardTab({ id }: { id: string | undefined }) {
           <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
             <Mail size={14} /> Send Email
           </button>
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
+          <button
+            type="button"
+            disabled={!contractApi.data?.actions.can_edit || updateContract.isPending}
+            title={contractApi.data?.actions.can_edit ? 'Modify contract details' : 'Modification is not permitted or contract details are unavailable'}
+            onClick={openEdit}
+            className={operationBtn}
+          >
             <Pencil size={14} /> Modify
+          </button>
+          <button
+            type="button"
+            disabled={!contractApi.data?.actions.can_validate || operation.isPending}
+            title={contractApi.data?.actions.can_validate ? 'Validate this contract' : 'Validation is not permitted or contract details are unavailable'}
+            onClick={() => {
+              setOperationError('')
+              operation.mutate({ action: 'validate' }, { onError: (err) => setOperationError(err instanceof Error ? err.message : 'Could not validate the contract.') })
+            }}
+            className={operationBtn}
+          >
+            {operation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Validate
           </button>
           <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
             Create Order
@@ -176,19 +294,67 @@ function ContractCardTab({ id }: { id: string | undefined }) {
           <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
             Create Invoice
           </button>
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
+          <button
+            type="button"
+            disabled={!contractApi.data?.actions.can_activate || !data?.lines.some((line) => line.statut === 0) || operation.isPending}
+            title={contractApi.data?.actions.can_activate ? 'Activate every not-running contract line' : 'Activation is not permitted or contract details are unavailable'}
+            onClick={() => void runForLines('activate_line')}
+            className={operationBtn}
+          >
+            {operation.isPending && <LoaderCircle size={14} className="animate-spin" />}
             Activate All Contract Lines
           </button>
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
+          <button
+            type="button"
+            disabled={!contractApi.data?.actions.can_close_line || !data?.lines.some((line) => line.statut === 4) || operation.isPending}
+            title={contractApi.data?.actions.can_close_line ? 'Close every open contract line' : 'Closing lines is not permitted or contract details are unavailable'}
+            onClick={() => void runForLines('close_line')}
+            className={operationBtn}
+          >
+            {operation.isPending && <LoaderCircle size={14} className="animate-spin" />}
             Close All Contract Lines
           </button>
           <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
             <Copy size={14} /> Clone
           </button>
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-            <Trash2 size={14} /> Delete
+          <button
+            type="button"
+            disabled={!contractApi.data?.actions.can_delete || removeContract.isPending}
+            title={contractApi.data?.actions.can_delete ? 'Delete this contract' : 'Deletion is not permitted or contract details are unavailable'}
+            onClick={() => void handleDelete()}
+            className={operationBtn}
+          >
+            {removeContract.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
           </button>
         </div>
+        {operationError && <p role="alert" className="mt-3 text-sm text-danger">{operationError}</p>}
+        {contractApi.isError && <p role="alert" className="mt-3 text-sm text-danger">{contractApi.error instanceof Error ? contractApi.error.message : 'Could not load contract permissions.'}</p>}
+        {editing && (
+          <form onSubmit={(event) => void handleUpdate(event)} className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-border pt-4">
+            <label className="flex flex-col gap-1 text-sm text-text">
+              Customer reference
+              <input value={editValues.refCustomer} onChange={(event) => setEditValues((values) => ({ ...values, refCustomer: event.target.value }))} className="rounded-md border border-input-border bg-input-bg px-3 py-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-text">
+              Contract date
+              <input type="date" value={editValues.date} onChange={(event) => setEditValues((values) => ({ ...values, date: event.target.value }))} className="rounded-md border border-input-border bg-input-bg px-3 py-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-text">
+              Public note
+              <textarea rows={3} value={editValues.notePublic} onChange={(event) => setEditValues((values) => ({ ...values, notePublic: event.target.value }))} className="rounded-md border border-input-border bg-input-bg px-3 py-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-text">
+              Private note
+              <textarea rows={3} value={editValues.notePrivate} onChange={(event) => setEditValues((values) => ({ ...values, notePrivate: event.target.value }))} className="rounded-md border border-input-border bg-input-bg px-3 py-2" />
+            </label>
+            <div className="sm:col-span-2 flex justify-end gap-2">
+              <button type="button" disabled={updateContract.isPending} onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1.5 text-sm text-text">Cancel</button>
+              <button type="submit" disabled={updateContract.isPending} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+                {updateContract.isPending ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        )}
       </Card>
 
       <Card className="!h-auto !p-0 overflow-hidden">
@@ -218,12 +384,13 @@ function ContractCardTab({ id }: { id: string | undefined }) {
                   <th className="font-medium px-4 py-2.5">Start</th>
                   <th className="font-medium px-4 py-2.5">End</th>
                   <th className="font-medium px-4 py-2.5">Status</th>
+                  <th className="font-medium px-4 py-2.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {data.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-6 text-center text-text-faint italic">
+                    <td colSpan={11} className="px-4 py-6 text-center text-text-faint italic">
                       No lines on this contract.
                     </td>
                   </tr>
@@ -243,6 +410,27 @@ function ContractCardTab({ id }: { id: string | undefined }) {
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{l.date_start || '—'}</td>
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{l.date_end || '—'}</td>
                       <td className="px-4 py-2.5 text-text-muted">{contractLineStatusLabel(l.statut)}</td>
+                      <td className="px-4 py-2.5">
+                        {l.statut === 0 && contractApi.data?.actions.can_activate ? (
+                          <button
+                            type="button"
+                            disabled={operation.isPending}
+                            onClick={() => operation.mutate({ action: 'activate_line', lineId: l.rowid }, { onError: (err) => setOperationError(err instanceof Error ? err.message : 'Could not activate this line.') })}
+                            className="text-xs font-medium text-brand hover:underline disabled:opacity-60"
+                          >
+                            Activate
+                          </button>
+                        ) : l.statut === 4 && contractApi.data?.actions.can_close_line ? (
+                          <button
+                            type="button"
+                            disabled={operation.isPending}
+                            onClick={() => operation.mutate({ action: 'close_line', lineId: l.rowid }, { onError: (err) => setOperationError(err instanceof Error ? err.message : 'Could not close this line.') })}
+                            className="text-xs font-medium text-brand hover:underline disabled:opacity-60"
+                          >
+                            Close
+                          </button>
+                        ) : '—'}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -268,7 +456,7 @@ function ContactsAddressesTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Contacts/Addresses</TabTitle>
-      <NoApiNote>This tab has no real JSON API on the current backend (contrat/contact.php is a full legacy page) — shown for layout reference only.</NoApiNote>
+      
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>
@@ -289,7 +477,7 @@ function ContactsAddressesTab() {
               <option>—</option>
             </select>
           </div>
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
+          <button type="button" disabled title="No real API available on this backend"           className={operationBtn}>
             Add
           </button>
         </div>
@@ -328,7 +516,7 @@ function NotesTab() {
           Save
         </button>
       </div>
-      <NoApiNote>This tab has no real JSON API on the current backend (contrat/note.php is a full legacy page) — nothing typed here is saved.</NoApiNote>
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="!h-auto">
           <p className="text-sm font-semibold text-text!">Note (public)</p>
@@ -352,7 +540,7 @@ function FollowUpTab() {
           Ecuenta Application
         </button>
       </div>
-      <NoApiNote>This tab has no real JSON API on the current backend (contrat/follow_up.php is a full legacy page) — shown for layout reference only.</NoApiNote>
+      
       <Card className="!h-auto !p-0 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -380,7 +568,7 @@ function LinkedFilesTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Linked Files</TabTitle>
-      <NoApiNote>This tab has no real JSON API on the current backend (contrat/document.php is a full legacy page) — controls below are inert.</NoApiNote>
+      
       <Card className="!h-auto">
         <p className="text-sm font-semibold text-text! mb-2">Attach a new file/document</p>
         <div className="flex flex-wrap items-center gap-3">
@@ -420,7 +608,7 @@ function EventsAgendaTab() {
   return (
     <div className="space-y-3">
       <TabTitle>Events/Agenda</TabTitle>
-      <NoApiNote>This tab has no real JSON API on the current backend (contrat/agenda.php is a full legacy page) — shown for layout reference only.</NoApiNote>
+      
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
           <div>

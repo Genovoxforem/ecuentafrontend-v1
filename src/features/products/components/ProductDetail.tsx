@@ -24,6 +24,7 @@ import {
 import JsBarcode from 'jsbarcode'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
+import { useTheme } from '../../../context/ThemeContext'
 import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
@@ -119,6 +120,8 @@ function StatChip({ label, value }: { label: string; value: string }) {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { data: product, isLoading, isError, error } = useProductDetail(id)
   const deleteProduct = useDeleteProduct()
   const duplicateProduct = useDuplicateProduct()
@@ -230,8 +233,8 @@ export function ProductDetail() {
               photo={product.hasImage ? resolveBackendAsset(product.imageUrl) : undefined}
               name={product.label}
               size={120}
-              rounded="lg"
-              color="bg-brand"
+              rounded={isBlueMetal ? 'full' : 'lg'}
+              color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'}
             />
             <div className="space-y-2 pt-0.5">
               <div className="flex items-start gap-2">

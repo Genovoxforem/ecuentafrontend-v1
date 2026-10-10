@@ -197,7 +197,7 @@ export function useOrderDetail(id: string | undefined) {
 
 // -------------------------------------------------------------- notes ------
 export function useOrderNotes(id: string | undefined) {
-  return useQuery<OrderNotes>({
+  return useQuery<Pick<OrderNotes, 'notePublic' | 'notePrivate'>>({
     queryKey: ['salesOrders', 'detail', id, 'notes'],
     queryFn: async () => {
       const d = await fapiGet<{ note_public: string; note_private: string }>(`/commande/fapi/notes.php?id=${id}`)
@@ -209,6 +209,19 @@ export function useOrderNotes(id: string | undefined) {
       }
     },
     enabled: !!id,
+  })
+}
+
+// Saves one note through commande/fapi/notes.php (POST {id, note_public /
+// note_private}) — the same Commande::update_note the classic note.php form
+// runs, with no CSRF token. Only the edited field is sent.
+export function useSetOrderNote(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { field: 'note_public' | 'note_private'; value: string }) => {
+      await fapiPost(`/commande/fapi/notes.php`, { id: Number(id), [input.field]: input.value })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'notes'] }),
   })
 }
 
@@ -268,8 +281,7 @@ export function useUploadOrderDocument(id: string | undefined) {
       await fapiPostForm(`/commande/fapi/documents.php`, body)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documents'] })
-      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documentsMeta'] })
+      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documentsPage'] })
     },
   })
 }
@@ -281,7 +293,7 @@ export function useLinkOrderDocument(id: string | undefined) {
       await fapiPost(`/commande/fapi/documents.php`, { action: 'link', id, link: input.link, label: input.label })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documentsMeta'] })
+      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documentsPage'] })
     },
   })
 }
@@ -583,7 +595,6 @@ export function useGenerateOrderDoc(id: string | undefined) {
       await postOrderAction(id, 'builddoc', { model: input.model, lang_id: input.langId })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documents'] })
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id] })
     },
   })

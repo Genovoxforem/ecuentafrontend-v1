@@ -98,7 +98,7 @@ export function StockTransferPage() {
             {saved}
           </p>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-x-4 gap-y-3">
           <Field label="Warehouse" required>
             <select value={warehouseFrom} onChange={(e) => setWarehouseFrom(e.target.value)} className={selectCls}>
               <option value="">Select a warehouse</option>

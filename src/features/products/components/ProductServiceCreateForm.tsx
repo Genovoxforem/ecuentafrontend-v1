@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft,
   Boxes,
   Check,
   ChevronDown,
@@ -11,7 +11,6 @@ import {
   Globe,
   ImageUp,
   LoaderCircle,
-  Package,
   PlusCircle,
   Settings2,
   Share2,
@@ -960,15 +959,7 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
         headerClassName="pt-1.5 pb-2.5"
         header={
           <>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Link to={cancelPath} className="text-text-faint hover:text-text">
-                  <ArrowLeft size={20} />
-                </Link>
-                <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-                  <Package size={20} className="text-brand" /> New {isService ? 'Service' : 'Product'}
-                </h2>
-              </div>
+            <InBanner>
               <div className="flex items-center gap-2">
                 <Link to={cancelPath} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
                   Cancel
@@ -989,9 +980,9 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
                   </button>
                 )}
               </div>
-            </div>
+            </InBanner>
 
-            <div className="flex items-center mt-3">
+            <div className="flex items-center">
               {PRODUCT_WIZARD_STEPS.map((s, i) => {
                 const isDone = i < step
                 const isActive = i === step

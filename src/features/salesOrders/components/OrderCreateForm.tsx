@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShoppingCart, Check, X, Plus, Pencil, Trash2, LoaderCircle, ChevronLeft, ChevronRight, Save } from 'lucide-react'
+import { Check, X, Plus, Pencil, Trash2, LoaderCircle, ChevronLeft, ChevronRight, Save } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
@@ -613,10 +613,7 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
         headerClassName="pt-1.5 pb-2.5"
       header={
         <>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <ShoppingCart size={20} className="text-brand" /> New Sales Order
-          </h2>
-          <div className="flex items-center mt-3">
+          <div className="flex items-center">
             {WIZARD_STEPS.map((s, i) => {
               const isDone = i < step
               const isActive = i === step

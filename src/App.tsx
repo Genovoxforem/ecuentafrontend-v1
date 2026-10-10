@@ -10,6 +10,7 @@ import { SidebarStyleProvider } from './context/SidebarStyleContext'
 import { AuthProvider } from './features/auth/AuthContext'
 import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { ErrorBoundary } from './shared/components/ErrorBoundary'
+import { PageNotAvailable } from './shared/components/PageNotAvailable'
 import { ConfirmDialogProvider } from './shared/components/ConfirmDialog'
 import { RouteFallback } from './shared/components/RouteFallback'
 import { LoginModule } from './modules/auth/LoginModule'
@@ -33,6 +34,21 @@ const DashboardModule = lazy(() => import('./modules/dashboard/DashboardModule')
 const ReportsModule = lazy(() => import('./modules/reports/ReportsModule').then((m) => ({ default: m.ReportsModule })))
 const SettingsModule = lazy(() => import('./modules/settings/SettingsModule').then((m) => ({ default: m.SettingsModule })))
 const CompanyOrganizationModule = lazy(() => import('./modules/settings/CompanyOrganizationModule').then((m) => ({ default: m.CompanyOrganizationModule })))
+const PayrollEmployeesModule = lazy(() => import('./modules/payrollV2/PayrollEmployeesModule').then((m) => ({ default: m.PayrollEmployeesModule })))
+const PayrollAttendanceModule = lazy(() => import('./modules/payrollV2/PayrollAttendanceModule').then((m) => ({ default: m.PayrollAttendanceModule })))
+const PayrollLeaveModule = lazy(() => import('./modules/payrollV2/PayrollLeaveModule').then((m) => ({ default: m.PayrollLeaveModule })))
+const PayrollAdvancesModule = lazy(() => import('./modules/payrollV2/PayrollAdvancesModule').then((m) => ({ default: m.PayrollAdvancesModule })))
+const PayrollReportsModule = lazy(() => import('./modules/payrollV2/PayrollReportsModule').then((m) => ({ default: m.PayrollReportsModule })))
+const PayrollAnalyticsModule = lazy(() => import('./modules/payrollV2/PayrollAnalyticsModule').then((m) => ({ default: m.PayrollAnalyticsModule })))
+const PayRunsModule = lazy(() => import('./modules/payrollV2/PayRunsModule').then((m) => ({ default: m.PayRunsModule })))
+const PayRunDetailModule = lazy(() => import('./modules/payrollV2/PayRunDetailModule').then((m) => ({ default: m.PayRunDetailModule })))
+const PayrollV2DashboardModule = lazy(() => import('./modules/payrollV2/PayrollV2DashboardModule').then((m) => ({ default: m.PayrollV2DashboardModule })))
+const PayrollSelfServiceModule = lazy(() => import('./modules/payrollV2/PayrollSelfServiceModule').then((m) => ({ default: m.PayrollSelfServiceModule })))
+const PayrollTemplatesModule = lazy(() => import('./modules/payrollV2/PayrollTemplatesModule').then((m) => ({ default: m.PayrollTemplatesModule })))
+const PayrollShiftsModule = lazy(() => import('./modules/payrollV2/PayrollShiftsModule').then((m) => ({ default: m.PayrollShiftsModule })))
+const PayrollSettingsModule = lazy(() => import('./modules/payrollV2/PayrollSettingsModule').then((m) => ({ default: m.PayrollSettingsModule })))
+const PayrollV2SetupModule = lazy(() => import('./modules/payrollV2/PayrollV2SetupModule').then((m) => ({ default: m.PayrollV2SetupModule })))
+const UnderConstructionModule = lazy(() => import('./modules/underConstruction/UnderConstructionModule').then((m) => ({ default: m.UnderConstructionModule })))
 const SetupLandingModule = lazy(() => import('./modules/settings/SetupLandingModule').then((m) => ({ default: m.SetupLandingModule })))
 const MenusSetupModule = lazy(() => import('./modules/settings/MenusSetupModule').then((m) => ({ default: m.MenusSetupModule })))
 const DisplaySetupModule = lazy(() => import('./modules/settings/DisplaySetupModule').then((m) => ({ default: m.DisplaySetupModule })))
@@ -211,6 +227,7 @@ const LoanCustomerCreateModule = lazy(() => import('./modules/loans/LoanCustomer
 const BudgetModule = lazy(() => import('./modules/budget/BudgetModule').then((m) => ({ default: m.BudgetModule })))
 const TicketsListModule = lazy(() => import('./modules/tickets/TicketsListModule').then((m) => ({ default: m.TicketsListModule })))
 const MyAssignedTicketsModule = lazy(() => import('./modules/tickets/MyAssignedTicketsModule').then((m) => ({ default: m.MyAssignedTicketsModule })))
+const TicketDeskModule = lazy(() => import('./modules/tickets/TicketDeskModule').then((m) => ({ default: m.TicketDeskModule })))
 const TicketStatisticsModule = lazy(() => import('./modules/tickets/TicketStatisticsModule').then((m) => ({ default: m.TicketStatisticsModule })))
 const TicketCreateModule = lazy(() => import('./modules/tickets/TicketCreateModule').then((m) => ({ default: m.TicketCreateModule })))
 const JobCardsListModule = lazy(() => import('./modules/interventions/JobCardsListModule').then((m) => ({ default: m.JobCardsListModule })))
@@ -316,7 +333,6 @@ const VariantAttributeDetailModule = lazy(() => import('./modules/products/Varia
 const KitchenModule = lazy(() => import('./modules/kitchen/KitchenModule').then((m) => ({ default: m.KitchenModule })))
 const KitchenDashboardModule = lazy(() => import('./modules/kitchen/KitchenDashboardModule').then((m) => ({ default: m.KitchenDashboardModule })))
 const BeverageOrdersModule = lazy(() => import('./modules/kitchen/BeverageOrdersModule').then((m) => ({ default: m.BeverageOrdersModule })))
-const CreateOrderModule = lazy(() => import('./modules/kitchen/CreateOrderModule').then((m) => ({ default: m.CreateOrderModule })))
 const HotelModule = lazy(() => import('./modules/hotel/HotelModule').then((m) => ({ default: m.HotelModule })))
 const HotelRoomsModule = lazy(() => import('./modules/hotel/HotelRoomsModule').then((m) => ({ default: m.HotelRoomsModule })))
 const HotelReservationsModule = lazy(() => import('./modules/hotel/HotelReservationsModule').then((m) => ({ default: m.HotelReservationsModule })))
@@ -481,6 +497,10 @@ const AgendaModule = lazy(() => import('./modules/agenda/AgendaModule').then((m)
 const ReportingModule = lazy(() => import('./modules/agenda/ReportingModule').then((m) => ({ default: m.ReportingModule })))
 const EventCategoriesModule = lazy(() => import('./modules/agenda/EventCategoriesModule').then((m) => ({ default: m.EventCategoriesModule })))
 
+const PosV2Page = lazy(() => import('./pos2/PosV2'))
+const PosPublicMenuPage = lazy(() => import('./pos2/PublicMenuV2'))
+const PosWaiterPage = lazy(() => import('./pos2/WaiterOrderV2'))
+const PosCustomerDisplayPage = lazy(() => import('./pos2/CustomerDisplayV2'))
 const PosLayout = lazy(() => import('./pos/layouts/DashboardLayout'))
 const PosHome = lazy(() => import('./pos/features/pos/Components/PosHome'))
 const PosProductsPage = lazy(() => import('./pos/features/products/Components/ProductsPage'))
@@ -527,6 +547,38 @@ function App() {
                       {/* Full-bleed, own chrome (PosNavbar/PosSidebar) — not wrapped in
                     AppLayout's admin Navbar/Sidebar, same as pos_standalone was
                     full-screen on its own. See src/pos/layouts/DashboardLayout.jsx. */}
+                      <Route
+                        path={ROUTES.posPublicMenu}
+                        element={
+                          <RouteBoundary>
+                            <PosPublicMenuPage />
+                          </RouteBoundary>
+                        }
+                      />
+                      <Route
+                        path={ROUTES.posWaiter}
+                        element={
+                          <RouteBoundary>
+                            <PosWaiterPage />
+                          </RouteBoundary>
+                        }
+                      />
+                      <Route
+                        path={ROUTES.posCustomerDisplay}
+                        element={
+                          <RouteBoundary>
+                            <PosCustomerDisplayPage />
+                          </RouteBoundary>
+                        }
+                      />
+                      <Route
+                        path={ROUTES.posV2}
+                        element={
+                          <RouteBoundary>
+                            <PosV2Page />
+                          </RouteBoundary>
+                        }
+                      />
                       <Route
                         path="/pos"
                         element={
@@ -1961,6 +2013,14 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.ticketDesk}
+                          element={
+                            <RouteBoundary>
+                              <TicketDeskModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.ticketStatistics}
                           element={
                             <RouteBoundary>
@@ -2855,7 +2915,7 @@ function App() {
                           path={ROUTES.kitchenCreateOrder}
                           element={
                             <RouteBoundary>
-                              <CreateOrderModule />
+                              <Navigate to={ROUTES.posWaiter} replace />
                             </RouteBoundary>
                           }
                         />
@@ -3964,6 +4024,126 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.payrollV2Employees}
+                          element={
+                            <RouteBoundary>
+                              <PayrollEmployeesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Attendance}
+                          element={
+                            <RouteBoundary>
+                              <PayrollAttendanceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Leave}
+                          element={
+                            <RouteBoundary>
+                              <PayrollLeaveModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Advances}
+                          element={
+                            <RouteBoundary>
+                              <PayrollAdvancesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Reports}
+                          element={
+                            <RouteBoundary>
+                              <PayrollReportsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Analytics}
+                          element={
+                            <RouteBoundary>
+                              <PayrollAnalyticsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2PayRunDetail}
+                          element={
+                            <RouteBoundary>
+                              <PayRunDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2PayRuns}
+                          element={
+                            <RouteBoundary>
+                              <PayRunsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2SelfService}
+                          element={
+                            <RouteBoundary>
+                              <PayrollSelfServiceModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Templates}
+                          element={
+                            <RouteBoundary>
+                              <PayrollTemplatesModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Shifts}
+                          element={
+                            <RouteBoundary>
+                              <PayrollShiftsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Setup}
+                          element={
+                            <RouteBoundary>
+                              <PayrollV2SetupModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Settings}
+                          element={
+                            <RouteBoundary>
+                              <PayrollSettingsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.payrollV2Dashboard}
+                          element={
+                            <RouteBoundary>
+                              <PayrollV2DashboardModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.underConstruction}
+                          element={
+                            <RouteBoundary>
+                              <UnderConstructionModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.productTags}
                           element={
                             <RouteBoundary>
@@ -4195,7 +4375,7 @@ function App() {
                             </RouteBoundary>
                           }
                         />
-                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="*" element={<PageNotAvailable />} />
                       </Route>
                     </Route>
                   </Routes>

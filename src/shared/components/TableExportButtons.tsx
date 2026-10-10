@@ -72,7 +72,7 @@ export function TableExportButtons({ title, getExportData }: { title: string; ge
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="blue-density-export flex items-center gap-1.5">
       <button type="button" onClick={handleCsv} title="Export CSV" className={`${btnCls} bg-info-bg text-info-fg`}>
         <FileSpreadsheet size={14} /> CSV
       </button>

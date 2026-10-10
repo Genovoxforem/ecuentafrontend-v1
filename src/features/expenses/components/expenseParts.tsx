@@ -108,7 +108,7 @@ export function PerPageSelect({ value, onChange, label = 'entries per page' }: {
 
 export function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
-    <label className="relative block min-w-56 flex-1">
+    <label className="relative block w-64 max-w-full">
       <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={`${controlCls} w-full pl-9`} aria-label={placeholder} />
     </label>

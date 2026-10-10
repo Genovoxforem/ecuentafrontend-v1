@@ -1,4 +1,4 @@
-import { Lock, BarChart2, CalendarDays, TrendingUp, FileText, FileSignature, ShoppingCart, Truck, ArrowRightLeft, Bot, Banknote, Receipt, Calculator } from 'lucide-react'
+import { CalendarDays, TrendingUp, FileText, FileSignature, ShoppingCart, Truck, ArrowRightLeft, Bot, Banknote, Receipt, Calculator } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { SectionHeading, StatCard, TodayStatCard, InvoiceStatusChart, InvoiceStatusTable, TopProductsTable, fmtZMW, fmtLongDate } from '../../../shared/components/dashboard/DashboardKit'
 import type { PurchasesSummary } from '../purchases.queries'
@@ -8,11 +8,6 @@ export function PurchasesOverview({ summary }: { summary: PurchasesSummary }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Lock size={20} className="text-brand" /> Supplier billing area
-      </h2>
-
-      <SectionHeading icon={BarChart2}>Overall Statistics</SectionHeading>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
         <StatCard label="Purchase Invoices" count={stats.purchaseInvoices} color="blue" icon={FileText} listPath={ROUTES.vendorInvoiceList} newPath={ROUTES.vendorInvoiceCreate} />
         <StatCard label="Supplier Proposals" count={stats.supplierProposals} color="green" icon={FileSignature} listPath={ROUTES.supplierProposalList} newPath={ROUTES.supplierProposalCreate} />

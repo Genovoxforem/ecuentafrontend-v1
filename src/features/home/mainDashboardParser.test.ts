@@ -83,6 +83,24 @@ describe('parseLegacyHomeDashboard', () => {
     expect(dash?.purchase.last7[0]).toMatchObject({ ref: 'SI2609-0148', id: 183, party: 'AUTOWORLD LIMITED', partyId: 2012, amount: 25, status: 'Paid', statusCode: 6 })
   })
 
+  it('reads Last 7 rows when those cards are outside their tab panes', () => {
+    const doc = new DOMParser().parseFromString(FIXTURE, 'text/html')
+    const dashboard = doc.querySelector('.erp-dash')!
+    for (const kind of ['sales', 'purchase']) {
+      const pane = doc.getElementById(kind === 'sales' ? 'salesTab' : 'purchaseTab')!
+      const titlePattern = kind === 'sales' ? /^last\s*7\s+sales\b/i : /^last\s*7\s+purchases?\b/i
+      const card = Array.from(pane.querySelectorAll('.erp-card')).find((candidate) =>
+        titlePattern.test(candidate.querySelector('.erp-card__title')?.textContent?.trim() ?? ''),
+      )
+      expect(card).toBeDefined()
+      dashboard.append(card!)
+    }
+
+    const movedCardsDashboard = parseLegacyHomeDashboard(doc.documentElement.innerHTML)
+    expect(movedCardsDashboard?.sales.last7[0]?.ref).toBe('INOV-26-0035')
+    expect(movedCardsDashboard?.purchase.last7[0]?.ref).toBe('SI2609-0148')
+  })
+
   it('reads the by-country rows and the map markers of each tab', () => {
     expect(dash?.sales.countries).toEqual([
       { code: 'zm', name: 'Zambie', amount: 1182606, percent: 98 },

@@ -114,26 +114,6 @@ export function LandedCostListPage() {
           </div>
         )}
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="block text-xs text-text-faint mb-1">Product</label>
-            <select value={productDraft} onChange={(e) => setProductDraft(e.target.value)} className={selectCls + ' w-56'}>
-              <option value="">-- Select Product --</option>
-              {(data?.products ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="button" onClick={() => applyFilter(productDraft)} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-            Go
-          </button>
-          <button type="button" onClick={() => applyFilter('')} className="rounded-md border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Clear
-          </button>
-        </div>
-
         {isLoading ? (
           <LegacyLoadingCard label="Loading landed costs…" />
         ) : isError || !data ? (
@@ -141,6 +121,23 @@ export function LandedCostListPage() {
         ) : (
           <Card className="!p-0 overflow-hidden flex-1 min-h-0">
             <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-text-faint">Product</label>
+          <select value={productDraft} onChange={(e) => setProductDraft(e.target.value)} className={selectCls + ' w-56'}>
+            <option value="">-- Select Product --</option>
+            {(data?.products ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="button" onClick={() => applyFilter(productDraft)} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+          Go
+        </button>
+        <button type="button" onClick={() => applyFilter('')} className="rounded-md border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
+          Clear
+        </button>
               <select value={perPage} onChange={(e) => handlePerPageChange(Number(e.target.value))} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
                 {PAGE_SIZE_OPTIONS.map((n) => (
                   <option key={n} value={n}>

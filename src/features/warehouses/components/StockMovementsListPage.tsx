@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link } from 'react-router-dom'
 import { Warehouse, ShoppingCart, ShoppingBag, RefreshCw, Search, RotateCcw, LoaderCircle, AlertTriangle, CloudUpload } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -197,19 +198,8 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
 
   return (
     <div className={embedded ? 'flex flex-col' : '-m-6 flex-1 flex flex-col min-h-0'}>
-      <div
-        className={
-          embedded
-            ? 'flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3'
-            : 'sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950'
-        }
-      >
-        <div>
-          <p className="text-xs text-text-faint">Warehouse Stock Information</p>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <Warehouse size={20} className="text-brand" /> List Of Stock Movements
-          </h2>
-        </div>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border pb-3">
         <select value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setPage(1) }} className={selectCls + ' w-56'}>
           <option value="">Select Warehouse</option>
           {warehouses.map((w) => (
@@ -218,7 +208,19 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
             </option>
           ))}
         </select>
-      </div>
+        </div>
+      ) : (
+        <InBanner>
+          <select value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setPage(1) }} className={selectCls + ' w-56'}>
+            <option value="">Select Warehouse</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.shortName || w.ref}
+              </option>
+            ))}
+          </select>
+          </InBanner>
+      )}
 
       <div className={embedded ? 'flex flex-col space-y-4 pt-4' : 'flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4'}>
         {isError && (
@@ -236,7 +238,7 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
         </div>
 
         <Card className="!h-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.5fr_1.2fr_1fr_1fr_auto] gap-3 items-end">
             <div>
               <label className="block text-xs text-text-faint mb-1">Movement Date</label>
               <div className="flex items-center gap-1.5">
@@ -271,14 +273,14 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
                 ))}
               </select>
             </div>
-          </div>
-          <div className="flex items-center justify-end gap-2 mt-3">
+            <div className="flex items-center gap-2">
             <button type="button" onClick={handleReset} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
               <RotateCcw size={14} /> Reset
             </button>
             <button type="button" onClick={handleSearch} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
               <Search size={14} /> Search
             </button>
+            </div>
           </div>
         </Card>
 

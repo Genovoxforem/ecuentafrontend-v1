@@ -22,8 +22,6 @@ export function ShiftPivotReportForm({
   path,
   monthParam,
   title,
-  description,
-  icon: Icon,
 }: {
   path: ShiftPivotReportPath
   monthParam: 'month' | 'monthPic'
@@ -71,20 +69,8 @@ export function ShiftPivotReportForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Icon size={20} className="text-brand" /> {title}
-        </h2>
-        {report && (
-          <div className="flex items-center gap-2">
-            <TableExportButtons title={title} getExportData={getExportData} />
-          </div>
-        )}
-      </div>
-      <p className="text-xs text-text-faint -mt-3">{description}</p>
-
       <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] items-end gap-4">
           <Field label="Entity" required>
             <select value={entity} onChange={(e) => setEntity(e.target.value)} className={inputClasses}>
               <option value="">Select Entity</option>
@@ -127,14 +113,18 @@ export function ShiftPivotReportForm({
           <Field label="Month" required>
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={inputClasses} />
           </Field>
-        </div>
-        <div className="flex items-center justify-between mt-4">
-          {error && <p className="text-xs text-danger">{error}</p>}
-          <button type="button" onClick={handleRefresh} className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover">
+          <button type="button" onClick={handleRefresh} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover">
             Refresh
           </button>
         </div>
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       </Card>
+
+      {report && (
+        <div className="flex justify-end">
+          <TableExportButtons title={title} getExportData={getExportData} />
+        </div>
+      )}
 
       {isLoading && <LegacyLoadingCard label="Loading report…" />}
       {isError && <LegacyErrorCard title="Couldn't load report" message={fetchError instanceof Error ? fetchError.message : 'Unknown error.'} onRetry={() => refetch()} />}

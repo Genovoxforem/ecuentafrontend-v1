@@ -205,28 +205,39 @@ function scrapeSelectOptions(doc: Document, selector: string): SalesWarehouseOpt
 // when no JSON API covers a field (see AGENTS.md/project convention).
 // Combined into one fetch since all three selects live on the same real
 // page.
-export function useSalesInvoiceDraftFormOptions(facid: string | undefined, enabled: boolean) {
-  return useQuery<SalesDraftFormOptions>({
-    queryKey: ['salesInvoice', facid, 'draftFormOptions'],
-    queryFn: async () => {
+//
+// compta/sales/card.php (1.4–1.7 MB) feeds both this and useDebitNoteEnabled
+// below: it is downloaded once into this shared cache entry, then each hook
+// reads what it needs from it.
+function salesInvoicePageQuery(facid: string | undefined) {
+  return {
+    queryKey: ['salesInvoice', facid, 'page'],
+    queryFn: async (): Promise<string> => {
       const res = await fetch(`${SALES_BASE}/card.php?facid=${facid}`, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const productSelect = doc.querySelector<HTMLSelectElement>('#nl-idprod')
-      const productOptions: SalesProductOption[] = productSelect
-        ? Array.from(productSelect.options)
-            .filter((o) => o.value)
-            .map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
-        : []
-      return {
-        warehouseOptions: scrapeSelectOptions(doc, '#vm-warehouse'),
-        unvalidateWarehouseOptions: scrapeSelectOptions(doc, '#um-warehouse'),
-        productOptions,
-      }
+      return res.text()
     },
-    enabled: enabled && !!facid,
-  })
+    staleTime: 1000 * 30,
+  }
+}
+
+function parseDraftFormOptions(html: string): SalesDraftFormOptions {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const productSelect = doc.querySelector<HTMLSelectElement>('#nl-idprod')
+  const productOptions: SalesProductOption[] = productSelect
+    ? Array.from(productSelect.options)
+        .filter((o) => o.value)
+        .map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
+    : []
+  return {
+    warehouseOptions: scrapeSelectOptions(doc, '#vm-warehouse'),
+    unvalidateWarehouseOptions: scrapeSelectOptions(doc, '#um-warehouse'),
+    productOptions,
+  }
+}
+
+export function useSalesInvoiceDraftFormOptions(facid: string | undefined, enabled: boolean) {
+  return useQuery({ ...salesInvoicePageQuery(facid), select: parseDraftFormOptions, enabled: enabled && !!facid })
 }
 
 export interface SalesProductPricing {
@@ -279,16 +290,11 @@ export async function fetchSalesProductPricing(productId: string, socid: string)
 // so it can't be hardcoded. The real page omits the "Create Debit Note"
 // button entirely when this is 0 (not just disables it), so this must be
 // checked before showing that button at all.
+const parseDebitNoteEnabled = (html: string): boolean => {
+  const m = html.match(/DEBIT_NOTE_ENABLED\s*=\s*([^;]+);/)
+  return m ? m[1].trim() === '1' : false
+}
+
 export function useDebitNoteEnabled(facid: string | undefined) {
-  return useQuery<boolean>({
-    queryKey: ['salesInvoice', facid, 'debitNoteEnabled'],
-    queryFn: async () => {
-      const res = await fetch(`${SALES_BASE}/card.php?facid=${facid}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const m = html.match(/DEBIT_NOTE_ENABLED\s*=\s*([^;]+);/)
-      return m ? m[1].trim() === '1' : false
-    },
-    enabled: !!facid,
-  })
+  return useQuery({ ...salesInvoicePageQuery(facid), select: parseDebitNoteEnabled, enabled: !!facid })
 }

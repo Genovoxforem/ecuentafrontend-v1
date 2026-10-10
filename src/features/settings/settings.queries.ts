@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 
 interface GeneralSettings {
   app_name: string
+  company_logo?: string
   tpin: string
   branch_code: string
   // Raw "id:code:label" const value (e.g. "239:ZM:Zambia") — parse with a
@@ -31,6 +33,38 @@ export function useGeneralSettings() {
       return data.settings
     },
     staleTime: 1000 * 60 * 10,
+  })
+}
+
+export interface CompanyAccountDetails {
+  tpin: string
+  branchCode: string
+  country: string
+}
+
+function readAccountDetail(doc: Document, label: string): string {
+  const labelElement = Array.from(doc.querySelectorAll('.row > .col-6.text-start > label.text-muted'))
+    .find((element) => element.textContent?.trim().toLowerCase() === label.toLowerCase())
+  const valueElement = labelElement?.parentElement?.nextElementSibling
+  return valueElement?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+}
+
+// /api/general/ currently omits the company tax and branch identifiers. The
+// legacy page's account summary renders these same values for the signed-in
+// entity, so read that summary only where the account panel needs them.
+export function useCompanyAccountDetails() {
+  return useQuery({
+    queryKey: ['settings', 'companyAccountDetails'],
+    queryFn: async (): Promise<CompanyAccountDetails> => {
+      const doc = await fetchLegacyDocument('/admin/company.php')
+      return {
+        tpin: readAccountDetail(doc, 'TPIN'),
+        branchCode: readAccountDetail(doc, 'Branch Code'),
+        country: readAccountDetail(doc, 'Country'),
+      }
+    },
+    staleTime: 1000 * 60 * 10,
+    retry: false,
   })
 }
 

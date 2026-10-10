@@ -7,16 +7,18 @@ export const PER_PAGE = 25
 // instead of each hand-rolling its own static/non-sticky footer.
 export { ListPagination } from '../../../shared/components/ListPagination'
 
-export function ListHeader({ icon, title, count, action }: { icon: React.ReactNode; title: string; count: number | undefined; action?: React.ReactNode }) {
+// Just the live count, as a small inline badge meant to sit in the same row
+// as the page's filter controls — not its own title line. The page's name
+// already shows once, in the banner; repeating it here as a second <h2> only
+// duplicated it (and the banner's own wording for a route rarely matches this
+// component's title string exactly, so the two never even displayed the same
+// duplicated text when they differed).
+export function ListHeader({ icon, count }: { icon: React.ReactNode; count: number | undefined }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="flex items-center gap-2 text-lg font-semibold text-text!">
-        {icon}
-        {title}
-        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-surface-alt text-text-muted">{count ?? '…'}</span>
-      </h2>
-      {action}
-    </div>
+    <span className="flex items-center gap-1.5 text-sm text-text-muted shrink-0">
+      {icon}
+      <span className="font-semibold text-text!">{count ?? '…'}</span> items
+    </span>
   )
 }
 
@@ -29,7 +31,7 @@ export function SearchBox({ value, onChange, onSubmit, placeholder = 'Search…'
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
         placeholder={placeholder}
-        className="flex-1 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+        className="flex-1 min-w-0 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
       />
       <button type="button" onClick={onSubmit} className="px-3 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90">
         Search

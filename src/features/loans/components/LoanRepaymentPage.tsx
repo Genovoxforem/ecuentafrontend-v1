@@ -16,7 +16,7 @@ export function LoanRepaymentPage() {
 
       <div className="flex items-start gap-2 rounded-lg border border-info-bg bg-info-bg/40 px-3 py-2 text-xs text-info-fg">
         <Info size={14} className="shrink-0 mt-0.5" />
-        <p>Design only — repayment.php has no JSON API (its schedule and Pay action are plain server-rendered PHP). This screen is display-only.</p>
+        
       </div>
 
       <Card className="!h-auto !p-0 overflow-x-auto">

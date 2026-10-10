@@ -15,6 +15,7 @@ import {
   Eye,
   Trash2,
   Plus,
+  Save,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
@@ -23,6 +24,7 @@ import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
   useOrderNotes,
+  useSetOrderNote,
   useOrderContacts,
   useOrderShipmentStock,
   useAddOrderContact,
@@ -37,7 +39,7 @@ import {
 } from '../orderDetail.queries'
 import type { OrderDetail as OrderDetailData } from '../orderDetail.types'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
-import { InfoRow, EditPencil, EventByAvatar, StatCard, deleteOrderDocument, type TabKey } from './OrderDetailShared'
+import { InfoRow, EventByAvatar, StatCard, deleteOrderDocument, type TabKey } from './OrderDetailShared'
 import { AddOrderEventModal } from './AddOrderEventModal'
 
 const selectCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -523,31 +525,58 @@ function ConsumptionTab({ id }: { id: string | undefined }) {
   )
 }
 
+// Both notes are edited in place and saved one at a time through
+// commande/fapi/notes.php (useSetOrderNote) — the JSON equivalent of the
+// classic note.php form, without a page load or CSRF token.
 function NotesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useOrderNotes(id)
+  const setNote = useSetOrderNote(id)
+  const [drafts, setDrafts] = useState<{ note_public?: string; note_private?: string }>({})
   if (isLoading) return <LegacyLoadingCard label="Loading notes…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load notes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+
+  const fields = [
+    { field: 'note_public' as const, label: 'Note (public)', saved: data.notePublic },
+    { field: 'note_private' as const, label: 'Note (private)', saved: data.notePrivate },
+  ]
   return (
     <Card className="!h-auto">
       <h3 className="font-semibold text-text! mb-3 flex items-center gap-2">
         <StickyNote size={14} className="text-brand" /> Notes
       </h3>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="border border-border rounded-lg p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-sm font-medium text-text!">Note (public)</span>
-            {data.notePublicEditUrl && <EditPencil url={data.notePublicEditUrl} title="Edit public note" />}
-          </div>
-          <p className="text-sm text-text! whitespace-pre-wrap">{data.notePublic || <span className="text-text-faint italic">No public note.</span>}</p>
-        </div>
-        <div className="border border-border rounded-lg p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-sm font-medium text-text!">Note (private)</span>
-            {data.notePrivateEditUrl && <EditPencil url={data.notePrivateEditUrl} title="Edit private note" />}
-          </div>
-          <p className="text-sm text-text! whitespace-pre-wrap">{data.notePrivate || <span className="text-text-faint italic">No private note.</span>}</p>
-        </div>
+        {fields.map(({ field, label, saved }) => {
+          const value = drafts[field] ?? saved
+          const dirty = drafts[field] !== undefined && drafts[field] !== saved
+          return (
+            <div key={field} className="border border-border rounded-lg p-3 space-y-2">
+              <span className="text-sm font-medium text-text!">{label}</span>
+              <textarea value={value} onChange={(e) => setDrafts((d) => ({ ...d, [field]: e.target.value }))} rows={4} className={selectCls} />
+              <button
+                type="button"
+                disabled={!dirty || setNote.isPending}
+                onClick={() =>
+                  setNote.mutate(
+                    { field, value },
+                    {
+                      onSuccess: () =>
+                        setDrafts((d) => {
+                          const next = { ...d }
+                          delete next[field]
+                          return next
+                        }),
+                    },
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover disabled:opacity-60"
+              >
+                {setNote.isPending && setNote.variables?.field === field ? <LoaderCircle size={13} className="animate-spin" /> : <Save size={13} />} Save
+              </button>
+            </div>
+          )
+        })}
       </div>
+      {setNote.isError && <p className="text-xs text-danger mt-3">{setNote.error instanceof Error ? setNote.error.message : 'Could not save this note.'}</p>}
     </Card>
   )
 }

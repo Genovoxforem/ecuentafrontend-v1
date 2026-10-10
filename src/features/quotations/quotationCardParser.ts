@@ -1,8 +1,7 @@
 // Parses comm/propal/card.php?id=X — a classic server-rendered Dolibarr
-// page. No JSON API exists for reading an existing quotation (the real
-// comm/propal/api/proposal_handler.php only covers create-flow actions —
-// confirmed by reading that file directly), so this scrapes the real page
-// the same way purchaseOrderCardParser.ts does for Purchase Orders.
+// page. The quotation FAPI supplies the core header, totals, lines, notes,
+// and permissions; this parser still reads supplemental card fields and
+// controls that the FAPI does not expose.
 // Selectors/label text below were read directly from card.php's real
 // source and the real en_US lang files — not guessed.
 //

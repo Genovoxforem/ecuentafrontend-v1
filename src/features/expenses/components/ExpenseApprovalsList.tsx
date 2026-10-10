@@ -183,9 +183,7 @@ export function ExpenseApprovalsList() {
               </tbody>
             </table>
           </ScrollCard>
-          <div className="-mx-6 -mb-4">
-            <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} edgeToEdge />
-          </div>
+          <ListPagination page={t.page} perPage={t.perPage} total={t.total} onPageChange={t.setPage} />
         </>
       )}
 

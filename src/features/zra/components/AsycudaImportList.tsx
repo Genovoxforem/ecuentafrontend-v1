@@ -7,7 +7,7 @@ import { SplitDetailsModal } from './SplitDetailsModal'
 import { CancelReasonModal } from './CancelReasonModal'
 import { SuggestionsModal } from './SuggestionsModal'
 import { AsycudaProductLink } from './AsycudaProductLink'
-import { ListPagination, PER_PAGE, SearchBox } from './ZraListChrome'
+import { ListPagination, SearchBox } from './ZraListChrome'
 import { isLegacySessionExpired } from '../../../shared/components/BackendUnavailable'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -101,7 +101,7 @@ function RowCells({ row }: { row: AsycudaImportRow }) {
   const f = parseRowFields(row)
   return (
     <>
-      <td className="px-3 py-3 whitespace-nowrap text-sm">
+      <td className="px-3 py-2 whitespace-nowrap text-sm leading-snug">
         <p className="text-text!">
           Decl Ref: <span className="font-semibold">{f.declRef}</span>
         </p>
@@ -113,7 +113,7 @@ function RowCells({ row }: { row: AsycudaImportRow }) {
           <Muted>Decl Date:</Muted> {f.declDate}
         </p>
       </td>
-      <td className="px-3 py-3 max-w-[220px] text-sm">
+      <td className="px-3 py-2 max-w-[220px] text-sm leading-snug">
         <p className="text-text! font-medium truncate" title={f.supplierName}>
           {f.supplierName}
         </p>
@@ -121,8 +121,8 @@ function RowCells({ row }: { row: AsycudaImportRow }) {
           <Muted>Agent:</Muted> {f.agentName}
         </p>
       </td>
-      <td className="px-3 py-3 text-sm text-text!">{row.itemSeq}</td>
-      <td className="px-3 py-3 max-w-[240px] text-sm">
+      <td className="px-3 py-2 text-sm text-text!">{row.itemSeq}</td>
+      <td className="px-3 py-2 max-w-[240px] text-sm leading-snug">
         <p className="text-text! font-medium truncate" title={f.itemName}>
           {f.itemName}
         </p>
@@ -133,7 +133,7 @@ function RowCells({ row }: { row: AsycudaImportRow }) {
           <Muted>Total Weight:</Muted> {f.totalWeight} <Muted>| Net Weight:</Muted> {f.netWeight}
         </p>
       </td>
-      <td className="px-3 py-3 whitespace-nowrap text-sm">
+      <td className="px-3 py-2 whitespace-nowrap text-sm leading-snug">
         <p>
           <Muted>Price:</Muted> <span className="text-text! font-semibold">{f.price}</span>
         </p>
@@ -141,7 +141,7 @@ function RowCells({ row }: { row: AsycudaImportRow }) {
           <Muted>Country:</Muted> {f.currency} <Muted>| Conv Rate:</Muted> {f.convRate}
         </p>
       </td>
-      <td className="px-3 py-3 whitespace-nowrap text-sm">
+      <td className="px-3 py-2 whitespace-nowrap text-sm leading-snug">
         <p className="text-text!">{f.qtyOverPkg}</p>
         <p className="text-xs">
           <Muted>Qty Unit:</Muted> {f.qtyUnit} <Muted>| Pkg Unit:</Muted> {f.pkgUnit}
@@ -153,7 +153,10 @@ function RowCells({ row }: { row: AsycudaImportRow }) {
 
 export function AsycudaImportList() {
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(PER_PAGE)
+  // Defaults to 10 (not the shared PER_PAGE=25) — this page's rows are the
+  // tallest/busiest in the app (4 stacked fields per cell across 6 columns),
+  // so 10 is what actually fits one screen without an internal scroll.
+  const [perPage, setPerPage] = useState(10)
   const [declRefInput, setDeclRefInput] = useState('')
   const [declRefFilter, setDeclRefFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
@@ -221,8 +224,8 @@ export function AsycudaImportList() {
     // Full available height — see PendingPurchaseInvoicesList.tsx for the write-up on why
     // the sticky header block and ListPagination are flex-column siblings around the one
     // scrolling middle region, instead of a short fixed-height box.
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="sticky -top-6 z-20 -mx-6 px-[16px] pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-text!">
             <FileInput size={20} className="text-brand" />
@@ -264,42 +267,40 @@ export function AsycudaImportList() {
           </button>
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-text-muted mb-1">Declaration reference number</label>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-medium text-text-muted whitespace-nowrap">
+            Declaration reference number
             <input
               type="text"
               value={declRefInput}
               onChange={(e) => setDeclRefInput(e.target.value)}
               className="h-9 w-56 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
             />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setPage(1)
+              setDeclRefFilter(declRefInput.trim())
+            }}
+            className="px-4 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+          >
+            Filter
+          </button>
+          {declRefFilter && (
             <button
               type="button"
               onClick={() => {
+                setDeclRefInput('')
+                setDeclRefFilter('')
                 setPage(1)
-                setDeclRefFilter(declRefInput.trim())
               }}
-              className="px-4 h-9 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90"
+              className="px-3 h-9 rounded-md text-sm font-medium bg-surface-alt text-text-muted hover:bg-surface-hover"
             >
-              Filter
+              Clear
             </button>
-            {declRefFilter && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDeclRefInput('')
-                  setDeclRefFilter('')
-                  setPage(1)
-                }}
-                className="px-3 h-9 rounded-md text-sm font-medium bg-surface-alt text-text-muted hover:bg-surface-hover"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+          )}
 
-        <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-text-muted whitespace-nowrap">
             <select
               value={perPage}
@@ -334,7 +335,7 @@ export function AsycudaImportList() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>
@@ -376,9 +377,9 @@ export function AsycudaImportList() {
               const actions = parseActionsState(row.actionsHtml)
               return (
                 <tr key={`${row.id}-${i}`} className="border-t border-border align-top hover:bg-surface-hover text-text-muted">
-                  <td className="px-3 py-3 text-sm">{row.seqNo}</td>
+                  <td className="px-3 py-2 text-sm">{row.seqNo}</td>
                   <RowCells row={row} />
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1.5">
                       {actions.kind === 'exact-match' && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-warning-bg text-warning-fg whitespace-nowrap">
@@ -430,7 +431,9 @@ export function AsycudaImportList() {
         </table>
       </div>
 
-      <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+      <div className="-mx-6 -mb-6">
+        <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+      </div>
 
       {createProductTaskCode && (
         <CreateProductModal

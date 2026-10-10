@@ -1,8 +1,5 @@
 import { useState, type ComponentType } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  ListChecks,
-  ChevronRight,
   BarChart3,
   ClipboardCheck,
   LoaderCircle,
@@ -21,7 +18,6 @@ import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/da
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { ROUTES } from '../../../routes'
 import { formatDate } from '../../../utils/format'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { useTaskActivityKanbanForm, useRunTaskActivityKanbanReport, useRunCombinedActivitiesReport, type TaskActivityType, type CombinedActivityRow } from '../taskActivity.queries'
@@ -31,7 +27,7 @@ const inputCls = 'w-full h-10 px-3 rounded-lg border border-input-border bg-inpu
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <label className="block text-sm mb-1 text-text-muted">{label}</label>
       {children}
     </div>
@@ -181,23 +177,6 @@ export function ActivitiesDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <ListChecks size={20} className="text-brand" /> Task / Activities Details
-        </h2>
-        <div className="flex items-center gap-1.5 text-xs text-text-faint mt-1">
-          <Link to={ROUTES.usersDashboard} className="hover:text-brand hover:underline">
-            Users
-          </Link>
-          <ChevronRight size={12} />
-          <Link to={ROUTES.activitiesDetail} className="hover:text-brand hover:underline">
-            Activities List
-          </Link>
-          <ChevronRight size={12} />
-          <span className="text-text-muted">Task / Activities Details</span>
-        </div>
-      </div>
-
       {formIsError && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           {formError instanceof Error ? formError.message : "Couldn't load this report's form."}
@@ -205,14 +184,16 @@ export function ActivitiesDetailPage() {
       )}
 
       <Card className="!h-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Field label="Customer Created On">
-            <div className="flex items-center gap-1.5">
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
-              <span className="text-text-faint">–</span>
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
-            </div>
-          </Field>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-[minmax(250px,1.45fr)_minmax(145px,1fr)_minmax(180px,1.2fr)_minmax(160px,1.1fr)_auto] xl:items-end xl:gap-2">
+          <div className="min-w-0">
+            <Field label="Customer Created On">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={`${inputCls} min-w-0 flex-1`} />
+                <span className="shrink-0 text-text-faint">–</span>
+                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={`${inputCls} min-w-0 flex-1`} />
+              </div>
+            </Field>
+          </div>
           <Field label="Customer Type">
             <select value={customerType} onChange={(e) => setCustomerType(e.target.value)} className={inputCls}>
               {TASK_ACTIVITY_CUSTOMER_TYPES.map((o) => (
@@ -238,12 +219,11 @@ export function ActivitiesDetailPage() {
               placeholder={formLoading ? 'Loading…' : 'Select a user'}
             />
           </Field>
-        </div>
-        <div className="flex items-center justify-end gap-2 mt-4">
+        <div className="flex items-center justify-end gap-2 md:col-span-4 xl:col-span-1 xl:flex-nowrap">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium text-text hover:bg-surface-hover"
           >
             <RotateCcw size={14} /> Reset
           </button>
@@ -251,10 +231,11 @@ export function ActivitiesDetailPage() {
             type="button"
             onClick={handleViewReport}
             disabled={runStats.isPending || runActivities.isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
             {runStats.isPending || runActivities.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <BarChart3 size={14} />} View Report
           </button>
+        </div>
         </div>
         {submitError && <p className="mt-3 text-sm text-danger">{submitError}</p>}
       </Card>

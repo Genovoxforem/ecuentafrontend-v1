@@ -1,4 +1,4 @@
-import { Wallet2, Info } from 'lucide-react'
+import { Wallet2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-3 py-2 cursor-not-allowed'
@@ -16,13 +16,6 @@ export function CheckDepositCreateView() {
       </h2>
       <p className="text-sm text-text-muted">Select/filter checks to include in the check deposit receipt and click on "Create".</p>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">compta/paiement/cheque/card.php?action=new</code> — a classic full-page-reload page, no JSON API. Fields below match that page's own form
-          exactly; they're disabled since there's nothing to submit to.
-        </p>
-      </Card>
 
       <Card className="!h-auto space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

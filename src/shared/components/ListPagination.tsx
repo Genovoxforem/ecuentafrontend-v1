@@ -35,15 +35,19 @@ export function ListPagination({
   perPage,
   total,
   onPageChange,
-  edgeToEdge = false,
+  nested = false,
 }: {
   page: number
   perPage: number
   total: number
   onPageChange: (page: number) => void
-  // Set when the parent page already bleeds edge-to-edge via its own -m-6 wrapper (see
-  // ThirdPartyList.tsx) — skips this component's own -mx-3 bleed so it doesn't double up,
-  // using px-6 (matching AppShell main's own p-6) for internal padding instead of px-3.
+  // Every top-level page bleeds edge-to-edge via its own -m-6 wrapper (see AppShell) and uses
+  // the one shared --page-gutter. Set `nested` only when this is embedded inside another
+  // component's own padded box (e.g. BankEntriesList's tab view inside BankAccountDetail) —
+  // cancels that box's own padding via -mx-3 instead of adding the page gutter on top of it.
+  nested?: boolean
+  // Deprecated, no longer has any effect — every page now uses the one shared --page-gutter
+  // by default. Kept so the ~70 existing call sites that pass it don't need editing.
   edgeToEdge?: boolean
 }) {
   if (total === 0) return null
@@ -61,8 +65,8 @@ export function ListPagination({
     // the footer whenever the list was shorter than the viewport. -24px shifts the stick
     // point by exactly that inset so it clamps flush against main's true bottom instead.
     <div
-      className={`sticky -bottom-6 py-3 border-t border-border bg-white dark:bg-gray-950 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted ${
-        edgeToEdge ? 'px-6' : '-mx-3 px-3'
+      className={`blue-density-pagination sticky -bottom-6 py-3 border-t border-border bg-white dark:bg-gray-950 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted ${
+        nested ? '-mx-3 px-3' : 'px-[16px]'
       }`}
     >
       <span>

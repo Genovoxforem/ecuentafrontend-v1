@@ -104,14 +104,14 @@ function matchesSearch(user: UserRow, query: string) {
 
 function StatCard({ label, value, caption, icon: Icon, color }: { label: string; value: string | number; caption: string; icon: ComponentType<{ size?: number }>; color: IconColor }) {
   return (
-    <Card className="!p-3 !flex-row items-center justify-between gap-3">
+    <Card className="blue-compact-card !flex-row items-center justify-between gap-2 !p-2">
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className="text-xl font-bold text-text! mt-1 truncate">{value}</p>
-        <p className="text-xs text-text-faint mt-0.5 truncate">{caption}</p>
+        <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wide">{label}</p>
+        <p className="text-lg font-bold text-text! mt-1 truncate">{value}</p>
+        <p className="text-[10px] text-text-faint mt-0.5 truncate">{caption}</p>
       </div>
-      <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
-        <Icon size={20} />
+      <span className={`shrink-0 w-8 h-8 rounded-md flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <Icon size={16} />
       </span>
     </Card>
   )
@@ -167,17 +167,23 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
   return (
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-[4%] py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <UserRound size={20} className="text-brand" /> List Of Users
-        </h2>
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-alt px-[4%] py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white shadow-sm">
+            <UserRound size={18} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold leading-none text-text!">Users Dashboard</h2>
+            <p className="mt-1 text-[11px] text-text-faint">Home</p>
+          </div>
+        </div>
         <Link to={ROUTES.userCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
           <Plus size={14} /> New User
         </Link>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="flex-1 flex flex-col min-h-0 space-y-3 px-6 py-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2">
           <StatCard label="Total Users" value={summary.totalUsers} caption="All user records" icon={Users} color="blue" />
           <StatCard label="Admins" value={summary.admins} caption="Admin users" icon={Crown} color="indigo" />
           <StatCard label="Super Admin" value={summary.superAdmins} caption="Top-level admins" icon={Crown} color="amber" />

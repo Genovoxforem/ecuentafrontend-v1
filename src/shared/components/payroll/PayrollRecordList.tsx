@@ -24,8 +24,6 @@ const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 // Appraisal) share this exact shape and differ only in columns/data — same
 // situation ThirdPartyList.tsx already solves for Customers/Prospects/Vendors.
 export function PayrollRecordList<T, K extends string>({
-  icon: Icon,
-  title,
   addLabel,
   addPath,
   columns,
@@ -84,10 +82,7 @@ export function PayrollRecordList<T, K extends string>({
   return (
     // -m-6 + flex-1 flex-col: same pattern as LeaveList.tsx / ThirdPartyList.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Icon size={20} className="text-brand" /> {title}
-        </h2>
+      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-end gap-3 border-b border-border bg-white px-6 py-3 empty:hidden dark:bg-gray-950">
         {addPath && addLabel && (
           <Link to={addPath} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> {addLabel}

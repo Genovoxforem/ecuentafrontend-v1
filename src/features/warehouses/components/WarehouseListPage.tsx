@@ -176,17 +176,25 @@ export function WarehouseListPage() {
                     </tr>
                   ) : (
                     pageWarehouses.map((w) => (
-                      <tr key={w.id} className="border-b border-border last:border-0">
-                        <td className="px-4 py-3 text-brand">
+                      <tr key={w.id} className="border-b border-border last:border-0 hover:bg-surface-hover transition-colors">
+                        <td className="px-4 py-3 text-brand font-medium">
                           <Link to={ROUTES.warehouseDetail.replace(':id', String(w.id))} className="hover:underline">
                             {w.ref}
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-text-muted">{w.shortName}</td>
                         <td className="px-4 py-3 text-text-muted">{w.environment}</td>
-                        <td className="px-4 py-3 text-right text-text-muted">{w.inputStockValue ? formatMoney(w.inputStockValue) : ''}</td>
-                        <td className="px-4 py-3 text-right text-text-muted">{formatMoney(w.valueForSell)}</td>
-                        <td className="px-4 py-3 text-text-muted">{w.statusLabel}</td>
+                        <td className="px-4 py-3 text-right text-text-muted tabular-nums">{w.inputStockValue ? formatMoney(w.inputStockValue) : ''}</td>
+                        <td className="px-4 py-3 text-right text-text-muted tabular-nums">{formatMoney(w.valueForSell)}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              /open/i.test(w.statusLabel) ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'
+                            }`}
+                          >
+                            {w.statusLabel}
+                          </span>
+                        </td>
                       </tr>
                     ))
                   )}

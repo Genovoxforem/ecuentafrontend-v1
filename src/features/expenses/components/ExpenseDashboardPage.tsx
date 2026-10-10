@@ -35,7 +35,7 @@ function sliceLabel({ cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius
   const r = innerRadius + (outerRadius - innerRadius) / 2
   const rad = Math.PI / 180
   return (
-    <text x={cx + r * Math.cos(-midAngle * rad)} y={cy + r * Math.sin(-midAngle * rad)} fill="#fff" fontSize={11} fontWeight={600} textAnchor="middle" dominantBaseline="central">
+    <text x={cx + r * Math.cos(-midAngle * rad)} y={cy + r * Math.sin(-midAngle * rad)} fill="#fff" fontSize={11.55} fontWeight={600} textAnchor="middle" dominantBaseline="central">
       {(percent * 100).toFixed(1)}%
     </text>
   )
@@ -104,8 +104,8 @@ export function ExpenseDashboardPage() {
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={104} tickFormatter={(v) => money(Number(v), data.currency)} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11.55 }} axisLine={false} width={104} tickFormatter={(v) => money(Number(v), data.currency)} />
                   <Tooltip formatter={(v) => [money(Number(v), data.currency, true), 'Total TTC']} />
                   <Bar dataKey="total" name="Total TTC" fill="#397db9" radius={[4, 4, 0, 0]} maxBarSize={80} />
                 </BarChart>
@@ -127,7 +127,7 @@ export function ExpenseDashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
-                    <Legend verticalAlign="bottom" iconType="circle" itemSorter={null} wrapperStyle={{ fontSize: 11 }} />
+                    <Legend verticalAlign="bottom" iconType="circle" itemSorter={null} wrapperStyle={{ fontSize: 11.55 }} />
                   </PieChart>
                 </ResponsiveContainer>
               )}

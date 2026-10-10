@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { parseCustomerGroupListDocument, looksLikeGroupListLoginPage, type CustomerGroupListRow } from './customerGroupListParser'
+import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
+
+export interface CustomerGroupListRow {
+  id: number
+  label: string
+  discount: number
+  discountType: number
+  discountMethod: number
+  description: string
+}
 
 // discountType/discountMethod are the exact int codes societe/new_card.php's
 // legacy form posts as dis_type/dis_method, stored verbatim in
@@ -38,13 +47,30 @@ const QUERY_KEY = ['customerGroups', 'list'] as const
 // INSERT (returned a real cust_group_id), and the row then appeared in
 // new_card.php's own re-rendered list table. Real, persisted, shared across
 // users — not the session-only local collection this used to be.
+// The list itself comes from societe/api/pricing_groups.php — the same
+// llx_custom_group rows new_card.php?action=list prints, as JSON.
+interface RawCustomerGroup {
+  id: number | string
+  label: string | null
+  discount: number | string | null
+  discount_type: number | string | null
+  customer_method: number | string | null
+  description: string | null
+}
+
 async function fetchCustomerGroupList(): Promise<CustomerGroupListRow[]> {
-  const res = await fetch('/societe/new_card.php?action=list', { credentials: 'same-origin' })
+  const res = await fetch('/societe/api/pricing_groups.php', { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const html = await res.text()
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  if (looksLikeGroupListLoginPage(doc)) throw new Error('Not signed into the legacy backend.')
-  return parseCustomerGroupListDocument(doc)
+  const json = await parseLegacyJson<{ ok: boolean; error?: string; groups?: RawCustomerGroup[] }>(res)
+  if (!json.ok) throw new Error(json.error || 'Could not load the customer groups.')
+  return (json.groups ?? []).map((g) => ({
+    id: Number(g.id),
+    label: g.label ?? '',
+    discount: Number(g.discount) || 0,
+    discountType: Number(g.discount_type) || 0,
+    discountMethod: Number(g.customer_method) || 0,
+    description: g.description ?? '',
+  }))
 }
 
 export function useCustomerGroupsSummary() {

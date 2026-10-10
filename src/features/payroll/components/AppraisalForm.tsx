@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Star, Info } from 'lucide-react'
+import { ArrowLeft, Star } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 
@@ -25,14 +25,6 @@ export function AppraisalForm() {
         </Link>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">payroll/appraisal.php</code>. Its "Go" button fetches the employee's competency list from{' '}
-          <code className="font-mono">payroll/ajax_search.php</code> as a pre-rendered HTML fragment, not JSON — there's no data contract this page can wire,
-          so the fields below are disabled.
-        </p>
-      </Card>
 
       <Card className="!h-auto space-y-3">
         <h3 className="text-sm font-semibold text-text!">Give Performance Appraisal</h3>

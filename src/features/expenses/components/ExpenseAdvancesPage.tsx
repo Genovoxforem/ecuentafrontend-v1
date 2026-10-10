@@ -126,8 +126,8 @@ export function ExpenseAdvancesPage() {
   ]
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+    <div className="-m-6 flex-1 flex flex-col min-h-0 p-6 space-y-4">
+      <h2 className="shrink-0 flex items-center gap-2 text-lg font-bold text-text!">
         <Wallet size={20} className="text-brand" /> Expense Advances
       </h2>
 
@@ -138,8 +138,8 @@ export function ExpenseAdvancesPage() {
         <>
           {data.canCreate && (
             <FormCard icon={<Plus size={15} />} title="Create Advance Payment">
-              <form onSubmit={submit} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
-                <Field label="Employee" className="md:col-span-2">
+              <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+                <Field label="Employee" className="w-56 max-w-full">
                   <select value={userId} onChange={(e) => setUserId(e.target.value)} className={`${controlCls} w-full`}>
                     {data.employees.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -148,10 +148,10 @@ export function ExpenseAdvancesPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Amount">
+                <Field label="Amount" className="w-32">
                   <input type="number" step="0.01" min="0" value={amountText} onChange={(e) => setAmountText(e.target.value)} className={`${controlCls} w-full`} />
                 </Field>
-                <Field label="Method">
+                <Field label="Method" className="w-44">
                   <select
                     value={method}
                     onChange={(e) => {
@@ -170,7 +170,7 @@ export function ExpenseAdvancesPage() {
                   </select>
                 </Field>
                 {method !== 'salary' && (
-                  <Field label="Bank Account">
+                  <Field label="Bank Account" className="w-44">
                     <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={`${controlCls} w-full`}>
                       {data.banks.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -180,7 +180,7 @@ export function ExpenseAdvancesPage() {
                     </select>
                   </Field>
                 )}
-                <Field label="Date">
+                <Field label="Date" className="w-44">
                   <div className="flex gap-2">
                     <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${controlCls} min-w-0 flex-1`} />
                     <button type="button" onClick={() => setDate(iso(new Date()))} className="h-9 shrink-0 rounded-md border border-input-border px-3 text-sm text-text hover:bg-surface-hover">
@@ -188,19 +188,17 @@ export function ExpenseAdvancesPage() {
                     </button>
                   </div>
                 </Field>
-                <Field label="Note" className="md:col-span-2">
+                <Field label="Note" className="w-44">
                   <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" className={`${controlCls} w-full`} />
                 </Field>
-                <div className="flex items-center gap-3 md:col-span-2">
-                  <button
-                    type="submit"
-                    disabled={create.isPending}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    <Save size={14} /> {create.isPending ? 'Creating…' : 'Create Advance'}
-                  </button>
-                  <FormProblem message={problem} />
-                </div>
+                <button
+                  type="submit"
+                  disabled={create.isPending}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <Save size={14} /> {create.isPending ? 'Creating…' : 'Create Advance'}
+                </button>
+                <FormProblem message={problem} />
               </form>
             </FormCard>
           )}

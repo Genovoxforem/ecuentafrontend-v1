@@ -1,10 +1,12 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ShoppingCart, Plus, User, FileText, Check, TriangleAlert, Search, CalendarDays, CreditCard, X, LoaderCircle, QrCode } from 'lucide-react'
+import { Plus, User, FileText, Check, TriangleAlert, Search, CreditCard, X, LoaderCircle, QrCode } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -171,6 +173,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
+  const dateRange = useDateRange()
   const [searchParams, setSearchParams] = useSearchParams()
   // Real customer-scoping filter — InvoiceRow.socid is a real plain field
   // straight off the JSON API (see invoices.queries.ts), no parsing needed.
@@ -187,9 +190,16 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
   const scopedRows = useMemo(() => (activeStatus === undefined ? summary.rows : summary.rows.filter((r) => r.rawStatut === activeStatus)), [summary.rows, activeStatus])
   const customerScoped = useMemo(() => (customerId ? scopedRows.filter((r) => r.socid === customerId) : scopedRows), [scopedRows, customerId])
   const customerName = customerId ? customerScoped[0]?.thirdParty : null
-  const filteredRows = useMemo(() => customerScoped.filter((r) => matchesSearch(r, deferredSearch)), [customerScoped, deferredSearch])
+  const filteredRows = useMemo(
+    () => customerScoped.filter((r) => matchesSearch(r, deferredSearch) && dateRange.inRange(r.invoiceDate)),
+    [customerScoped, deferredSearch, dateRange],
+  )
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<InvoiceRow, SortKey>(filteredRows, sortValue)
   const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -222,10 +232,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       {/* In the blue-metal theme the page banner carries this title and both buttons (PageBanner's BANNER_ACTIONS). */}
-      <div data-hide-under-banner className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <ShoppingCart size={20} className="text-brand" /> Sales Invoices
-        </h2>
+      <InBanner>
         <div className="flex items-center gap-2">
           <Link to={ROUTES.invoiceCreateQuick} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
             <Plus size={14} /> New Quick Invoice
@@ -234,9 +241,9 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
             <Plus size={14} /> New Detailed Invoice
           </Link>
         </div>
-      </div>
+      </InBanner>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-[16px] py-4">
         {statusFilter === undefined && urlStatus !== undefined && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm">
             <span className="text-text!">
@@ -275,43 +282,43 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+          <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Clients</p>
-              <p className="text-xl font-bold text-text! mt-1">{summary.clients}</p>
-              <p className="text-xs text-text-faint mt-0.5">Customer records</p>
+              <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Clients</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{summary.clients}</p>
+              <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Customer records</p>
             </div>
-            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
+            <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
               <User size={20} />
             </span>
           </Card>
-          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+          <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Invoices</p>
-              <p className="text-xl font-bold text-text! mt-1">{summary.invoices}</p>
-              <p className="text-xs text-text-faint mt-0.5">Sales invoices</p>
+              <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Invoices</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{summary.invoices}</p>
+              <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Sales invoices</p>
             </div>
-            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
+            <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
               <FileText size={20} />
             </span>
           </Card>
-          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+          <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Paid</p>
-              <p className="text-xl font-bold text-text! mt-1">{fmtZMW(summary.paidAmount)}</p>
-              <p className="text-xs text-text-faint mt-0.5">Collected amount</p>
+              <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Paid</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{fmtZMW(summary.paidAmount)}</p>
+              <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Collected amount</p>
             </div>
-            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.green}`}>
+            <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.green}`}>
               <Check size={20} />
             </span>
           </Card>
-          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+          <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Unpaid</p>
-              <p className="text-xl font-bold text-text! mt-1">{fmtZMW(summary.unpaidAmount)}</p>
-              <p className="text-xs text-text-faint mt-0.5">Outstanding amount</p>
+              <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Unpaid</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{fmtZMW(summary.unpaidAmount)}</p>
+              <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Outstanding amount</p>
             </div>
-            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.rose}`}>
+            <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.rose}`}>
               <TriangleAlert size={20} />
             </span>
           </Card>
@@ -343,9 +350,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
               />
             </div>
             <TableExportButtons title="Sales Invoices" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-              <CalendarDays size={14} />
-            </button>
+            <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

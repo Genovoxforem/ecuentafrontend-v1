@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
@@ -15,9 +16,7 @@ const HIDDEN_COLUMNS = ['', 'Action', 'Modify']
 export function FixedAssetLegacyListPage({
   path,
   title,
-  icon: Icon,
   newLabel,
-  showCount = false,
 }: {
   path: FixedAssetListPath
   title: string
@@ -29,11 +28,7 @@ export function FixedAssetLegacyListPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Icon size={20} className="text-brand" /> {title}
-          {showCount && data ? ` - ${data.rows.length}` : ''}
-        </h2>
+      <InBanner>
         <button
           type="button"
           disabled
@@ -42,7 +37,7 @@ export function FixedAssetLegacyListPage({
         >
           <Plus size={14} /> {newLabel}
         </button>
-      </div>
+      </InBanner>
 
       {isLoading && <LegacyLoadingCard label={`Loading ${title.toLowerCase()}…`} />}
       {isError && <LegacyErrorCard title={`Couldn't load ${title.toLowerCase()}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}

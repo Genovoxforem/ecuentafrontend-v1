@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseYearOptions, parseResultsTable, parseEmbeddedCharts, looksLikeLegacyLoginPage, type SelectOption, type StatsResultsTable, type StatsChart } from './statsHtmlParser'
+import { parseYearOptions, parseSelectedYear, parseResultsTable, parseEmbeddedCharts, looksLikeLegacyLoginPage, type SelectOption, type StatsResultsTable, type StatsChart } from './statsHtmlParser'
 
 // No REST API exists for project statistics — reads projet/stats/index.php
 // directly (see statsHtmlParser.ts's header comment for how the embedded
@@ -18,6 +18,7 @@ const NOT_SIGNED_IN_MESSAGE =
 
 export interface ProjectStats {
   yearOptions: SelectOption[]
+  selectedYear: string
   table: StatsResultsTable | null
   charts: StatsChart[]
 }
@@ -31,7 +32,12 @@ export function useProjectStats(year?: string, socid?: string) {
       if (socid) params.set('socid', socid)
       const doc = await fetchLegacyDocument('/projet/stats/index.php', params)
       if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return { yearOptions: parseYearOptions(doc), table: parseResultsTable(doc, 'Year'), charts: parseEmbeddedCharts(doc) }
+      return {
+        yearOptions: parseYearOptions(doc),
+        selectedYear: parseSelectedYear(doc),
+        table: parseResultsTable(doc, 'Year'),
+        charts: parseEmbeddedCharts(doc),
+      }
     },
     staleTime: 1000 * 30,
     retry: false,

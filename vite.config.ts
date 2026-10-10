@@ -48,6 +48,7 @@ const BACKEND_OWNED_PATHS = [
   '/reception',
   '/user',
   '/payroll',
+  '/payroll_v2',
   '/loan',
   '/expense',
   '/ticket',
@@ -211,6 +212,8 @@ export default defineConfig({
       // intercepts those before any request — that's why this went
       // unnoticed). Anchored to match only /custom or /custom/... .
       '^/custom(/|$)': proxyConfig(BACKEND_URL),
+      // Payroll V2's own JSON API (payroll_v2/api/*.php, action=…).
+      '^/payroll_v2(/|$)': proxyConfig(BACKEND_URL),
       '/takeposnew': proxyConfig(BACKEND_URL),
       '/takepos': proxyConfig(BACKEND_URL),
       // Dolibarr's own classic login controller — see legacySession.ts. This

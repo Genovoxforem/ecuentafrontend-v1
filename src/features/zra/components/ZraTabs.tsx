@@ -10,9 +10,9 @@ const TABS: { key: ZraTab; label: string; icon: typeof Globe }[] = [
 
 // The backend dashboard's two tabs: the synchronization Dashboard and the
 // ZRA Monitor (the ZRA server analysis page in a frame).
-export function ZraTabs({ value, onChange }: { value: ZraTab; onChange: (tab: ZraTab) => void }) {
+export function ZraTabs({ value, onChange, embedded = false }: { value: ZraTab; onChange: (tab: ZraTab) => void; embedded?: boolean }) {
   return (
-    <div role="tablist" className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-alt p-1.5">
+    <div role="tablist" className={`flex items-center gap-1.5 ${embedded ? '' : 'rounded-xl border border-border bg-surface-alt p-1.5'}`}>
       {TABS.map((t) => {
         const active = t.key === value
         return (

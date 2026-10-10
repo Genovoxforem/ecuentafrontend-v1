@@ -34,9 +34,18 @@ import {
   Banknote,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, StatusPill, type PillTone } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useInvoiceDetail, useInvoiceNotes, useInvoiceNoteEditContext, useUpdateInvoiceNote, useInvoiceContacts, useAddInvoiceContact, useInvoiceStandingOrders, useInvoiceAgenda } from '../invoiceDetail.queries'
+import {
+  useInvoiceNotes,
+  useUpdateInvoiceNote,
+  useInvoiceContacts,
+  useAddInvoiceContact,
+  useInvoiceStandingOrders,
+  useInvoiceAgenda,
+  useInvoiceAgendaCount,
+} from '../invoiceDetail.queries'
 import {
   useSalesInvoice,
   useAddSalesInvoiceLine,
@@ -129,15 +138,20 @@ function EmptyState({ icon: Icon, message }: { icon: React.ComponentType<{ size?
 
 export function InvoiceDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const [tab, setTab] = useState<TabKey>('invoice')
   // compta/sales/api/invoice.php — the real, reliable JSON API backing
   // compta/sales/card.php (see salesInvoiceApi.ts) — is the source for the
-  // header and the Customer Invoice tab. The other tabs (Contacts, Notes,
-  // Documents, Agenda, LedgerEntry, Standing Orders) still scrape
-  // compta/facture/card.php's HTML for now (useInvoiceDetail below), which
-  // is also where the sidebar badge counts come from.
+  // header and the Customer Invoice tab; the other tabs load their own data
+  // (see invoiceDetail.queries.ts). The Notes and Events/Agenda badges are the
+  // classic tab bar's own counts — how many of the two notes are filled in,
+  // and how many events — read from those tabs' small JSON answers rather
+  // than by downloading compta/facture/card.php (1.5 MB) just for two numbers.
   const { data, isLoading, isError, error, refetch } = useSalesInvoice(id)
-  const { data: legacyData } = useInvoiceDetail(id)
+  const { data: notes } = useInvoiceNotes(id)
+  const { data: agendaCount } = useInvoiceAgendaCount(id)
+  const notesBadge = notes ? [notes.notePublic, notes.notePrivate].filter(Boolean).length : 0
 
   if (isLoading) {
     return (
@@ -168,7 +182,11 @@ export function InvoiceDetail() {
                 </Link>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-bold text-text!">{inv.ref}</h2>
-                  {inv.status_label && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeCls(inv.status_color)}`}>{inv.status_label}</span>}
+                  {inv.status_label && (isBlueMetal ? (
+                    <StatusPill tone={statusBadgeTone(inv.status_color)}>{inv.status_label}</StatusPill>
+                  ) : (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeCls(inv.status_color)}`}>{inv.status_label}</span>
+                  ))}
                 </div>
                 <p className="text-xs text-text-faint mt-1">
                   Ref. customer: {inv.ref_client || '—'} · Third-party:{' '}
@@ -195,14 +213,14 @@ export function InvoiceDetail() {
                   >
                     <Icon size={14} className="shrink-0" />
                     {label}
-                    {key === 'notes' && !!legacyData?.notesBadge && (
-                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{legacyData.notesBadge}</span>
+                    {key === 'notes' && !!notesBadge && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{notesBadge}</span>
                     )}
                     {key === 'documents' && data.invoice.nb_files > 0 && (
                       <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{data.invoice.nb_files}</span>
                     )}
-                    {key === 'agenda' && !!legacyData?.agendaBadge && (
-                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{legacyData.agendaBadge}</span>
+                    {key === 'agenda' && !!agendaCount && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{agendaCount}</span>
                     )}
                   </button>
                 ))}
@@ -239,6 +257,20 @@ function statusBadgeCls(color: string): string {
       return 'bg-warning-bg text-warning-fg'
     default:
       return 'bg-surface-hover text-text-muted'
+  }
+}
+
+function statusBadgeTone(color: string): PillTone {
+  switch (color) {
+    case 'green':
+      return 'success'
+    case 'red':
+      return 'danger'
+    case 'orange':
+    case 'yellow':
+      return 'warning'
+    default:
+      return 'neutral'
   }
 }
 
@@ -1738,7 +1770,6 @@ function NotesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useInvoiceNotes(id)
   const [editingField, setEditingField] = useState<'public' | 'private' | null>(null)
   const [value, setValue] = useState('')
-  const editContext = useInvoiceNoteEditContext(id, editingField)
   const updateNote = useUpdateInvoiceNote(id)
 
   if (isLoading) return <LegacyLoadingCard label="Loading notes…" />
@@ -1746,12 +1777,14 @@ function NotesTab({ id }: { id: string | undefined }) {
 
   function startEdit(field: 'public' | 'private') {
     setEditingField(field)
-    setValue('')
+    setValue(field === 'public' ? data!.rawPublic : data!.rawPrivate)
   }
 
+  // notes.php saves both notes at once: the other one goes back unchanged.
   function submit() {
-    if (!editingField || !editContext.data?.token) return
-    updateNote.mutate({ field: editingField, token: editContext.data.token, value }, { onSuccess: () => setEditingField(null) })
+    if (!editingField || !data) return
+    const next = editingField === 'public' ? { notePublic: value, notePrivate: data.rawPrivate } : { notePublic: data.rawPublic, notePrivate: value }
+    updateNote.mutate(next, { onSuccess: () => setEditingField(null) })
   }
 
   function NoteCard({ field, label, hint, content }: { field: 'public' | 'private'; label: string; hint: string; content: string }) {
@@ -1770,30 +1803,24 @@ function NotesTab({ id }: { id: string | undefined }) {
           )}
         </div>
         {editing ? (
-          editContext.isLoading ? (
-            <p className="text-xs text-text-faint flex items-center gap-1.5">
-              <LoaderCircle size={12} className="animate-spin" /> Loading real note form…
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <textarea
-                autoFocus
-                defaultValue={editContext.data?.currentValue ?? ''}
-                onChange={(e) => setValue(e.target.value)}
-                rows={4}
-                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
-              />
-              {updateNote.isError && <p className="text-xs text-danger">{updateNote.error instanceof Error ? updateNote.error.message : 'Failed to save.'}</p>}
-              <div className="flex gap-2">
-                <button type="button" disabled={updateNote.isPending} onClick={submit} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-                  {updateNote.isPending ? 'Saving…' : 'Save'}
-                </button>
-                <button type="button" onClick={() => setEditingField(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
-                  Cancel
-                </button>
-              </div>
+          <div className="space-y-2">
+            <textarea
+              autoFocus
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              rows={4}
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
+            />
+            {updateNote.isError && <p className="text-xs text-danger">{updateNote.error instanceof Error ? updateNote.error.message : 'Failed to save.'}</p>}
+            <div className="flex gap-2">
+              <button type="button" disabled={updateNote.isPending} onClick={submit} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+                {updateNote.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setEditingField(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
+                Cancel
+              </button>
             </div>
-          )
+          </div>
         ) : (
           <p className="text-sm text-text! whitespace-pre-wrap">{content || <span className="text-text-faint italic">Empty.</span>}</p>
         )}

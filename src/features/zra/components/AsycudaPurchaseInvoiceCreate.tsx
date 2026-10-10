@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Info, Lock, Plus } from 'lucide-react'
+import { FileText, Lock, Plus } from 'lucide-react'
 import { useAsycudaVendorOptions } from '../asycudaPurchaseInvoice.queries'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
@@ -37,7 +37,8 @@ export function AsycudaPurchaseInvoiceCreate() {
   const selectedVendor = vendors?.find((v) => v.id === Number(vendorId))
 
   return (
-    <div className="space-y-4">
+    <div className="-m-6 flex flex-1 flex-col">
+     <div className="flex-1 space-y-4 px-[16px] py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-text!">
           <Lock size={16} className="text-text-faint" />
@@ -48,15 +49,6 @@ export function AsycudaPurchaseInvoiceCreate() {
         </button>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">fourn/facture/asycudapurchase.php</code>. Its line-item table and Save/Draft/Delete actions all go
-          through <code className="font-mono">invoiceajax.php</code>, which renders the whole panel as an HTML fragment on every action, not JSON — no data
-          contract to wire without scraping a 3,000+ line handler, so those fields are disabled. Vendor is real: it comes from{' '}
-          <code className="font-mono">societe/api/list.php</code>, the same live endpoint the Customers list uses.
-        </p>
-      </Card>
 
       <Card className="!h-auto">
         <Field label="Vendor" required>
@@ -199,7 +191,9 @@ export function AsycudaPurchaseInvoiceCreate() {
         </Card>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+     </div>
+
+      <div className="sticky -bottom-6 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-[16px] py-3">
         <div className="text-sm text-text-muted">
           Total Amount: <span className="text-text-faint">0.00 ZMW</span>
           <br />

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { reportError } from '../errorReporter'
+import { PageNotAvailable } from './PageNotAvailable'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -42,27 +43,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 }
 
+// The route-level fallback: the same "Page Not Available" page, with the reason
+// and a retry (a lazy chunk that failed on a flaky network often works again).
 function DefaultFallback({ error, onRetry }: { error: Error; onRetry: () => void }) {
-  return (
-    <div className="flex flex-col items-start gap-2 rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm">
-      <p className="font-medium text-danger">This section failed to load.</p>
-      <p className="text-text-muted">{error.message}</p>
-      <div className="flex gap-2 mt-1">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-alt"
-        >
-          Try again
-        </button>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-alt"
-        >
-          Reload page
-        </button>
-      </div>
-    </div>
-  )
+  return <PageNotAvailable onRetry={onRetry} detail={error.message} />
 }

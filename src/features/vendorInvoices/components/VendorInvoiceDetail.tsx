@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Receipt, Users2, StickyNote, Paperclip, ScrollText, BookOpen, Upload, LoaderCircle, Pencil, Ship, ReceiptText, Calculator } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
   useVendorInvoiceDetail,
@@ -51,6 +52,8 @@ function EmptyState({ icon: Icon, message }: { icon: React.ComponentType<{ size?
 
 export function VendorInvoiceDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const [tab, setTab] = useState<TabKey>('invoice')
   const { data, isLoading, isError, error, refetch } = useVendorInvoiceDetail(id)
 
@@ -81,7 +84,11 @@ export function VendorInvoiceDetail() {
                 </Link>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
-                  {data.statusLabel && <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">{data.statusLabel}</span>}
+                  {data.statusLabel && (isBlueMetal ? (
+                    <StatusPill tone="neutral">{data.statusLabel}</StatusPill>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">{data.statusLabel}</span>
+                  ))}
                   {data.secondaryStatusLabel && <span className="text-xs text-text-faint">{data.secondaryStatusLabel}</span>}
                 </div>
                 <p className="text-xs text-text-faint mt-1">

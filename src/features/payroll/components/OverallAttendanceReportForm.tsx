@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileSpreadsheet, Info, Printer, UserPlus } from 'lucide-react'
+import { FileSpreadsheet, Printer, UserPlus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { MonthYearPicker } from '../../../shared/components/forms/MonthYearPicker'
@@ -50,15 +50,6 @@ export function OverallAttendanceReportForm() {
         </div>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">payroll/atten_overall_rip.php</code>. Entity, Groups and Employee below are real, live cascading
-          dropdowns. The day-by-day grid itself comes from a different endpoint (<code className="font-mono">payroll/ajax_get_attendance_rows.php</code>)
-          that enforces Dolibarr's own Referer-based CSRF check with no GET fallback — confirmed live, it rejects any request whose origin isn't this
-          backend's own host — so this app can't call it safely, and Refresh stays disabled rather than faking a report.
-        </p>
-      </Card>
 
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">

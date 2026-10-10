@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchContacts,
+  fetchContact,
   createContact,
   type ContactRow as FapiContactRow,
   type ContactType,
@@ -41,6 +42,19 @@ export function useContacts(kind: ContactKind, search: string, page: number, lim
       return { items, total: pagination.total }
     },
     placeholderData: (prev) => prev,
+  })
+}
+
+/**
+ * One contact by id — GET /contact/fapi/get.php. Carries everything the list
+ * rows do plus the notes, entity and categories, so the detail page no longer
+ * has to find its contact inside the list's first page.
+ */
+export function useContact(id: string | undefined) {
+  return useQuery({
+    queryKey: ['contacts', 'detail', id],
+    queryFn: () => fetchContact(Number(id)),
+    enabled: !!id,
   })
 }
 

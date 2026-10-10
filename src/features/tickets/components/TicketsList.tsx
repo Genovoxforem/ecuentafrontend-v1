@@ -6,8 +6,9 @@ import {
   PencilLine,
   UserCheck,
   Eye,
-  Pencil,
-  MoreVertical,
+  Lock,
+  ChevronDown,
+  PlayCircle,
   Search,
   ChevronRight,
   Plus,
@@ -23,7 +24,6 @@ import {
   Rows3,
   Rows2,
   Truck,
-  BarChart3,
   Ticket as TicketIcon,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -31,7 +31,7 @@ import { Avatar } from '../../../shared/components/Avatar'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useTicketsList, useTicketStats, type TicketRow } from '../tickets.queries'
+import { TICKET_STATUS_FILTERS, useChangeTicketStatus, useTicketTypeOptions, useTicketsList, useTicketStats, type TicketRow } from '../tickets.queries'
 import { useAgendaFilterOptions } from '../../agenda/calendarApi.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
@@ -93,6 +93,76 @@ const STATUS_ICON: Record<string, ComponentType<{ size?: number; className?: str
   'fa-times-circle': XCircle,
 }
 
+// The classic list's quick status menu (its Actions column) — same codes,
+// labels and icons; closed (8) and cancelled (9) tickets show a lock instead.
+const QUICK_STATUSES: Array<{ code: number; label: string; icon: ComponentType<{ size?: number; className?: string }> }> = [
+  { code: 0, label: 'Unread', icon: Mail },
+  { code: 1, label: 'Read', icon: MailOpen },
+  { code: 2, label: 'Assigned', icon: UserCheck },
+  { code: 3, label: 'In Progress', icon: PlayCircle },
+  { code: 5, label: 'Waiting for feedback', icon: HelpCircle },
+  { code: 7, label: 'On Hold', icon: PauseCircle },
+  { code: 8, label: 'Solved/Closed', icon: CheckCircle2 },
+  { code: 9, label: 'Cancelled', icon: XCircle },
+]
+
+function QuickStatus({ ticket }: { ticket: TicketRow }) {
+  const [open, setOpen] = useState(false)
+  const change = useChangeTicketStatus()
+  if (ticket.statusCode === 8 || ticket.statusCode === 9) {
+    return (
+      <span title="Closed tickets can't be changed here" className="inline-flex p-1 text-text-faint">
+        <Lock size={13} />
+      </span>
+    )
+  }
+  const current = QUICK_STATUSES.find((s) => s.code === ticket.statusCode)
+  const CurrentIcon = current?.icon ?? List
+  return (
+    <div className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}>
+      <button
+        type="button"
+        title="Change status"
+        aria-label={`Change status of ${ticket.ref}`}
+        disabled={change.isPending}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-0.5 rounded p-1 text-text-muted hover:bg-surface-hover hover:text-text disabled:opacity-50"
+      >
+        {change.isPending ? <Loader2 size={14} className="animate-spin" /> : <CurrentIcon size={14} />}
+        <ChevronDown size={11} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-52 rounded-lg border border-border bg-surface py-1 text-left shadow-xl">
+          {QUICK_STATUSES.map((s) => {
+            const isCurrent = s.code === ticket.statusCode
+            return (
+              <button
+                key={s.code}
+                type="button"
+                disabled={isCurrent}
+                onClick={() => {
+                  setOpen(false)
+                  change.mutate(
+                    { trackId: ticket.trackId, status: s.code },
+                    { onError: (err) => window.alert(`Could not change status: ${err instanceof Error ? err.message : 'Unknown error'}`) },
+                  )
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs ${isCurrent ? 'font-semibold text-brand cursor-default' : 'text-text hover:bg-surface-hover'}`}
+              >
+                <span style={{ color: STATUS_COLOR[s.code] }} className="inline-flex">
+                  <s.icon size={13} />
+                </span>
+                {s.label}
+                {isCurrent && <span className="text-text-faint">(current)</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Request Type (c_ticket_type) is an open, admin-configurable dictionary
 // with no confirmed JSON API (see TicketCreateForm.tsx's own header
 // comment) — so instead of a fixed label→color lookup that breaks the
@@ -114,7 +184,9 @@ function typeColor(label: string): string {
 // real search_* / datefilter params (confirmed live), not client-side
 // guessing — see tickets.queries.ts's useTicketsList for the exact fields.
 export function TicketsList({ defaultMine = false, projectId, embedded = false }: { defaultMine?: boolean; projectId?: number; embedded?: boolean }) {
-  const [status, setStatus] = useState('')
+  // "Open (All)" first, as the classic Ticket / List / My Tickets menu entries open it.
+  const [status, setStatus] = useState('openall')
+  const [typeCode, setTypeCode] = useState('')
   const [mine, setMine] = useState(defaultMine)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -134,8 +206,9 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
 
   const { data: stats } = useTicketStats(projectId)
   const { data: filterOptions } = useAgendaFilterOptions()
+  const { data: typeOptions } = useTicketTypeOptions()
   const { data, isLoading, isError, error, refetch } = useTicketsList(
-    { status, mine, dateFrom, dateTo, assignedToUserId: assignedFilter, createdByUserId: createdByFilter, search, projectId },
+    { status, mine, dateFrom, dateTo, assignedToUserId: assignedFilter, createdByUserId: createdByFilter, search, typeCode, projectId },
     page,
     pageSize,
   )
@@ -192,20 +265,15 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
               { label: 'Assigned to Me', value: stats.assignedToMe, today: stats.assignedToMeToday, icon: UserCheck, color: 'bg-violet-500' },
             ] as const
           ).map((s) => (
-            <Card key={s.label} className="!h-auto relative flex items-center gap-3">
-              <BarChart3 size={28} className="absolute top-2 right-2 text-text-faint/20" />
-              <span className={`flex items-center justify-center w-10 h-10 rounded-lg text-white shrink-0 ${s.color}`}>
-                <s.icon size={18} />
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xl font-bold text-text!">{s.value}</p>
-                  {'today' in s && (
-                    <span className="rounded-full bg-neutral-bg text-neutral-fg text-[10px] font-medium px-1.5 py-0.5">Today: {s.today}</span>
-                  )}
-                </div>
-                <p className="text-xs text-text-faint">{s.label}</p>
+            <Card key={s.label} className="!p-3 !flex-row items-center justify-between gap-3 !h-auto">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{s.label}</p>
+                <p className="mt-1 text-xl font-bold text-text!">{s.value}</p>
+                {'today' in s && <p className="mt-0.5 text-xs text-text-faint">Today: {s.today}</p>}
               </div>
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${s.color}`}>
+                <s.icon size={20} />
+              </span>
             </Card>
           ))}
         </div>
@@ -214,8 +282,8 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
       {stats && (
         <div className="flex flex-wrap gap-2">
           {stats.byStatus.map((s) => {
-            const active = status === s.code || (status === '' && s.code === 'all')
-            const value = s.code === 'all' ? '' : s.code
+            const active = status === s.code || (status === '-1' && s.code === 'all')
+            const value = s.code === 'all' ? '-1' : s.code
             const Icon = STATUS_ICON[s.icon] ?? List
             return (
               <button
@@ -303,6 +371,41 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
       {showFilters && (
         <Card className="!h-auto flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-text-muted">
+            Status
+            <select
+              value={status}
+              onChange={(e) => {
+                resetPage()
+                setStatus(e.target.value)
+              }}
+              className="h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm"
+            >
+              {TICKET_STATUS_FILTERS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-muted">
+            Request type
+            <select
+              value={typeCode}
+              onChange={(e) => {
+                resetPage()
+                setTypeCode(e.target.value)
+              }}
+              className="h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm"
+            >
+              <option value="">Any</option>
+              {(typeOptions ?? []).map((t) => (
+                <option key={t.code} value={t.code}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-muted">
             <input
               type="checkbox"
               checked={mine}
@@ -366,12 +469,13 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <TheadRow>
-                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>#</Th>
+                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
+                  <Th sortKey="author" sort={sort} onSort={toggleSort}>Author</Th>
                   <Th sortKey="subject" sort={sort} onSort={toggleSort}>Subject</Th>
-                  <Th sortKey="thirdParty" sort={sort} onSort={toggleSort}>Customer / Third-Party</Th>
-                  <Th sortKey="type" sort={sort} onSort={toggleSort}>Type</Th>
+                  <Th sortKey="type" sort={sort} onSort={toggleSort}>Request Type</Th>
+                  <Th sortKey="thirdParty" sort={sort} onSort={toggleSort}>Third-Party</Th>
                   <Th>Jobcards</Th>
-                  <Th sortKey="dateCreate" sort={sort} onSort={toggleSort}>Created Date</Th>
+                  <Th sortKey="dateCreate" sort={sort} onSort={toggleSort}>Creation Date</Th>
                   <Th>Close Date</Th>
                   <Th sortKey="assignedTo" sort={sort} onSort={toggleSort}>Assigned To</Th>
                   <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
@@ -381,7 +485,7 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
               <tbody>
                 {sortedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-4 text-text-faint italic">
+                    <td colSpan={11} className="px-3 py-4 text-text-faint italic">
                       No tickets found.
                     </td>
                   </tr>
@@ -394,9 +498,35 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
                           <Link to={ROUTES.ticketDetail.replace(':id', String(t.id))} className="flex items-center gap-1.5 text-brand hover:underline font-medium">
                             <TicketIcon size={13} className="shrink-0" /> {t.ref}
                           </Link>
-                          {t.author && <p className="text-xs text-text-faint pl-5">{t.author}</p>}
+                        </td>
+                        <td className={`px-3 ${cellPad}`}>
+                          {t.author ? (
+                            t.authorUserId ? (
+                              <Link to={ROUTES.userDetail.replace(':id', t.authorUserId)} className="flex items-center gap-2 hover:underline">
+                                <Avatar name={t.author} size={22} color="bg-indigo-500" /> <span className="text-brand">{t.author}</span>
+                              </Link>
+                            ) : (
+                              <span className="flex items-center gap-2 text-text-muted">
+                                <Avatar name={t.author} size={22} color="bg-indigo-500" /> {t.author}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-text-faint">—</span>
+                          )}
                         </td>
                         <td className={`px-3 ${cellPad} text-text-muted`}>{t.subject}</td>
+                        <td className={`px-3 ${cellPad}`}>
+                          {t.type ? (
+                            <span
+                              style={{ backgroundColor: `${typeColor(t.type)}22`, color: typeColor(t.type) }}
+                              className="inline-block px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
+                            >
+                              {t.type}
+                            </span>
+                          ) : (
+                            <span className="text-text-faint">—</span>
+                          )}
+                        </td>
                         <td className={`px-3 ${cellPad}`}>
                           {t.thirdParty ? (
                             <div>
@@ -416,28 +546,16 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
                           )}
                         </td>
                         <td className={`px-3 ${cellPad}`}>
-                          {t.type ? (
-                            <span
-                              style={{ backgroundColor: `${typeColor(t.type)}22`, color: typeColor(t.type) }}
-                              className="inline-block px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
-                            >
-                              {t.type}
-                            </span>
-                          ) : (
-                            <span className="text-text-faint">—</span>
-                          )}
-                        </td>
-                        <td className={`px-3 ${cellPad}`}>
                           {jobcardChips.length === 0 ? (
                             <span className="text-text-faint">—</span>
                           ) : (
-                            <div className="flex flex-wrap items-center gap-1">
-                              <span className="inline-flex items-center gap-1 text-xs text-text-muted whitespace-nowrap">
-                                <Truck size={12} className="text-text-faint" /> {jobcardChips[0]}
-                              </span>
-                              {jobcardChips.length > 1 && (
-                                <span className="text-[10px] rounded-full bg-neutral-bg text-neutral-fg px-1.5 py-0.5">+{jobcardChips.length - 1}</span>
-                              )}
+                            // Every linked job card, as the classic list prints them.
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              {jobcardChips.map((j) => (
+                                <span key={j} className="inline-flex items-center gap-1 text-xs text-text-muted whitespace-nowrap">
+                                  <Truck size={12} className="text-text-faint" /> {j}
+                                </span>
+                              ))}
                             </div>
                           )}
                         </td>
@@ -471,12 +589,7 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
                             <Link to={ROUTES.ticketDetail.replace(':id', String(t.id))} title="View" className="inline-flex p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text">
                               <Eye size={14} />
                             </Link>
-                            <span title="No confirmed edit endpoint for tickets on this backend yet." className="inline-flex p-1 rounded text-text-faint/50 cursor-not-allowed">
-                              <Pencil size={14} />
-                            </span>
-                            <span title="No confirmed quick-action endpoints (assign/close/etc.) for tickets on this backend yet." className="inline-flex p-1 rounded text-text-faint/50 cursor-not-allowed">
-                              <MoreVertical size={14} />
-                            </span>
+                            <QuickStatus ticket={t} />
                           </div>
                         </td>
                       </tr>

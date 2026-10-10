@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link } from 'react-router-dom'
-import { Layers, Plus, Search, Pencil, Trash2, Tag } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Tag } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
@@ -85,16 +86,13 @@ export function CustomerGroupList() {
   return (
     // -m-6 + flex-1 flex-col: same pattern as ThirdPartyList.tsx / StickyFormShell.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Layers size={20} className="text-brand" /> Customer Group List
-        </h2>
+      <InBanner>
         <Link to={ROUTES.customerGroupCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
           <Plus size={14} /> Customer Group
         </Link>
-      </div>
+      </InBanner>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-[16px] py-4">
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
             <select

@@ -119,8 +119,8 @@ export function ExpenseReimbursementsPage() {
   const recipientLabel = recipientType === 'customer' ? 'Customer' : 'Employee'
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+    <div className="-m-6 flex-1 flex flex-col min-h-0 p-6 space-y-4">
+      <h2 className="shrink-0 flex items-center gap-2 text-lg font-bold text-text!">
         <HandCoins size={20} className="text-brand" /> Expense Reimbursements
       </h2>
 

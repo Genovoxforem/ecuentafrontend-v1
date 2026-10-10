@@ -263,7 +263,7 @@ function TransactionCard({ card, pieceNum, mode }: { card: PieceCard; pieceNum: 
   return (
     <div className="space-y-4">
       {!totals.balanced && dismissedFor !== warningKey && card.lines.length > 0 && (
-        <div role="status" className="fixed top-14 right-4 z-[60] flex max-w-sm items-start gap-2.5 rounded-xl border border-warning/40 bg-warning-bg px-4 py-3 text-warning-fg shadow-lg">
+        <div role="status" className="fixed top-[67px] right-4 z-[60] flex max-w-sm items-start gap-2.5 rounded-xl border border-warning/40 bg-warning-bg px-4 py-3 text-warning-fg shadow-lg">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <p className="text-xs font-medium leading-snug">
             Movement not correctly balanced. Debit = {round2(totals.debit)} | Credit = {round2(totals.credit)}

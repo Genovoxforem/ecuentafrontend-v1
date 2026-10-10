@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { List, Search, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Clock3, RefreshCcw, FileText, Landmark } from 'lucide-react'
+import { Search, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Clock3, RefreshCcw, FileText, Landmark } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -227,14 +227,6 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
     // page shell + sticky header are dropped since the host page already provides
     // its own header/tabs and isn't a bounded-height flex ancestor.
     <div className={embedded ? 'space-y-4' : '-m-6 flex-1 flex flex-col min-h-0'}>
-      {!embedded && (
-        <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <List size={20} className="text-brand" /> List Entries
-          </h2>
-        </div>
-      )}
-
       <div className={embedded ? 'space-y-4' : 'flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4'}>
         {!embedded && (
           <div className="flex items-center gap-2">
@@ -264,67 +256,67 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-lg border border-border p-3">
-            <p className="text-xs font-medium text-text-muted mb-1.5">Operation Date</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateOpsFrom}
-                onChange={(e) => {
-                  setDateOpsFrom(e.target.value)
-                  setPage(1)
-                }}
-                className={dateInputCls}
-              />
-              <span className="text-text-faint text-xs shrink-0">to</span>
-              <input
-                type="date"
-                value={dateOpsTo}
-                onChange={(e) => {
-                  setDateOpsTo(e.target.value)
-                  setPage(1)
-                }}
-                className={dateInputCls}
-              />
-            </div>
+        {/* One filter row: each field labelled inline rather than boxed in its
+            own bordered panel, which cost three stacked rows of height. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-xs font-medium text-text-muted">Operation</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              aria-label="Operation date from"
+              value={dateOpsFrom}
+              onChange={(e) => {
+                setDateOpsFrom(e.target.value)
+                setPage(1)
+              }}
+              className={dateInputCls}
+            />
+            <span className="shrink-0 text-xs text-text-faint">to</span>
+            <input
+              type="date"
+              aria-label="Operation date to"
+              value={dateOpsTo}
+              onChange={(e) => {
+                setDateOpsTo(e.target.value)
+                setPage(1)
+              }}
+              className={dateInputCls}
+            />
           </div>
-          <div className="rounded-lg border border-border p-3">
-            <p className="text-xs font-medium text-text-muted mb-1.5">Value Date</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateValueFrom}
-                onChange={(e) => {
-                  setDateValueFrom(e.target.value)
-                  setPage(1)
-                }}
-                className={dateInputCls}
-              />
-              <span className="text-text-faint text-xs shrink-0">to</span>
-              <input
-                type="date"
-                value={dateValueTo}
-                onChange={(e) => {
-                  setDateValueTo(e.target.value)
-                  setPage(1)
-                }}
-                className={dateInputCls}
-              />
-            </div>
+          <span className="text-xs font-medium text-text-muted">Value</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              aria-label="Value date from"
+              value={dateValueFrom}
+              onChange={(e) => {
+                setDateValueFrom(e.target.value)
+                setPage(1)
+              }}
+              className={dateInputCls}
+            />
+            <span className="shrink-0 text-xs text-text-faint">to</span>
+            <input
+              type="date"
+              aria-label="Value date to"
+              value={dateValueTo}
+              onChange={(e) => {
+                setDateValueTo(e.target.value)
+                setPage(1)
+              }}
+              className={dateInputCls}
+            />
           </div>
-          <div className="rounded-lg border border-border p-3">
-            <p className="text-xs font-medium text-text-muted mb-1.5">Search</p>
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faint" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search by description, number, party…"
-                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
-              />
-            </div>
+          <div className="relative min-w-56 flex-1">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faint" />
+            <input
+              type="text"
+              aria-label="Search entries"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by description, number, party…"
+              className="w-full rounded-md border border-input-border bg-input-bg pl-8 pr-3 py-1.5 text-sm text-text"
+            />
           </div>
         </div>
 
@@ -458,7 +450,7 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
           </Card>
         )}
       </div>
-      <ListPagination page={page} perPage={perPage} total={data?.filtered ?? 0} onPageChange={setPage} edgeToEdge={!embedded} />
+      <ListPagination page={page} perPage={perPage} total={data?.filtered ?? 0} onPageChange={setPage} nested={embedded} />
     </div>
   )
 }

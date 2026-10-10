@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { History, Info } from 'lucide-react'
+import { History } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -59,13 +59,6 @@ export function HotelRoomHistoryReportPage() {
         {isLoading && <LegacyLoadingCard label="Loading room history…" />}
         {isError && <LegacyErrorCard title="Couldn't load room history" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">booking/reports/room_history.php</code>. Room Rate (Per Day) has no equivalent field in the real Hotel
-            Suite API for this report, so it's shown as "—".
-          </p>
-        </Card>
 
         <Card className="!h-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">

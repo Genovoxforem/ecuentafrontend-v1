@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Info } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 
@@ -44,14 +44,6 @@ export function GeneratePayslipForm() {
           <FileText size={20} className="text-brand" /> Generate Payslip
         </h2>
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">payroll/payslip.php</code>. Its table reads real paid-payment records, but those are only ever created
-            by Make Payment's write — deliberately left unbuilt there since its formula can't be reproduced honestly (see Make Payment's own banner) — so
-            this list has no rows to show, and there's no "View" payslip to open.
-          </p>
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
           <div>

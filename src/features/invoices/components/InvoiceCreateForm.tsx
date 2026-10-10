@@ -15,7 +15,7 @@ import { CREDIT_NOTE_REASONS, useCreateCreditNote } from '../salesInvoiceActions
 import { convertToRecurringInvoice } from '../salesInvoiceTabs.queries'
 import { useInvoicesSummary } from '../invoices.queries'
 import { formatMoney } from '../../../utils/format'
-import { useWarehouseList } from '../../warehouses/warehouseExtras.queries'
+import { useWarehousePickerOptions } from '../../warehouses/warehouseExtras.queries'
 import { useProjectsList } from '../../projects/projects.queries'
 import { useGeneralSettings } from '../../settings/settings.queries'
 import { useBankAccountOptions, useCustomerInvoiceDefaults, useInvoiceCurrencies, usePaymentTerms } from '../invoiceFormOptions.queries'
@@ -142,9 +142,9 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
   const createTyped = useCreateTypedInvoice()
   const createDraftForTemplate = useCreateInvoiceReturningId()
   const { data: createContext, isLoading: contextLoading, isError: contextError, error: contextErr } = useInvoiceCreateContext()
-  const { warehouses } = useWarehouseList()
+  const { data: warehouses = [] } = useWarehousePickerOptions()
   // Like the classic page, the first open warehouse is the default.
-  const warehouseId = String(warehouses.find((w) => !/closed/i.test(w.statusLabel))?.id ?? warehouses[0]?.id ?? '')
+  const warehouseId = String(warehouses.find((w) => w.open)?.id ?? warehouses[0]?.id ?? '')
   const navigate = useNavigate()
   const listLink = backTo ?? ROUTES.invoiceList
 

@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGrid, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { NavItem, NavSection } from '../../../features/navTypes'
 import { ROUTES } from '../../../routes'
 import { useTheme } from '../../../context/ThemeContext'
-import { buildBreadcrumb, isDetailPagePath } from './Breadcrumb'
+import { Breadcrumb, buildBreadcrumb, isDetailPagePath } from './Breadcrumb'
+import { collapsible, findHeaderBlocks, findStatCards, findTitleRow, HIDDEN_CLASS, MERGED_CLASS, onlyActions, STAT_CLASS } from './bannerHeading'
+import { setBannerSlot } from './bannerSlot'
 
 type BannerRoute = { key: string; path: string; kind: 'list' | 'detail' }
 
@@ -46,6 +48,17 @@ const BANNER_ACTIONS: Record<string, Array<{ label: string; path: string }>> = {
   ],
 }
 
+// The nav menu's own crumb for a route is sometimes too generic next to the
+// page's real name (the classic page's own title, which the page's merged
+// header used to show before it got hidden under the banner) — this wins
+// over that crumb for the routes listed here.
+const TITLE_OVERRIDES: Record<string, string> = {
+  invoiceList: 'Sales Invoices',
+  ledgerDashboard: 'Operations - View By Accounting Account (Ledger)',
+  kitchenBeverageOrders: 'Beverage Order Management',
+  kitchenOrderManagement: 'Kitchen Order Management',
+}
+
 function routeMatches(pattern: string, pathname: string) {
   const patternParts = pattern.split('/').filter(Boolean)
   const pathParts = pathname.split('/').filter(Boolean)
@@ -74,41 +87,17 @@ function routeCreateLabel(key: string) {
   return `New ${label}`
 }
 
-// Detail pages whose own sticky header card (avatar/title, badges, KPI strip,
-// tabs) is the page banner in the blue-metal theme, like Customer Details: the
-// generic "LIST VIEW / X Details" strip above them is not shown, and the title
-// is drawn inside their banner instead (see data-detail-title in AppShell and
-// the matching rule in index.css). Other detail pages keep the generic strip
-// until they get the same header card.
-const INTEGRATED_DETAIL_KEYS = new Set([
-  'customerDetail',
-  'orderDetail',
-  'invoiceDetail',
-  'productDetail',
-  'projectDetail',
-  'vendorInvoiceDetail',
-  'contractDetail',
-  'warehouseDetail',
-  'inventoryDetail',
-  'userDetail',
-  'bankingAccountDetail',
-])
-
-function findDetailRoute(pathname: string) {
-  return DETAIL_BANNER_ROUTES.find((entry) => routeMatches(entry.path, pathname))
-}
-
-// Title for the banner of an integrated detail page, or undefined when this
-// page isn't one (or is Customer Details, which draws its own title).
-export function getIntegratedDetailTitle(sections: NavSection[], pathname: string, theme: string): string | undefined {
-  if (theme !== 'blue-metal' || !isDetailPagePath(pathname)) return undefined
-  const route = findDetailRoute(pathname)
-  if (!route || route.key === 'customerDetail' || !INTEGRATED_DETAIL_KEYS.has(route.key)) return undefined
-  return buildBreadcrumb(sections, pathname)?.crumbs.at(-1) || routeTitle(route.key, 'detail')
+function normalizeHeading(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/^zra\s+/, '')
+    .replace(/\s+list$/, '')
 }
 
 export function isBannerListPage(pathname: string, theme: string): boolean {
-  return theme === 'blue-metal' && pathname !== ROUTES.customerList && BANNER_ROUTES.some((route) => routeMatches(route.path, pathname))
+  return theme === 'blue-metal' && BANNER_ROUTES.some((route) => routeMatches(route.path, pathname))
 }
 
 function itemContainsPath(item: NavItem, pathname: string): boolean {
@@ -116,54 +105,286 @@ function itemContainsPath(item: NavItem, pathname: string): boolean {
   return 'items' in item && item.items.some((child) => itemContainsPath(child, pathname))
 }
 
+// Two headings name the same page when they read the same once punctuation and a
+// trailing "area"/"list" are ignored — "Vendors tags & categories" is the banner's
+// name for the page whose own row says "Vendors tags/categories area".
+function titlesMatch(a: string, b: string) {
+  const strip = (value: string) => normalizeHeading(value).replace(/\s+(area|list|details)$/, '').trim()
+  const left = strip(a)
+  const right = strip(b)
+  if (!left || !right) return false
+  // Containment, not just a shared start: the banner's "Dashboard" and the
+  // page's own "Expense Dashboard" are two names for the same page.
+  return left.includes(right) || right.includes(left)
+}
+
+// A banner title the route only generically describes — the page's own heading
+// says what it actually is, so that heading becomes the banner's title.
+const GENERIC_TITLES = new Set(['home', 'dashboard', 'index', 'overview', 'list', 'card', 'workspace', 'area', 'menu', 'settings'])
+
+interface HoistedAction {
+  html: string
+  label: string
+  disabled: boolean
+}
+
 export function PageBanner({ sections, pathname }: { sections: NavSection[]; pathname: string }) {
   const { theme } = useTheme()
   const isDetail = isDetailPagePath(pathname)
   const route = useMemo(() => (isDetail ? DETAIL_BANNER_ROUTES : BANNER_ROUTES).find((entry) => routeMatches(entry.path, pathname)), [isDetail, pathname])
+  const appRoute = useMemo(() => {
+    const matches = Object.entries(ROUTES).filter(([, path]) => routeMatches(path, pathname))
+    if (matches.length === 0) return undefined
+    // Several route patterns can match the same pathname (e.g. the detail
+    // route '/invoices/:id' also matches '/invoices/create' since ':id' is a
+    // wildcard segment) — the one with the fewest wildcard segments is the
+    // literal, intended match.
+    const wildcards = (path: string) => path.split('/').filter((part) => part.startsWith(':')).length
+    return matches.reduce((best, entry) => (wildcards(entry[1]) < wildcards(best[1]) ? entry : best))
+  }, [pathname])
   const breadcrumb = useMemo(() => buildBreadcrumb(sections, pathname), [sections, pathname])
-
-  if ((theme !== 'blue-metal' || (!isBannerListPage(pathname, theme) && !isDetail)) || !route || INTEGRATED_DETAIL_KEYS.has(route.key)) return null
+  // The page's own title row, absorbed into the banner (see bannerHeading.ts).
+  const [adoptedTitle, setAdoptedTitle] = useState<string | null>(null)
+  const [hoisted, setHoisted] = useState<HoistedAction[]>([])
+  const hoistedEls = useRef<HTMLElement[]>([])
 
   const section = sections.find((item) => item.key === breadcrumb?.sectionKey || item.items.some((navItem) => itemContainsPath(navItem, pathname)))
   const PageIcon = section?.icon ?? LayoutGrid
-  // A bare "List" crumb says nothing about which list this is — use the route's own name then ("Order List").
   const crumb = breadcrumb?.crumbs.at(-1)
-  const title = crumb && !/^list$/i.test(crumb) ? crumb : routeTitle(route.key, route.kind)
-  const createPath = route.kind === 'list' ? routeCreatePath(route.key) : undefined
-  const actions = route.kind !== 'list' ? [] : (BANNER_ACTIONS[route.key] ?? (createPath ? [{ label: routeCreateLabel(route.key), path: createPath }] : []))
+  const routeKey = route?.key ?? appRoute?.[0]
+  const actionMatch = routeKey?.match(/^(.*?)(Create|New|Edit|Update)(.*)$/i)
+  const fallbackTitle = actionMatch
+    ? `${/^(Create|New)$/i.test(actionMatch[2]) ? 'New' : 'Edit'} ${`${actionMatch[1]} ${actionMatch[3]}`.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').trim()}`
+    : routeKey
+      ? routeKey.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').replace(/^[a-z]/, (c) => c.toUpperCase()).trim()
+      : pathname.split('/').filter(Boolean).at(-1)?.replace(/[-_]/g, ' ') ?? 'Workspace'
+  const title = (routeKey && TITLE_OVERRIDES[routeKey]) || (crumb && !/^list$/i.test(crumb)
+    ? crumb
+    : route
+      ? routeTitle(route.key, route.kind)
+      : fallbackTitle)
+  const createPath = route?.kind === 'list' ? routeCreatePath(route.key) : undefined
+  const actions = route?.kind !== 'list'
+    ? []
+    : (BANNER_ACTIONS[route.key] ?? (createPath ? [{ label: routeCreateLabel(route.key), path: createPath }] : []))
+  const baseTitle = route
+    ? routeTitle(route.key, route.kind).replace(/\s+(List|Details)$/i, '').toLowerCase()
+    : title.toLowerCase()
+  const subtitle = route?.kind === 'detail'
+    ? 'Record details'
+    : route?.kind === 'list'
+      ? `Browse, search and manage ${baseTitle} records`
+      : pathname === '/dashboard' || pathname === '/'
+        ? 'Workspace overview'
+        : breadcrumb?.sectionLabel ?? 'Workspace'
 
-  // Same banner as Customer List (ThirdPartyList's own): icon tile, title,
-  // one-line subtitle and the "New …" button, full-bleed across the page.
-  const baseTitle = routeTitle(route.key, route.kind).replace(/\s+(List|Details)$/i, '').toLowerCase()
-  const subtitle = route.kind === 'detail' ? 'Record details' : `Browse, search and manage ${baseTitle} records`
+  // A title built from a route key or the section name ("racks Area", "Settings")
+  // is weaker than the page's own heading, which then becomes the banner title.
+  const weakTitle = /^[a-z]/.test(title) || GENERIC_TITLES.has(normalizeHeading(title)) || normalizeHeading(title) === normalizeHeading(breadcrumb?.sectionLabel ?? '')
+  const hasOwnActions = actions.length > 0
+  const shownTitle = adoptedTitle ?? title
+
+  useEffect(() => {
+    if (theme !== 'blue-metal') return
+    const content = document.getElementById('route-page-content')
+    if (!content) return
+
+    const marked = new Set<HTMLElement>()
+    const merged = new Set<HTMLElement>()
+    const stats = new Set<HTMLElement>()
+    const unmark = () => {
+      for (const el of marked) el.classList.remove(HIDDEN_CLASS)
+      marked.clear()
+      for (const el of merged) el.classList.remove(MERGED_CLASS)
+      merged.clear()
+      for (const el of stats) el.classList.remove(STAT_CLASS)
+      stats.clear()
+    }
+    const hide = (el: HTMLElement) => {
+      el.classList.add(HIDDEN_CLASS)
+      marked.add(el)
+    }
+    const syncHoisted = (els: HTMLElement[]) => {
+      hoistedEls.current = els
+      const next = els.map((el) => ({ html: el.innerHTML, label: el.innerText.trim(), disabled: el instanceof HTMLButtonElement && el.disabled }))
+      setHoisted((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+    }
+
+    const apply = () => {
+      unmark()
+      // The blocks the page draws at its top are painted as part of the banner,
+      // so the two read as one header instead of a banner above a second card.
+      const headerBlocks = findHeaderBlocks(content)
+      for (const block of headerBlocks) {
+        block.classList.add(MERGED_CLASS)
+        merged.add(block)
+      }
+      // The page's headline numbers are drawn compactly, whichever module's
+      // card shape they use.
+      for (const card of findStatCards(content)) {
+        card.classList.add(STAT_CLASS)
+        stats.add(card)
+      }
+      // Inside that header, a label that only repeats what the banner already
+      // says (the page's name, or the section it is in) is noise.
+      const repeated = new Set([normalizeHeading(title), normalizeHeading(subtitle)].filter(Boolean))
+      for (const block of headerBlocks) {
+        for (const label of block.querySelectorAll<HTMLElement>('h1, h2, h3, span, p')) {
+          if (label.querySelector('button, a[href], input, select')) continue
+          const text = normalizeHeading(label.innerText || label.textContent || '')
+          if (text && repeated.has(text)) hide(collapsible(label, block))
+        }
+      }
+      let toHoist: HTMLElement[] = []
+      const titleRow = findTitleRow(content)
+      // Only the page's OWN title belongs in the banner. A heading that names
+      // something else (a chart, a section) is the page's content and stays put.
+      // A create/edit page's own heading is usually the generic "New X"/"Edit X"
+      // phrasing (fallbackTitle), while the banner shows the breadcrumb's fuller
+      // name for the same page ("Create Detailed Invoice") — those two read as
+      // different strings but name the same page, so fallbackTitle is also an
+      // accepted match for the page's own heading.
+      if (titleRow && (titlesMatch(titleRow.text, title) || titlesMatch(titleRow.text, fallbackTitle) || weakTitle)) {
+        setAdoptedTitle(weakTitle ? titleRow.text : null)
+        // The page's own title row is the banner's job. Buttons that can be
+        // redrawn in the banner move there and the whole row goes; otherwise the
+        // row stays with its buttons and only the title goes.
+        if (titleRow.row && titleRow.actions && !hasOwnActions) {
+          hide(collapsible(titleRow.row, content))
+          toHoist = titleRow.actions
+        } else {
+          hide(collapsible(titleRow.titleBlock, content))
+        }
+
+        // Any other heading that repeats the banner title word for word.
+        const normalizedTitle = normalizeHeading(weakTitle ? titleRow.text : title)
+        for (const heading of content.querySelectorAll<HTMLElement>('h1, h2, h3')) {
+          if (normalizeHeading(heading.innerText || heading.textContent || '') === normalizedTitle) hide(heading)
+        }
+      } else {
+        setAdoptedTitle(null)
+      }
+
+      // A panel that prints its own name again inside itself ("Quick Actions"
+      // as the card's header and again as the first thing in its body).
+      const headings = Array.from(content.querySelectorAll<HTMLElement>('h1, h2, h3, h4'))
+      for (let i = 0; i < headings.length; i += 1) {
+        const text = normalizeHeading(headings[i].innerText || headings[i].textContent || '')
+        if (!text) continue
+        for (let j = 0; j < i; j += 1) {
+          if (normalizeHeading(headings[j].innerText || headings[j].textContent || '') !== text) continue
+          // Either the label sits inside the card that repeats it, or the label
+          // sits just above the card in the same wrapper; the card's own copy goes.
+          const label = headings[j]
+          const card = label.closest('.app-card, section, [class*="rounded-xl"], [class*="rounded-lg"]')
+          const wrapper = label.parentElement
+          if ((card && card.contains(headings[i])) || (wrapper && wrapper !== content && wrapper.contains(headings[i]))) {
+            hide(headings[i])
+            break
+          }
+        }
+      }
+
+      // Once its label is gone, a header row holding only buttons is just those
+      // buttons: they move up onto the banner's own row.
+      if (toHoist.length === 0 && !hasOwnActions) {
+        for (const block of headerBlocks) {
+          const actionsOnly = onlyActions(block)
+          if (actionsOnly) {
+            hide(block)
+            toHoist = actionsOnly
+            break
+          }
+        }
+      }
+      syncHoisted(toHoist)
+    }
+
+    apply()
+    let frame = 0
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(apply)
+    })
+    observer.observe(content, { childList: true, characterData: true, subtree: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      unmark()
+      setAdoptedTitle(null)
+      syncHoisted([])
+    }
+  }, [pathname, theme, title, subtitle, weakTitle, hasOwnActions])
+
+  if (theme !== 'blue-metal') return null
 
   return (
-    <div className="relative -mx-6 flex min-h-[86px] flex-wrap items-center justify-between gap-5 overflow-hidden border-b border-border px-6 py-3 sm:min-h-24 sm:px-8">
-      <img src="/blue-metal-dashboard.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,14,28,0.96)_0%,rgba(3,14,28,0.82)_43%,rgba(3,14,28,0.34)_100%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,121,206,0.22),transparent_54%,rgba(4,15,29,0.24))]" />
-      <div className="relative z-10 flex min-w-0 items-center gap-4 text-white">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-cyan-200/50 bg-blue-500/20 text-cyan-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_22px_rgba(0,158,255,0.3)] backdrop-blur-sm sm:h-16 sm:w-16">
-          <PageIcon size={34} />
-        </span>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">{title}</h1>
-          <p className="mt-1 text-sm text-blue-100/85 sm:text-base">{subtitle}</p>
-        </div>
+    <div className="blue-theme-banner relative -mx-6 flex min-h-[50px] flex-col justify-center gap-2 overflow-hidden border-b border-border px-[16px] py-2 sm:min-h-[54px] sm:py-2.5">
+      {/* Same generic photo on every banner (list and detail alike) — there's no
+          sensible way to pick a different one per page type without it looking
+          arbitrary, so one image stands for "this is the app's banner surface"
+          everywhere, the same role the flat #10283a fill played before. The
+          `.blue-banner-continues` header blocks a page draws right under this
+          (see bannerHeading.ts / index.css) stay flat on purpose — only the
+          banner strip itself carries the photo, so the merged header still
+          reads as "photo band, then one solid panel", not a repeating image. */}
+      <div
+        className="absolute inset-[6px] bg-cover bg-[position:right_center]"
+        style={{ backgroundImage: "url('/blue-metal-dashboard.jpg')" }}
+      />
+      {/* The banner is a very short, very wide crop of a normal-aspect photo, so
+          bg-cover blows it up far past its native resolution and whatever lands
+          at the right edge (a wall, a UI chrome edge, ...) can come out as a
+          blown-out, near-white patch. The old fade (down to 0.3 opacity at the
+          right) left that fully exposed; 0.82 still lets the photo's texture and
+          colour read through without any single crop being able to blow out. */}
+      <div className="absolute inset-0 bg-[linear-gradient(100deg,#0a1c2c_0%,#0f2c42_38%,rgba(15,44,66,0.78)_62%,rgba(15,44,66,0.82)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(56,172,255,0.14),transparent_55%,rgba(4,15,29,0.18))]" />
+      {/* Its own row above the title, pinned to the banner's own top-left
+          corner — was floated to the right of the title (same row), which read
+          as "wherever there's room" rather than a fixed, predictable spot. */}
+      <div className="relative z-10 min-w-0">
+        <Breadcrumb sections={sections} isModern />
       </div>
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5 text-white">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-300/35 bg-sky-500/10 text-sky-200">
+            <PageIcon size={16} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-base font-semibold text-white">{shownTitle}</h1>
+          </div>
+        </div>
+      {hoisted.length > 0 && (
+        <div className="relative z-10 ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
+          {hoisted.map((action, index) => (
+            <button
+              key={`${index}-${action.label}`}
+              type="button"
+              disabled={action.disabled}
+              title={action.label}
+              onClick={() => hoistedEls.current[index]?.click()}
+              className="blue-theme-primary inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-white/20 bg-[#3b718f] px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f] disabled:opacity-50"
+              dangerouslySetInnerHTML={{ __html: action.html }}
+            />
+          ))}
+        </div>
+      )}
       {actions.length > 0 && (
-        <div className="relative z-10 flex shrink-0 flex-wrap items-center gap-2">
+        <div className={`relative z-10 flex min-w-0 max-w-full flex-wrap items-center gap-2 ${hoisted.length > 0 ? '' : 'ml-auto'}`}>
           {actions.map((action) => (
             <Link
               key={action.path}
               to={action.path}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-cyan-200/50 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(0,125,255,0.34)] transition hover:brightness-110"
+              className="blue-theme-primary inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-white/20 bg-[#3b718f] px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#3b718f]"
             >
               <Plus size={16} /> {action.label}
             </Link>
           ))}
         </div>
       )}
+      <div ref={setBannerSlot} className={`relative z-10 flex min-w-0 flex-wrap items-center gap-3 empty:hidden ${hoisted.length > 0 || actions.length > 0 ? '' : 'ml-auto'}`} />
+      </div>
     </div>
   )
 }

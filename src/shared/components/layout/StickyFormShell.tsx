@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTheme } from '../../../context/ThemeContext'
 
 // The one correct way to build a create/edit page whose header stays pinned to the true top
 // of AppShell's <main> and whose action bar stays pinned to the true bottom, with content
@@ -52,21 +53,23 @@ export function StickyFormShell({
   scrollsInternally?: boolean
   children: ReactNode
 }) {
+  const { theme } = useTheme()
+  const compact = theme === 'blue-metal'
   const hasFooter = footerLeft != null || footerRight != null
   return (
-    <div className={`-m-6 flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''}`}>
-      <div className={`sticky -top-6 z-10 border-b border-border bg-white px-6 dark:bg-gray-950 ${headerClassName}`}>{header}</div>
+    <div className={`blue-density-form -m-6 flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''}`}>
+      <div className={`blue-density-header sticky -top-6 z-10 border-b border-border bg-white px-[16px] dark:bg-gray-950 ${compact ? 'py-2' : headerClassName}`}>{header}</div>
       {/* flex flex-col (not just flex-1): lets a single-card page opt its Card into flex-1
           too, so the card's own box stretches down to meet the footer instead of leaving a
           bare gap below a short field grid — same fill-or-overflow reasoning as this wrapper
           itself. min-h-0 (scrollsInternally only) lets it shrink below its content's
           intrinsic size when a child card handles its own internal scrolling (needed for that
           child's overflow-auto to engage at all, per the usual nested-flexbox-scroll gotcha). */}
-      <div className={`flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''} space-y-4 px-6 py-4`}>{children}</div>
+      <div className={`blue-density-form-content flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''} ${compact ? 'space-y-3 px-[16px] py-3' : 'space-y-4 px-[16px] py-4'}`}>{children}</div>
       {hasFooter && (
-        <div className="sticky -bottom-6 z-10 flex items-center justify-between gap-3 border-t border-border bg-white px-6 py-2.5 dark:bg-gray-950">
-          <div className="flex min-w-0 items-center gap-3">{footerLeft}</div>
-          <div className="flex items-center gap-3">{footerRight}</div>
+        <div className={`blue-density-footer sticky -bottom-6 z-10 flex items-center justify-between border-t border-border bg-white px-[16px] dark:bg-gray-950 ${compact ? 'gap-2 py-1.5' : 'gap-3 py-2.5'}`}>
+          <div className={`flex min-w-0 items-center ${compact ? 'gap-2' : 'gap-3'}`}>{footerLeft}</div>
+          <div className={`flex items-center ${compact ? 'gap-2' : 'gap-3'}`}>{footerRight}</div>
         </div>
       )}
     </div>

@@ -210,7 +210,7 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
     <StickyFormShell
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <FileText size={20} className="text-brand" /> New purchase invoice
+          <FileText size={20} className="text-brand" /> New vendor invoice
         </h2>
       }
       footerLeft={

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Loader2 } from 'lucide-react'
-import { EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
+import { EMPTY_SECTION_HOME_PATH, MENU_UNAVAILABLE_SECTIONS } from '../../nav/pathSourceSections'
 import {
   House,
   Shield,
@@ -58,8 +58,6 @@ import { prefetchRoute } from '../../../app/routePrefetch'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 import { useTheme } from '../../../context/ThemeContext'
 import { getNavItemIcon } from '../../nav/getNavItemIcon'
-import logoFull from '../../../assets/Ecuenta_logo.png'
-import logoIcon from '../../../assets/log3.png'
 
 // Used only as a label->path lookup by buildNavSections now (see there) —
 // the actual section list, order, and item hierarchy come from GET
@@ -445,24 +443,25 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
   const { data: menu } = useAppMenu()
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
-  // React path (see buildNavSections) and covers the one frame before the
-  // request resolves.
+  // React path (see buildNavSections). Until the request answers, the sidebar
+  // shows no modules rather than the hard-coded list.
   const SECTIONS = useMemo(() => {
     const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
-    return sections.length > 0 ? sections : PATH_SOURCE_SECTIONS
+    return sections.length > 0 ? sections : MENU_UNAVAILABLE_SECTIONS
   }, [menu])
+  const lightMode = theme === 'light'
   const [hovering, setHovering] = useState(false)
   const expanded = open || hovering
 
   return (
     <div
-      className={`relative h-full shrink-0 transition-[width] duration-300 ease-in-out ${open ? 'w-64' : 'w-16'}`}
+      className={`relative h-full shrink-0 transition-[width] duration-300 ease-in-out ${open ? 'w-[230px]' : 'w-[58px]'}`}
       onMouseEnter={() => !open && setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
       <aside
-        className={`h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
-          open ? 'relative w-64' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-64' : 'w-16'}`
+        className={`${lightMode ? 'modern-sb-light' : ''} h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
+          open ? 'relative w-[230px]' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-[230px]' : 'w-[58px]'}`
         }`}
       >
         {/* Solid dark base — the glass tint (MODERN_GLASS_BG at 0.22 alpha) is
@@ -471,39 +470,31 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
             of the "always dark" panel the design calls for. This base layer makes
             the sidebar actually dark regardless of theme, while the glass tint and
             sheen layered on top still give the glossy-glass reading. */}
-        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : 'bg-gray-900'}`} />
+        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : lightMode ? 'bg-slate-50' : 'bg-gray-900'}`} />
         {/* Flat translucent tint, no blur — plain glass rather than frosted glass. Kept on its own childless layer,
             separate from the content below, purely so the drop-shadow on the content layer never touches this tint. */}
-        <div
+        {!lightMode && <div
           className="absolute inset-0"
           style={{
             backgroundColor: theme === 'blue-metal' ? 'rgba(6, 17, 29, 0.42)' : MODERN_GLASS_BG,
             backgroundImage: theme === 'blue-metal' ? 'linear-gradient(135deg, rgba(66,200,255,0.2), rgba(22,139,255,0.05) 38%, transparent 68%)' : MODERN_GLASS_SHEEN,
           }}
-        />
+        />}
         {/* No top glass-highlight line here — this top edge sits directly against the navbar's bottom edge (not a real
             outer edge), so a highlight line here would just recreate the seam. Navbar keeps the one at its own true top. */}
 
         {/* Content sits on its own layer with a drop-shadow (covers icons too, unlike text-shadow) so it stays
             legible against a genuinely transparent glass panel regardless of what's behind it. */}
-        <div className="relative z-10 flex flex-col h-full" style={{ filter: MODERN_CONTENT_SHADOW }}>
+        <div className="relative z-10 flex flex-col h-full" style={lightMode || theme === 'blue-metal' ? undefined : { filter: MODERN_CONTENT_SHADOW }}>
           {expanded && (
-            <div className="flex items-center justify-center h-12 mx-2.5 mt-4 mb-2 rounded-lg bg-white/90 px-2 shrink-0">
-              <img src={logoFull} alt="ECUENTA" className="h-full w-auto object-contain" />
-            </div>
+            <h2 className="px-4 pb-3 pt-4 text-sm font-bold tracking-[0.18em] text-white/75">MENU</h2>
           )}
-          {!expanded && (
-            <div className="flex items-center justify-center w-10 h-10 mx-auto mt-4 mb-2 rounded-lg bg-white/90 p-1 shrink-0">
-              <img src={logoIcon} alt="ECUENTA" className="h-full w-full object-contain" />
-            </div>
-          )}
-          {expanded && <p className="px-4 pb-2 text-[11px] font-bold tracking-widest text-white/35">MENU</p>}
 
           <div className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-2.5 pb-2 ${expanded ? '' : 'pt-5'}`}>
             {expanded ? (
               <MenuList sections={SECTIONS} navigate={navigate} location={location} blueMetal={theme === 'blue-metal'} />
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-4">
                 {SECTIONS.map((section) => {
                   const Icon = PHOSPHOR_ICON[section.key] ?? section.icon
                   const isCurrent = sectionContainsCurrent(section, location)
@@ -516,7 +507,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                           if (!open && onOpen) onOpen()
                           if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
                         }}
-                        className={`w-full flex items-center justify-center h-10 rounded-xl transition-colors ${
+                        className={`relative w-full flex items-center justify-center h-11 rounded-xl transition-colors ${
                           theme === 'blue-metal'
                             ? isCurrent
                               ? 'bg-[#168bff]/20 text-white'
@@ -529,15 +520,15 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                         <span
                           className={
                             theme === 'blue-metal'
-                              ? `flex h-8 w-8 items-center justify-center rounded-md border ${
+                              ? `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-lg border ${
                                   isCurrent
-                                    ? 'border-[#66caff] bg-[linear-gradient(145deg,#2aa9ff,#0754a5)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_12px_rgba(22,139,255,0.45)]'
-                                    : 'border-[#2b6e9f] bg-[linear-gradient(145deg,#173958,#091522)] text-[#6acfff] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_8px_rgba(22,139,255,0.18)]'
+                                    ? 'border-[#8fdcff] bg-[linear-gradient(145deg,#38b6ff,#0a63c0)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_14px_rgba(56,182,255,0.6)]'
+                                    : 'border-[#3f8fcc] bg-[linear-gradient(145deg,#1f4d78,#0b2238)] text-[#9ee3ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_8px_rgba(22,139,255,0.25)] group-hover/rail:border-[#7ad0ff] group-hover/rail:text-white'
                                 }`
                               : 'contents'
                           }
                         >
-                          <Icon size={20} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
+                          <Icon size={21} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
                         </span>
                       </button>
                     </div>

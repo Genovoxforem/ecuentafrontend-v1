@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Funnel, Info, Loader2 } from 'lucide-react'
+import { Funnel, Loader2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
@@ -85,14 +85,6 @@ export function PayrollSummaryForm() {
           <Funnel size={20} className="text-brand" /> Payroll Summary
         </h2>
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">payroll/payroll_summary.php</code>. This report's rows are real, scraped directly from the backend
-            (confirmed live — some employees do have real paid-payment history). The row-level Action popup (a full printable payslip layout) isn't
-            reproduced — it re-presents the same row's own numbers plus employee profile fields already available from Users.
-          </p>
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>

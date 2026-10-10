@@ -169,7 +169,7 @@ function DictionaryBody({ id, title, icon: Icon, dictionaryName, data, applied, 
             {missing || (add.error instanceof Error ? add.error.message : 'Adding failed.')}
           </div>
         )}
-        <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(var(--cols),minmax(0,1fr))]" style={{ ['--cols' as string]: Math.ceil((data.fields.length + 1) / 2) }}>
           {data.fields.map((f) => (
             <Field key={f.name} label={f.label} required={f.required}>
               <Control field={f} value={values[f.name] ?? ''} onChange={(v) => setValues((cur) => ({ ...cur, [f.name]: v }))} />

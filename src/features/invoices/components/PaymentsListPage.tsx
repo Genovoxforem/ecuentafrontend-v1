@@ -107,41 +107,28 @@ export function PaymentsListPage() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Flag size={20} className="text-brand" /> Report Area
-        </h2>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
-        <Card className="!h-auto">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Report period</label>
-              <div className="flex items-center gap-2">
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
-                <span className="text-text-faint">-</span>
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
-              </div>
-            </div>
-            <button
-              type="button"
-              disabled={isFetching}
-              onClick={() => {
-                setApplied({ from, to })
-                setPage(1)
-              }}
-              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-            >
-              {isFetching && <Loader2 size={14} className="animate-spin" />} View Report
-            </button>
-          </div>
-        </Card>
-
-        <h3 className="text-base font-semibold text-text!">Payments Received From Customers</h3>
-
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+          <div>
+            <label className="block text-xs text-text-faint mb-1">Report period</label>
+            <div className="flex items-center gap-2">
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
+              <span className="text-text-faint">-</span>
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={isFetching}
+            onClick={() => {
+              setApplied({ from, to })
+              setPage(1)
+            }}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          >
+            {isFetching && <Loader2 size={14} className="animate-spin" />} View Report
+          </button>
             <select
               value={perPage}
               onChange={(e) => handlePerPageChange(Number(e.target.value))}

@@ -107,11 +107,11 @@ export function PendingPurchaseInvoicesList() {
     // be — the header/footer below stay pinned via sticky *and* by simply
     // being flex-column siblings outside the one scrolling region, matching
     // the same pattern already used on AsycudaPurchaseInvoiceCreate.tsx.
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="sticky -top-6 z-20 -mx-6 px-6 pt-4 pb-4 bg-white dark:bg-gray-950 border-b border-border space-y-4">
-        <ListHeader icon={<ShoppingCart size={20} className="text-brand" />} title="ZRA Pending Purchase Invoices" count={total} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
+            <ListHeader icon={<ShoppingCart size={16} className="text-brand" />} count={total} />
             <label className="flex items-center gap-2 text-sm text-text-muted">
               <select
                 value={perPage}
@@ -145,7 +145,7 @@ export function PendingPurchaseInvoicesList() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto my-4 rounded-xl border border-border bg-surface-alt soft-scrollbar">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>
@@ -202,7 +202,13 @@ export function PendingPurchaseInvoicesList() {
         </table>
       </div>
 
-      <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+      <div className="-mx-6 -mb-6">
+
+
+        <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} />
+
+
+      </div>
     </div>
   )
 }

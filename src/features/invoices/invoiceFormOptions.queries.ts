@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { customerLookupsQuery, type CustomerLookups } from '../customers/thirdPartyOptions.queries'
 
 // ── Dictionary options (same pattern as OrderCreateForm's useDictionary) ──
 
@@ -40,22 +40,13 @@ export function useBankAccountOptions() {
   })
 }
 
-// Payment terms (llx_c_payment_term) — no REST endpoint, scraped from the
-// legacy order-create page's <select name="cond_reglement_id"> the same way
-// OrderCreateForm's useOrderDictionaries does (see orderFormOptionsParser.ts).
+// Payment terms (llx_c_payment_term) from societe/api/meta.php's
+// wizard_options, the same rows/ids/order as the legacy order-create page's
+// <select name="cond_reglement_id"> this used to download (1.7 MB) to read.
+const toPaymentTermOptions = (lookups: CustomerLookups): DictionaryOption[] => lookups.paymentTerms.map((t) => ({ id: String(t.id), text: t.label }))
+
 export function usePaymentTerms() {
-  return useQuery({
-    queryKey: ['invoice', 'payment-terms'],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const doc = await fetchLegacyDocument('/commande/salesorder/index_v2.php')
-      const select = doc.querySelector('select[name="cond_reglement_id"]')
-      if (!select) return []
-      return Array.from(select.querySelectorAll('option'))
-        .map((o) => ({ id: o.getAttribute('value') ?? '', text: (o.textContent ?? '').trim() }))
-        .filter((o) => o.id && o.id !== '0' && o.id !== '-1')
-    },
-    staleTime: 1000 * 60 * 10,
-  })
+  return useQuery({ ...customerLookupsQuery, select: toPaymentTermOptions })
 }
 
 // ── Customer defaults (auto-fill on customer selection) ──────────────────
@@ -112,19 +103,12 @@ export function useCustomerInvoiceDefaults(socid: string) {
   })
 }
 
-// Currencies offered by the classic create page's <select name="multicurrency_code">
-// (the instance's base currency plus the multicurrency ones it has set up).
+// The instance's configured currencies (llx_multicurrency), from the same
+// wizard_options response — the same codes and labels as the classic create
+// page's <select name="multicurrency_code">, without downloading that page a
+// second time (fetchInvoiceCreateContext already loads it once).
+const toCurrencyOptions = (lookups: CustomerLookups): DictionaryOption[] => lookups.currencies.map((c) => ({ id: c.code, text: c.name }))
+
 export function useInvoiceCurrencies() {
-  return useQuery({
-    queryKey: ['invoice', 'currencies'],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const doc = await fetchLegacyDocument('/compta/facture/card.php', new URLSearchParams({ action: 'create' }))
-      const select = doc.querySelector('select[name="multicurrency_code"]')
-      if (!select) return []
-      return Array.from(select.querySelectorAll('option'))
-        .map((o) => ({ id: o.getAttribute('value') ?? '', text: (o.textContent ?? '').replace(/\s+/g, ' ').trim() }))
-        .filter((o) => o.id)
-    },
-    staleTime: 1000 * 60 * 10,
-  })
+  return useQuery({ ...customerLookupsQuery, select: toCurrencyOptions })
 }

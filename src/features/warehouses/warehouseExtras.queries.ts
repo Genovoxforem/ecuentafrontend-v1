@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
+import { fapi } from '../../api/axios'
 import { todayIso } from '../../shared/localCollection'
 import { fetchLegacyDocument, legacyRefusalMessages, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from '../generalLedger/bindLines.queries'
@@ -60,6 +61,31 @@ function useWarehouseListQuery() {
 export function useWarehouses(): WarehouseListRow[] {
   const { data } = useWarehouseListQuery()
   return data ?? []
+}
+
+// A warehouse dropdown's choices, from product/stock/fapi/warehouses.php (JSON,
+// entity-isolated) instead of the product/stock/list.php page. `open` is the
+// warehouse's status (1 = open), for picking a sensible default.
+export interface WarehousePickerOption {
+  id: number
+  ref: string
+  label: string
+  open: boolean
+}
+
+export function useWarehousePickerOptions() {
+  return useQuery({
+    queryKey: ['warehouses', 'pickerOptions'],
+    queryFn: async (): Promise<WarehousePickerOption[]> => {
+      const { data } = await fapi.get<{ success: boolean; message?: string | null; data: { items?: Array<{ id: number; ref?: string; label?: string; status?: number | string }> } }>(
+        '/product/stock/fapi/warehouses.php',
+        { params: { limit: 500 } },
+      )
+      if (!data.success) throw new Error(data.message || 'Could not load the warehouses.')
+      return (data.data.items ?? []).map((w) => ({ id: w.id, ref: w.ref || w.label || '', label: w.label || w.ref || '', open: Number(w.status) === 1 }))
+    },
+    staleTime: 1000 * 60 * 5,
+  })
 }
 
 export function useWarehouseList() {

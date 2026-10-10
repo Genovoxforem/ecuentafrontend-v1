@@ -37,8 +37,12 @@ export function LedgerToolbar({ active, extra }: { active: 'flat' | 'account' | 
   )
 }
 
-const fieldCls = 'w-full max-w-[160px] text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5'
-const labelCls = 'flex flex-col gap-1 text-xs font-medium text-text-faint whitespace-nowrap'
+const gridFieldCls = 'w-full max-w-[160px] text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5'
+const gridLabelCls = 'flex flex-col gap-1 text-xs font-medium text-text-faint whitespace-nowrap'
+// singleLine: every field shares one row, shrinking to fit; the row scrolls
+// sideways only when the screen is too narrow for even the shrunk fields.
+const rowFieldCls = 'w-full min-w-[5.5rem] text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5'
+const rowLabelCls = 'flex flex-1 flex-col gap-1 text-xs font-medium text-text-faint whitespace-nowrap'
 
 const SORT_FIELDS: { value: LedgerFilters['sortField']; label: string }[] = [
   { value: 't.doc_date', label: 'Doc Date' },
@@ -58,28 +62,33 @@ export function LedgerFilterBar({
   onSubmit,
   onClear,
   submitting,
+  singleLine = false,
 }: {
   draft: LedgerFilters
   onChange: (next: LedgerFilters) => void
   onSubmit: () => void
   onClear: () => void
   submitting: boolean
+  singleLine?: boolean
 }) {
+  const fieldCls = singleLine ? rowFieldCls : gridFieldCls
+  const labelCls = singleLine ? rowLabelCls : gridLabelCls
+  const dateCls = singleLine ? `${fieldCls} min-w-[8.5rem]` : fieldCls
   return (
     <form
       onSubmit={(e: FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         onSubmit()
       }}
-      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3"
+      className={singleLine ? 'flex items-end gap-2 overflow-x-auto pb-1' : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3'}
     >
       <label className={labelCls}>
         Start date
-        <input type="date" value={draft.dateStart} onChange={(e) => onChange({ ...draft, dateStart: e.target.value })} className={fieldCls} />
+        <input type="date" value={draft.dateStart} onChange={(e) => onChange({ ...draft, dateStart: e.target.value })} className={dateCls} />
       </label>
       <label className={labelCls}>
         End date
-        <input type="date" value={draft.dateEnd} onChange={(e) => onChange({ ...draft, dateEnd: e.target.value })} className={fieldCls} />
+        <input type="date" value={draft.dateEnd} onChange={(e) => onChange({ ...draft, dateEnd: e.target.value })} className={dateCls} />
       </label>
       <label className={labelCls}>
         Accounting account
@@ -113,7 +122,7 @@ export function LedgerFilterBar({
         Lettering code
         <input type="text" value={draft.letteringCode} onChange={(e) => onChange({ ...draft, letteringCode: e.target.value })} className={fieldCls} />
       </label>
-      <label className={`${labelCls} justify-end`}>
+      <label className={`${labelCls} justify-end ${singleLine ? 'flex-none pb-2' : ''}`}>
         <span className="flex items-center gap-1.5 text-text-muted">
           <input type="checkbox" checked={draft.notReconciled} onChange={(e) => onChange({ ...draft, notReconciled: e.target.checked })} />
           Not reconciled
@@ -146,7 +155,7 @@ export function LedgerFilterBar({
           ))}
         </select>
       </label>
-      <div className="flex items-end gap-2">
+      <div className="flex shrink-0 items-end gap-2">
         <button type="submit" disabled={submitting} className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
           {submitting ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Search
         </button>
