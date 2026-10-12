@@ -4,7 +4,7 @@ import { Warehouse, LoaderCircle, X, Check } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 import { useCreateWarehouseReal, useWarehouses } from '../warehouseExtras.queries'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
 const inputCls = 'w-full h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -63,6 +63,7 @@ export function WarehouseCreateForm() {
 
   return (
     <StickyFormShell
+      wizard={[{title:'Warehouse Details',subtitle:'Ref, name & status'},{title:'Address & Contact',subtitle:'Location and phone'}]}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Warehouse size={20} className="text-brand" /> New warehouse / Stock Location
@@ -86,6 +87,7 @@ export function WarehouseCreateForm() {
     >
       {error && <p className="text-sm font-medium text-danger">{error}</p>}
 
+      <WizardStep n={0}>
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
           <Field label="Ref." required>
@@ -104,11 +106,23 @@ export function WarehouseCreateForm() {
               ))}
             </select>
           </Field>
-          <Field label="Zip Code">
-            <input value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls} />
-          </Field>
           <Field label="Description">
             <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Status">
+            <select value={status} onChange={(e) => setStatus(e.target.value as 'Open' | 'Closed')} className={selectCls}>
+              <option>Open</option>
+              <option>Closed</option>
+            </select>
+          </Field>
+        </div>
+      </Card>
+      </WizardStep>
+      <WizardStep n={1}>
+      <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
+          <Field label="Zip Code">
+            <input value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls} />
           </Field>
           <Field label="Address">
             <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls} />
@@ -132,14 +146,9 @@ export function WarehouseCreateForm() {
           <Field label="Fax">
             <input value={fax} onChange={(e) => setFax(e.target.value)} className={inputCls} />
           </Field>
-          <Field label="Status">
-            <select value={status} onChange={(e) => setStatus(e.target.value as 'Open' | 'Closed')} className={selectCls}>
-              <option>Open</option>
-              <option>Closed</option>
-            </select>
-          </Field>
         </div>
       </Card>
+      </WizardStep>
     </StickyFormShell>
   )
 }

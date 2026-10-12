@@ -2,7 +2,7 @@ import { type ComponentType, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LayoutGrid, PieChart as PieChartIcon } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
-import { useTheme } from '../../../context/ThemeContext'
+import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 import { formatMoney } from '../../../utils/format'
 
 // Shared building blocks for the "module dashboard" pages ported from the
@@ -197,7 +197,7 @@ export function StatCard({
   className?: string
 }) {
   const { theme } = useTheme()
-  const compact = theme === 'blue-metal'
+  const compact = usesBlueLayout(theme)
   return (
     <Card className={`${className ?? ''} ${compact ? 'blue-compact-card' : '!p-3'} flex flex-col ${compact ? 'gap-1' : 'gap-2'}`}>
       <div className="flex items-start justify-between">
@@ -244,7 +244,7 @@ export function TodayStatCard({
   color: IconColor
 }) {
   const { theme } = useTheme()
-  const compact = theme === 'blue-metal'
+  const compact = usesBlueLayout(theme)
   return (
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div>
@@ -281,7 +281,7 @@ export function TwoValueStatCard({
   color: IconColor
 }) {
   const { theme } = useTheme()
-  const compact = theme === 'blue-metal'
+  const compact = usesBlueLayout(theme)
   return (
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div>

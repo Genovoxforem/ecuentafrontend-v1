@@ -97,6 +97,23 @@ export function WarehouseDetail() {
   const isBlueMetal = theme === 'blue-metal'
   const { data, isLoading, isError, error, refetch } = useWarehouseDetail(id)
   const [tab, setTab] = useState<WarehouseTab>('warehouse')
+  const [showInfo, setShowInfo] = useState(() => {
+    try {
+      return localStorage.getItem('warehouseInfoHidden') !== '1'
+    } catch {
+      return true
+    }
+  })
+  function toggleInfo() {
+    setShowInfo((v) => {
+      try {
+        localStorage.setItem('warehouseInfoHidden', v ? '1' : '0')
+      } catch {
+        /* preference only */
+      }
+      return !v
+    })
+  }
   const [productSearchId, setProductSearchId] = useState('')
   const [appliedProductSearchId, setAppliedProductSearchId] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
@@ -155,9 +172,9 @@ export function WarehouseDetail() {
           carry) become icon buttons alongside Edit/Delete/Close rather than
           full-width bordered buttons, since the reference layout keeps
           header actions compact and icon-only. */}
-      <div className="sticky top-0 z-10 -mx-6 pt-4 pb-0 bg-white dark:bg-gray-950">
+      <div className="sticky top-0 z-10 -mx-6 pt-4 pb-0 bg-white dark:bg-gray-950 [&_.app-card]:!pb-0">
         <div className="px-6">
-          <Card className="!h-auto">
+          <Card className="!h-auto !pb-0 !mb-0">
             <div className="hidden">
               <InBanner>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -230,7 +247,7 @@ export function WarehouseDetail() {
               <DetailMetricTile label="Latest Movement" value={data.latestMovement || 'None'} icon={CalendarClock} color="blue" sparkline={false} />
             </DetailMetricRow>
 
-            <div className="border-t border-border px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 border-t border-border px-3 pt-2.5 pb-0">
               <div className="flex items-center gap-1 bg-surface rounded-full p-1 w-fit">
                 {TABS.map(({ key, label, icon: Icon }) => (
                   <button
@@ -245,12 +262,17 @@ export function WarehouseDetail() {
                   </button>
                 ))}
               </div>
+              {tab === 'warehouse' && (
+                <button type="button" onClick={toggleInfo} className="text-xs font-medium text-text-muted hover:text-brand">
+                  {showInfo ? 'Hide details' : 'Show details'}
+                </button>
+              )}
             </div>
           </Card>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 pt-2 pb-4 space-y-4 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 pt-0 pb-4 no-scrollbar flex flex-col gap-3 !mt-0">
         {deleteWarehouse.isError && (
           <p role="alert" className="text-sm font-medium text-danger">
             {deleteWarehouse.error instanceof Error ? deleteWarehouse.error.message : 'Delete failed.'}
@@ -258,7 +280,8 @@ export function WarehouseDetail() {
         )}
         {tab === 'warehouse' && (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {showInfo && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 shrink-0">
               <Card className="!h-auto">
                 <InfoRow label="Environment" value={data.environment} />
                 {data.parentWarehouseName && (
@@ -285,10 +308,12 @@ export function WarehouseDetail() {
                 <InfoRow label="Tags/categories" value={data.tags.length > 0 ? data.tags.join(', ') : ''} />
               </Card>
             </div>
+            )}
 
-            <Card className="!h-auto !p-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-border">
-                <h3 className="font-semibold text-text!">Products in this warehouse</h3>
+            <Card className="!h-auto !p-0 overflow-hidden flex flex-col flex-1 min-h-[24rem]">
+              <div className="px-4 py-3 border-b border-border shrink-0 flex items-center gap-2">
+                <Package size={14} className="text-brand" />
+                <h3 className="text-sm font-semibold text-text!">Products in this warehouse</h3>
               </div>
               <WarehouseProductsTable
                 leading={
@@ -448,7 +473,7 @@ function WarehouseProductsTable({ products, emptyMessage, warehouseId, leading }
         </div>
       </div>
 
-      <div className="max-h-[28rem] overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>
@@ -697,7 +722,7 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
           its own above the stat cards, not attached to the table card
           below (confirmed by reading movement_list.php's static container
           order: titlebar, then stats, then filters, then table). */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 app-card !h-auto !px-4 !py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-text!">
           <Warehouse size={14} className="text-brand" /> Warehouse Movements
         </div>
@@ -726,10 +751,10 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
       </div>
 
       <Card className="!h-auto">
-        <div className="flex items-center gap-2 text-sm font-semibold text-text! mb-3">
-          <Filter size={14} className="text-brand" /> Filters
-        </div>
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-text! self-center pr-1">
+            <Filter size={14} className="text-brand" /> Filters
+          </div>
           {/* Grouped as one control (shared border, arrow between) so the
               two ends of a single date range read as one field, not two
               unrelated ones — `max`/`min` cross-constrain each other so the
@@ -929,7 +954,7 @@ function WarehouseEventsTab({ warehouseId, warehouseRef }: { warehouseId: number
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center gap-2">
           <Paperclip size={14} className="text-brand" />
-          <h3 className="font-semibold text-text!">Linked files</h3>
+          <h3 className="text-sm font-semibold text-text!">Linked files</h3>
         </div>
         <div className="p-4 space-y-4">
           {data.docGen.modelOptions.length > 0 && (

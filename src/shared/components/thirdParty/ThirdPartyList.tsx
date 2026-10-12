@@ -9,7 +9,7 @@ import { Th, TheadRow, useSortableRows } from '../table/SortableTh'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { useUserIdByName } from '../../../features/users/users.queries'
-import { useTheme } from '../../../context/ThemeContext'
+import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 import { isBannerListPage } from '../layout/PageBanner'
 
 type SortKey = 'name' | 'country' | 'balance' | 'tpin' | 'salesRep' | 'email' | 'nature' | 'trackingId' | 'creation' | 'status'
@@ -99,7 +99,7 @@ export interface ThirdPartyStatSpec {
 
 function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
   const { theme } = useTheme()
-  const compact = theme === 'blue-metal'
+  const compact = usesBlueLayout(theme)
   const Icon = stat.icon
   return (
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>

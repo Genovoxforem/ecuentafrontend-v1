@@ -159,3 +159,15 @@
 .pos-v2-root .soft-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(100, 116, 139, 0.85);
 }
+
+/* POS V2 text colours: the unlayered .pos-app colour would otherwise beat Tailwind's text utilities on the root. */
+.pos-v2-root.dark {
+  color: #f1f5f9;
+  background: #0b1220;
+  color-scheme: dark;
+}
+.pos-v2-root.pos-light {
+  color: #0f172a;
+  background: #eef2f7;
+  color-scheme: light;
+}

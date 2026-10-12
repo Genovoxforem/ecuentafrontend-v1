@@ -1,4 +1,4 @@
-// Client-side pagination for every table that does not already page itself. Rows beyond the current page
+// Client-side pagination for every table with more than one page of rows that does not already page itself. Rows beyond the current page
 // are hidden and a standard footer (page size, "Showing x to y of n", first/prev/numbers/next/last) is
 // added under the table. Tables that already show a "Showing … of … entries" footer, nested tables and
 // tables marked data-no-autopage are left alone.
@@ -106,7 +106,7 @@ function render(table: HTMLTableElement, state: PagerState) {
 
 function attach(table: HTMLTableElement) {
   if (table.dataset.noAutopage !== undefined || table.closest('[data-no-autopage]') || table.closest('table table, td table, th table')) return
-  if (!table.tHead || table.tBodies.length === 0) return
+  if (!table.tHead || table.tBodies.length === 0 || table.tFoot) return
   const existing = states.get(table)
   if (existing) {
     if (existing.bar.isConnected && existing.count === dataRows(table).length) return
@@ -114,8 +114,12 @@ function attach(table: HTMLTableElement) {
       render(table, existing)
       return
     }
+    if (dataRows(table).length <= PAGE_SIZES[0]) {
+      dataRows(table).forEach((r) => { r.style.display = "" })
+      return
+    }
   }
-  if (dataRows(table).length === 0) return
+  if (dataRows(table).length <= PAGE_SIZES[0]) return
   if (!existing && alreadyPaged(table)) return
   const host = table.parentElement
   if (!host) return

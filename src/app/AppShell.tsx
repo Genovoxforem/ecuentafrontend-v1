@@ -14,7 +14,7 @@ import { PATH_SOURCE_SECTIONS } from '../shared/nav/pathSourceSections'
 import { LayoutGrid } from 'lucide-react'
 import { ROUTES } from '../routes'
 import { installAutoPagination } from '../shared/autoPaginate'
-import { useTheme } from '../context/ThemeContext'
+import { useTheme, usesBlueLayout } from '../context/ThemeContext'
 
 interface AppShellProps {
   children: ReactNode
@@ -36,7 +36,6 @@ export function AppShell({ children }: AppShellProps) {
   const routeContentRef = useRef<HTMLDivElement>(null)
   const { data: menu } = useAppMenu()
   const SECTIONS = useMemo(() => (menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : PATH_SOURCE_SECTIONS), [menu])
-  const isModern = sidebarStyle === 'modern'
   const hasListBanner = isBannerListPage(location.pathname, theme)
   const isDetailPage = isDetailPagePath(location.pathname)
   // Dashboard is the landing page — no breadcrumb there, only on inner pages.
@@ -91,12 +90,12 @@ export function AppShell({ children }: AppShellProps) {
             items means the page's `-m-6` only pulls it to the top edge of
             the scroll container (negating its padding), never into the
             breadcrumb row above. */}
-        <main className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-hidden bg-surface border-t border-border ${theme === 'blue-metal' ? 'blue-theme-shell m-6' : ''}`}>
+        <main className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-hidden bg-surface border-t border-border ${usesBlueLayout(theme) ? 'blue-theme-shell m-6' : ''}`}>
           {/* In the blue-metal theme the banner below carries the breadcrumb itself
               (see PageBanner.tsx) — this row would just repeat it above a second time. */}
-          {showBreadcrumb && theme !== 'blue-metal' && (
+          {showBreadcrumb && !usesBlueLayout(theme) && (
             <div className="shrink-0 empty:hidden p-2.5">
-              <Breadcrumb sections={SECTIONS} isModern={isModern} />
+              <Breadcrumb sections={SECTIONS} isModern={false} />
             </div>
           )}
           <div className="shrink-0 px-6 empty:hidden">
@@ -115,7 +114,7 @@ export function AppShell({ children }: AppShellProps) {
               blue-metal hides the scrollbar track entirely (no-scrollbar) instead of just
               thinning it (soft-scrollbar) so that width never gets reserved in the first
               place — scrolling itself still works, only its visual affordance is gone. */}
-          <div ref={routeContentRef} id="route-page-content" data-list-banner={hasListBanner ? 'true' : undefined} data-page-banner={theme === 'blue-metal' ? 'true' : undefined} data-detail-page={isDetailPage ? 'true' : undefined} className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-y-auto p-6 ${theme === 'blue-metal' ? 'no-scrollbar' : 'soft-scrollbar'}`}>
+          <div ref={routeContentRef} id="route-page-content" data-list-banner={hasListBanner ? 'true' : undefined} data-page-banner={usesBlueLayout(theme) ? 'true' : undefined} data-detail-page={isDetailPage ? 'true' : undefined} className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-y-auto p-6 ${usesBlueLayout(theme) ? 'no-scrollbar' : 'soft-scrollbar'}`}>
             <ContentLoader>{children}</ContentLoader>
           </div>
         </main>

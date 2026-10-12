@@ -2538,7 +2538,7 @@ export function UserDetail() {
         <div className="px-6">
         {/* Horizontal header: identity + badges + info strip + action icons */}
         <Card className="!h-auto">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4 px-4">
             <div className="flex items-center gap-4">
               <div className="relative shrink-0">
                 <Avatar name={user.name || user.login} size={64} className="text-lg" />

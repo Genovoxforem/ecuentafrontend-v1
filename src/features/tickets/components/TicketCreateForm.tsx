@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Ticket, Check, X, Paperclip, Loader2, AlertCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
@@ -72,6 +72,7 @@ export function TicketCreateForm() {
 
   return (
     <StickyFormShell
+      wizard={[{ title: 'Ticket Details', subtitle: 'Type, subject & message' }, { title: 'Assignment', subtitle: 'Customer, owner & links' }]}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Ticket size={20} className="text-brand" /> New Ticket
@@ -105,6 +106,7 @@ export function TicketCreateForm() {
       {context && (
         <Card className="!h-auto">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
+            <WizardStep n={0}>
             <Field label="Ref." required>
               <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputClasses} />
             </Field>
@@ -151,6 +153,8 @@ export function TicketCreateForm() {
                 <Paperclip size={13} /> Attach files after creating the ticket
               </span>
             </Field>
+            </WizardStep>
+            <WizardStep n={1}>
             <Field label="Third-party">
               <SearchableSelect
                 value={thirdPartyId}
@@ -224,6 +228,7 @@ export function TicketCreateForm() {
                 ))}
               </select>
             </Field>
+            </WizardStep>
           </div>
         </Card>
       )}

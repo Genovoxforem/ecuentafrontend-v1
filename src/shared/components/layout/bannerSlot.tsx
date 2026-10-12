@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useTheme } from '../../../context/ThemeContext'
+import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 
 // A place in the page banner that a page can put its own controls into (a
 // status box, a filter, a search field) instead of drawing a header card of its
@@ -27,6 +27,6 @@ const subscribe = (listener: () => void) => {
 export function InBanner({ children }: { children: ReactNode }) {
   const { theme } = useTheme()
   const target = useSyncExternalStore(subscribe, () => slot)
-  if (theme === 'blue-metal' && target) return createPortal(children, target)
+  if (usesBlueLayout(theme) && target) return createPortal(children, target)
   return <div className="flex flex-wrap items-center justify-between gap-3">{children}</div>
 }

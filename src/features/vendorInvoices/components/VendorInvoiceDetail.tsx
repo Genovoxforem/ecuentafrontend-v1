@@ -77,7 +77,7 @@ export function VendorInvoiceDetail() {
       <div className="sticky -top-6 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+            <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
               <div>
                 <Link to={ROUTES.vendorInvoiceList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text mb-1.5">
                   <ChevronLeft size={14} /> Vendor Invoices

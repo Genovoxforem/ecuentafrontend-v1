@@ -36,6 +36,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>{children}</ThemeContext.Provider>
 }
 
+// All three themes share one layout (banner, density, compact spacing); each paints the banner its own way.
+export function usesBlueLayout(theme: Theme): boolean {
+  return theme === 'light' || theme === 'dark' || theme === 'blue-metal'
+}
+
 export function useTheme() {
   const ctx = useContext(ThemeContext)
   if (!ctx) throw new Error('useTheme must be used within ThemeProvider')

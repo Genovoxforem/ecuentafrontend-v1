@@ -6,6 +6,7 @@ import {
     Trash2, ArrowLeftRight, Home, FileText, Undo2, UtensilsCrossed, Monitor, RefreshCw, Power, ChevronRight, ConciergeBell, Coins,
 } from "lucide-react";
 import "../pos/index.css";
+import { useTheme } from "../context/ThemeContext";
 import usePosStore from "../pos/features/pos/stores/posStore";
 import useAuthStore from "../pos/stores/authStore";
 import { useCategories } from "../pos/features/categories/hooks/useCategories";
@@ -31,10 +32,13 @@ function stockTone(stock) {
     if (stock === null || stock === undefined || stock === "") return null;
     const n = Number(stock);
     if (Number.isNaN(n)) return null;
-    return { n, cls: n > 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200" };
+    if (n <= 0) return { n, label: "Out of stock", dot: "bg-red-500", cls: "text-red-700 dark:text-red-300" };
+    if (n <= 5) return { n, label: `Low stock: ${n}`, dot: "bg-amber-500", cls: "text-amber-800 dark:text-amber-300" };
+    return { n, label: `In stock: ${n}`, dot: "bg-emerald-500", cls: "text-emerald-800 dark:text-emerald-300" };
 }
 
 export function ProductCard({ product, onAdd, categoryLabel }) {
+    const [imgFailed, setImgFailed] = useState(false);
     const tone = stockTone(product.stock);
     return (
         <div
@@ -42,24 +46,29 @@ export function ProductCard({ product, onAdd, categoryLabel }) {
             tabIndex={0}
             onClick={() => onAdd(product)}
             onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onAdd(product)}
-            className="group flex cursor-pointer flex-col rounded-2xl border border-slate-300 bg-white p-2.5 text-left shadow-sm transition hover:border-blue-500 hover:shadow-md dark:border-slate-600 dark:bg-slate-800"
+            title={product.name}
+            className="group flex cursor-pointer flex-col rounded-lg border border-slate-200 bg-white p-1.5 text-left transition hover:border-blue-500 active:scale-[0.99] dark:border-slate-700 dark:bg-[#111c2e] dark:hover:border-blue-500"
         >
-            <div className="relative grid h-28 place-items-center overflow-hidden rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-700">
-                {product.image ? (
-                    <img src={product.image} alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
+            <div className="relative grid h-[92px] place-items-center overflow-hidden rounded-md bg-slate-100 text-slate-300 dark:bg-[#0b1424] dark:text-slate-600">
+                {product.image && !imgFailed ? (
+                    <img src={product.image} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={() => setImgFailed(true)} />
                 ) : (
-                    <ImageIcon size={36} />
+                    <ImageIcon size={28} strokeWidth={1.5} />
                 )}
-                {tone && <span className={`absolute right-1.5 top-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${tone.cls}`}>{tone.n} in stock</span>}
+                {tone && (
+                    <span className={`absolute bottom-1.5 left-1.5 flex items-center gap-1.5 rounded-md bg-white/95 px-2 py-0.5 text-[12px] font-normal leading-4 dark:bg-[#111c2e]/95 ${tone.cls}`}>
+                        <i className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} /> {tone.label}
+                    </span>
+                )}
             </div>
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{categoryLabel || product.ref}</p>
-            <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-slate-800 dark:text-slate-100">{product.name}</p>
-            <div className="mt-1 flex items-center justify-between">
-                <span className="text-base font-bold text-slate-900 dark:text-white">
-                    {formatAmount(product.price)} <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">ZMW</span>
+            <p className="mt-1.5 truncate text-[12px] font-normal text-slate-500 dark:text-slate-400">{categoryLabel || product.ref}</p>
+            <p className="line-clamp-2 text-[13px] font-medium leading-[18px] text-slate-900 dark:text-slate-100">{product.name}</p>
+            <div className="mt-auto flex items-center justify-between pt-1">
+                <span className="text-[15px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                    {formatAmount(product.price)} <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">ZMW</span>
                 </span>
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white dark:bg-slate-700">
-                    <Plus size={16} />
+                <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-600 text-white transition group-hover:bg-blue-700">
+                    <Plus size={15} />
                 </span>
             </div>
         </div>
@@ -111,7 +120,11 @@ function PosV2() {
 
     const [heldOpen, setHeldOpen] = useState(false);
     const [menu, setMenu] = useState(null);
-    const [dark, setDark] = useState(true);
+    const [catQuery, setCatQuery] = useState("");
+    const { theme: appTheme } = useTheme();
+    // Follows the app theme (light app -> light POS); the in-POS toggle still overrides it until the app theme changes.
+    const [dark, setDark] = useState(appTheme !== "light");
+    useEffect(() => setDark(appTheme !== "light"), [appTheme]);
     const [parentId, setParentId] = useState(null);
     const [subId, setSubId] = useState(null);
     const [moreOpen, setMoreOpen] = useState(false);
@@ -248,29 +261,33 @@ function PosV2() {
     const initials = name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
     return (
-        <div style={{ background: dark ? "#0f172a" : "#eef2f7" }} className={`pos-app pos-v2-root flex h-screen overflow-hidden ${dark ? "dark bg-slate-900 text-white" : "pos-light bg-slate-100 text-slate-900"}`} onClick={() => menu && setMenu(null)}>
-            <aside className="flex w-[236px] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-                <div className="px-4 pb-3 pt-5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Browse</p>
-                    <p className="text-lg font-bold">Categories</p>
+        <div className={`pos-app pos-v2-root flex h-screen overflow-hidden ${dark ? "dark bg-[#0b1220] text-[#f1f5f9]" : "pos-light bg-[#eef2f7] text-slate-900"}`} onClick={() => menu && setMenu(null)}>
+            <aside className="flex w-[200px] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                <div className="px-3 pb-2 pt-3">
+                    <p className="text-sm font-semibold">Categories</p>
+                    <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-[#111d30]">
+                        <Search size={14} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                        <input value={catQuery} onChange={(e) => setCatQuery(e.target.value)} placeholder="Find category" className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
+                    </div>
                 </div>
-                <nav className="soft-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-2">
-                    {[{ id: null, label: "All items" }, ...tops].map((c) => {
+                <nav className="soft-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+                    {[{ id: null, label: "All items" }, ...tops.filter((t) => !catQuery.trim() || String(t.label).toLowerCase().includes(catQuery.trim().toLowerCase()))].map((c) => {
                         const active = c.id === parentId;
                         return (
                             <button
                                 key={c.id ?? "all"}
                                 type="button"
                                 onClick={() => pickParent(c.id)}
-                                className={`flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left text-sm font-semibold transition ${
-                                    active ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/30" : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                title={c.label}
+                                className={`flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] font-semibold transition ${
+                                    active ? "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                                 }`}
                             >
-                                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${active ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
-                                    {c.id === null ? <LayoutGrid size={15} /> : <Tag size={15} />}
+                                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${active ? "bg-blue-600 text-white" : "text-slate-500 dark:text-slate-400"}`}>
+                                    {c.id === null ? <LayoutGrid size={16} /> : <Tag size={16} />}
                                 </span>
-                                <span className="min-w-0 flex-1 truncate uppercase">{c.label}</span>
-                                <span className="text-xs text-slate-500 dark:text-slate-400">{c.id === null ? allProducts.length : countFor(c.id)}</span>
+                                <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                                <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{c.id === null ? allProducts.length : countFor(c.id)}</span>
                             </button>
                         );
                     })}
@@ -288,7 +305,7 @@ function PosV2() {
             </aside>
 
             <main className="flex min-w-0 flex-1 flex-col">
-                <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+                <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white">E</span>
                         <div className="leading-tight">
@@ -296,23 +313,23 @@ function PosV2() {
                             <p className="text-base font-bold">Point of Sale</p>
                         </div>
                     </div>
-                    <div className="flex min-w-0 max-w-xl flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-600 dark:bg-slate-800">
+                    <div className="flex min-w-0 max-w-xl flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-[#111d30]">
                         <Search size={16} className="shrink-0 text-slate-500 dark:text-slate-400" />
                         <input
                             ref={searchRef}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Search products or scan barcode"
-                            className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
+                            className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none"
                         />
                         <kbd className="hidden rounded border border-slate-200 bg-white px-1.5 text-[10px] text-slate-500 dark:text-slate-400 sm:block">Ctrl K</kbd>
                         <ScanBarcode size={18} className="text-blue-600" />
                     </div>
-                    <button type="button" onClick={() => { setMenu(null); setHeldOpen(true); }} className="flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-500 hover:shadow dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                    <button type="button" onClick={() => { setMenu(null); setHeldOpen(true); }} className="flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-500 hover:shadow dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                         <Layers size={15} /> Held <span className="rounded-full bg-slate-100 px-1.5 text-xs dark:bg-slate-700">{heldCount}</span>
                     </button>
                     <div className="relative">
-                        <button type="button" title="Terminal menu" onClick={() => setMenu((m) => (m === "terminal" ? null : "terminal"))} className="flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-500 hover:shadow dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                        <button type="button" title="Terminal menu" onClick={() => setMenu((m) => (m === "terminal" ? null : "terminal"))} className="flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-500 hover:shadow dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                             <span className={`h-2 w-2 rounded-full ${cashSessionOpen ? "bg-emerald-500" : "bg-red-500"}`} /> Terminal {terminal}
                             {cashAmount != null && (
                                 <>
@@ -403,7 +420,7 @@ function PosV2() {
                                 </div>
                             )}
                         </div>
-                        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+                        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
                             {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
                             {loading ? (
                                 <p className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">Loading products…</p>
@@ -411,7 +428,7 @@ function PosV2() {
                                 <p className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">No products found.</p>
                             ) : (
                                 <>
-                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] content-start gap-2.5">
                                         {products.slice(0, visible).map((p) => (
                                             <ProductCard key={p.id} product={p} categoryLabel={labelById.get(String(p.categoryId))} onAdd={(prod) => addToCart(prod)} />
                                         ))}

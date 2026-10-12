@@ -40,7 +40,6 @@ import {
   Ship,
   ScanLine,
   Paperclip,
-  Share2,
 } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 import { StickyFormShell } from '../layout/StickyFormShell'
@@ -214,7 +213,36 @@ function buildStep2(formOptions: ReturnType<typeof useThirdPartyFormOptions>['da
   ]
 }
 
-const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
+function ReviewStep({ fields, values }: { fields: FieldSpec[]; values: Record<string, string> }) {
+  const filled = fields.filter((fl) => (values[fl.key] ?? '').toString().trim() !== '' && fl.type !== 'file')
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-semibold text-text!">Review details</h3>
+      {filled.length === 0 ? (
+        <p className="text-sm text-text-faint">Nothing entered yet.</p>
+      ) : (
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
+          {filled.map((fl) => (
+            <div key={fl.key} className="min-w-0">
+              <dt className="text-xs text-text-faint">{fl.label}</dt>
+              <dd className="truncate text-sm text-text!">{values[fl.key]}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  )
+}
+
+const STEP_ICONS: IconType[] = [Contact, MapPin, Landmark, Tags, Check]
+
+const STEP_SECTIONS: string[][] = [
+  ['Identity', 'Contact Info', 'Classification'],
+  ['Location & Currency', 'Address Details'],
+  ['Business & Tax', 'Status & Assignment'],
+  ['Categories & Links', 'Tags & Documents'],
+  [],
+]
 
 // Matches the reference wizard's compound Title + First Name + Last Name
 // row — the two name parts are joined into `values.name` on every keystroke
@@ -380,10 +408,15 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
 
   // Build steps with dynamic form options — cheap pure functions, no need to
   // memoize across every field-level state update this component makes.
+  const allFields = [...buildStep1(variant, formOptions), ...buildStep2(formOptions, stateOptions)]
+  const assigned = new Set(STEP_SECTIONS.flat())
+  const stepFields = (i: number) => allFields.filter((fl) => (fl.section ? STEP_SECTIONS[i].includes(fl.section) : i === 0 && !assigned.has(fl.section ?? '')))
   const steps = [
-    { title: 'Setup basic details', fields: buildStep1(variant, formOptions) },
-    { title: 'Add professional info', fields: buildStep2(formOptions, stateOptions) },
-    { title: 'Add social links', fields: [] as FieldSpec[] },
+    { title: 'Personal Details', subtitle: 'Basic information', fields: stepFields(0) },
+    { title: 'Address Details', subtitle: 'Location information', fields: stepFields(1) },
+    { title: 'Business & Tax', subtitle: 'Legal and tax details', fields: stepFields(2) },
+    { title: 'Categories & Links', subtitle: 'Additional information', fields: stepFields(3) },
+    { title: 'Review & Save', subtitle: 'Confirm and submit', fields: [] as FieldSpec[] },
   ]
 
   const [formError, setFormError] = useState('')
@@ -580,7 +613,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
               needed since the save is now correct. */}
 
 
-          <div className="flex items-center">
+          <div className="flex items-center px-12 sm:px-16">
             {steps.map((s, i) => {
               const StepIcon = STEP_ICONS[i]
               const isDone = i < step
@@ -603,7 +636,10 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
                         details", ...) don't fit a narrow viewport, and main has no
                         horizontal-scroll fallback — the step icon + title
                         attribute carry it on mobile instead. */}
-                    <span className={`hidden sm:block text-xs whitespace-nowrap ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
+                    <span className="hidden sm:flex flex-col items-center">
+                      <span className={`text-xs whitespace-nowrap ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
+                      <span className="text-[11px] whitespace-nowrap text-text-faint">{s.subtitle}</span>
+                    </span>
                   </button>
                   {i < steps.length - 1 && <div className={`h-0.5 flex-1 mx-2 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
                 </div>
@@ -644,7 +680,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
               onClick={() => setStep((s) => s + 1)}
               className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover transition-colors"
             >
-              Continue <ChevronRight size={14} />
+              Next: {steps[step + 1].title} <ChevronRight size={14} />
             </button>
           )}
         </>
@@ -662,9 +698,10 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
           visually covers the Business & Tax section's last row and the Tags & Documents
           section header sitting right above it. */}
       <Card className="!h-auto flex-1 min-h-0 !pb-20">
-        {step === 2 ? (
-          <SocialLinksStep values={values} onChange={setField} />
+        {step === 4 ? (
+          <ReviewStep fields={allFields} values={values} />
         ) : (
+          <>
           <StepFields
             fields={steps[step].fields}
             values={values}
@@ -673,6 +710,8 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
             columns={4}
             renderField={(field) => (field.type === 'name' ? <NameField key={field.key} values={values} setValues={setValues} required={field.required} /> : undefined)}
           />
+          {step === 3 && <SocialLinksStep values={values} onChange={setField} />}
+          </>
         )}
       </Card>
 

@@ -195,7 +195,7 @@ function PosSidebar({ onLogout }) {
     }, []);
 
     return (
-        <aside className="w-14 bg-[var(--text-navy)] h-full overflow-y-auto shrink-0 flex flex-col">
+        <aside className="w-14 bg-[var(--text-navy)] dark:bg-slate-950 dark:border-r dark:border-slate-800 h-full overflow-y-auto shrink-0 flex flex-col">
             <NavIcon icon={Home} title="Home" onClick={() => navigate("/pos")} />
             <NavIcon icon={theme === "dark" ? Sun : Moon} title="Dark/Light Mode" onClick={toggleTheme} />
             <NavIcon icon={Grid3x3} title="Tables" onClick={() => setTablesOpen(true)} />

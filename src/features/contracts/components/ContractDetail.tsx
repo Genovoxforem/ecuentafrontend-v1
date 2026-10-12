@@ -89,7 +89,7 @@ export function ContractDetail() {
       <div className="sticky -top-6 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+            <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
               <div className="flex items-start gap-4 min-w-[240px] flex-1">
                 <span className={`flex items-center justify-center w-16 h-16 bg-brand text-white shrink-0 ${isBlueMetal ? 'rounded-full' : 'rounded-lg'}`}>
                   <FileEdit size={28} />

@@ -130,8 +130,8 @@ function RecentMovements() {
     )
   }
   return (
-    <Card className="!p-0 !h-auto overflow-hidden">
-      <div className="overflow-auto max-h-[60vh]">
+    <Card className="!p-0 !h-auto overflow-hidden xl:!h-full">
+      <div className="soft-scrollbar overflow-auto max-h-[60vh] xl:max-h-none xl:h-full">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <tr className="text-left text-xs font-semibold text-text uppercase tracking-wide border-b border-border bg-surface">
@@ -355,9 +355,13 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.8fr)]">
-        <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 flex-col gap-2">
           <SectionHeading icon={History}>Recent Stock Movements</SectionHeading>
-          <RecentMovements />
+          <div className="relative min-h-[20rem] flex-1">
+            <div className="xl:absolute xl:inset-0">
+              <RecentMovements />
+            </div>
+          </div>
         </div>
         <div className="min-w-0 space-y-2">
           <SectionHeading icon={Zap}>Quick Actions</SectionHeading>

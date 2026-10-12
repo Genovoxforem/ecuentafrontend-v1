@@ -5,7 +5,7 @@ import { Check, X, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { api } from '../../../api/axios'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
@@ -176,6 +176,7 @@ export function ContractCreateForm({
 
   return (
     <StickyFormShell
+      wizard={[{title:'Contract Details',subtitle:'Customer, dates & notes'},{title:'Items & Totals',subtitle:'Add products/services'}]}
       header={<></>}
       footerLeft={
         <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
@@ -203,6 +204,7 @@ export function ContractCreateForm({
         </>
       }
     >
+      <WizardStep n={0}>
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
           <Field label="Ref.">
@@ -277,7 +279,9 @@ export function ContractCreateForm({
           </Field>
         </div>
       </Card>
+      </WizardStep>
 
+      <WizardStep n={1}>
       <Card className="!p-0 overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold text-text!">Item Table</h3>
@@ -386,6 +390,7 @@ export function ContractCreateForm({
           </div>
         </div>
       </Card>
+      </WizardStep>
 
       {formError && <p className="text-sm text-danger">{formError}</p>}
     </StickyFormShell>

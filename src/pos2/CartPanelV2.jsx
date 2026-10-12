@@ -49,7 +49,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
         }`;
 
     return (
-        <div className="flex h-full w-[380px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+        <div className="flex h-full w-[360px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
             <div className="flex items-center justify-between">
                 <p className="text-lg font-bold">Current order</p>
                 <p className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -165,7 +165,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                 <Row label="Total tax" value={`ZMW ${formatAmount(tax)}`} />
                 <div className="flex items-baseline justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
                     <span className="text-sm font-bold">Total due</span>
-                    <span className="text-3xl font-bold tabular-nums">
+                    <span className="text-[28px] font-bold leading-8 tabular-nums">
                         <span className="mr-1 text-xs font-medium text-slate-500 dark:text-slate-400">ZMW</span>
                         {formatAmount(total)}
                     </span>
@@ -179,7 +179,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                         disabled={cart.length === 0 || !cashSessionOpen || savingDraft || !!draftInvoice}
                         onClick={saveDraft}
                         title={draftInvoice ? `Draft saved — ${draftInvoice.ref}` : "Hold this sale as a draft"}
-                        className="flex w-24 items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                        className="flex w-[84px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
                     >
                         <Save size={15} /> {savingDraft ? "Saving…" : draftInvoice ? "Held" : "Hold"}
                     </button>
@@ -189,7 +189,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                     disabled={cart.length === 0 || !cashSessionOpen || !!checkoutBlockedReason || !!pendingInvoice}
                     onClick={() => setSplitOpen(true)}
                     title="Split the bill across payment methods"
-                    className="flex w-24 items-center justify-center gap-2 rounded-xl border border-slate-300 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                    className="flex w-[84px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-300 py-3 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                     <GitBranch size={15} /> Split
                 </button>
@@ -198,7 +198,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                     disabled={cart.length === 0 || !cashSessionOpen || !!checkoutBlockedReason}
                     onClick={() => setPaymentOpen(true)}
                     title={checkoutBlockedReason ? `Checkout unavailable: ${checkoutBlockedReason}` : undefined}
-                    className="flex-1 rounded-xl bg-blue-600 py-3 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-slate-800"
+                    className="flex-1 whitespace-nowrap rounded-lg bg-blue-600 py-3 text-[15px] font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-slate-800"
                 >
                     {pendingInvoice ? "Settle Invoice" : "Make Payment"}
                 </button>

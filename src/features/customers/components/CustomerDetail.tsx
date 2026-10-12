@@ -361,7 +361,7 @@ export function CustomerDetail() {
                 (its own padding gets zeroed, see ~L752), so it's matched here
                 explicitly instead of drifting to its own values. px-[16px]
                 matches the banner's own left/right padding. */}
-            <div className={`flex flex-wrap items-center justify-between gap-2.5 pt-[0.6rem] px-[16px] pb-[0.45rem] border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
+            <div className={`flex flex-wrap items-center justify-between gap-2.5 pt-[0.6rem] px-8 pb-[0.45rem] border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
               <div className="flex items-center gap-2.5 min-w-[240px] flex-1">
                 {/* logoUrl is a generic placeholder company icon on this
                     backend (not a real uploaded photo), so always fall back

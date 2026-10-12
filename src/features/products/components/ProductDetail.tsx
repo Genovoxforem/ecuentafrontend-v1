@@ -227,12 +227,12 @@ export function ProductDetail() {
               content (which already assumed edge-to-edge placement) aren't
               double-padded; the hero section gets its own p-4 wrapper instead. */}
           <Card className="!h-auto !p-0 overflow-hidden !border-0 !rounded-none">
-          <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
           <div className="flex items-start gap-4 min-w-[240px] flex-1">
             <Avatar
               photo={product.hasImage ? resolveBackendAsset(product.imageUrl) : undefined}
               name={product.label}
-              size={120}
+              size={84}
               rounded={isBlueMetal ? 'full' : 'lg'}
               color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'}
             />

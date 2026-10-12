@@ -3,7 +3,7 @@ import { LayoutGrid, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { NavItem, NavSection } from '../../../features/navTypes'
 import { ROUTES } from '../../../routes'
-import { useTheme } from '../../../context/ThemeContext'
+import { useTheme, usesBlueLayout, type Theme } from '../../../context/ThemeContext'
 import { Breadcrumb, buildBreadcrumb, isDetailPagePath } from './Breadcrumb'
 import { collapsible, findHeaderBlocks, findStatCards, findTitleRow, HIDDEN_CLASS, MERGED_CLASS, onlyActions, STAT_CLASS } from './bannerHeading'
 import { setBannerSlot } from './bannerSlot'
@@ -97,7 +97,7 @@ function normalizeHeading(value: string) {
 }
 
 export function isBannerListPage(pathname: string, theme: string): boolean {
-  return theme === 'blue-metal' && BANNER_ROUTES.some((route) => routeMatches(route.path, pathname))
+  return usesBlueLayout(theme as Theme) && BANNER_ROUTES.some((route) => routeMatches(route.path, pathname))
 }
 
 function itemContainsPath(item: NavItem, pathname: string): boolean {
@@ -185,7 +185,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
   const shownTitle = adoptedTitle ?? title
 
   useEffect(() => {
-    if (theme !== 'blue-metal') return
+    if (!usesBlueLayout(theme)) return
     const content = document.getElementById('route-page-content')
     if (!content) return
 
@@ -316,10 +316,10 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
     }
   }, [pathname, theme, title, subtitle, weakTitle, hasOwnActions])
 
-  if (theme !== 'blue-metal') return null
+  if (!usesBlueLayout(theme)) return null
 
   return (
-    <div className="blue-theme-banner relative -mx-6 flex min-h-[50px] flex-col justify-center gap-2 overflow-hidden border-b border-border px-[16px] py-2 sm:min-h-[54px] sm:py-2.5">
+    <div className="blue-theme-banner relative -mx-6 flex h-[76px] min-h-[76px] max-h-[76px] shrink-0 flex-col justify-center gap-1.5 overflow-hidden border-b border-border px-[16px] pt-1 pb-2.5">
       {/* Same generic photo on every banner (list and detail alike) — there's no
           sensible way to pick a different one per page type without it looking
           arbitrary, so one image stands for "this is the app's banner surface"
@@ -329,8 +329,8 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           banner strip itself carries the photo, so the merged header still
           reads as "photo band, then one solid panel", not a repeating image. */}
       <div
-        className="absolute inset-[6px] bg-cover bg-[position:right_center]"
-        style={{ backgroundImage: "url('/blue-metal-dashboard.jpg')" }}
+        className="absolute inset-[6px] bg-cover bg-[position:center]"
+        style={{ backgroundImage: theme === 'light' ? 'linear-gradient(100deg, #2b6a96 0%, #3f86b3 55%, #5aa0cc 100%)' : theme === 'dark' ? 'none' : "url('/blue-metal-banner.jpg')", backgroundColor: theme === 'dark' ? '#122a40' : undefined }}
       />
       {/* The banner is a very short, very wide crop of a normal-aspect photo, so
           bg-cover blows it up far past its native resolution and whatever lands
@@ -338,8 +338,8 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           blown-out, near-white patch. The old fade (down to 0.3 opacity at the
           right) left that fully exposed; 0.82 still lets the photo's texture and
           colour read through without any single crop being able to blow out. */}
-      <div className="absolute inset-0 bg-[linear-gradient(100deg,#0a1c2c_0%,#0f2c42_38%,rgba(15,44,66,0.78)_62%,rgba(15,44,66,0.82)_100%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(56,172,255,0.14),transparent_55%,rgba(4,15,29,0.18))]" />
+      {theme === 'blue-metal' && <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(7,22,38,0.62)_0%,rgba(7,22,38,0.3)_45%,rgba(7,22,38,0.08)_100%)]" />}
+      {theme === 'blue-metal' && <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(56,172,255,0.14),transparent_55%,rgba(4,15,29,0.18))]" />}
       {/* Its own row above the title, pinned to the banner's own top-left
           corner — was floated to the right of the title (same row), which read
           as "wherever there's room" rather than a fixed, predictable spot. */}

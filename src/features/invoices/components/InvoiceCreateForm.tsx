@@ -4,7 +4,7 @@ import { FileText, Check, X, Info, Plus, Trash2, LoaderCircle } from 'lucide-rea
 import { ROUTES } from '../../../routes'
 import { resolveLegacyRoute } from '../../../shared/legacyRoute'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
@@ -348,6 +348,7 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
 
   return (
     <StickyFormShell
+      wizard={kind !== 'credit' ? [{ title: 'Invoice Details', subtitle: 'Customer, type & terms' }, { title: 'Items & Totals', subtitle: 'Add products/services' }] : undefined}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileText size={20} className="text-brand" /> New invoice
@@ -369,6 +370,7 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
         </button>
       }
     >
+      <WizardStep n={0}>
       <Card className="!h-auto shrink-0 bg-surface-hover! grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
         <Field label="Customer" required>
           {fixedCustomerId ? (
@@ -607,8 +609,10 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
           </>
         )}
       </Card>
+      </WizardStep>
 
       {kind !== 'credit' && (
+        <WizardStep n={1}>
         <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <h3 className="font-semibold text-text!">Item Table</h3>
@@ -706,6 +710,7 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
             </div>
           </div>
         </Card>
+        </WizardStep>
       )}
 
       {formError && (

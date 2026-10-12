@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Wrench, Check, X, Plus, Trash2, LoaderCircle, CheckCircle2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -144,6 +144,7 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
   return (
     <StickyFormShell
       scrollsInternally={false}
+      wizard={[{title:'Job Card Details',subtitle:'Customer & description'},{title:'Items',subtitle:'Add products/services'}]}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Wrench size={20} className="text-brand" /> Create Job Card
@@ -179,6 +180,7 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
       }
     >
       <div className="flex flex-col gap-4 flex-1 shrink-0">
+        <WizardStep n={0}>
         <Card className="!h-auto shrink-0 space-y-4">
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
@@ -293,7 +295,9 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
             {accessoryError && <p className="text-xs text-danger mt-1">{accessoryError}</p>}
           </div>
         </Card>
+        </WizardStep>
 
+        <WizardStep n={1}>
         <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <h3 className="font-semibold text-text!">Item Table</h3>
@@ -359,6 +363,7 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
             </table>
           </div>
         </Card>
+        </WizardStep>
       </div>
     </StickyFormShell>
   )
