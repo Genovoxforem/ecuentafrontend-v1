@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useRef, useEffect, type ReactNode } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -36,14 +37,15 @@ import {
   CircleDollarSign,
   type LucideIcon,
 } from 'lucide-react'
-import { Card, DetailMetricTile } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricRow, DetailMetricTile, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
+import { useTheme } from '../../../context/ThemeContext'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAllProductsRich } from '../../products/products.queries'
 import { useWarehouseDetail, useWarehouseMovements, useWarehouseEvents, useGenerateWarehouseDoc, useDeleteWarehouse, type WarehouseMovementFilters } from '../warehouseExtras.queries'
-import type { WarehouseProductRow } from '../warehouseHtmlParser'
+import type { WarehouseProductRow } from '../warehouseTypes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -91,8 +93,27 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
 // Stock Movements tab already has an unrelated icon-based StatTile.
 export function WarehouseDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { data, isLoading, isError, error, refetch } = useWarehouseDetail(id)
   const [tab, setTab] = useState<WarehouseTab>('warehouse')
+  const [showInfo, setShowInfo] = useState(() => {
+    try {
+      return localStorage.getItem('warehouseInfoHidden') !== '1'
+    } catch {
+      return true
+    }
+  })
+  function toggleInfo() {
+    setShowInfo((v) => {
+      try {
+        localStorage.setItem('warehouseInfoHidden', v ? '1' : '0')
+      } catch {
+        /* preference only */
+      }
+      return !v
+    })
+  }
   const [productSearchId, setProductSearchId] = useState('')
   const [appliedProductSearchId, setAppliedProductSearchId] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
@@ -151,32 +172,26 @@ export function WarehouseDetail() {
           carry) become icon buttons alongside Edit/Delete/Close rather than
           full-width bordered buttons, since the reference layout keeps
           header actions compact and icon-only. */}
-      <div className="sticky top-0 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
+      <div className="sticky top-0 z-10 -mx-6 pt-4 pb-0 bg-white dark:bg-gray-950 [&_.app-card]:!pb-0">
         <div className="px-6">
-          <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
-              <div className="flex items-start gap-4 min-w-[240px] flex-1">
-                <span className="flex items-center justify-center w-16 h-16 rounded-lg bg-brand text-white shrink-0">
-                  <Warehouse size={28} />
-                </span>
-                <div className="space-y-1.5 pt-0.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.statusLabel === 'Open' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>
-                      {data.statusLabel}
-                    </span>
-                  </div>
-                  <p className="text-xs text-text-faint">
-                    #{data.id}
-                    {data.description && ` · ${data.description}`}
-                  </p>
+          <Card className="!h-auto !pb-0 !mb-0">
+            <div className="hidden">
+              <InBanner>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {isBlueMetal ? (
+                    <StatusPill tone={data.statusLabel === 'Open' ? 'success' : 'neutral'}>{data.statusLabel}</StatusPill>
+                  ) : (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.statusLabel === 'Open' ? 'bg-success-bg text-success-fg' : 'bg-neutral-bg text-neutral-fg'}`}>{data.statusLabel}</span>
+                  )}
+                  <span className="text-text-faint">#{data.id}{data.description && ` · ${data.description}`}</span>
                   {data.locationSummary && (
-                    <p className="flex items-center gap-1 text-xs text-text-faint">
+                    <span className="flex items-center gap-1 text-text-faint">
                       <MapPin size={12} /> {data.locationSummary}
-                    </p>
+                    </span>
                   )}
                 </div>
-              </div>
+              </InBanner>
+              <InBanner>
               <div className="flex items-center gap-1 shrink-0">
                 {/* Real card.php reuses movement_list.php's header markup for
                     these three buttons, but never loads movement_list_app.js
@@ -222,16 +237,17 @@ export function WarehouseDetail() {
                   <X size={16} />
                 </Link>
               </div>
+              </InBanner>
             </div>
 
-            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <DetailMetricTile label="Total Products" value={String(data.totalProductsCount)} icon={Package} />
-              <DetailMetricTile label="Different Products" value={String(data.differentProductsCount)} icon={Boxes} />
-              <DetailMetricTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} icon={CircleDollarSign} />
-              <DetailMetricTile label="Latest Movement" value={data.latestMovement || 'None'} icon={CalendarClock} />
-            </div>
+            <DetailMetricRow className="px-4 py-3 border-b border-border">
+              <DetailMetricTile label="Total Products" value={String(data.totalProductsCount)} icon={Package} color="violet" />
+              <DetailMetricTile label="Different Products" value={String(data.differentProductsCount)} icon={Boxes} color="green" />
+              <DetailMetricTile label="Input Stock Value" value={formatMoney(data.inputStockValue)} icon={CircleDollarSign} color="amber" />
+              <DetailMetricTile label="Latest Movement" value={data.latestMovement || 'None'} icon={CalendarClock} color="blue" sparkline={false} />
+            </DetailMetricRow>
 
-            <div className="border-t border-border px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 border-t border-border px-3 pt-2.5 pb-0">
               <div className="flex items-center gap-1 bg-surface rounded-full p-1 w-fit">
                 {TABS.map(({ key, label, icon: Icon }) => (
                   <button
@@ -246,12 +262,17 @@ export function WarehouseDetail() {
                   </button>
                 ))}
               </div>
+              {tab === 'warehouse' && (
+                <button type="button" onClick={toggleInfo} className="text-xs font-medium text-text-muted hover:text-brand">
+                  {showInfo ? 'Hide details' : 'Show details'}
+                </button>
+              )}
             </div>
           </Card>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 pt-0 pb-4 no-scrollbar flex flex-col gap-3 !mt-0">
         {deleteWarehouse.isError && (
           <p role="alert" className="text-sm font-medium text-danger">
             {deleteWarehouse.error instanceof Error ? deleteWarehouse.error.message : 'Delete failed.'}
@@ -259,7 +280,8 @@ export function WarehouseDetail() {
         )}
         {tab === 'warehouse' && (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {showInfo && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 shrink-0">
               <Card className="!h-auto">
                 <InfoRow label="Environment" value={data.environment} />
                 {data.parentWarehouseName && (
@@ -286,41 +308,45 @@ export function WarehouseDetail() {
                 <InfoRow label="Tags/categories" value={data.tags.length > 0 ? data.tags.join(', ') : ''} />
               </Card>
             </div>
+            )}
 
-            <Card className="!h-auto !p-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-border">
-                <h3 className="font-semibold text-text!">Products in this warehouse</h3>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
-                <label className="text-sm text-text-faint">Product Search :</label>
-                <select
-                  value={productSearchId}
-                  onChange={(e) => setProductSearchId(e.target.value)}
-                  className="min-w-[240px] rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
-                >
-                  <option value="">Select Predefined Product/services</option>
-                  {(allProducts ?? data.products.map((p) => ({ id: String(p.id), ref: p.ref, name: p.label }))).map((p) => (
-                    <option key={p.id} value={p.id}>{p.ref} — {p.name}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setAppliedProductSearchId(productSearchId)}
-                  className="px-4 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:bg-brand-hover"
-                >
-                  Search
-                </button>
-                {appliedProductSearchId && (
-                  <button
-                    type="button"
-                    onClick={() => { setProductSearchId(''); setAppliedProductSearchId('') }}
-                    className="text-sm text-text-faint hover:text-text"
-                  >
-                    Clear
-                  </button>
-                )}
+            <Card className="!h-auto !p-0 overflow-hidden flex flex-col flex-1 min-h-[24rem]">
+              <div className="px-4 py-3 border-b border-border shrink-0 flex items-center gap-2">
+                <Package size={14} className="text-brand" />
+                <h3 className="text-sm font-semibold text-text!">Products in this warehouse</h3>
               </div>
               <WarehouseProductsTable
+                leading={
+                  <>
+                  <label className="text-sm text-text-faint">Product Search :</label>
+                  <select
+                    value={productSearchId}
+                    onChange={(e) => setProductSearchId(e.target.value)}
+                    className="min-w-[240px] rounded-md border border-input-border bg-input-bg px-2 py-1.5 text-sm text-text"
+                  >
+                    <option value="">Select Predefined Product/services</option>
+                    {(allProducts ?? data.products.map((p) => ({ id: String(p.id), ref: p.ref, name: p.label }))).map((p) => (
+                      <option key={p.id} value={p.id}>{p.ref} — {p.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setAppliedProductSearchId(productSearchId)}
+                    className="px-4 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:bg-brand-hover"
+                  >
+                    Search
+                  </button>
+                  {appliedProductSearchId && (
+                    <button
+                      type="button"
+                      onClick={() => { setProductSearchId(''); setAppliedProductSearchId('') }}
+                      className="text-sm text-text-faint hover:text-text"
+                    >
+                      Clear
+                    </button>
+                  )}
+                    </>
+                }
                 products={appliedProductSearchId ? data.products.filter((p) => String(p.id) === appliedProductSearchId) : data.products}
                 emptyMessage={appliedProductSearchId ? 'No matching product found in this warehouse.' : 'No products in this warehouse.'}
                 warehouseId={data.id}
@@ -375,7 +401,7 @@ function productSortValue(row: WarehouseProductRow, key: ProductSortKey): string
   }
 }
 
-function WarehouseProductsTable({ products, emptyMessage, warehouseId }: { products: WarehouseProductRow[]; emptyMessage: string; warehouseId: number }) {
+function WarehouseProductsTable({ products, emptyMessage, warehouseId, leading }: { products: WarehouseProductRow[]; emptyMessage: string; warehouseId: number; leading?: ReactNode }) {
   const queryClient = useQueryClient()
   const [stockAction, setStockAction] = useState<{ kind: 'correct' | 'transfer'; productId: number } | null>(null)
   const [search, setSearch] = useState('')
@@ -416,6 +442,7 @@ function WarehouseProductsTable({ products, emptyMessage, warehouseId }: { produ
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border">
+        {leading}
         <select
           value={perPage}
           onChange={(e) => {
@@ -446,7 +473,7 @@ function WarehouseProductsTable({ products, emptyMessage, warehouseId }: { produ
         </div>
       </div>
 
-      <div className="max-h-[28rem] overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>
@@ -504,7 +531,7 @@ function WarehouseProductsTable({ products, emptyMessage, warehouseId }: { produ
       </div>
 
       {total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border text-sm text-text-faint">
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 px-0 pb-0 pt-[3px] border-t border-border bg-surface text-sm text-text-faint">
           <span>
             Showing {rangeStart} to {rangeEnd} of {total} entries
           </span>
@@ -695,7 +722,7 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
           its own above the stat cards, not attached to the table card
           below (confirmed by reading movement_list.php's static container
           order: titlebar, then stats, then filters, then table). */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 app-card !h-auto !px-4 !py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-text!">
           <Warehouse size={14} className="text-brand" /> Warehouse Movements
         </div>
@@ -724,10 +751,10 @@ function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
       </div>
 
       <Card className="!h-auto">
-        <div className="flex items-center gap-2 text-sm font-semibold text-text! mb-3">
-          <Filter size={14} className="text-brand" /> Filters
-        </div>
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-text! self-center pr-1">
+            <Filter size={14} className="text-brand" /> Filters
+          </div>
           {/* Grouped as one control (shared border, arrow between) so the
               two ends of a single date range read as one field, not two
               unrelated ones — `max`/`min` cross-constrain each other so the
@@ -927,7 +954,7 @@ function WarehouseEventsTab({ warehouseId, warehouseRef }: { warehouseId: number
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center gap-2">
           <Paperclip size={14} className="text-brand" />
-          <h3 className="font-semibold text-text!">Linked files</h3>
+          <h3 className="text-sm font-semibold text-text!">Linked files</h3>
         </div>
         <div className="p-4 space-y-4">
           {data.docGen.modelOptions.length > 0 && (

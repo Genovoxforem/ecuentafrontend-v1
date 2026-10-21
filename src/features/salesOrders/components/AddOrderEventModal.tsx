@@ -17,12 +17,8 @@ function nowLocal() {
   return d.toISOString().slice(0, 16)
 }
 
-// Native replacement for linking out to comm/action/card.php?action=create
-// — see orderDetail.queries.ts's useCreateOrderEvent comment for the real
-// POST contract this submits to (a genuine event, not a mockup — it's
-// linked to this order the same way the legacy page's own form links it,
-// via fk_element/elementtype, and shows up for real afterward in "Latest
-// linked events").
+// Creates a real agenda event linked to this order through the event API;
+// see useCreateOrderEvent for the endpoint and its compatibility fallback.
 export function AddOrderEventModal({ id, socid, onClose }: { id: string; socid: number | null; onClose: () => void }) {
   const createEvent = useCreateOrderEvent(id, socid)
 

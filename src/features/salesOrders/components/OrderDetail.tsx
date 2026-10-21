@@ -1,4 +1,5 @@
 ﻿import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { LinkDocumentButton } from '../../../shared/components/LinkDocumentButton'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
@@ -26,7 +27,6 @@ import {
   LoaderCircle,
   Eye,
   Plus,
-  ExternalLink,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
@@ -61,13 +61,8 @@ import { InfoRow, EditPencil, EventByAvatar, StatCard, deleteOrderDocument, TABS
 const LazyTabRenderer = lazy(() => import('./OrderDetailTabs').then((m) => ({ default: m.LazyTabRenderer })))
 
 // Native rebuild of commande/card.php?id=X + note.php + document.php +
-// contact.php + expedition/shipment.php — see orderCardParser.ts's header
-// comment for why this scrapes real HTML rather than calling a REST
-// endpoint (no order-detail API exists on this backend), and for how the
-// real per-line Item Table data (a client-side JSON blob, not
-// server-rendered markup) is extracted. orderExtraTabsParser.ts covers the
-// Contacts/Addresses and Shipments-Delivery Receipts tabs' own separate
-// pages. Stock Consumptions has no read-only report of its own on the real
+// contact.php + expedition/shipment.php, fed by the sales-order JSON APIs
+// (see orderDetail.queries.ts). Stock Consumptions has no read-only report of its own on the real
 // page (just a "declare consumption from a warehouse" form with a CSRF
 // token) — its tab reuses this page's own already-fetched line data and
 // links out only for that one mutating submit action, the same treatment
@@ -278,7 +273,7 @@ export function OrderDetail() {
       <div className="sticky top-0 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+            <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="flex items-center gap-2">
@@ -702,21 +697,9 @@ function DetailsTab({
               <Link2 size={14} className="text-brand" />
               <h3 className="font-semibold text-text!">Related Objects</h3>
             </div>
-            {/* The real "Link to..." button opens a dropdown with 7 async,
-                per-type search widgets (quotation/invoice/contract/etc,
-                each its own select2 AJAX search) — not natively rebuilt
-                here; this opens the real page where that flow already
-                works, same treatment as Modify/Cancel/Add Event above. */}
-            {id && (
-              <a
-                href={stripBackendPrefix(`/commande/card.php?id=${id}`)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover"
-              >
-                Link to... <ExternalLink size={11} className="opacity-70" />
-              </a>
-            )}
+            {/* core/fapi/links.php: search the same customer's quotations, invoices, contracts,
+                shipments and orders and link one, in a dialog (replaces the locked button). */}
+            {id && <LinkDocumentButton element="commande" id={Number(id)} onLinked={onRefresh} />}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

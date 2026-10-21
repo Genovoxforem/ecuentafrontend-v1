@@ -1,6 +1,6 @@
 import { useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { Info, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 import { TableExportButtons } from '../TableExportButtons'
 
@@ -15,11 +15,9 @@ import { TableExportButtons } from '../TableExportButtons'
 export function InertListPage({
   icon: Icon,
   title,
-  sourcePath,
   columns,
   addLabel,
   addPath,
-  note,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -44,13 +42,6 @@ export function InertListPage({
         )}
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">{sourcePath}</code> — a classic server-rendered list, no JSON API.{' '}
-          {note ?? 'Columns below match that page exactly; rows are left honestly empty rather than scraped from its HTML.'}
-        </p>
-      </Card>
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">

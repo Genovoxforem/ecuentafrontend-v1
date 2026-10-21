@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link } from 'react-router-dom'
 import { CalendarDays, CalendarCheck2, CalendarX2, Plus, Search, Users, MoreVertical } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
@@ -154,10 +155,7 @@ export function LeaveList({ newRequestPath = ROUTES.leaveRequest }: { newRequest
   return (
     // -m-6 + flex-1 flex-col: same pattern as ServicesList.tsx / ThirdPartyList.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <CalendarDays size={20} className="text-brand" /> Holiday Management
-        </h2>
+      <InBanner>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-lg border border-input-border bg-input-bg px-2 py-1.5 text-xs text-text-muted">
             <input type="date" value={from} onChange={(e) => handleFromChange(e.target.value)} className="bg-transparent outline-none" />
@@ -198,7 +196,7 @@ export function LeaveList({ newRequestPath = ROUTES.leaveRequest }: { newRequest
             )}
           </div>
         </div>
-      </div>
+      </InBanner>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isError && (

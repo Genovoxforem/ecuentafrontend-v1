@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react'
+import { useRememberedToggle } from '../useRememberedToggle'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   FileText,
@@ -16,11 +17,13 @@ import {
   Lock,
   Pencil,
   Wallet,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { Card, fmtZMW, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
 import { useLedgerReport, useDeleteLedgerEntry, defaultLedgerFilters, type LedgerFilters, type LedgerMovement } from '../generalLedger.queries'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { DocLink } from './DocLink'
 import { LedgerToolbar, LedgerFilterBar, LedgerPagination } from './LedgerControls'
 
@@ -148,13 +151,13 @@ export function LedgerOverview() {
   const { data: report, isLoading, isFetching, isError, error, refetch } = useLedgerReport(filters)
   const deleteEntry = useDeleteLedgerEntry()
   const confirm = useConfirm()
-  // Collapsed by default — the legacy page dumps every transaction line for
-  // every account into one flat table (can run past 250 rows), which makes
-  // it unscannable. Groups start closed so the account-level totals/balance
-  // read as a summary first; expanding one reveals its line items.
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Expanded by default, like the legacy page — every account's lines show;
+  // a group can still be folded away to just its totals/balance.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [showFilters, toggleFilters] = useRememberedToggle('ecuenta:ledger-dashboard:filters', true)
+  const [showSummary, toggleSummary] = useRememberedToggle('ecuenta:ledger-dashboard:summary', true)
   const toggleGroup = (code: string) =>
-    setExpanded((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev)
       if (next.has(code)) next.delete(code)
       else next.add(code)
@@ -175,30 +178,47 @@ export function LedgerOverview() {
             </span>
             Operations - View By Accounting Account (Ledger)
           </h2>
-          <YearStepper
-            year={yearOf(filters)}
-            onJump={(year) => {
-              const next = { ...filters, dateStart: `${year}-01-01`, dateEnd: `${year}-12-31`, page: 0 }
+          <InBanner>
+            <YearStepper
+              year={yearOf(filters)}
+              onJump={(year) => {
+                const next = { ...filters, dateStart: `${year}-01-01`, dateEnd: `${year}-12-31`, page: 0 }
+                setDraft(next)
+                setFilters(next)
+              }}
+            />
+          </InBanner>
+        </div>
+        <LedgerToolbar
+          active="account"
+          extra={
+            <>
+              <button type="button" onClick={toggleFilters} aria-pressed={showFilters} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text! whitespace-nowrap">
+                <SlidersHorizontal size={14} /> {showFilters ? 'Hide filters' : 'Show filters'}
+              </button>
+              <button type="button" onClick={toggleSummary} aria-pressed={showSummary} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text! whitespace-nowrap">
+                <Landmark size={14} /> {showSummary ? 'Hide summary' : 'Show summary'}
+              </button>
+            </>
+          }
+        />
+        {showFilters && (
+          <LedgerFilterBar
+            singleLine
+            draft={draft}
+            onChange={setDraft}
+            onSubmit={() => setFilters({ ...draft, page: 0 })}
+            onClear={() => {
+              const next = defaultLedgerFilters()
               setDraft(next)
               setFilters(next)
             }}
+            submitting={isFetching}
           />
-        </div>
-        <LedgerToolbar active="account" />
-        <LedgerFilterBar
-          draft={draft}
-          onChange={setDraft}
-          onSubmit={() => setFilters({ ...draft, page: 0 })}
-          onClear={() => {
-            const next = defaultLedgerFilters()
-            setDraft(next)
-            setFilters(next)
-          }}
-          submitting={isFetching}
-        />
+        )}
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
+      <div className="flex-1 flex flex-col min-h-0 space-y-3 px-6 py-3">
         {isError && <ErrorState message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
         {isLoading && (
@@ -211,29 +231,33 @@ export function LedgerOverview() {
         {report && (
           <>
             <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-              {report.groups.length > 0 && (
-                <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface">
-                  <p className="text-xs text-text-faint">
-                    {report.groups.length} account{report.groups.length === 1 ? '' : 's'} · click one to see its transaction lines
+              {/* Only has something to show when there are groups. */}
+              <div className={`${report.groups.length > 0 ? 'flex' : 'hidden'} items-center justify-between px-3 py-2 border-b border-border bg-surface`}>
+                <p className="text-xs text-text-faint">
+                  {report.groups.length > 0 &&
+                    `${report.groups.length} account${report.groups.length === 1 ? '' : 's'} · click one to fold its transaction lines`}
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(new Set(report.groups.map((g) => g.accountCode)))}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
-                  >
-                    <Rows3 size={12} /> Expand all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(new Set())}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
-                  >
-                    <ListCollapse size={12} /> Collapse all
-                  </button>
+                  {report.groups.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed(new Set())}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
+                      >
+                        <Rows3 size={12} /> Expand all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed(new Set(report.groups.map((g) => g.accountCode)))}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
+                      >
+                        <ListCollapse size={12} /> Collapse all
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-            )}
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
@@ -254,7 +278,7 @@ export function LedgerOverview() {
                     </tr>
                   ) : (
                     report.groups.map((group) => {
-                      const isOpen = expanded.has(group.accountCode)
+                      const isOpen = !collapsed.has(group.accountCode)
                       return (
                       <Fragment key={group.accountCode}>
                         <tr className="bg-brand/5 cursor-pointer hover:bg-brand/10" onClick={() => toggleGroup(group.accountCode)}>
@@ -356,37 +380,42 @@ export function LedgerOverview() {
                   </tfoot>
                 )}
               </table>
+              {/* Below the last table row — only reached by scrolling to the end. */}
+              <div className="space-y-3 p-3">
+                {showSummary && (
+                  <Card className="!h-auto">
+                    <SectionHeading icon={Landmark}>Account Summary</SectionHeading>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {report.openingBalance && <MovementCard icon={Wallet} label="Opening Balance" movement={report.openingBalance} />}
+                      {report.periodMovements && <MovementCard icon={CalendarClock} label="Period Movements (All Pages)" movement={report.periodMovements} />}
+                      {report.closingBalance && <MovementCard icon={Scale} label="Closing Balance" movement={report.closingBalance} />}
+                      {!report.openingBalance && !report.periodMovements && !report.closingBalance && (
+                        <p className="text-xs text-text-faint py-2">Filter by a single account code to see its opening balance, period movements, and closing balance.</p>
+                      )}
+                    </div>
+                  </Card>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled
+                    title="Deletes real accounting entries on the legacy backend — intentionally left disabled here"
+                    className="flex items-center gap-2 rounded-lg bg-danger/10 border border-danger/30 px-4 py-2.5 text-sm font-medium text-danger opacity-80 cursor-not-allowed"
+                  >
+                    <Trash2 size={14} /> Delete Some Operation Lines From Accounting
+                  </button>
+                  <span className="flex items-center gap-1 text-xs text-text-faint">
+                    <Lock size={12} /> Disabled — this would modify real accounting entries
+                  </span>
+                </div>
+              </div>
             </div>
             <LedgerPagination meta={report.meta} onPage={(page) => setFilters({ ...filters, page })} />
           </Card>
 
-          <Card className="!h-auto">
-            <SectionHeading icon={Landmark}>Account Summary</SectionHeading>
-            <div className="mt-3 flex flex-wrap gap-3">
-              {report.openingBalance && <MovementCard icon={Wallet} label="Opening Balance" movement={report.openingBalance} />}
-              {report.periodMovements && <MovementCard icon={CalendarClock} label="Period Movements (All Pages)" movement={report.periodMovements} />}
-              {report.closingBalance && <MovementCard icon={Scale} label="Closing Balance" movement={report.closingBalance} />}
-              {!report.openingBalance && !report.periodMovements && !report.closingBalance && (
-                <p className="text-xs text-text-faint py-2">Filter by a single account code to see its opening balance, period movements, and closing balance.</p>
-              )}
-            </div>
-          </Card>
         </>
       )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled
-            title="Deletes real accounting entries on the legacy backend — intentionally left disabled here"
-            className="flex items-center gap-2 rounded-lg bg-danger/10 border border-danger/30 px-4 py-2.5 text-sm font-medium text-danger opacity-80 cursor-not-allowed"
-          >
-            <Trash2 size={14} /> Delete Some Operation Lines From Accounting
-          </button>
-          <span className="flex items-center gap-1 text-xs text-text-faint">
-            <Lock size={12} /> Disabled — this would modify real accounting entries
-          </span>
-        </div>
       </div>
     </div>
   )

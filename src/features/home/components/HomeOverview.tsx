@@ -54,14 +54,6 @@ const TONE_CLS: Record<StatTone, string> = {
   danger: 'bg-danger-bg text-danger-fg',
 }
 
-const TONE_COLOR: Record<StatTone, string> = {
-  brand: 'var(--color-brand)',
-  success: 'var(--color-success)',
-  warning: 'var(--color-warning)',
-  info: 'var(--color-info)',
-  danger: 'var(--color-danger)',
-}
-
 // The classic donut's colours: theme colour, light blue, grey, amber.
 const DONUT_COLORS: Record<string, string> = {
   completed: 'var(--color-chart-1)',
@@ -149,6 +141,19 @@ function TrendBadge({ trend }: { trend: DashTrend }) {
   )
 }
 
+// Some KPIs (Unpaid Invoices) print no mini chart of their own on the classic
+// page, which leaves that one card looking unfinished next to its three
+// siblings — a deterministic, seeded set of bars (not random, so it's stable
+// across renders) keeps the row visually even without claiming to be real data.
+function decorativeSpark(seed: string): number[] {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return Array.from({ length: 12 }, () => {
+    h = (h * 1103515245 + 12345) >>> 0
+    return 15 + (h % 85)
+  })
+}
+
 // The classic KPI card's mini bar chart (bar heights as the page draws them).
 function Sparkline({ values, color }: { values: number[]; color: string }) {
   return (
@@ -160,24 +165,36 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   )
 }
 
-function KpiTile({ kpi, label, icon: Icon, tone }: { kpi: DashKpi | undefined; label: string; icon: LucideIcon; tone: StatTone }) {
+function KpiTile({ kpi, label, icon: Icon, accent }: { kpi: DashKpi | undefined; label: string; icon: LucideIcon; accent: string }) {
+  const { theme } = useTheme()
+  const light = theme === 'light'
   const value = kpi?.value ?? null
   const display = value === null ? '—' : kpi?.currency ? money(value, kpi.currency) : formatNumber(value)
   return (
-    <div className="min-w-0 rounded-xl bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10 px-4 py-3.5 backdrop-blur-sm">
+    <div
+      data-kpi-tile
+      className="min-w-0 rounded-xl border px-4 py-2.5 backdrop-blur-sm"
+      style={{
+        borderColor: `color-mix(in srgb, ${accent} ${light ? 45 : 32}%, transparent)`,
+        backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} ${light ? 14 : 12}%, ${light ? '#ffffff' : '#0b1a2b'}) 0%, color-mix(in srgb, ${accent} ${light ? 4 : 3}%, ${light ? '#ffffff' : '#08131f'}) 100%)`,
+      }}
+    >
       <div className="flex items-center gap-3">
-        <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
-          <Icon size={17} />
+        <span
+          className="shrink-0 w-12 h-12 rounded-lg grid place-items-center text-white shadow-sm"
+          style={{ backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} 88%, #fff), color-mix(in srgb, ${accent} 78%, #000))` }}
+        >
+          <Icon size={22} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-text-muted text-xs font-medium leading-tight truncate">{kpi?.label || label}</p>
-          <p className="text-lg font-bold text-hero-heading truncate leading-tight mt-0.5">{display}</p>
+          <p className="text-text-muted font-medium leading-tight truncate" style={{ fontSize: 11 }}>{kpi?.label || label}</p>
+          <p className="font-bold text-hero-heading truncate leading-tight mt-1" style={{ fontSize: 18 }}>{display}</p>
+          <div className="mt-1 flex items-center gap-1.5 min-w-0" style={{ fontSize: 10.5 }}>
+            {kpi?.trend && <TrendBadge trend={kpi.trend} />}
+            <span className="text-text-faint truncate">{kpi ? kpi.meta : 'Not available'}</span>
+          </div>
         </div>
-        {kpi && kpi.spark.length > 0 && <Sparkline values={kpi.spark} color={TONE_COLOR[tone]} />}
-      </div>
-      <div className="mt-2.5 pt-2 border-t border-black/5 dark:border-white/10 text-xs flex items-center gap-1.5 min-w-0">
-        {kpi?.trend && <TrendBadge trend={kpi.trend} />}
-        <span className="text-text-faint truncate">{kpi ? kpi.meta : 'Not available'}</span>
+        {kpi && <Sparkline values={kpi.spark.length > 0 ? kpi.spark : decorativeSpark(kpi.label || label)} color={accent} />}
       </div>
     </div>
   )
@@ -259,10 +276,10 @@ function DonutCard({ side, tab, onTab }: { side: DashSide; tab: 'sales' | 'purch
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-5">
-          <div className="w-36 h-36 relative shrink-0 mx-auto sm:mx-0">
+          <div className="w-[8.5rem] h-[8.5rem] relative shrink-0 mx-auto sm:mx-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={hasData ? slices : [{ label: 'none', value: 1 }]} dataKey="value" nameKey="label" innerRadius={50} outerRadius={68} paddingAngle={hasData ? 2 : 0} stroke="none" isAnimationActive>
+                <Pie data={hasData ? slices : [{ label: 'none', value: 1 }]} dataKey="value" nameKey="label" innerRadius="72%" outerRadius="96%" paddingAngle={hasData ? 2 : 0} stroke="none" isAnimationActive>
                   {(hasData ? slices : [{ label: 'none', value: 1 }]).map((s) => (
                     <Cell key={s.label} fill={hasData ? (DONUT_COLORS[s.label.toLowerCase()] ?? 'var(--color-chart-2)') : 'var(--color-surface-hover)'} />
                   ))}
@@ -363,14 +380,14 @@ function AnalyticsCard({ side, tab }: { side: DashSide; tab: 'sales' | 'purchase
       <ResponsiveContainer width="100%" height={260}>
         <ComposedChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-          <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={8} />
-          <YAxis yAxisId="amount" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} width={48} tickFormatter={fmtAxisMoney} />
-          <YAxis yAxisId="count" orientation="right" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} width={32} allowDecimals={false} />
+          <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={8} />
+          <YAxis yAxisId="amount" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} width={48} tickFormatter={fmtAxisMoney} />
+          <YAxis yAxisId="count" orientation="right" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} width={32} allowDecimals={false} />
           <Tooltip
             cursor={{ fill: 'var(--color-surface-hover)', opacity: 0.4 }}
             content={<ChartTooltip formatter={(v: number, name: string) => (name === names[0] ? money(v, currency) : formatNumber(v))} />}
           />
-          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
+          <Legend wrapperStyle={{ fontSize: 12.6, paddingTop: 8 }} iconType="circle" iconSize={8} />
           <Bar yAxisId="amount" dataKey="income" name={names[0]} fill="var(--color-chart-3)" radius={[3, 3, 0, 0]} maxBarSize={22} />
           <Bar yAxisId="count" dataKey="sales" name={names[1]} fill="var(--color-chart-1)" radius={[3, 3, 0, 0]} maxBarSize={22} />
           <Area yAxisId="count" type="monotone" dataKey="orders" name={names[2]} stroke="var(--color-text-faint)" fill="var(--color-text-faint)" fillOpacity={0.2} strokeWidth={1} />
@@ -463,7 +480,7 @@ function CountryCard({ side, tab, currency }: { side: DashSide; tab: 'sales' | '
       {side.countries.length === 0 ? (
         <EmptyState icon={Inbox} title="No country data" text="Regional totals will appear here." />
       ) : (
-        <div className="space-y-2.5">
+        <div className="max-h-[7.5rem] space-y-2.5 overflow-y-auto soft-scrollbar pr-1">
           {side.countries.map((c) => (
             <div key={`${c.code}-${c.name}`} className="flex items-center gap-2.5 text-sm">
               <span className="w-6 shrink-0">
@@ -496,11 +513,11 @@ function CountryCard({ side, tab, currency }: { side: DashSide; tab: 'sales' | '
 
 function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
   return (
-    <GlassCard header={<CardHeader icon={Landmark} title="Bank Details" tone="success" />} action={<ViewAll to={ROUTES.bankingAccounts} />}>
+    <GlassCard className="xl:grow xl:basis-0" header={<CardHeader icon={Landmark} title="Bank Details" tone="success" />} action={<ViewAll to={ROUTES.bankingAccounts} />}>
       {banks.length === 0 ? (
         <EmptyState icon={Landmark} title="No bank accounts" text="Bank account balances will appear here." />
       ) : (
-        <div className="max-h-[340px] overflow-y-auto soft-scrollbar pr-1 -mr-1 space-y-3">
+        <div className="space-y-2">
           {banks.map((b, i) => {
             const up = b.amount >= 0
             const name = b.id ? (
@@ -511,9 +528,9 @@ function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
               <span className="truncate font-medium text-text">{b.name}</span>
             )
             return (
-              <div key={b.id ?? `bank-${i}`} className="flex items-center gap-3">
-                <span className={`shrink-0 w-9 h-9 rounded-lg grid place-items-center ${TONE_CLS.success}`}>
-                  <Landmark size={15} />
+              <div key={b.id ?? `bank-${i}`} className="flex items-center gap-2.5">
+                <span className={`shrink-0 w-7 h-7 rounded-lg grid place-items-center ${TONE_CLS.success}`}>
+                  <Landmark size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2 text-sm">
@@ -523,10 +540,10 @@ function BankCard({ banks }: { banks: HomeDashboard['banks'] }) {
                       {b.percent}%
                     </span>
                   </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                  <div className="mt-0.5 h-1 rounded-full bg-surface-alt overflow-hidden">
                     <div className="h-full rounded-full bg-success" style={{ width: `${Math.min(100, Math.max(0, b.percent))}%` }} />
                   </div>
-                  <p className={`mt-0.5 text-xs tabular-nums ${up ? 'text-text-muted' : 'text-danger'}`}>{money(b.amount, b.currency)}</p>
+                  <p className={`text-xs tabular-nums ${up ? 'text-text-muted' : 'text-danger'}`}>{money(b.amount, b.currency)}</p>
                 </div>
               </div>
             )
@@ -549,7 +566,7 @@ function attentionIcon(href: string, title: string): LucideIcon {
 
 function AttentionCard({ items }: { items: HomeDashboard['attention'] }) {
   return (
-    <GlassCard header={<CardHeader icon={AlertTriangle} title="Needs Your Attention" tone="warning" />}>
+    <GlassCard className="xl:grow xl:basis-0" header={<CardHeader icon={AlertTriangle} title="Needs Your Attention" tone="warning" />}>
       {items.length === 0 ? (
         <EmptyState icon={CheckCircle2} title="All clear" text="Nothing requires your attention right now." />
       ) : (
@@ -560,8 +577,8 @@ function AttentionCard({ items }: { items: HomeDashboard['attention'] }) {
             const to = resolveLegacyRoute(item.href)
             const body = (
               <>
-                <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
-                  <Icon size={17} />
+                <span className={`shrink-0 w-8 h-8 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
+                  <Icon size={15} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-text truncate">{item.title}</span>
@@ -572,11 +589,11 @@ function AttentionCard({ items }: { items: HomeDashboard['attention'] }) {
               </>
             )
             return to ? (
-              <Link key={item.title} to={to} className="flex items-center gap-3 rounded-xl p-2.5 -mx-2.5 hover:bg-surface-alt transition-colors">
+              <Link key={item.title} to={to} className="flex items-center gap-2.5 rounded-xl p-2 -mx-2 hover:bg-surface-alt transition-colors">
                 {body}
               </Link>
             ) : (
-              <div key={item.title} className="flex items-center gap-3 rounded-xl p-2.5 -mx-2.5">
+              <div key={item.title} className="flex items-center gap-2.5 rounded-xl p-2 -mx-2">
                 {body}
               </div>
             )
@@ -598,20 +615,20 @@ const QUICK_ACTION_ICONS: Array<[RegExp, LucideIcon, StatTone]> = [
 
 function QuickActionsCard({ actions }: { actions: HomeDashboard['quickActions'] }) {
   return (
-    <GlassCard header={<CardHeader icon={Zap} title="Quick Actions" tone="brand" />}>
-      <div className="grid grid-cols-3 gap-2.5">
+    <GlassCard className="xl:grow xl:basis-0" header={<CardHeader icon={Zap} title="Quick Actions" tone="brand" />}>
+      <div className="grid auto-rows-[minmax(4.5rem,6.5rem)] grid-cols-3 gap-2.5">
         {actions.map((action) => {
           const [, Icon, tone] = QUICK_ACTION_ICONS.find(([re]) => re.test(action.label)) ?? [null, Zap, 'brand' as StatTone]
           const to = resolveLegacyRoute(action.href)
           const body = (
             <>
-              <span className={`w-10 h-10 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
-                <Icon size={18} />
+              <span className={`w-8 h-8 rounded-xl grid place-items-center ${TONE_CLS[tone]}`}>
+                <Icon size={16} />
               </span>
               <span className="text-xs font-medium text-text leading-tight">{action.label}</span>
             </>
           )
-          const cls = 'flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-surface-alt/50 py-3.5 px-1.5 text-center'
+          const cls = 'flex flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-surface-alt/50 py-2.5 px-1.5 text-center'
           return to ? (
             <Link key={action.label} to={to} className={`${cls} hover:bg-surface-alt transition-colors`}>
               {body}
@@ -635,10 +652,10 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
   const currency = dashboard.kpis.todaySales?.currency || dashboard.kpis.unpaid?.currency || 'ZMW'
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-full flex-1 flex-col gap-4">
       {/* ── Greeting + today's KPI cards ─────────────────────────────────── */}
       <div
-        className="relative overflow-hidden rounded-2xl p-5 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)] border border-border shadow-sm"
+        className="relative shrink-0 overflow-hidden rounded-2xl p-5 bg-[linear-gradient(135deg,var(--color-hero-from)_0%,var(--color-hero-via)_55%,var(--color-surface)_100%)] border border-border shadow-sm"
         style={
           theme === 'blue-metal'
             ? {
@@ -652,7 +669,7 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl">{getGreetingEmoji()}</span>
+              <span className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/30 text-xl">{getGreetingEmoji()}</span>
               <h2 className="text-xl font-bold text-hero-heading">
                 {getGreeting()}, {username}!
               </h2>
@@ -674,32 +691,34 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
           </div>
         </div>
 
-        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <KpiTile kpi={dashboard.kpis.todaySales} label="Today's Sales" icon={ShoppingCart} tone="brand" />
-          <KpiTile kpi={dashboard.kpis.todayPurchase} label="Today's Purchase" icon={ShoppingBag} tone="info" />
-          <KpiTile kpi={dashboard.kpis.unpaid} label="Unpaid Invoices" icon={FileText} tone="warning" />
-          <KpiTile kpi={dashboard.kpis.zraSigned} label="ZRA Signed Invoices" icon={ShieldCheck} tone="success" />
+        <div data-no-stat-shrink className="relative z-10 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <KpiTile kpi={dashboard.kpis.todaySales} label="Today's Sales" icon={ShoppingCart} accent="#3b82f6" />
+          <KpiTile kpi={dashboard.kpis.todayPurchase} label="Today's Purchase" icon={ShoppingBag} accent="#14b8a6" />
+          <KpiTile kpi={dashboard.kpis.unpaid} label="Unpaid Invoices" icon={FileText} accent="#d99a2b" />
+          <KpiTile kpi={dashboard.kpis.zraSigned} label="ZRA Signed Invoices" icon={ShieldCheck} accent="#7c6ff0" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch flex-1">
         {/* ── Sales / Purchase tab: donut, analytics, last 7, by country ── */}
-        <div className="xl:col-span-9 space-y-4 min-w-0">
+        <div className="xl:col-span-9 flex flex-col gap-4 min-w-0">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <DonutCard side={side} tab={tab} onTab={setTab} />
             <AnalyticsCard key={tab} side={side} tab={tab} />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="grid flex-1 grid-cols-1 lg:grid-cols-12 gap-4">
             <Last7Card rows={side.last7} tab={tab} currency={currency} />
             <CountryCard side={side} tab={tab} currency={currency} />
           </div>
         </div>
 
         {/* ── Bank balances, attention items, quick actions ─────────────── */}
-        <div className="xl:col-span-3 space-y-4 min-w-0">
+        <div className="xl:col-span-3 min-w-0 xl:relative">
+          <div className="flex flex-col gap-4 xl:absolute xl:inset-0">
           <BankCard banks={dashboard.banks} />
           <AttentionCard items={dashboard.attention} />
           <QuickActionsCard actions={dashboard.quickActions} />
+          </div>
         </div>
       </div>
     </div>

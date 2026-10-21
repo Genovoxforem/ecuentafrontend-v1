@@ -5,17 +5,30 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/Le
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
 
-// Native replacement for linking out to commande/card.php?...&action=presend
-// — see orderEmail.ts/orderEmail.queries.ts for why this POSTs straight to
-// that same real backend endpoint (Dolibarr's own stock send-mail action)
-// rather than being a cosmetic mockup.
-export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; orderRef: string; onClose: () => void }) {
-  const { data, isLoading, isError, error, refetch } = useOrderEmailDefaults(id, true)
-  const sendEmail = useSendOrderEmail()
+// Uses the order email API for compose defaults and the real CMailFile send
+// action, with the older fapi endpoint as a backend-version fallback.
+// `useDefaults` / `useSend` let another module (purchase orders) reuse this form with its own endpoints.
+export function SendOrderEmailModal({
+  id,
+  orderRef,
+  onClose,
+  useDefaults = useOrderEmailDefaults,
+  useSend = useSendOrderEmail,
+}: {
+  id: string
+  orderRef: string
+  onClose: () => void
+  useDefaults?: typeof useOrderEmailDefaults
+  useSend?: typeof useSendOrderEmail
+}) {
+  const { data, isLoading, isError, error, refetch } = useDefaults(id, true)
+  const sendEmail = useSend()
 
   const [fromtype, setFromtype] = useState('')
   const [sendto, setSendto] = useState('')
   const [sendtocc, setSendtocc] = useState('')
+  const [sendtobcc, setSendtobcc] = useState('')
+  const [attachDoc, setAttachDoc] = useState(true)
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
@@ -24,6 +37,7 @@ export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; ord
   useEffect(() => {
     if (!data) return
     setFromtype(data.senderOptions.find((o) => o.value === data.defaultFromType)?.value ?? data.senderOptions[0]?.value ?? '')
+    setSendto((current) => current || data.recipients.find((recipient) => recipient.email)?.email || '')
     setSubject(data.defaultSubject)
     setMessage(data.defaultMessage)
   }, [data])
@@ -39,7 +53,7 @@ export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; ord
       return
     }
     if (!data) return
-    sendEmail.mutate({ id, fromtype, sendto, sendtocc, subject, message, attachments })
+    sendEmail.mutate({ id, fromtype, sendto, sendtocc, sendtobcc, subject, message, attachDoc, attachments })
   }
 
   return (
@@ -85,11 +99,20 @@ export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; ord
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-faint">Receiver(s)*</span>
-              <input value={sendto} onChange={(e) => setSendto(e.target.value)} placeholder="name@example.com, name2@example.com" className={inputCls} />
+              <input list={`order-email-recipients-${id}`} value={sendto} onChange={(e) => setSendto(e.target.value)} placeholder="name@example.com, name2@example.com" className={inputCls} />
+              <datalist id={`order-email-recipients-${id}`}>
+                {data.recipients.filter((recipient) => recipient.email).map((recipient) => (
+                  <option key={recipient.value} value={recipient.email} label={recipient.label} />
+                ))}
+              </datalist>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-faint">Copy to</span>
               <input value={sendtocc} onChange={(e) => setSendtocc(e.target.value)} placeholder="name@example.com" className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-text-faint">Blind copy to</span>
+              <input value={sendtobcc} onChange={(e) => setSendtobcc(e.target.value)} placeholder="name@example.com" className={inputCls} />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-text-faint">Email topic*</span>
@@ -99,9 +122,14 @@ export function SendOrderEmailModal({ id, orderRef, onClose }: { id: string; ord
               <span className="text-xs font-medium text-text-faint">Attached files</span>
               {data.attachedFileName && (
                 <span className="flex items-center gap-1.5 text-xs text-text-muted">
-                  <Paperclip size={12} /> {data.attachedFileName} (already attached)
+                  <Paperclip size={12} /> {data.attachedFileName}
+                  {data.attachedFileSize != null ? ` (${Math.ceil(data.attachedFileSize / 1024)} KB)` : ''} (already attached)
                 </span>
               )}
+              <label className="flex items-center gap-2 text-xs text-text-muted">
+                <input type="checkbox" checked={attachDoc} onChange={(e) => setAttachDoc(e.target.checked)} />
+                Attach latest generated order document
+              </label>
               <input
                 type="file"
                 multiple

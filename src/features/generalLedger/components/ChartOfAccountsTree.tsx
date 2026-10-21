@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ListTree, ChevronRight, ChevronDown, Pencil, Trash2, Plus, Check, X as XIcon, Loader2, Info, AlertTriangle } from 'lucide-react'
+import { ListTree, ChevronRight, ChevronDown, Pencil, Trash2, Plus, Check, X as XIcon, Loader2, AlertTriangle } from 'lucide-react'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
@@ -200,14 +200,6 @@ export function ChartOfAccountsTree() {
         </button>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">accountancy/admin/accountjstree.php</code>. This tree is real — read from{' '}
-          <code className="font-mono">fetch.php</code> and saved through <code className="font-mono">updatecoa.php</code>, the same JSON endpoints the real
-          page uses. Add/rename/delete here genuinely change the backend's chart of accounts.
-        </p>
-      </Card>
 
       {isError && (
         <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">

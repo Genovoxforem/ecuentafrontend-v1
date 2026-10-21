@@ -10,11 +10,11 @@ import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
 import { api } from '../../../api/axios'
+import { fetchQuotationFormOptions } from '../../../api/quotations'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
-import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 
 // This form talks to a real, complete JSON API —
 // comm/propal/api/proposal_handler.php — read directly from its PHP source.
@@ -31,13 +31,7 @@ interface ApiEnvelope<T> {
   data?: T
 }
 
-// comm/propal/index_v2.php (the real "New Quotation" page) renders
-// Availability Period / Source / Payment Terms / Shipping Method as plain
-// <select> options straight from their DB tables (selectAvailabilityDelay(),
-// selectInputReason(), select_conditions_paiements(), selectShippingMethod())
-// — same "dead REST route, real legacy page" pattern as Sales Orders' own
-// useOrderDictionaries (orderFormOptionsParser.ts), scraped from this page
-// directly instead since it's the actual real page these fields come from.
+// Quotation-specific dropdown dictionaries are served by its form-options API.
 interface DictOption {
   id: string
   text: string
@@ -46,46 +40,28 @@ interface QuotationDictionaries {
   availabilityDelays: DictOption[]
   demandReasons: DictOption[]
   paymentTerms: DictOption[]
+  paymentMethods: DictOption[]
   shippingMethods: DictOption[]
-}
-function parseSelectOptions(doc: Document, name: string): DictOption[] {
-  const select = doc.querySelector(`select[name="${name}"]`)
-  if (!select) return []
-  return Array.from(select.querySelectorAll('option'))
-    .map((o) => ({ id: o.getAttribute('value') ?? '', text: (o.textContent ?? '').trim() }))
-    .filter((o) => o.id && o.id !== '0' && o.id !== '-1')
+  currencies: DictOption[]
+  incoterms: DictOption[]
 }
 function useQuotationDictionaries() {
   return useQuery({
     queryKey: ['quotations', 'dictionaries'],
     queryFn: async (): Promise<QuotationDictionaries> => {
-      const res = await fetch('/comm/propal/index_v2.php', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const doc = new DOMParser().parseFromString(await res.text(), 'text/html')
+      const options = await fetchQuotationFormOptions()
+      const map = (list: typeof options.availability) =>
+        list.filter((option) => option.value && option.value !== '0' && option.value !== '-1')
+          .map((option) => ({ id: String(option.value), text: option.label }))
       return {
-        availabilityDelays: parseSelectOptions(doc, 'availability_id'),
-        demandReasons: parseSelectOptions(doc, 'demand_reason_id'),
-        paymentTerms: parseSelectOptions(doc, 'cond_reglement_id'),
-        shippingMethods: parseSelectOptions(doc, 'shipping_method_id'),
+        availabilityDelays: map(options.availability),
+        demandReasons: map(options.demand_reasons),
+        paymentTerms: map(options.payment_terms),
+        paymentMethods: map(options.payment_methods),
+        shippingMethods: map(options.shipping_methods),
+        currencies: map(options.multicurrencies),
+        incoterms: map(options.incoterms),
       }
-    },
-    staleTime: 1000 * 60 * 10,
-  })
-}
-
-interface DictionaryResponse {
-  success: boolean
-  results: Array<{ id: string | number; text: string }>
-}
-// GET /api/payment_types.php — same real, working dictionary (llx_c_paiement)
-// already used for Sales/Purchase Orders' Payment Mode field; not
-// document-type-specific, reused as-is here.
-function usePaymentTypes() {
-  return useQuery({
-    queryKey: ['dictionary', '/payment_types.php'],
-    queryFn: async (): Promise<DictOption[]> => {
-      const { data } = await api.get<DictionaryResponse>('/payment_types.php')
-      return data.success ? data.results.map((r) => ({ id: String(r.id), text: r.text })) : []
     },
     staleTime: 1000 * 60 * 10,
   })
@@ -228,9 +204,8 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
       </>
     ),
   }))
-  const { data: lookups } = useCustomerLookups()
-  const { data: paymentTypes } = usePaymentTypes()
   const { data: dictionaries } = useQuotationDictionaries()
+  const paymentTypes = dictionaries?.paymentMethods
   const { data: projects } = useProjectOptions()
 
   function pickDraftProduct(productId: string) {
@@ -585,9 +560,9 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
                 className={`${inputClasses} mt-1`}
               >
                 <option value="">Zambian Kwacha (ZMW)</option>
-                {lookups?.currencies?.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name}
+                {dictionaries?.currencies.map((currency) => (
+                  <option key={currency.id} value={currency.id}>
+                    {currency.text}
                   </option>
                 ))}
               </select>
@@ -597,9 +572,9 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
               <div className="flex items-center gap-2">
                 <select value={incotermId} onChange={(e) => setIncotermId(e.target.value)} className={inputClasses}>
                   <option value="">Select a incoterms</option>
-                  {lookups?.incoterms?.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.code}
+                  {dictionaries?.incoterms.map((incoterm) => (
+                    <option key={incoterm.id} value={incoterm.id}>
+                      {incoterm.text}
                     </option>
                   ))}
                 </select>

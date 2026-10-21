@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileEdit, Plus, FileCheck2, PlayCircle, TriangleAlert, MessagesSquare, Search, CalendarDays } from 'lucide-react'
+import { FileEdit, Plus, FileCheck2, PlayCircle, TriangleAlert, MessagesSquare, Search } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, TwoValueStatCard } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import type { ContractRow, ContractsSummary } from '../contracts.queries'
 
@@ -65,8 +66,15 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  const dateRange = useDateRange()
 
-  const filteredContracts = useMemo(() => summary.contracts.filter((c) => matchesSearch(c, search)), [summary.contracts, search])
+  const filteredContracts = useMemo(
+    () => summary.contracts.filter((c) => matchesSearch(c, search) && dateRange.inRange(c.contractDate)),
+    [summary.contracts, search, dateRange],
+  )
+  useEffect(() => {
+    setPage(1)
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
   const { sorted: sortedContracts, sort, toggleSort } = useSortableRows<ContractRow, SortKey>(filteredContracts, sortValue)
   const pageContracts = sortedContracts.slice((page - 1) * perPage, page * perPage)
 
@@ -141,9 +149,7 @@ export function ContractsList({ summary }: { summary: ContractsSummary }) {
               />
             </div>
             <TableExportButtons title="Contracts" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-              <CalendarDays size={14} />
-            </button>
+            <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

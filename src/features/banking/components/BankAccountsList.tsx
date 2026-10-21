@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Link } from 'react-router-dom'
-import { Landmark, Search, Plus, Filter, AlertTriangle } from 'lucide-react'
+import { Landmark, Search, Filter, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -71,6 +73,7 @@ function sortValue(a: BankAccountListRow, key: SortKey): string | number {
 export function BankAccountsList() {
   const [status, setStatus] = useState<BankAccountStatusFilter>('opened')
   const [showFilter, setShowFilter] = useState(false)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
   const { data: accounts, isLoading, isError, error, refetch } = useBankAccountsDetailedList(status)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
@@ -105,15 +108,10 @@ export function BankAccountsList() {
   return (
     // -m-6 + flex-1 flex-col: same pattern as ServicesList.tsx / ThirdPartyList.tsx.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Landmark size={20} className="text-brand" /> Bank Management Details
-        </h2>
+      <InBanner>
         <div className="relative flex items-center gap-2">
-          <Link to={ROUTES.bankingNewAccount} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-            <Plus size={14} /> New
-          </Link>
           <button
+            ref={filterBtnRef}
             type="button"
             aria-label="Filter"
             aria-expanded={showFilter}
@@ -122,8 +120,11 @@ export function BankAccountsList() {
           >
             <Filter size={14} />
           </button>
-          {showFilter && (
-            <div className="absolute right-0 top-11 z-30 w-56 rounded-lg border border-border bg-surface p-3 shadow-lg">
+          {showFilter && filterBtnRef.current && createPortal(
+            <div
+              className="fixed z-[80] w-56 rounded-lg border border-border bg-surface p-3 shadow-xl"
+              style={{ top: filterBtnRef.current.getBoundingClientRect().bottom + 8, right: window.innerWidth - filterBtnRef.current.getBoundingClientRect().right }}
+            >
               <label className="block text-xs text-text-faint mb-1">Status</label>
               <select
                 value={status}
@@ -136,11 +137,11 @@ export function BankAccountsList() {
                   </option>
                 ))}
               </select>
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
-      </div>
-
+      </InBanner>
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isLoading && <LegacyLoadingCard label="Loading bank accounts…" />}
         {isError && <LegacyErrorCard title="Couldn't load bank accounts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}

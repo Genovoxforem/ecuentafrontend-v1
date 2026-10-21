@@ -1,5 +1,5 @@
-import { VariantAttributeDetailReplica } from '../../features/products/components/VariantAttributeDetailReplica'
+import { VariantAttributeDetailPage } from '../../features/products/components/VariantAttributeDetailPage'
 
 export function VariantAttributeDetailModule() {
-  return <VariantAttributeDetailReplica />
+  return <VariantAttributeDetailPage />
 }

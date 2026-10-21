@@ -1,84 +1,17 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { fetchAllPages } from '../../api/fapiRow'
 
-// Real reference module: custom/racks/ — a genuine custom Ecuenta module
-// (custom/racks/racksindex.php + custom/racks/product_rack_assign.php +
-// custom/racks/save_ajax.php), NOT a dead/unactivated Dolibarr feature as an
-// earlier pass on this codebase wrongly assumed (see the old comments this
-// file replaces on warehouseExtras.queries.ts's useRacks/useShelves/
-// useRackAssignments — those were local-only browser state). Confirmed real
-// by reading all three PHP files directly: llx_rack, llx_shelves and
-// llx_shelvesdet are real tables with real classic-HTML (no JSON) CRUD.
-//
-// Several real backend quirks are deliberately NOT reproduced here:
-// - racksindex.php's own "New Rack" status <select> has both options wired
-//   to value="1" (a genuine source bug — Close can never actually be
-//   submitted from that exact form). This rebuild sends 1/0 correctly since
-//   it isn't reusing that broken markup, just the real INSERT/UPDATE it
-//   posts to.
-// - The `rack_list` view's own Rack→Shelf cascade AJAX
-//   (save_ajax.php?action=rack) is broken server-side (iterates an
-//   undefined variable — confirmed by reading the code — so it always
-//   returns nothing). Every filter dropdown here is independently sourced
-//   instead of chained.
-// - product_rack_assign.php's Edit action loses its own validation error
-//   message on failure (the failing branch redirects to the list, which
-//   discards the just-set $error) — this rebuild can only detect that a
-//   save failed (the final URL carries edit_id= instead of msg=updated),
-//   not reproduce the specific message, since the real backend doesn't
-//   send it anywhere either.
-// - The "Lots" bulk multi-assignment popup (save_ajax.php
-//   get_product_lots_with_assignments / save_lot_assignments) is real but
-//   out of scope for this pass — its button is shown disabled with an
-//   honest tooltip rather than either faked or silently dropped.
-// - product_rack_assign.php's "+ Assign Product to Shelf" form has a real
-//   f_expiry date input that is captured but never persisted by the `add`
-//   handler (confirmed by reading it — not included in the INSERT at all),
-//   so no expiry field is shown here at all rather than a field that
-//   silently does nothing.
-//
-// None of these forms include a CSRF `token` field in the real source (this
-// custom module doesn't call newToken() anywhere in racksindex.php or
-// product_rack_assign.php, confirmed by reading both files in full) —
-// unlike the core Dolibarr pages elsewhere in this app, no token is sent
-// here because the real forms don't send one either.
+// custom/racks/fapi/racks.php (racks, shelves and their create / update / delete) and custom/racks/fapi/assignments.php
+// (the product placements on shelves: assign / update / move / remove / clear), 16 Oct 2026. They replace the classic
+// racksindex.php / product_rack_assign.php / save_ajax.php pages, whose forms had real bugs (a Close option wired to 1,
+// a rack-to-shelf cascade that always came back empty, an INSERT into a column that does not exist). A placement is a
+// location record only: it neither moves nor reserves stock.
+const RACKS = '/custom/racks/fapi/racks.php'
+const ASSIGN = '/custom/racks/fapi/assignments.php'
 
-function textOf(html: string): string {
-  const div = document.createElement('div')
-  div.innerHTML = html
-  return (div.textContent ?? '').replace(/\s+/g, ' ').trim()
-}
-
-function cellsOf(rowHtml: string): string[] {
-  const cells: string[] = []
-  const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/g
-  let m: RegExpExecArray | null
-  while ((m = cellRe.exec(rowHtml))) cells.push(m[1])
-  return cells
-}
-
-function rowsOf(html: string): string[] {
-  const rows: string[] = []
-  const rowRe = /<tr>([\s\S]*?)<\/tr>/g
-  let m: RegExpExecArray | null
-  while ((m = rowRe.exec(html))) rows.push(m[1])
-  return rows
-}
-
-function optionsOf(html: string): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = []
-  const optRe = /<option value="([^"]*)"[^>]*>([^<]*)<\/option>/g
-  let m: RegExpExecArray | null
-  while ((m = optRe.exec(html))) {
-    const label = m[2].trim()
-    if (!m[1] || !label) continue
-    options.push({ value: m[1], label })
-  }
-  return options
-}
-
-const BASE = '/custom/racks/racksindex.php'
-
-// ── Racks list (racksindex.php?action=rack) ────────────────────────────────
+// ── Racks ──────────────────────────────────────────────────────────────────
 export interface RackRow {
   id: number
   label: string
@@ -87,32 +20,14 @@ export interface RackRow {
   active: boolean
 }
 
-function parseRacks(html: string): RackRow[] {
-  const rows: RackRow[] = []
-  for (const rowHtml of rowsOf(html)) {
-    const cells = cellsOf(rowHtml)
-    if (cells.length < 6) continue
-    const idMatch = cells[5].match(/[?&]id=(\d+)/)
-    if (!idMatch) continue
-    rows.push({
-      id: Number(idMatch[1]),
-      label: textOf(cells[1]),
-      ref: textOf(cells[2]),
-      warehouseName: textOf(cells[3]),
-      active: textOf(cells[4]).toLowerCase() === 'active',
-    })
-  }
-  return rows
+async function fetchRacks(extra: Record<string, unknown> = {}): Promise<any[]> {
+  return fetchAllPages((page) => fapiGet<any>(RACKS, { page, limit: 100, ...extra }))
 }
 
 export function useRacksReal() {
   return useQuery({
     queryKey: ['warehouses', 'racks'],
-    queryFn: async (): Promise<RackRow[]> => {
-      const res = await fetch(`${BASE}?action=rack`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseRacks(await res.text())
-    },
+    queryFn: async (): Promise<RackRow[]> => (await fetchRacks()).map((r): RackRow => ({ id: Number(r.id), label: r.name ?? '', ref: r.short_name ?? '', warehouseName: r.warehouse?.ref ?? '', active: Boolean(r.active) })),
     staleTime: 1000 * 30,
   })
 }
@@ -128,15 +43,7 @@ export function useCreateRackReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: RackFormInput) => {
-      const body = new URLSearchParams({
-        action: 'create',
-        rack_name: input.label,
-        short_name: input.ref,
-        ware_house: input.warehouseId,
-        rack_status: input.active ? '1' : '0',
-      })
-      const res = await fetch(BASE, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(RACKS, { name: input.label, short_name: input.ref, warehouse_id: Number(input.warehouseId), status: input.active ? 1 : 0 }, { action: 'create_rack' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'racks'] }),
   })
@@ -146,21 +53,13 @@ export function useUpdateRackReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...input }: RackFormInput & { id: number }) => {
-      const body = new URLSearchParams({
-        action: 'update_rack',
-        rack_name: input.label,
-        short_name: input.ref,
-        ware_house: input.warehouseId,
-        rack_status: input.active ? '1' : '0',
-      })
-      const res = await fetch(`${BASE}?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(RACKS, { id, name: input.label, short_name: input.ref, warehouse_id: Number(input.warehouseId), status: input.active ? 1 : 0 }, { action: 'update_rack' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'racks'] }),
   })
 }
 
-// ── Shelves list (racksindex.php?action=shelves_list) ──────────────────────
+// ── Shelves ────────────────────────────────────────────────────────────────
 export interface ShelfRow {
   id: number
   rackName: string
@@ -168,31 +67,11 @@ export interface ShelfRow {
   capacity: number
 }
 
-function parseShelves(html: string): ShelfRow[] {
-  const rows: ShelfRow[] = []
-  for (const rowHtml of rowsOf(html)) {
-    const cells = cellsOf(rowHtml)
-    if (cells.length < 5) continue
-    const idMatch = cells[4].match(/[?&]shel_id=(\d+)/)
-    if (!idMatch) continue
-    rows.push({
-      id: Number(idMatch[1]),
-      rackName: textOf(cells[1]),
-      ref: textOf(cells[2]),
-      capacity: Number(textOf(cells[3])) || 0,
-    })
-  }
-  return rows
-}
-
 export function useShelvesReal() {
   return useQuery({
     queryKey: ['warehouses', 'shelves'],
-    queryFn: async (): Promise<ShelfRow[]> => {
-      const res = await fetch(`${BASE}?action=shelves_list`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseShelves(await res.text())
-    },
+    queryFn: async (): Promise<ShelfRow[]> =>
+      (await fetchRacks()).flatMap((r) => ((r.shelves ?? []) as any[]).map((sh): ShelfRow => ({ id: Number(sh.id), rackName: r.name ?? '', ref: sh.ref ?? '', capacity: Number(sh.capacity) || 0 }))),
     staleTime: 1000 * 30,
   })
 }
@@ -207,9 +86,7 @@ export function useCreateShelfReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: ShelfFormInput) => {
-      const body = new URLSearchParams({ action: 'create_shelf', rack_id: input.rackId, shel_name: input.ref, capacity: String(input.capacity) })
-      const res = await fetch(BASE, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(RACKS, { rack_id: Number(input.rackId), ref: input.ref, capacity: input.capacity }, { action: 'create_shelf' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'shelves'] }),
   })
@@ -219,15 +96,13 @@ export function useUpdateShelfReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ shelId, ...input }: ShelfFormInput & { shelId: number }) => {
-      const body = new URLSearchParams({ action: 'update_shelf', rack_id: input.rackId, shel_id: String(shelId), shel_name: input.ref, capacity: String(input.capacity) })
-      const res = await fetch(BASE, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(RACKS, { shelf_id: shelId, rack_id: Number(input.rackId), ref: input.ref, capacity: input.capacity }, { action: 'update_shelf' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'shelves'] }),
   })
 }
 
-// ── Rack List report (racksindex.php?action=rack_list) — read-only ─────────
+// ── Rack List report ───────────────────────────────────────────────────────
 export interface RackListReportRow {
   rackName: string
   warehouseName: string
@@ -245,57 +120,39 @@ export interface RackListFilters {
   productId?: string
 }
 
-function parseRackListReport(html: string): RackListReportRow[] {
-  const rows: RackListReportRow[] = []
-  for (const rowHtml of rowsOf(html)) {
-    const cells = cellsOf(rowHtml)
-    if (cells.length < 7) continue
-    rows.push({
-      rackName: textOf(cells[1]),
-      warehouseName: textOf(cells[2]),
-      shelfRef: textOf(cells[3]),
-      lot: textOf(cells[4]),
-      productName: textOf(cells[5]),
-      qty: Number(textOf(cells[6])) || 0,
-    })
-  }
-  return rows
+function assignmentParams(f: { warehouseId?: string; rackId?: string; shelfId?: string; lot?: string; productId?: string }) {
+  return { warehouse: f.warehouseId || undefined, rack: f.rackId || undefined, shelf: f.shelfId || undefined, lot: f.lot || undefined, product: f.productId || undefined }
+}
+
+async function fetchAssignments(f: Parameters<typeof assignmentParams>[0]): Promise<any[]> {
+  return fetchAllPages((page) => fapiGet<any>(ASSIGN, { page, limit: 100, ...assignmentParams(f) }))
 }
 
 export function useRackListReport(filters: RackListFilters) {
   return useQuery({
     queryKey: ['warehouses', 'rackListReport', filters],
-    queryFn: async (): Promise<RackListReportRow[]> => {
-      const params = new URLSearchParams({ action: 'rack_list' })
-      if (filters.warehouseId) params.set('warehouse_name', filters.warehouseId)
-      if (filters.rackId) params.set('rack_name', filters.rackId)
-      if (filters.shelfId) params.set('shel_ref', filters.shelfId)
-      if (filters.lot) params.set('lot_id', filters.lot)
-      if (filters.productId) params.set('product_name', filters.productId)
-      const res = await fetch(`${BASE}?${params.toString()}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseRackListReport(await res.text())
-    },
+    queryFn: async (): Promise<RackListReportRow[]> =>
+      (await fetchAssignments(filters)).map(
+        (a): RackListReportRow => ({
+          rackName: a.rack?.name ?? '',
+          warehouseName: a.warehouse?.ref ?? '',
+          shelfRef: a.shelf?.ref ?? '',
+          lot: a.lot ?? '',
+          productName: [a.product?.ref, a.product?.label].filter(Boolean).join(' - '),
+          qty: Number(a.qty) || 0,
+        }),
+      ),
     staleTime: 1000 * 30,
   })
 }
 
-// Distinct lot values for the rack_list report's own Lot filter dropdown —
-// sourced from the same real assignment rows already being fetched
-// (llx_shelvesdet.lot), rather than reproducing the reference's own
-// non-DISTINCT <option> query (confirmed to emit duplicate lot options).
+// Distinct lot values for the report's Lot filter, from the placements already read.
 export function useDistinctLots(rows: RackListReportRow[] | undefined) {
   const lots = new Set((rows ?? []).map((r) => r.lot).filter(Boolean))
   return Array.from(lots)
 }
 
-// ── Product Rack/Shelf Assignments (product_rack_assign.php?action=list) ───
-const ASSIGN_BASE = '/custom/racks/product_rack_assign.php'
-
-// Note: warehouseId/rackId/shelfId are deliberately not modeled here — the
-// list row only ever echoes their names/refs (confirmed by reading the
-// row-rendering code), never the underlying ids. Editing an assignment
-// fetches those separately via fetchAssignmentDetail() below.
+// ── Product placements ─────────────────────────────────────────────────────
 export interface ProductAssignmentRow {
   productId: number
   productRef: string
@@ -320,77 +177,48 @@ export interface ProductAssignFilters {
   lot?: string
 }
 
-function parseProductAssignments(html: string): ProductAssignmentRow[] {
-  const rows: ProductAssignmentRow[] = []
-  const tableStart = html.indexOf('Shelf Cap.')
-  const section = tableStart === -1 ? html : html.slice(tableStart)
-  for (const rowHtml of rowsOf(section)) {
-    const cells = cellsOf(rowHtml)
-    if (cells.length < 10) continue
-
-    const productText = textOf(cells[1])
-    const dashSplit = productText.indexOf(' - ')
-    const productRef = dashSplit === -1 ? productText : productText.slice(0, dashSplit)
-    const productName = dashSplit === -1 ? '' : productText.slice(dashSplit + 3)
-
-    const editMatch = cells[9].match(/action=edit&(?:amp;)?assign_id=(\d+)/)
-    const hasAssignment = !!editMatch
-    const assignId = editMatch ? Number(editMatch[1]) : null
-
-    const lotBtnMatch = cells[5].match(/data-product-id="(\d+)"/)
-    const lotCountMatch = cells[6].match(/>(\d+)</)
-
-    const capColorMatch = cells[8].match(/color:([^;]+);/)
-
-    rows.push({
-      productId: lotBtnMatch ? Number(lotBtnMatch[1]) : 0,
-      productRef,
-      productName,
-      assignId,
-      hasAssignment,
-      warehouseName: hasAssignment ? textOf(cells[2]) : '',
-      rackName: hasAssignment ? textOf(cells[3]) : '',
-      shelfRef: hasAssignment ? textOf(cells[4]) : '',
-      lot: textOf(cells[5].replace(/<button[\s\S]*$/, '')) || null,
-      lotCount: lotCountMatch ? Number(lotCountMatch[1]) : 0,
-      qty: hasAssignment ? Number(textOf(cells[7])) || 0 : null,
-      capDisplay: textOf(cells[8]),
-      capColor: capColorMatch ? capColorMatch[1].trim() : '#999',
-    })
-  }
-  return rows
+// "used / capacity" of the shelf and a traffic-light colour for how full it is.
+function capacityCell(used: number, capacity: number) {
+  if (!capacity) return { text: `${used}`, color: '#999' }
+  const pct = (used / capacity) * 100
+  return { text: `${used} / ${capacity}`, color: pct > 100 ? '#dc3545' : pct >= 80 ? '#f59e0b' : '#198754' }
 }
 
 export function useProductAssignments(filters: ProductAssignFilters) {
   return useQuery({
     queryKey: ['warehouses', 'productAssignments', filters],
     queryFn: async (): Promise<ProductAssignmentRow[]> => {
-      const params = new URLSearchParams({ action: 'list' })
-      if (filters.productId) params.set('f_product', filters.productId)
-      if (filters.warehouseId) params.set('f_warehouse', filters.warehouseId)
-      if (filters.rackId) params.set('f_rack', filters.rackId)
-      if (filters.shelfId) params.set('f_shelf', filters.shelfId)
-      if (filters.lot) params.set('f_lot', filters.lot)
-      const res = await fetch(`${ASSIGN_BASE}?${params.toString()}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseProductAssignments(await res.text())
+      const items = await fetchAssignments(filters)
+      const usedByShelf = new Map<number, number>()
+      for (const a of items) usedByShelf.set(Number(a.shelf?.id), (usedByShelf.get(Number(a.shelf?.id)) ?? 0) + (Number(a.qty) || 0))
+      return items.map((a): ProductAssignmentRow => {
+        const cap = capacityCell(usedByShelf.get(Number(a.shelf?.id)) ?? 0, Number(a.shelf?.capacity) || 0)
+        return {
+          productId: Number(a.product?.id) || 0,
+          productRef: a.product?.ref ?? '',
+          productName: a.product?.label ?? '',
+          assignId: Number(a.id) || null,
+          hasAssignment: true,
+          warehouseName: a.warehouse?.ref ?? '',
+          rackName: a.rack?.name ?? '',
+          shelfRef: a.shelf?.ref ?? '',
+          lot: a.lot || null,
+          lotCount: a.lot ? 1 : 0,
+          qty: Number(a.qty) || 0,
+          capDisplay: cap.text,
+          capColor: cap.color,
+        }
+      })
     },
     staleTime: 1000 * 30,
   })
 }
 
-// Real cascading option AJAX (save_ajax.php) — both routes confirmed
-// working server-side (unlike racksindex.php's own broken rack->shelf
-// cascade on the rack_list screen).
+// Cascading choices for the assignment form: the racks of a warehouse and the shelves of a rack.
 export function useRacksByWarehouse(warehouseId: string | undefined) {
   return useQuery({
     queryKey: ['warehouses', 'racksByWarehouse', warehouseId],
-    queryFn: async (): Promise<{ value: string; label: string }[]> => {
-      const body = new URLSearchParams({ action: 'get_racks_by_warehouse', warehouse: warehouseId ?? '' })
-      const res = await fetch('/custom/racks/save_ajax.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return optionsOf(await res.text())
-    },
+    queryFn: async (): Promise<{ value: string; label: string }[]> => (await fetchRacks({ warehouse: warehouseId })).map((r) => ({ value: String(r.id), label: r.name ?? '' })),
     enabled: !!warehouseId,
   })
 }
@@ -399,21 +227,14 @@ export function useShelvesByRack(rackId: string | undefined) {
   return useQuery({
     queryKey: ['warehouses', 'shelvesByRack', rackId],
     queryFn: async (): Promise<{ value: string; label: string }[]> => {
-      const body = new URLSearchParams({ action: 'get_shelves_by_rack', rack_id: rackId ?? '' })
-      const res = await fetch('/custom/racks/save_ajax.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return optionsOf(await res.text())
+      const d = await fapiGet<any>(RACKS, { id: rackId })
+      return ((d.rack?.shelves ?? []) as any[]).map((s) => ({ value: String(s.id), label: s.ref ?? '' }))
     },
     enabled: !!rackId,
   })
 }
 
-// Real contract: POST action=get_assignment_data to product_rack_assign.php
-// itself (a self-page AJAX action, not save_ajax.php) — the ONLY real source
-// for an assignment's underlying warehouse/rack/shelf ids, since the list
-// row markup only ever echoes their names/refs (confirmed by reading the
-// row-rendering code directly). Used to pre-fill the Edit modal's cascading
-// selects.
+// One placement with the ids the edit form needs (the endpoint has no get-by-id, so it is found in the list).
 export interface AssignmentDetail {
   id: number
   productId: number
@@ -424,21 +245,9 @@ export interface AssignmentDetail {
   lot: string | null
 }
 export async function fetchAssignmentDetail(assignId: number): Promise<AssignmentDetail> {
-  const body = new URLSearchParams({ action: 'get_assignment_data', assign_id: String(assignId) })
-  const res = await fetch(ASSIGN_BASE, { method: 'POST', credentials: 'same-origin', body })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const json = await res.json()
-  if (!json.success || !json.assignment) throw new Error('Could not load this assignment.')
-  const a = json.assignment
-  return {
-    id: Number(a.rowid),
-    productId: Number(a.product_id),
-    warehouseId: Number(a.warehouse_id),
-    rackId: Number(a.rack_id),
-    shelfId: Number(a.shelves_id),
-    qty: Number(a.qty),
-    lot: a.lot ?? null,
-  }
+  const a = (await fetchAssignments({})).find((x) => Number(x.id) === assignId)
+  if (!a) throw new Error('Could not load this assignment.')
+  return { id: Number(a.id), productId: Number(a.product?.id), warehouseId: Number(a.warehouse?.id), rackId: Number(a.rack?.id), shelfId: Number(a.shelf?.id), qty: Number(a.qty), lot: a.lot ?? null }
 }
 
 export interface AssignProductInput {
@@ -450,28 +259,14 @@ export interface AssignProductInput {
   lot?: string
 }
 
-// Real contract (action=add): required fields + rack-belongs-to-warehouse +
-// shelf-belongs-to-rack + duplicate check — no capacity check at all here
-// (confirmed by reading the handler; unlike Edit, below).
+// POST ?action=assign {shelf_id, mode:'add'|'replace', rows:[{product_id, qty, lot}]}: tops up an existing placement
+// of the same product and lot, refuses a fractional quantity (the column is an integer) and a quantity that would put
+// more on the shelf than its capacity (409).
 export function useAssignProductReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: AssignProductInput) => {
-      const body = new URLSearchParams({
-        action: 'add',
-        f_warehouse: input.warehouseId,
-        f_rack: input.rackId,
-        f_shelf: input.shelfId,
-        f_product: input.productId,
-        f_quantity: String(input.qty),
-        f_lot: input.lot ?? '',
-      })
-      const res = await fetch(ASSIGN_BASE, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const text = await res.text()
-      if (!res.redirected && /alert-danger/.test(text)) {
-        throw new Error(textOf(text.slice(text.indexOf('alert-danger'), text.indexOf('alert-danger') + 400)) || 'The legacy backend rejected this assignment.')
-      }
+      await fapiPost(ASSIGN, { shelf_id: Number(input.shelfId), mode: 'add', rows: [{ product_id: Number(input.productId), qty: input.qty, lot: input.lot ?? '' }] }, { action: 'assign' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'productAssignments'] }),
   })
@@ -487,48 +282,24 @@ export interface UpdateAssignmentInput {
   lot?: string
 }
 
-// Real contract (action=update_assignment): same validations as add plus a
-// real capacity check (excluding this assignment's own current qty). The
-// real backend's own redirect-on-failure swallows the specific validation
-// message (confirmed by reading the source) — this can only detect that it
-// failed (final URL carries edit_id=, not msg=updated), not recover why.
+// ?action=update {id, qty, lot} changes the quantity or lot; ?action=move {id, shelf_id} moves it to another shelf.
 export function useUpdateAssignmentReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: UpdateAssignmentInput) => {
-      const body = new URLSearchParams({
-        action: 'update_assignment',
-        assign_id: String(input.assignId),
-        warehouse_id: input.warehouseId,
-        rack_id: input.rackId,
-        shelves_id: input.shelfId,
-        product_id: input.productId,
-        prod_qty: String(input.qty),
-        prod_lot: input.lot ?? '',
-      })
-      const res = await fetch(ASSIGN_BASE, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      if (res.url.includes('edit_id=')) {
-        throw new Error('The legacy backend rejected this update (invalid rack/shelf combination, duplicate assignment, or over shelf capacity) — it does not report which.')
-      }
+      const before = await fetchAssignmentDetail(input.assignId)
+      await fapiPost(ASSIGN, { id: input.assignId, qty: input.qty, lot: input.lot ?? '' }, { action: 'update' })
+      if (Number(input.shelfId) && Number(input.shelfId) !== before.shelfId) await fapiPost(ASSIGN, { id: input.assignId, shelf_id: Number(input.shelfId) }, { action: 'move' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'productAssignments'] }),
   })
 }
 
-// Real contract: DELETE FROM llx_shelvesdet WHERE rowid=assign_id via
-// action=confirm_delete&confirm=yes. The reference app's own GET
-// confirmation page is skipped here in favor of a client-side confirm()
-// (same convention as this app's other single-step legacy deletes), since
-// the data needed for that confirmation screen is already in the row we're
-// deleting from.
 export function useDeleteAssignmentReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (assignId: number) => {
-      const body = new URLSearchParams({ action: 'confirm_delete', confirm: 'yes', assign_id: String(assignId) })
-      const res = await fetch(ASSIGN_BASE, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(ASSIGN, { id: assignId }, { action: 'remove' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'productAssignments'] }),
   })

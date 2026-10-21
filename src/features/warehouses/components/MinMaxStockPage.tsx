@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  SlidersHorizontal,
+
   Search,
   RotateCcw,
   LoaderCircle,
@@ -183,15 +183,6 @@ export function MinMaxStockPage() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <div>
-          <p className="text-xs text-text-faint">Stock Movement</p>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <SlidersHorizontal size={20} className="text-brand" /> Min/Max Stock Level Management
-          </h2>
-        </div>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isError && (
           <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
@@ -258,18 +249,8 @@ export function MinMaxStockPage() {
             <button type="button" onClick={handleClear} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
               <RotateCcw size={14} /> Clear
             </button>
-            <div className="ml-auto flex items-center gap-2">
-              <TableExportButtons title="Min-Max Stock Levels" getExportData={getExportData} />
-              <button
-                type="button"
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-info-bg text-info-fg hover:brightness-95"
-              >
-                <Upload size={14} /> Import CSV
-              </button>
-            </div>
+            <span className="text-xs text-text-faint">Showing {rows.length} products</span>
           </div>
-          <p className="text-xs text-text-faint mt-2">Showing {rows.length} products</p>
         </Card>
 
         {pendingEdits.size > 0 && (
@@ -300,6 +281,16 @@ export function MinMaxStockPage() {
                 </option>
               ))}
             </select>
+            <div className="ml-auto flex items-center gap-2">
+              <TableExportButtons title="Min-Max Stock Levels" getExportData={getExportData} />
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-info-bg text-info-fg hover:brightness-95"
+              >
+                <Upload size={14} /> Import CSV
+              </button>
+            </div>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

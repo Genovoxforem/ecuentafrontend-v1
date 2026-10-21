@@ -54,8 +54,7 @@ function FieldControl({ field }: { field: PreviewField }) {
 // receive.
 export function DisabledFormPage({
   icon: Icon,
-  title,
-  sourcePath,
+  title,
   sections,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
@@ -85,12 +84,7 @@ export function DisabledFormPage({
     >
       <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
         <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">{sourcePath}</code> — a classic full-page-reload page, no JSON API.
-          {sections.length > 0
-            ? " Fields below match that page's own form exactly; they're disabled since there's nothing to submit to."
-            : ' Not investigated field-by-field in this pass, so no layout is reproduced here — this exists to confirm the page and give it an in-app route instead of a direct backend link.'}
-        </p>
+        
       </Card>
 
       {sections.map((section, i) => (

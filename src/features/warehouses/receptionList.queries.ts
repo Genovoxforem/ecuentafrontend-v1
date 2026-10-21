@@ -1,12 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchAllPages, pickNum, pickNumOrNull, pickStr, usDate } from '../../api/fapiRow'
 
-// Real reference page: reception/list.php (List Of Receptions, and its
-// Draft/Validated/Processed nav variants via the same page's own
-// ?viewstatut=0/1/2 filter — confirmed live from source). No JSON exists
-// under reception/ (confirmed by grep across the whole directory), but
-// unlike expedition/list.php, City/Zip/Third-Party are already part of the
-// SAME real SQL join this page's own table renders (LEFT JOIN llx_societe)
-// — no per-record follow-up fetch needed at all, just one real page fetch.
+// reception/fapi/list.php (16 Oct 2026): receptions with their supplier (name, town, zip), vendor reference, planned
+// delivery date and status (0 draft, 1 validated, 2 processed, -1 cancelled); `status` filters in the query.
+// Replaces the reception/list.php scrape. Row fields are read defensively: newecuenta holds no receptions yet.
 export interface ReceptionListRow {
   id: number
   ref: string
@@ -18,60 +17,39 @@ export interface ReceptionListRow {
   plannedDeliveryDate: string
   status: string
   billed: string
+  statusCode: number
+  poId: number | null
+  poRef: string
 }
 
-function parseReceptionList(html: string): ReceptionListRow[] {
-  const rows: ReceptionListRow[] = []
-  const tbodyStart = html.indexOf('<tbody>')
-  const tbodyEnd = html.indexOf('</tbody>', tbodyStart)
-  if (tbodyStart === -1 || tbodyEnd === -1) return rows
-  const tbodyHtml = html.slice(tbodyStart, tbodyEnd)
-
-  const rowRe = /<tr>([\s\S]*?)<\/tr>/g
-  let m: RegExpExecArray | null
-  while ((m = rowRe.exec(tbodyHtml))) {
-    const rowHtml = m[1]
-    const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/g
-    const cells: string[] = []
-    let c: RegExpExecArray | null
-    while ((c = cellRe.exec(rowHtml))) cells.push(c[1])
-    if (cells.length < 8) continue
-
-    const refMatch = cells[0].match(/reception\/card\.php\?id=(\d+)">([^<]+)<\/a>/)
-    if (!refMatch) continue
-    const refVendor = cells[1].replace(/<[^>]*>/g, '').trim()
-    const customerMatch = cells[2].match(/socid=(\d+)[^"]*"[^>]*>[\s\S]*?<\/div>([^<]*)<\/a>/)
-    const city = cells[3].replace(/<[^>]*>/g, '').trim()
-    const zip = cells[4].replace(/<[^>]*>/g, '').trim()
-    const plannedDeliveryDate = cells[5].replace(/<[^>]*>/g, '').trim()
-    const statusMatch = cells[6].match(/title="[^"]*">([^<]*)<\/span>/)
-    const billed = cells[7].replace(/<[^>]*>/g, '').trim()
-
-    rows.push({
-      id: Number(refMatch[1]),
-      ref: refMatch[2].trim(),
-      refVendor,
-      thirdPartyName: customerMatch ? customerMatch[2].trim() : '',
-      socid: customerMatch ? Number(customerMatch[1]) : null,
-      city,
-      zip,
-      plannedDeliveryDate,
-      status: statusMatch ? statusMatch[1] : '',
-      billed,
-    })
+export function receptionRowFromApi(r: any): ReceptionListRow {
+  const origin = ((r.origins ?? []) as any[])[0]
+  return {
+    id: pickNum(r, 'id'),
+    ref: pickStr(r, 'ref'),
+    refVendor: pickStr(r, 'ref_supplier', 'ref_vendor'),
+    thirdPartyName: pickStr(r, 'supplier.name', 'thirdparty.name', 'company'),
+    socid: pickNumOrNull(r, 'supplier.id', 'thirdparty.id', 'socid'),
+    city: pickStr(r, 'supplier.town', 'thirdparty.town', 'town'),
+    zip: pickStr(r, 'supplier.zip', 'thirdparty.zip', 'zip'),
+    plannedDeliveryDate: usDate(r.date_delivery ?? r.planned_delivery),
+    status: pickStr(r, 'status_label'),
+    billed: pickStr(r, 'billed_label') || (r.billed ? 'Yes' : 'No'),
+    statusCode: pickNum(r, 'status', 'fk_statut'),
+    poId: origin ? pickNumOrNull(origin, 'id', 'fk_source') : null,
+    poRef: origin ? pickStr(origin, 'ref') : '',
   }
-  return rows
+}
+
+export async function fetchReceptionsFapi(params: Record<string, unknown> = {}): Promise<ReceptionListRow[]> {
+  const items = await fetchAllPages((page) => fapiGet<any>('/reception/fapi/list.php', { page, limit: 100, ...params }))
+  return items.map(receptionRowFromApi)
 }
 
 export function useReceptionList(statusFilter?: number) {
   return useQuery({
     queryKey: ['warehouses', 'receptionList', statusFilter],
-    queryFn: async (): Promise<ReceptionListRow[]> => {
-      const params = statusFilter !== undefined ? `?viewstatut=${statusFilter}` : ''
-      const res = await fetch(`/reception/list.php${params}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseReceptionList(await res.text())
-    },
+    queryFn: () => fetchReceptionsFapi(statusFilter !== undefined ? { status: statusFilter } : {}),
     staleTime: 1000 * 30,
   })
 }

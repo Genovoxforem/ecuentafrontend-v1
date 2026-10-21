@@ -1,41 +1,31 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
+import { fapi } from '../../api/axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { fetchAllPages, usDate } from '../../api/fapiRow'
+import { fetchShipmentsFapi } from './shipmentListEnriched.queries'
+import { customerLookupsQuery } from '../customers/thirdPartyOptions.queries'
+import { stockRowFromApi } from '../products/productTools.queries'
+import type { ReassortData } from '../../api/products'
 import { todayIso } from '../../shared/localCollection'
-import { fetchLegacyDocument, legacyRefusalMessages, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from '../generalLedger/bindLines.queries'
-import {
-  parseWarehouseListDocument,
-  parseInventoryListDocument,
-  parseWarehouseCardDocument,
-  parseInventoryCardDocument,
-  parseMovementListApiResponse,
-  parseWarehouseEventsDocument,
-  parseWarehouseEditFormDocument,
-  looksLikeLegacyLoginPage,
-  type WarehouseListRow,
-  type InventoryListRow,
-  type WarehouseCard,
-  type InventoryCard,
-  type WarehouseMovementsData,
-  type WarehouseEventsData,
-  type WarehouseEditFormData,
-} from './warehouseHtmlParser'
-import { parseLandedCostList, type LandedCostListData } from './landedCostListParser'
+import type {
+  WarehouseListRow,
+  InventoryListRow,
+  WarehouseCard,
+  InventoryCard,
+  WarehouseMovementsData,
+  WarehouseMovementRow,
+  WarehouseEventsData,
+  WarehouseEditFormData,
+} from './warehouseTypes'
 
-// Warehouses and Inventories both turned out to have real backends after
-// all — product/stock/list.php and product/inventory/list.php (found by
-// checking those exact legacy pages live, the same "dead REST route, real
-// legacy page" pattern already found for Customer create/Customer Groups/
-// the Third Party wizard dropdowns elsewhere in this app). Create actions
-// are real too: warehouses go through quicklinks_ajax.php?type=savewarehouse
-// (a genuine INSERT INTO llx_entrepot, confirmed by reading that file
-// directly — no CSRF token needed), inventories through
-// product/inventory/card.php?action=add (needs the real token off the
-// create page first, like societe/api/societes.php's mutations elsewhere).
-// Both confirmed live: a real row appears in the real list page afterward.
-//
-// Landed Costs are read from the real list page (useLandedCostList below);
-// Racks/Shelves/Rack Assignments live in racks.queries.ts.
+// Warehouses, inventories and the warehouse events tab, all on product/stock/fapi (16 Oct 2026):
+//   warehouse.php (get / create / update / close / open / delete), warehouses.php + dashboard.php (list and values),
+//   inventory.php (list, card, create, validate / set_draft / cancel / delete), warehouse_events.php (movement log,
+//   linked events, files).
+// Racks, shelves and placements live in racks.queries.ts; inventory count lines in inventoryLines.queries.ts.
+const WH_FAPI = '/product/stock/fapi/warehouse.php'
+const INV_FAPI = '/product/stock/fapi/inventory.php'
 
 export type { WarehouseListRow, InventoryListRow }
 
@@ -45,21 +35,53 @@ function useWarehouseListQuery() {
   return useQuery({
     queryKey: WAREHOUSE_LIST_KEY,
     queryFn: async (): Promise<WarehouseListRow[]> => {
-      const doc = await fetchLegacyDocument('/product/stock/list.php')
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseWarehouseListDocument(doc)
+      const [list, dash] = await Promise.all([fapiGet<any>('/product/stock/fapi/warehouses.php', { limit: 500 }), fapiGet<any>('/product/stock/fapi/dashboard.php')])
+      const values = new Map<number, { cost: number; sale: number }>(((dash.by_warehouse ?? []) as any[]).map((w) => [Number(w.id), { cost: Number(w.value_at_cost) || 0, sale: Number(w.value_at_sale) || 0 }]))
+      return ((list.items ?? []) as any[]).map(
+        (w): WarehouseListRow => ({
+          id: Number(w.id),
+          ref: w.ref ?? '',
+          shortName: w.location ?? '',
+          environment: '',
+          inputStockValue: values.get(Number(w.id))?.cost ?? 0,
+          valueForSell: values.get(Number(w.id))?.sale ?? 0,
+          statusLabel: Number(w.status) === 1 ? 'Open' : 'Closed',
+        }),
+      )
     },
     staleTime: 1000 * 30,
   })
 }
 
-// Plain-array shape kept for the many existing warehouse-picker consumers
-// (Stock Transfer/Correction/Movements, Racks, Box Break, Mass Transfer) —
-// they only ever read .ref/.shortName, both of which the real row shape
-// still has, so this is a drop-in swap from the old local-only stub.
+// Plain-array shape kept for the many warehouse-picker consumers (Stock Transfer / Correction / Movements, Racks, Box
+// Break, Mass Transfer): they only read .ref / .shortName.
 export function useWarehouses(): WarehouseListRow[] {
   const { data } = useWarehouseListQuery()
   return data ?? []
+}
+
+// A warehouse dropdown's choices from product/stock/fapi/warehouses.php (entity-isolated). `open` is the status
+// (1 = open), for picking a sensible default.
+export interface WarehousePickerOption {
+  id: number
+  ref: string
+  label: string
+  open: boolean
+}
+
+export function useWarehousePickerOptions() {
+  return useQuery({
+    queryKey: ['warehouses', 'pickerOptions'],
+    queryFn: async (): Promise<WarehousePickerOption[]> => {
+      const { data } = await fapi.get<{ success: boolean; message?: string | null; data: { items?: Array<{ id: number; ref?: string; label?: string; status?: number | string }> } }>(
+        '/product/stock/fapi/warehouses.php',
+        { params: { limit: 500 } },
+      )
+      if (!data.success) throw new Error(data.message || 'Could not load the warehouses.')
+      return (data.data.items ?? []).map((w) => ({ id: w.id, ref: w.ref || w.label || '', label: w.label || w.ref || '', open: Number(w.status) === 1 }))
+    },
+    staleTime: 1000 * 60 * 5,
+  })
 }
 
 export function useWarehouseList() {
@@ -81,28 +103,17 @@ export interface NewWarehouseInput {
   status: 'Open' | 'Closed'
 }
 
+// 409 on a duplicate ref (the ref is the warehouse's name in this schema); fk_parent is accepted as parent_id.
 export function useCreateWarehouseReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewWarehouseInput) => {
-      const form = new URLSearchParams()
-      form.set('type', 'savewarehouse')
-      form.set('libelle', input.ref)
-      form.set('lieu', input.shortName)
-      form.set('fk_parent', input.fkParent)
-      form.set('description', input.description)
-      form.set('address', input.address)
-      form.set('zip', input.zip)
-      form.set('town', input.city)
-      form.set('country_id', input.countryId)
-      form.set('phone', input.phone)
-      form.set('fax', input.fax)
-      form.set('statut', input.status === 'Open' ? '1' : '0')
-      const { data } = await axios.post<{ savedValues?: unknown; selectedRowid?: string }>('/quicklinks_ajax.php', form, {
-        transformResponse: (raw) => JSON.parse(String(raw).trim()),
-      })
-      if (!data.selectedRowid) throw new Error('Failed to create warehouse.')
-      return { id: Number(data.selectedRowid) }
+      const d = await fapiPost<any>(
+        WH_FAPI,
+        { ref: input.ref, lieu: input.shortName, parent_id: Number(input.fkParent) || 0, description: input.description, address: input.address, zip: input.zip, town: input.city, country_id: Number(input.countryId) || undefined, phone: input.phone, fax: input.fax, status: input.status === 'Open' ? 1 : 0 },
+        { action: 'create' },
+      )
+      return { id: Number(d.warehouse?.id ?? d.id) }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: WAREHOUSE_LIST_KEY })
@@ -110,37 +121,84 @@ export function useCreateWarehouseReal() {
   })
 }
 
-// product/stock/card.php?id=X — a single warehouse's own detail page (no
-// REST API under product/stock/ at all, confirmed — only ajax/ helpers for
-// unrelated features), so this scrapes it directly. See
-// parseWarehouseCardDocument's own header comment.
+// warehouse.php?id=: the warehouse, its parent and children, racks and a stock summary, with available_actions (each
+// action says whether it is allowed now and why not); the products held come from reassort.php?warehouse=.
 export function useWarehouseDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['warehouses', 'detail', id],
     queryFn: async (): Promise<WarehouseCard> => {
-      const doc = await fetchLegacyDocument(`/product/stock/card.php`, new URLSearchParams({ id: id ?? '' }))
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseWarehouseCardDocument(doc, Number(id))
+      const [d, stock] = await Promise.all([fapiGet<any>(WH_FAPI, { id }), fapiGet<ReassortData>('/product/stock/fapi/reassort.php', { warehouse: id, limit: 500, type: 0 })])
+      const w = d.warehouse ?? {}
+      const actions = new Map<string, { allowed: boolean; reason: string }>(((d.available_actions ?? []) as any[]).map((a) => [a.action, { allowed: Boolean(a.allowed), reason: a.reason ?? '' }]))
+      const address = [w.address, w.zip, w.town].filter(Boolean).join(', ')
+      return {
+        id: Number(w.id),
+        ref: w.ref ?? '',
+        statusLabel: w.is_open ? 'Open' : 'Closed',
+        locationSummary: address,
+        environment: '',
+        parentWarehouseName: w.parent?.ref ?? '',
+        parentWarehouseId: w.parent_id ? Number(w.parent_id) : null,
+        description: w.description ?? '',
+        differentProductsCount: Number(d.stock?.products) || 0,
+        totalProductsCount: Number(d.stock?.qty) || 0,
+        inputStockValue: Number(d.stock?.value_at_cost) || 0,
+        latestMovement: '',
+        tags: [] as string[],
+        editUrl: actions.get('update')?.allowed ? 'edit' : '',
+        deleteUrl: actions.get('delete')?.allowed ? 'delete' : '',
+        deleteRefusedTitle: actions.get('delete')?.allowed ? '' : `Cannot delete: ${actions.get('delete')?.reason ?? 'not allowed'}`,
+        products: (stock.items ?? []).map((item) => {
+          const r = stockRowFromApi(item)
+          return {
+            id: Number(r.id),
+            ref: r.ref,
+            label: r.label,
+            units: r.physical,
+            weightedAvgPrice: Number(item.pmp) || 0,
+            inputStockValue: r.value ?? 0,
+            sellingUnitPrice: Number(item.price) || 0,
+            valueForSell: r.physical * (Number(item.price) || 0),
+            transferUrl: 'transfer',
+            correctionUrl: 'correction',
+          }
+        }),
+      }
     },
     enabled: !!id,
   })
 }
 
-// product/stock/card.php?action=edit&id=X — see warehouseHtmlParser.ts's
-// parseWarehouseEditFormDocument() comment for the real field names/option
-// sources this and the mutation below rely on.
 export function useWarehouseEditForm(id: string | undefined) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ['warehouses', 'editForm', id],
     queryFn: async (): Promise<WarehouseEditFormData> => {
-      const doc = await fetchLegacyDocument('/product/stock/card.php', new URLSearchParams({ action: 'edit', id: id ?? '' }))
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseWarehouseEditFormDocument(doc)
+      const [d, list, lookups] = await Promise.all([fapiGet<any>(WH_FAPI, { id }), fapiGet<any>('/product/stock/fapi/warehouses.php', { limit: 500 }), queryClient.ensureQueryData(customerLookupsQuery)])
+      const w = d.warehouse ?? {}
+      return {
+        token: '',
+        ref: w.ref ?? '',
+        shortNameLocation: w.location ?? '',
+        parentWarehouseId: w.parent_id ? String(w.parent_id) : '',
+        parentWarehouseOptions: [{ value: '', label: '' }, ...((list.items ?? []) as any[]).filter((x) => String(x.id) !== String(id)).map((x) => ({ value: String(x.id), label: x.ref ?? '' }))],
+        description: w.description ?? '',
+        address: w.address ?? '',
+        zipCode: w.zip ?? '',
+        city: w.town ?? '',
+        countryId: w.country_id ? String(w.country_id) : '',
+        countryOptions: [{ value: '', label: '' }, ...lookups.countries.map((c) => ({ value: String(c.id), label: c.label }))],
+        phone: w.phone ?? '',
+        fax: w.fax ?? '',
+        status: String(w.status ?? 1),
+      }
     },
     enabled: !!id,
   })
 }
 
+// update (422 when a warehouse is made its own parent or sits below itself), then open / close, which are their own
+// actions on this endpoint. Note: update does not change `ref` (reported to the backend team).
 export function useUpdateWarehouse(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -158,23 +216,12 @@ export function useUpdateWarehouse(id: string | undefined) {
       fax: string
       status: string
     }) => {
-      const body = new URLSearchParams()
-      body.set('token', input.token)
-      body.set('action', 'update')
-      body.set('id', id ?? '')
-      body.set('libelle', input.ref)
-      body.set('lieu', input.shortNameLocation)
-      body.set('fk_parent', input.parentWarehouseId)
-      body.set('desc', input.description)
-      body.set('address', input.address)
-      body.set('zipcode', input.zipCode)
-      body.set('town', input.city)
-      body.set('country_id', input.countryId)
-      body.set('phone', input.phone)
-      body.set('fax', input.fax)
-      body.set('statut', input.status)
-      const res = await fetch('/product/stock/card.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(
+        WH_FAPI,
+        { id: Number(id), ref: input.ref, lieu: input.shortNameLocation, parent_id: Number(input.parentWarehouseId) || 0, description: input.description, address: input.address, zip: input.zipCode, town: input.city, country_id: Number(input.countryId) || undefined, phone: input.phone, fax: input.fax },
+        { action: 'update' },
+      )
+      await fapiPost(WH_FAPI, { id: Number(id) }, { action: input.status === '1' ? 'open' : 'close' }).catch(() => undefined)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['warehouses', 'detail', id] })
@@ -192,69 +239,114 @@ export interface WarehouseMovementFilters {
   page?: number
 }
 
-// product/stock/movement_list.php is a pure JS SPA shell (see
-// warehouseHtmlParser.ts's own header comment) — its real data is a genuine
-// JSON API at product/stock/ajax/movement_list_api.php, read with the same
-// session cookie as every other legacy scrape in this app. No CSRF token
-// needed for the read-only get_page_data action (confirmed by reading the
-// dispatcher's source — the token check only guards the mutating actions).
+// The origin of a movement as an in-app route, from the origin type and id the API gives.
+function originRoute(type: string, id: number): string {
+  if (!id) return ''
+  if (type === 'facture') return `/invoices/${id}`
+  if (type === 'commande') return `/orders/${id}`
+  if (type === 'order_supplier' || type === 'commande_fournisseur') return `/purchase-orders/${id}`
+  return ''
+}
+
+const ORIGIN_LABEL: Record<string, string> = { facture: 'Invoice', commande: 'Order', order_supplier: 'Purchase order', commande_fournisseur: 'Purchase order', inventory: 'Inventory', expedition: 'Shipment', reception: 'Reception' }
+
+async function fetchWarehouseEvents(id: string, params: Record<string, unknown> = {}) {
+  return fapiGet<any>('/product/stock/fapi/warehouse_events.php', { id, ...params })
+}
+
+// warehouse_events.php: the warehouse's movement log (date, product, quantity and direction, type, origin document
+// and author) with totals over the whole filtered set. The classic movement list's sale / purchase / lot tiles are not
+// part of it, so the tiles are worked out here from the movements read; the date range and inventory-code filters run
+// here too (the endpoint filters by product, batch and page).
 export function useWarehouseMovements(id: string | undefined, filters: WarehouseMovementFilters) {
   return useQuery({
     queryKey: ['warehouses', 'movements', id, filters],
     queryFn: async (): Promise<WarehouseMovementsData> => {
-      const params = new URLSearchParams({ action: 'get_page_data', id: id ?? '' })
-      if (filters.dateRange) params.set('newdatepicker', filters.dateRange)
-      if (filters.productId) params.set('fk_producter', filters.productId)
-      if (filters.batch) params.set('prod_lot', filters.batch)
-      if (filters.inventoryCode) params.set('prod_invoice', filters.inventoryCode)
-      if (filters.page) params.set('page', String(filters.page))
-      const res = await fetch(`/product/stock/ajax/movement_list_api.php?${params.toString()}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      let json: { success: boolean; error?: string; data?: unknown }
-      try {
-        json = await res.json()
-      } catch {
-        throw new Error(NOT_SIGNED_IN_MESSAGE)
+      const d = await fetchWarehouseEvents(id!, { product: filters.productId || undefined, batch: filters.batch || undefined, page: (filters.page ?? 0) + 1, limit: 250 })
+      const all: any[] = d.movements ?? []
+      const movements: WarehouseMovementRow[] = all
+        .filter((m) => !filters.inventoryCode || String(m.inventory_code ?? '') === filters.inventoryCode)
+        .map((m) => ({
+          id: Number(m.id),
+          dateFormatted: m.date_label ?? usDate(m.date),
+          productRef: m.product_ref ?? '',
+          productLabel: m.product_label ?? '',
+          batch: m.batch ?? '',
+          inventoryCode: m.inventory_code ?? '',
+          label: m.label ?? '',
+          typeLabel: m.type_label ?? '',
+          originText: m.origin_id ? `${ORIGIN_LABEL[String(m.origin_type)] ?? m.origin_type ?? ''} #${m.origin_id}` : '',
+          originUrl: originRoute(String(m.origin_type ?? ''), Number(m.origin_id)),
+          costPrice: m.unit_price != null ? String(m.unit_price) : '',
+          qtyDisplay: String(m.qty ?? ''),
+          zraStatusLabel: '',
+        }))
+      const sum = (pred: (m: any) => boolean) => all.filter(pred).reduce((s, m) => s + Math.abs(Number(m.qty) || 0), 0)
+      const today = new Date().toISOString().slice(0, 10)
+      const isToday = (m: any) => usDate(m.date) === usDate(today)
+      const sold = (m: any) => m.direction === 'out' && m.origin_type === 'facture'
+      const bought = (m: any) => m.direction === 'in' && /fourn|supplier|reception/i.test(String(m.origin_type ?? ''))
+      const correction = (m: any) => !m.origin_id
+      return {
+        stats: {
+          saleUseQty: String(sum((m) => m.direction === 'out')),
+          saleUseToday: String(sum((m) => m.direction === 'out' && isToday(m))),
+          soldQty: String(sum(sold)),
+          soldToday: String(sum((m) => sold(m) && isToday(m))),
+          purchaseQty: String(sum(bought)),
+          purchaseToday: String(sum((m) => bought(m) && isToday(m))),
+          lotUsedCount: String(all.filter((m) => m.batch).length),
+          lotUsedToday: String(all.filter((m) => m.batch && isToday(m)).length),
+          correctionCount: String(all.filter(correction).length),
+          correctionToday: String(all.filter((m) => correction(m) && isToday(m)).length),
+        },
+        movements,
+        totalRecords: Number(d.pagination?.total ?? movements.length),
+        page: Number(d.pagination?.page ?? 1) - 1,
+        limit: Number(d.pagination?.limit ?? 250),
+        products: Array.from(new Map(all.map((m) => [m.product_id, { id: Number(m.product_id), ref: m.product_ref ?? '', label: m.product_label ?? '' }])).values()),
+        batches: Array.from(new Set(all.map((m) => String(m.batch ?? '')).filter(Boolean))),
+        inventoryCodes: Array.from(new Set(all.map((m) => String(m.inventory_code ?? '')).filter(Boolean))),
+        dateRange: '',
+        zraEnabled: false,
+        batchTrackingEnabled: all.some((m) => m.batch),
       }
-      if (!json.success) throw new Error(json.error || 'Failed to load stock movements.')
-      return parseMovementListApiResponse(json.data)
     },
     enabled: !!id,
   })
 }
 
-// product/stock/events.php — the real Linked files + Latest 10 linked
-// events tab, same no-REST-API scrape pattern as the Warehouse/Stock
-// movements tabs. See parseWarehouseEventsDocument's own header comment.
+// warehouse_events.php: the linked events and the files of the warehouse. The document-generation form, the author
+// and the creation / modification dates of the classic events page are not part of the endpoint (listed as backend
+// requests), so the card hides them.
 export function useWarehouseEvents(id: string | undefined) {
   return useQuery({
     queryKey: ['warehouses', 'events', id],
     queryFn: async (): Promise<WarehouseEventsData> => {
-      const doc = await fetchLegacyDocument('/product/stock/events.php', new URLSearchParams({ id: id ?? '' }))
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseWarehouseEventsDocument(doc)
+      const d = await fetchWarehouseEvents(id!)
+      return {
+        linkedFiles: ((d.files ?? []) as any[]).map((f) => ({ name: String(f.name ?? f.filename ?? ''), url: String(f.url ?? '') })),
+        docGen: { token: '', modelOptions: [], langOptions: [], defaultLang: '' },
+        events: ((d.events ?? []) as any[]).map((e) => ({ ref: String(e.ref ?? e.id ?? ''), date: usDate(e.date ?? e.datep), by: String(e.author ?? e.by ?? ''), type: String(e.type ?? e.type_label ?? ''), title: String(e.label ?? e.title ?? '') })),
+        addEventUrl: '',
+        createdByName: '',
+        createdByUrl: '',
+        createdById: null,
+        creationDate: '',
+        lastModificationDate: '',
+      }
     },
     enabled: !!id,
   })
 }
 
-// POSTs the real action=builddoc handler on product/stock/events.php's own
-// #builddoc_form (see warehouseHtmlParser.ts's WarehouseEventsData comment
-// for the field contract and the earlier finding that this may silently
-// produce no file on this deployment).
+// There is no document generation action on warehouse_events.php yet (the classic builddoc form is gone); the events
+// card hides the control while docGen has no templates, so this only exists for the card's type.
 export function useGenerateWarehouseDoc(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { token: string; model: string; langId: string }) => {
-      const body = new URLSearchParams()
-      body.set('action', 'builddoc')
-      body.set('token', input.token)
-      body.set('buttongeneratetype', 'Generate')
-      body.set('model', input.model)
-      body.set('lang_id', input.langId)
-      body.set('builddoc_generatebutton', 'Generate')
-      const res = await fetch(`/product/stock/events.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    mutationFn: async (_input: { token: string; model: string; langId: string }) => {
+      throw new Error('Generating a warehouse document needs a backend action that does not exist yet.')
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['warehouses', 'events', id] })
@@ -268,9 +360,19 @@ function useInventoryListQuery() {
   return useQuery({
     queryKey: INVENTORY_LIST_KEY,
     queryFn: async (): Promise<InventoryListRow[]> => {
-      const doc = await fetchLegacyDocument('/product/inventory/list.php')
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseInventoryListDocument(doc)
+      const items = await fetchAllPages((page) => fapiGet<any>(INV_FAPI, { page, limit: 100 }))
+      return items.map(
+        (i): InventoryListRow => ({
+          id: Number(i.id),
+          ref: i.ref || `(PROV${i.id})`,
+          label: i.title ?? '',
+          warehouseId: i.warehouse_id ? Number(i.warehouse_id) : null,
+          warehouseLabel: i.warehouse_ref ?? '',
+          productLabel: i.product_ref ?? '',
+          valueDate: usDate(i.date_inventory),
+          statusLabel: i.status_label ?? '',
+        }),
+      )
     },
     staleTime: 1000 * 30,
   })
@@ -286,15 +388,33 @@ export function useInventoryList() {
   return { inventories: data ?? [], isLoading, isError, error, refetch }
 }
 
-// product/inventory/card.php?id=X — a single inventory's own detail page.
-// See parseInventoryCardDocument's own header comment.
+// inventory.php?id=: the inventory with its lines, totals and available_actions (allowed + the reason when not).
+// There is no modify action (title / date) and no linked-events or email API for an inventory yet.
 export function useInventoryDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['warehouses', 'inventoryDetail', id],
     queryFn: async (): Promise<InventoryCard> => {
-      const doc = await fetchLegacyDocument(`/product/inventory/card.php`, new URLSearchParams({ id: id ?? '' }))
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseInventoryCardDocument(doc, Number(id))
+      const d = await fapiGet<any>(INV_FAPI, { id })
+      const inv = d.inventory ?? {}
+      const actions = new Map<string, boolean>(((d.available_actions ?? []) as any[]).map((a) => [a.action, Boolean(a.allowed)]))
+      return {
+        id: Number(inv.id),
+        label: inv.title ?? '',
+        warehouseId: inv.warehouse_id ? Number(inv.warehouse_id) : null,
+        warehouseLabel: inv.warehouse?.ref ?? '',
+        productId: inv.product_id ? Number(inv.product_id) : null,
+        productLabel: inv.product?.ref ?? '',
+        valueDate: usDate(inv.date_inventory),
+        statusLabel: inv.status_label ?? '',
+        emailUrl: '',
+        modifyUrl: '',
+        validateUrl: actions.get('validate') ? 'validate' : '',
+        backToDraftUrl: actions.get('set_draft') ? 'set_draft' : '',
+        deleteUrl: actions.get('delete') ? 'delete' : '',
+        relatedObjects: [] as InventoryCard['relatedObjects'],
+        linkedEvents: [] as InventoryCard['linkedEvents'],
+        addEventUrl: '',
+      }
     },
     enabled: !!id,
   })
@@ -308,37 +428,12 @@ export interface NewInventoryInput {
   valueDate: string
 }
 
-// product/inventory/card.php's own create form (action=add) enforces
-// Dolibarr's normal CSRF token check, unlike quicklinks_ajax.php above — the
-// token is fetched fresh from the create page first, same pattern as
-// fetchSocieteFormContext() elsewhere in this app.
 export function useCreateInventoryReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewInventoryInput) => {
-      const createPageHtml = await (await fetch('/product/inventory/card.php?action=create', { credentials: 'same-origin' })).text()
-      const tokenMatch = createPageHtml.match(/name="token" value="([a-f0-9]+)"/)
-      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
-
-      const [year, month, day] = input.valueDate.split('-')
-      const form = new URLSearchParams()
-      form.set('token', tokenMatch[1])
-      form.set('action', 'add')
-      form.set('ref', input.ref)
-      form.set('title', input.label)
-      form.set('fk_warehouse', input.warehouseId)
-      form.set('fk_product', input.productId)
-      form.set('date_inventory', `${month}/${day}/${year}`)
-      form.set('date_inventoryday', day)
-      form.set('date_inventorymonth', month)
-      form.set('date_inventoryyear', year)
-      form.set('add', 'Create')
-      await fetch('/product/inventory/card.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form.toString(),
-      })
+      const d = await fapiPost<any>(INV_FAPI, { warehouse_id: Number(input.warehouseId) || undefined, product_id: Number(input.productId) || undefined, title: input.label || input.ref, date_inventory: input.valueDate }, { action: 'create' })
+      return { id: Number(d.inventory?.id ?? d.id) }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_LIST_KEY })
@@ -346,41 +441,13 @@ export function useCreateInventoryReal() {
   })
 }
 
-// Real delete is a two-step GET flow, confirmed by reading the rendered
-// card.php live: the toolbar's own href is only `action=delete&token=...`
-// (no confirm param at all — Dolibarr renders its own confirm box on that
-// same page first), and that box's real "Yes" button is
-// `action=confirm_delete&confirm=yes&token=...`. window.confirm() here
-// replaces that in-page box; the token is re-scraped fresh right before
-// deleting (same "fetch a live token, don't cache one" pattern already used
-// for Create above) since it can rotate between page loads.
-//
-// Live-tested against a disposable record on this backend and found a real,
-// pre-existing bug: deleting an inventory always fails with a genuine SQL
-// error — "Table 'bazaudye.llx_inventory_extrafields' doesn't exist" (the
-// Inventory class's delete() also tries to clear that table; it was never
-// created on this database). Dolibarr returns this as HTTP 200 with the
-// error delivered via an inline showToast(msg, "error") script call, not a
-// non-2xx status or a static error div — so checking only `res.ok` would
-// have silently reported success on every delete attempt while the record
-// stayed exactly as it was. Checked here the same way the real Send Email
-// failure was found to surface (see inventoryEmail.queries.ts).
+// The endpoint removes the lines itself, so it works where llx_inventory_extrafields is missing (the classic delete
+// failed with an SQL error there).
 export function useDeleteInventoryReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const cardHtml = await (await fetch(`/product/inventory/card.php?id=${id}`, { credentials: 'same-origin' })).text()
-      const tokenMatch = cardHtml.match(/name="token" value="([a-f0-9]+)"/)
-      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
-      const res = await fetch(`/product/inventory/card.php?id=${id}&action=confirm_delete&confirm=yes&token=${tokenMatch[1]}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const toastErrorMatch = html.match(/showToast\("((?:[^"\\]|\\.)*)",\s*"error"\)/)
-      if (toastErrorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = toastErrorMatch[1].replace(/\\'/g, "'")
-        throw new Error((div.textContent ?? 'The legacy backend rejected this delete.').trim())
-      }
+      await fapiPost(INV_FAPI, { id: Number(id), confirm: true }, { action: 'delete' })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_LIST_KEY })
@@ -388,70 +455,26 @@ export function useDeleteInventoryReal() {
   })
 }
 
-// Warehouse delete — product/stock/card.php, the same two-step GET as the
-// inventory delete above: the toolbar's own link is only `action=delete`
-// (Dolibarr's confirm box), and the box's "Yes" is `action=confirm_delete&
-// confirm=yes&token=…`. The confirm step is replaced by the app's own dialog
-// at the call site; the token is scraped fresh right before deleting.
-//
-// Success is judged by where the request ends up, not by the status code: the
-// backend redirects to the warehouse list after a delete and otherwise re-shows
-// the card (with its refusal in an inline toast) still returning HTTP 200 —
-// e.g. a warehouse that still holds stock. Landing back on card.php therefore
-// means nothing was deleted.
-//
-// NOT exercised against a real delete: the reachable dev backends only hold real
-// warehouses, so the confirm URL and the redirect-on-success behaviour rest on
-// the stock Dolibarr card.php flow, not on a live run.
+// 409 when the warehouse holds stock or has children, or has movements and confirm is not sent.
 export function useDeleteWarehouse() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const cardHtml = await (await fetch(`/product/stock/card.php?id=${id}`, { credentials: 'same-origin' })).text()
-      const tokenMatch = cardHtml.match(/name="token" value="([a-f0-9]+)"/)
-      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
-      const res = await fetch(`/product/stock/card.php?action=confirm_delete&confirm=yes&id=${id}&token=${tokenMatch[1]}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const refusal = toastMessages(html).find((t) => t.type === 'error')?.message ?? legacyRefusalMessages(html)[0]
-      if (refusal) throw new Error(refusal)
-      if (/\/product\/stock\/card\.php/.test(new URL(res.url).pathname)) throw new Error('The backend did not delete this warehouse.')
+      await fapiPost(WH_FAPI, { id: Number(id), confirm: true }, { action: 'delete' })
     },
-    // Only the list: the page showing the deleted warehouse is still mounted
-    // when this runs, and refetching its (now gone) card would flash an error
-    // before the caller navigates away.
+    // Only the list: the page showing the deleted warehouse is still mounted when this runs, and refetching its (now
+    // gone) card would flash an error before the caller navigates away.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: WAREHOUSE_LIST_KEY })
     },
   })
 }
 
-// Real "Back to Draft" is a two-step GET flow, same shape as Delete — the
-// toolbar's own href (`action=setdraft&confirm=yes&token=...`) looks like a
-// one-step call (it already carries confirm=yes) but is NOT: card.php's own
-// source unconditionally renders a formconfirm() box for `action==setdraft`
-// regardless of that param, and the box's real "Yes" button submits a
-// DIFFERENT action, `confirm_setdraft`. Confirmed live the hard way — the
-// first version of this used action=setdraft directly, returned HTTP 200
-// with no error, and silently did nothing (status never actually changed);
-// action=confirm_setdraft is what actually flips it, verified by checking
-// the record's own status link before and after.
 export function useSetInventoryToDraftReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const cardHtml = await (await fetch(`/product/inventory/card.php?id=${id}`, { credentials: 'same-origin' })).text()
-      const tokenMatch = cardHtml.match(/name="token" value="([a-f0-9]+)"/)
-      if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
-      const res = await fetch(`/product/inventory/card.php?id=${id}&action=confirm_setdraft&confirm=yes&token=${tokenMatch[1]}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const toastErrorMatch = html.match(/showToast\("((?:[^"\\]|\\.)*)",\s*"error"\)/)
-      if (toastErrorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = toastErrorMatch[1].replace(/\\'/g, "'")
-        throw new Error((div.textContent ?? 'The legacy backend rejected this action.').trim())
-      }
+      await fapiPost(INV_FAPI, { id: Number(id) }, { action: 'set_draft' })
     },
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: INVENTORY_LIST_KEY })
@@ -460,37 +483,23 @@ export function useSetInventoryToDraftReal() {
   })
 }
 
-// fourn/facture/landedcostlist.php — the real List Landed Cost page (no JSON API behind it), read
-// with its own product filter (`?submitt=1&product_id=N`). See landedCostListParser.ts for the
-// backend page's PHP error that cuts the list short.
-export function useLandedCostList(productId: string) {
-  return useQuery({
-    queryKey: ['warehouses', 'landedCosts', productId],
-    queryFn: async (): Promise<LandedCostListData> => {
-      const params = productId ? new URLSearchParams({ submitt: '1', product_id: productId }) : undefined
-      return parseLandedCostList(await fetchLegacyDocument('/fourn/facture/landedcostlist.php', params))
+// POST inventory.php?action=validate freezes the lines (prefilled from stock); 409 when it has none or is not a draft.
+export function useValidateInventory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await fapiPost(INV_FAPI, { id: Number(id) }, { action: 'validate' })
     },
-    staleTime: 1000 * 30,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: INVENTORY_LIST_KEY })
+      queryClient.invalidateQueries({ queryKey: ['warehouses', 'inventoryDetail', id] })
+      queryClient.invalidateQueries({ queryKey: ['warehouses', 'inventoryLines', id] })
+    },
   })
 }
 
-// Racks/Shelves/Assign-Products are now backed by the real custom/racks/
-// module (racks.queries.ts) — see that file's header comment. The local-only
-// RackRecord/ShelfRecord/RackAssignmentRecord collections that used to live
-// here were built on an incorrect assumption that the module was disabled
-// server-side; it isn't (its permission check is commented out in source,
-// confirmed by reading racksindex.php directly), so they've been removed.
-
-// expedition/shipment-sidebar-list-ajax.php — a real DataTables JSON
-// endpoint (same {module}-sidebar-list-ajax.php pattern already confirmed
-// real for loan/loan-sidebar-list-ajax.php), found by grepping the
-// expedition/ tree for json_encode after ShipmentSearchPage/
-// ShipmentStatusList's own comments wrongly claimed no shipment endpoint
-// exists. It only selects rowid/ref/ref_customer/fk_statut/date_creation —
-// no city/zip/tracking/delivery-date fields, so the table below only shows
-// what's real rather than the reference app's full (unavailable) column set.
-// fk_statut: 0=Draft, 1=Validated, 2=Closed (same convention confirmed for
-// other Dolibarr status columns elsewhere in this app).
+// A shipment row for the sidebar-style lists; the full row (third party, tracking, delivery date ...) is
+// ShipmentListRow in shipmentListEnriched.queries.ts. Status: 0 draft, 1 validated, 2 processed.
 export interface ShipmentRow {
   id: string
   ref: string
@@ -504,28 +513,7 @@ const SHIPMENTS_KEY = ['warehouses', 'shipments'] as const
 export function useShipments() {
   return useQuery({
     queryKey: SHIPMENTS_KEY,
-    queryFn: async (): Promise<ShipmentRow[]> => {
-      // length=-1 (the usual "fetch everything" DataTables convention used
-      // elsewhere in this app) breaks this endpoint — it passes length
-      // straight into a MySQL LIMIT clause, which rejects a negative value
-      // and silently returns zero rows (confirmed live). A large explicit
-      // length gets the same "everything" result without that failure mode.
-      const res = await fetch('/expedition/shipment-sidebar-list-ajax.php?draw=1&start=0&length=1000', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      let json: { data?: Array<{ rowid: string; ref: string; custmr: string | null; fk_statut: string; date_creation: string }> }
-      try {
-        json = await res.json()
-      } catch {
-        throw new Error(NOT_SIGNED_IN_MESSAGE)
-      }
-      return (json.data ?? []).map((row) => ({
-        id: row.rowid,
-        ref: row.ref,
-        customerRef: row.custmr,
-        statusCode: Number(row.fk_statut),
-        dateCreation: row.date_creation,
-      }))
-    },
+    queryFn: async (): Promise<ShipmentRow[]> => (await fetchShipmentsFapi()).map((r) => ({ id: r.id, ref: r.ref, customerRef: r.customerRef, statusCode: r.statusCode, dateCreation: r.dateCreation })),
     staleTime: 1000 * 30,
   })
 }

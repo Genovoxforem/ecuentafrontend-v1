@@ -130,19 +130,20 @@ function PaymentMethods({ selected, onSelect }) {
                                 !configured
                                     ? "border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 cursor-not-allowed opacity-60"
                                     : active
-                                    ? "border-[#2c6291] bg-[#2c6291] text-white shadow-md"
-                                    : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:border-[#397db9]/50 hover:shadow-sm"
+                                    ? "border-[#2f6fe4] bg-[#2f6fe4] text-white shadow-md"
+                                    : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:border-[#3b82f6]/50 hover:shadow-sm"
                             }`}
                         >
-                            <Icon size={20} className={!configured ? "text-gray-400 dark:text-slate-500" : active ? "text-white" : "text-[#397db9]"} />
+                            <Icon size={20} className={!configured ? "text-gray-400 dark:text-slate-500" : active ? "text-white" : "text-[#3b82f6]"} />
                             <span className="w-full truncate text-center px-1">{label}</span>
-                            {configured && bankName && (
-                                <span className={`text-[10px] font-normal truncate max-w-full ${active ? "text-white/80" : "text-gray-400 dark:text-slate-500"}`}>
-                                    {bankName}
+                            {/* Fixed-height sub-line: the bank name (and the payment labels) load after the modal opens,
+                                so reserving the row keeps every tile — and the modal — the same size before and after. */}
+                            {configured ? (
+                                <span className={`h-[14px] max-w-full truncate text-[10px] font-normal leading-[14px] ${active ? "text-white/80" : "text-gray-400 dark:text-slate-500"}`}>
+                                    {bankName || "\u00A0"}
                                 </span>
-                            )}
-                            {!configured && (
-                                <span className="flex items-center gap-1 text-[10px] font-medium text-red-500 dark:text-red-400">
+                            ) : (
+                                <span className="flex h-[14px] items-center gap-1 text-[10px] font-medium leading-[14px] text-red-500 dark:text-red-400">
                                     <Settings size={10} /> Set up in module
                                 </span>
                             )}

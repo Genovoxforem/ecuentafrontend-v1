@@ -55,8 +55,8 @@ export function ShiftSalaryReportForm({ shift, title }: { shift: ShiftSalaryType
         <UserMinus size={20} className="text-brand" /> {title}
       </h2>
 
-      <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <Card className="!h-auto !flex-row flex-wrap items-end gap-4">
+        <div className="flex flex-1 flex-wrap items-end gap-4 [&>*]:min-w-44 [&>*]:flex-1">
           <Field label="Select Month" required>
             <MonthYearPicker value={month} onChange={setMonth} />
           </Field>
@@ -76,7 +76,7 @@ export function ShiftSalaryReportForm({ shift, title }: { shift: ShiftSalaryType
             <SearchableSelect value={employee} onChange={setEmployee} options={employeeOptions} placeholder="All" />
           </Field>
         </div>
-        <div className="flex flex-wrap items-center gap-2 mt-4">
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={handleGo} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover">
             Go
           </button>

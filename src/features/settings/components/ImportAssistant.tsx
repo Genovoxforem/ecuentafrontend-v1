@@ -4,16 +4,9 @@ import { FileInput, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SetupShell } from './SetupShell'
 
-// imports/index.php (list) and imports/import.php (wizard) — confirmed no
-// JSON API by reading the wizard's PHP directly (same $step/$action
-// full-page-reload pattern as Export Assistant). This exact dataset list
-// (imports/import.php) already has a real HTML-scrape-based parser
-// elsewhere in this app (importsHtmlParser.ts, used by the Customer/Vendor
-// Import wizard) — not reused here, to stay consistent with the rest of
-// this session's Admin/Setup sweep, where "no JSON API" means design-only
-// everywhere, not "scrape it because a scraper already exists for this
-// exact page." The rows below are the real dataset list, reproduced from
-// the reference screenshot (which was fully legible, unlike Export's).
+// Static setup overview, not the operational Customer/Vendor import wizard.
+// The operational wizard now uses the imports/fapi JSON endpoints; this
+// overview remains a design-only representation of the legacy import menu.
 const IMPORTABLE_DATASETS = [
   { module: 'Users & Groups', dataset: 'Users (Employees Or Not) And Properties' },
   { module: 'Members', dataset: 'Members' },

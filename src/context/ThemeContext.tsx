@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useLayoutEffect, useState, type ReactNode } from 'react'
 
 export type Theme = 'light' | 'dark' | 'blue-metal'
 
@@ -18,15 +18,27 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme !== 'light')
-    document.documentElement.setAttribute('data-theme', theme)
+  // Layout effect + transitions off for the switch: the html class/attribute must change before the
+  // browser paints, otherwise one frame shows new-theme components on old-theme tokens, and every
+  // transition-colors element then animates between the two (visible as flicker in the sidebar).
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    root.classList.add('theme-switching')
+    root.classList.toggle('dark', theme !== 'light')
+    root.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
+    const t = window.setTimeout(() => root.classList.remove('theme-switching'), 80)
+    return () => window.clearTimeout(t)
   }, [theme])
 
   const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'))
 
   return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>{children}</ThemeContext.Provider>
+}
+
+// All three themes share one layout (banner, density, compact spacing); each paints the banner its own way.
+export function usesBlueLayout(theme: Theme): boolean {
+  return theme === 'light' || theme === 'dark' || theme === 'blue-metal'
 }
 
 export function useTheme() {

@@ -3,7 +3,8 @@ import { Loader2, ReceiptText, UploadCloud } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyListPage } from '../../generalLedger/components/LegacyListPage'
-import { useSyncRebates, type RebateSyncResult } from '../rebate.queries'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useRebatesEnabled, useSyncRebates, type RebateSyncResult } from '../rebate.queries'
 
 const queryParam = (href: string | null, name: string) => new URLSearchParams((href ?? '').split('?')[1] ?? '').get(name) ?? ''
 
@@ -20,6 +21,7 @@ export function RebateInvoicesList() {
   const [outcome, setOutcome] = useState<RebateSyncResult | null>(null)
   const sync = useSyncRebates()
   const confirm = useConfirm()
+  const gate = useRebatesEnabled()
 
   const send = async () => {
     if (selected.size === 0) return
@@ -39,6 +41,11 @@ export function RebateInvoicesList() {
         setSelected(new Set())
       },
     })
+  }
+
+  if (gate.isLoading) return <LegacyLoadingCard label="Loading rebate invoices (value credit notes)…" />
+  if (gate.data && !gate.data.enabled) {
+    return <LegacyErrorCard title="Couldn't load rebate invoices (value credit notes)" message={gate.data.message} onRetry={() => gate.refetch()} />
   }
 
   return (

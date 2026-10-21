@@ -8,7 +8,7 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
-import { usePayments, type PaymentRow } from '../payments.queries'
+import { usePayments, usePaymentStats, type PaymentRow } from '../payments.queries'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -58,14 +58,17 @@ function sortValue(r: PaymentRow, key: SortKey): string | number {
 }
 
 // Payments received in one calendar month — the same real payments list as the
-// Report Area page (compta/paiement/list.php, see paymentsListParser.ts) asked
+// Report Area page (see payments.queries.ts) asked
 // for that month's period; the total and the table are that period's rows.
 export function PaymentsReportPage() {
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
   const [applied, setApplied] = useState({ month: now.getMonth(), year: now.getFullYear() })
-  const { data, isLoading, isFetching, isError, error, refetch } = usePayments(monthPeriod(applied.year, applied.month))
+  const period = monthPeriod(applied.year, applied.month)
+  const { data, isLoading, isFetching, isError, error, refetch } = usePayments(period)
+  const paymentStats = usePaymentStats(period)
+  const reportError = paymentStats.error ?? error
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
@@ -76,7 +79,7 @@ export function PaymentsReportPage() {
   const filtered = useMemo(() => rows.filter((r) => matchesSearch(r, search)), [rows, search])
   const { sorted, sort, toggleSort } = useSortableRows<PaymentRow, SortKey>(filtered, sortValue)
   const pageRows = sorted.slice((page - 1) * perPage, page * perPage)
-  const total = sorted.reduce((sum, r) => sum + r.amount, 0)
+  const total = paymentStats.data?.summary.total_amount ?? sorted.reduce((sum, r) => sum + r.amount, 0)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -93,13 +96,20 @@ export function PaymentsReportPage() {
     return { headers: COLUMN_LABELS, rows: exportRows }
   }
 
-  if (isError && !data) {
+  if ((isError && !data) || (paymentStats.isError && !paymentStats.data)) {
     return (
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileBarChart2 size={20} className="text-brand" /> Payments reports
         </h2>
-        <LegacyErrorCard title="Couldn't load the payments report" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+        <LegacyErrorCard
+          title="Couldn't load the payments report"
+          message={reportError instanceof Error ? reportError.message : 'Unknown error.'}
+          onRetry={() => {
+            refetch()
+            paymentStats.refetch()
+          }}
+        />
       </div>
     )
   }
@@ -131,14 +141,14 @@ export function PaymentsReportPage() {
             </select>
             <button
               type="button"
-              disabled={isFetching}
+              disabled={isFetching || paymentStats.isFetching}
               onClick={() => {
                 setApplied({ month, year })
                 setPage(1)
               }}
               className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
             >
-              {isFetching && <Loader2 size={14} className="animate-spin" />} Create
+              {(isFetching || paymentStats.isFetching) && <Loader2 size={14} className="animate-spin" />} Create
             </button>
           </div>
         </Card>

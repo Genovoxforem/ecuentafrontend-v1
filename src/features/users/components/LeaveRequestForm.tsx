@@ -92,7 +92,7 @@ export function LeaveRequestForm() {
       )}
 
       <Card className="!h-auto">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <Field label="User" required>
             <SearchableSelect value={employeeId} onChange={setEmployeeId} options={form.employees} placeholder="Select a user" />
           </Field>
@@ -155,25 +155,24 @@ export function LeaveRequestForm() {
           <Field label="Will be approved by" required>
             <SearchableSelect value={approverId} onChange={setApproverId} options={form.approvers} placeholder="Select a user" />
           </Field>
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <Field label="Description">
               <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
             </Field>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3 mt-5">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={createLeaveRequest.isPending || success}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-          >
-            {createLeaveRequest.isPending ? <Loader2 size={14} className="animate-spin" /> : <CalendarPlus size={14} />} Create leave request
-          </button>
-          <button type="button" onClick={() => navigate(ROUTES.leaveList)} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-            Cancel
-          </button>
+          <div className="flex items-end gap-3">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={createLeaveRequest.isPending || success}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            >
+              {createLeaveRequest.isPending ? <Loader2 size={14} className="animate-spin" /> : <CalendarPlus size={14} />} Create leave request
+            </button>
+            <button type="button" onClick={() => navigate(ROUTES.leaveList)} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
+              Cancel
+            </button>
+          </div>
         </div>
       </Card>
 

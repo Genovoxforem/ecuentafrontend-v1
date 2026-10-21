@@ -57,7 +57,7 @@ function StatTile({ label, value, icon: Icon, color }: { label: string; value: n
 // tally of the current on-screen state (defaults + whatever the user has
 // toggled), not a separate backend count — the real form has no other
 // source for them, since every employee always starts "marked" present.
-export function ManualShiftAttendanceForm({ shiftId, title, sourcePath }: { shiftId: 3 | 4; title: string; sourcePath: string }) {
+export function ManualShiftAttendanceForm({ shiftId, title }: { shiftId: 3 | 4; title: string; sourcePath: string }) {
   const [date, setDate] = useState(todayIso())
   const [employeeFilter, setEmployeeFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -69,7 +69,6 @@ export function ManualShiftAttendanceForm({ shiftId, title, sourcePath }: { shif
   const { data: allRows, isLoading, isError, error, refetch, isFetching } = useManualShiftAttendanceRows(shiftId, date, hasSearched)
   const mark = useMarkManualShiftAttendance()
 
-  const subtitle = shiftId === 3 ? 'Mark and manage employee attendance for special shifts.' : 'Mark and manage employee attendance for holiday shifts.'
 
   const employeeOptions = useMemo(
     () => [{ value: '', label: 'All Employees' }, ...(allRows ?? []).map((r) => ({ value: String(r.employeeId), label: r.name }))],
@@ -136,18 +135,6 @@ export function ManualShiftAttendanceForm({ shiftId, title, sourcePath }: { shif
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
       <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950 space-y-3">
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <UsersRound size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">{title}</h2>
-            <p className="text-xs text-text-faint mt-0.5">{subtitle}</p>
-            <p className="text-[11px] text-text-faint italic mt-0.5">
-              Backend page: <code className="font-mono">{sourcePath}</code>
-            </p>
-          </div>
-        </div>
 
         <div className="flex flex-wrap items-end gap-3">
           <div>

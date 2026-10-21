@@ -37,7 +37,7 @@ function PosNavbar({ onToggleSidebar, onOpenCart }) {
             </div>
 
             <div className="flex-1 flex items-center gap-2 max-w-xs bg-white rounded-lg px-3 py-1.5">
-                <Search size={14} className="text-[#397db9]" />
+                <Search size={14} className="text-[#3b82f6]" />
                 <input
                     type="text"
                     placeholder="Search products..."
@@ -49,7 +49,7 @@ function PosNavbar({ onToggleSidebar, onOpenCart }) {
                     type="button"
                     title="Scan Barcode"
                     onClick={() => setScannerOpen(true)}
-                    className="text-[#397db9] hover:text-[#2c6291] shrink-0"
+                    className="text-[#3b82f6] hover:text-[#2f6fe4] shrink-0"
                 >
                     <ScanBarcode size={16} />
                 </button>
@@ -62,7 +62,7 @@ function PosNavbar({ onToggleSidebar, onOpenCart }) {
                     type="button"
                     onClick={createNewSale}
                     title="Start a new parallel sale"
-                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[#397db9] text-white text-sm font-semibold hover:bg-[#2c6291]"
+                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[#3b82f6] text-white text-sm font-semibold hover:bg-[#2f6fe4]"
                 >
                     <ShoppingCart size={23} />
                     New Sale

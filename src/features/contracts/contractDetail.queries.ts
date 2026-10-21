@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { contractAction, deleteContract, fetchContract, updateContract, type CreateContractInput } from '../../api/contracts'
 
 // contrat/api/get_lines.php — real, confirmed by reading that file directly:
 // fetches the real Contrat + ContratLigne rows for one contract (session-
@@ -53,6 +54,58 @@ export function useContractLines(id: string | undefined) {
       return res.json()
     },
     enabled: !!id,
+  })
+}
+
+export function useContractApiDetail(id: string | undefined) {
+  return useQuery({
+    queryKey: ['contracts', 'fapi-detail', id],
+    queryFn: () => fetchContract(Number(id)),
+    enabled: !!id,
+  })
+}
+
+export function useContractOperation(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ action, lineId }: { action: 'validate' | 'activate_line' | 'close_line'; lineId?: number }) => {
+      if (!id) throw new Error('Missing contract id.')
+      return contractAction(Number(id), action, lineId === undefined ? undefined : { line_id: lineId })
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['contracts', 'fapi-detail', id] }),
+        queryClient.invalidateQueries({ queryKey: ['contracts', 'detail', id, 'lines'] }),
+        queryClient.invalidateQueries({ queryKey: ['contracts'] }),
+      ])
+    },
+  })
+}
+
+export function useDeleteContract(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => {
+      if (!id) throw new Error('Missing contract id.')
+      return deleteContract(Number(id))
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contracts'] }),
+  })
+}
+
+export function useUpdateContract(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Partial<CreateContractInput>) => {
+      if (!id) throw new Error('Missing contract id.')
+      return updateContract(Number(id), input)
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['contracts', 'fapi-detail', id] }),
+        queryClient.invalidateQueries({ queryKey: ['contracts'] }),
+      ])
+    },
   })
 }
 

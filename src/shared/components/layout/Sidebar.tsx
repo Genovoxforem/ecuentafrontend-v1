@@ -1,43 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Plus, X, Loader2, Search, ChevronDown, ChevronRight } from 'lucide-react'
 import type { NavItem, NavLeafItem } from '../../../features/navTypes'
 import { useAppMenu } from '../../nav/appMenu.queries'
 import { buildNavSections } from '../../nav/buildNavSections'
-import { PATH_SOURCE_SECTIONS, EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
+import { PATH_SOURCE_SECTIONS, EMPTY_SECTION_HOME_PATH, MENU_UNAVAILABLE_SECTIONS } from '../../nav/pathSourceSections'
 import { prefetchRoute } from '../../../app/routePrefetch'
 import { useTheme } from '../../../context/ThemeContext'
 import { getNavItemIcon, getNavItemIconTileClass } from '../../nav/getNavItemIcon'
+import { ROUTES } from '../../../routes'
+import { CurrentNavItem, navContains, pickCurrentItem, rememberNavClick } from './sidebarCurrent'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
-const RAIL_WIDTH_CLASS = 'w-[72px]'
-const RAIL_WIDTH_OFFSET_CLASS = 'left-[72px]'
+const RAIL_WIDTH_CLASS = 'w-[65px]'
+const RAIL_WIDTH_OFFSET_CLASS = 'left-[65px]'
 
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a
 // longer duration so the flyout feels calm rather than snappy.
-// A real backend menu can legitimately list the same real page twice at one
-// sibling level — a category heading whose own click target duplicates a
-// more specific sibling below it (Payroll's flat "Human Resource"/"All
-// Leave Request" pair is the confirmed live case: both resolve to the same
-// path). Without this, every sibling sharing that path independently
-// satisfies its own `currentUrl === item.path` check and all light up
-// together on one click. Only the LAST item at a given path (the more
-// specific one, listed after its heading) keeps the "you are here"
-// indicator; earlier siblings at the same path are suppressed.
-function computeSuppressedIndices(items: NavItem[]): Set<number> {
-  const lastIndexForPath = new Map<string, number>()
-  items.forEach((it, i) => {
-    if (it.path) lastIndexForPath.set(it.path, i)
-  })
-  const suppressed = new Set<number>()
-  items.forEach((it, i) => {
-    if (it.path && lastIndexForPath.get(it.path) !== i) suppressed.add(i)
-  })
-  return suppressed
-}
-
 function pathMatchesLocation(path: string | undefined, pathname: string, currentSearch: string): boolean {
   if (!path) return false
   const queryIndex = path.indexOf('?')
@@ -78,7 +59,7 @@ function sectionSubtitle(sectionKey: string): string {
   return descriptions[sectionKey] ?? 'Business Management'
 }
 
-function SidebarLeaf({ item, depth, navigate, location, blueMetal, suppressCurrent = false }: { item: NavLeafItem; depth: number; navigate: NavigateFunction; location: Location; blueMetal: boolean; suppressCurrent?: boolean }) {
+function SidebarLeaf({ item, depth, navigate, location, blueMetal }: { item: NavLeafItem; depth: number; navigate: NavigateFunction; location: Location; blueMetal: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -87,7 +68,8 @@ function SidebarLeaf({ item, depth, navigate, location, blueMetal, suppressCurre
   // the search string — which left every one of them permanently "loading"
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
-  const isCurrent = isLink && pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
+  const current = useContext(CurrentNavItem)
+  const isCurrent = isLink && item === current
   const ItemIcon = getNavItemIcon(item.label)
   const isImportantAsycudaImport = /import\s*\(\s*asycuda\s*\)/i.test(item.label)
   const [loading, setLoading] = useState(false)
@@ -104,6 +86,7 @@ function SidebarLeaf({ item, depth, navigate, location, blueMetal, suppressCurre
         isLink
           ? () => {
               setLoading(true)
+              rememberNavClick(item)
               navigate(item.path!)
             }
           : undefined
@@ -155,7 +138,6 @@ function SidebarNavItem({
   setHoverGroup,
   blueMetal,
   forceOpen = false,
-  suppressCurrent = false,
 }: {
   item: NavItem
   depth: number
@@ -168,10 +150,11 @@ function SidebarNavItem({
   setHoverGroup: (updater: (prev: Set<string>) => Set<string>) => void
   blueMetal: boolean
   forceOpen?: boolean
-  suppressCurrent?: boolean
 }) {
+  // Read before the leaf early-return below: hooks must run in the same order on every render.
+  const current = useContext(CurrentNavItem)
   if (!('items' in item) || !item.items) {
-    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} suppressCurrent={suppressCurrent} />
+    return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} />
   }
   // Full ancestor path, not just depth — depth alone can't tell two
   // same-depth groups under different parents apart, which would make the
@@ -190,14 +173,10 @@ function SidebarNavItem({
   // Holiday Management/All Leave Request page). currentUrl mirrors
   // SidebarLeaf's own comment: compared with the search string included
   // since a group's path can carry one too.
-  const hasActiveDescendant = item.items.some((sub) => itemContainsPath(sub, location))
-  const isCurrent = pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
+  const hasActiveDescendant = item.items.some((sub) => navContains(sub, current))
+  const isCurrent = item === current
   const isActive = isCurrent || hasActiveDescendant
   const ItemIcon = getNavItemIcon(item.label)
-  // Not memoized: item.items is small (a handful of sidebar rows) and this
-  // component is already an early-return above hooks, so a useMemo here
-  // would run conditionally and violate the Rules of Hooks.
-  const childSuppressed = computeSuppressedIndices(item.items)
   return (
     <div
       className="pt-1 first:pt-0"
@@ -225,6 +204,7 @@ function SidebarNavItem({
           type="button"
           onClick={() => {
             if (item.path) {
+              rememberNavClick(item)
               navigate(item.path)
               if (!isPinned) toggleGroup(groupKey, parentKey)
             } else {
@@ -276,7 +256,6 @@ function SidebarNavItem({
               hoverGroup={hoverGroup}
               setHoverGroup={setHoverGroup}
               blueMetal={blueMetal}
-              suppressCurrent={childSuppressed.has(i)}
               forceOpen={forceOpen}
             />
           ))}
@@ -300,11 +279,11 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const blueMetal = theme === 'blue-metal'
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
-  // React path (see buildNavSections) and covers the one frame before the
-  // request resolves.
+  // React path (see buildNavSections). Until the request answers, the sidebar
+  // shows no modules rather than the hard-coded list.
   const SECTIONS = useMemo(() => {
     const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
-    return sections.length > 0 ? sections : PATH_SOURCE_SECTIONS
+    return sections.length > 0 ? sections : MENU_UNAVAILABLE_SECTIONS
   }, [menu])
   const [activeKey, setActiveKey] = useState('home')
   const [hovering, setHovering] = useState(false)
@@ -323,7 +302,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
   const ActiveIcon = active.icon
   const visibleItems = useMemo(() => filterNavItems(active.items, blueMetal ? menuSearch : ''), [active.items, blueMetal, menuSearch])
-  const activeSuppressed = useMemo(() => computeSuppressedIndices(visibleItems), [visibleItems])
+  const currentItem = useMemo(() => pickCurrentItem(visibleItems, location), [visibleItems, location])
 
   // Sync activeKey to the current route's section — but ONLY when the route
   // changes (location.pathname) or the menu data loads (SECTIONS), never when
@@ -339,7 +318,13 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, location))) ??
       (location.pathname.startsWith('/ledger/') ? SECTIONS.find((section) => section.key === 'general-ledger') : undefined) ??
       // Same for an expense's own card (/expenses/card/:id), which is opened from the Expenses pages.
-      (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined)
+      (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined) ??
+      // Payroll V2's own tab screens (Templates, Shifts, Settings…) have no menu entry; they belong with its Dashboard.
+      (location.pathname.startsWith(`${ROUTES.payrollV2Dashboard}/`)
+        ? SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, { ...location, pathname: ROUTES.payrollV2Dashboard, search: '' })))
+        : undefined) ??
+      // Product pages without a menu entry of their own (a tag card, the price update grid) stay in Products.
+      (location.pathname.startsWith('/products/') ? SECTIONS.find((section) => section.key === 'products') : undefined)
     if (currentSection) setActiveKey(currentSection.key)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [SECTIONS, location.pathname, location.search])
@@ -349,10 +334,11 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   // sub-menu link (which navigates here) and landing on a URL directly, so
   // the active item is never hidden inside a collapsed group at any depth.
   useEffect(() => {
+    const winner = pickCurrentItem(active.items, location)
     function findOpenChain(items: NavItem[], parentKey: string): string[] | null {
       for (const item of items) {
         if (!('items' in item) || !item.items) continue
-        if (itemContainsPath(item, location)) {
+        if (winner ? navContains(item, winner) : itemContainsPath(item, location)) {
           const groupKey = `${parentKey}>${item.label}`
           const nested = findOpenChain(item.items, groupKey)
           return nested ? [groupKey, ...nested] : [groupKey]
@@ -393,7 +379,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const expanded = open || hovering
 
   return (
-    <div className={`relative flex h-full shrink-0 bg-rail-bg transition-[width] duration-300 ease-in-out ${expanded ? 'w-[328px]' : RAIL_WIDTH_CLASS}`} onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
+    <div className={`relative flex h-full shrink-0 bg-rail-bg transition-[width] duration-300 ease-in-out ${expanded ? 'w-[295px]' : RAIL_WIDTH_CLASS}`} onMouseEnter={() => !open && setHovering(true)} onMouseLeave={() => setHovering(false)}>
       <aside className={`${RAIL_WIDTH_CLASS} bg-rail-bg h-full overflow-hidden flex flex-col items-center`}>
         {/* <div className="soft-scrollbar flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2"> */}
         <div className="flex w-full flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2 scrollbar-none">
@@ -439,30 +425,33 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       </aside>
 
       <div
-        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-all duration-300 ease-in-out translate-x-0 z-[1] rounded-tl-2xl ${
-          expanded ? 'relative w-64 flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 w-0`
+        className={`h-full flex flex-col bg-surface border border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-[width] duration-300 ease-in-out translate-x-0 z-[1] rounded-tl-2xl ${
+          expanded ? 'relative w-[230px] flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 w-0 !border-transparent invisible`
         }`}
         onMouseEnter={() => !open && setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         <div className="soft-scrollbar w-64 h-full overflow-y-auto overflow-x-hidden px-4 pb-5">
-          <div className={`sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-surface ${blueMetal ? 'px-2 pt-4 pb-3' : 'pt-4 pb-3'}`}>
-            {blueMetal ? (
-              <>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-brand shadow-sm">
-                  <ActiveIcon size={21} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-base font-bold text-text">{active.label}</h2>
-                  <p className="truncate text-[11px] text-text-faint">{sectionSubtitle(active.key)}</p>
-                </div>
-              </>
-            ) : (
-              <span className="flex-1 text-sm font-bold tracking-wide text-brand uppercase">{active.label}</span>
-            )}
-            <button type="button" onClick={onClose} title="Close menu" className="p-1 rounded-md text-text hover:bg-surface-alt">
-              <X size={16} strokeWidth={2.5} />
-            </button>
+          <div className={`sticky top-0 z-10 bg-surface ${blueMetal ? 'px-2 pt-4' : 'pt-4'}`}>
+            <h2 className="mb-3 px-1 text-sm font-bold tracking-[0.18em] text-text-muted">MENU</h2>
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              {blueMetal ? (
+                <>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-brand shadow-sm">
+                    <ActiveIcon size={21} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-base font-bold text-text">{active.label}</h2>
+                    <p className="truncate text-[11px] text-text-faint">{sectionSubtitle(active.key)}</p>
+                  </div>
+                </>
+              ) : (
+                <span className="flex-1 text-sm font-bold tracking-wide text-brand uppercase">{active.label}</span>
+              )}
+              <button type="button" onClick={onClose} title="Close menu" className="p-1 rounded-md text-text hover:bg-surface-alt">
+                <X size={16} strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
           {blueMetal && (
             <label className="relative mt-3 mb-2 block">
@@ -479,6 +468,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
           <div className="space-y-0.5">
             {active.items.length === 0 && <p className="px-2 py-2 text-xs italic text-text-muted">Nothing here yet.</p>}
             {active.items.length > 0 && visibleItems.length === 0 && <p className="px-2 py-2 text-xs text-text-faint">No matching menu items.</p>}
+            <CurrentNavItem.Provider value={currentItem}>
             {visibleItems.map((item, i) => (
               <SidebarNavItem
                 key={`${item.label}-${i}`}
@@ -493,9 +483,9 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
                 setHoverGroup={setHoverGroup}
                 forceOpen={blueMetal && Boolean(menuSearch.trim())}
                 blueMetal={blueMetal}
-                suppressCurrent={activeSuppressed.has(i)}
               />
             ))}
+            </CurrentNavItem.Provider>
           </div>
         </div>
       </div>

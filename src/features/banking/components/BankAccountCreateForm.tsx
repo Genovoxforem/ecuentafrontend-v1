@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Landmark, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { useBankAccountFormOptions, useCreateBankAccount } from '../banking.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -113,6 +113,7 @@ export function BankAccountCreateForm() {
 
   return (
     <StickyFormShell
+      wizard={[{title:'Account Details',subtitle:'Ref, label & type'},{title:'Bank Details',subtitle:'Bank, IBAN & address'},{title:'Accounting',subtitle:'Ledger account'}]}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Landmark size={20} className="text-brand" /> New Financial Account
@@ -134,6 +135,7 @@ export function BankAccountCreateForm() {
         </button>
       }
     >
+      <WizardStep n={0}>
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
           <Field label="Ref" required>
@@ -211,7 +213,9 @@ export function BankAccountCreateForm() {
           </Field>
         </div>
       </Card>
+      </WizardStep>
 
+      <WizardStep n={1}>
       <Card>
         <h3 className="font-semibold text-text! mb-4">Bank details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
@@ -241,7 +245,9 @@ export function BankAccountCreateForm() {
           </Field>
         </div>
       </Card>
+      </WizardStep>
 
+      <WizardStep n={2}>
       <Card>
         <h3 className="font-semibold text-text! mb-4">Accounting</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
@@ -267,6 +273,7 @@ export function BankAccountCreateForm() {
           </Field>
         </div>
       </Card>
+      </WizardStep>
 
       {optionsError && <p className="text-sm text-danger">Couldn't load Country/Accounting Account options from the backend — try reloading.</p>}
       {formError && <p className="text-sm text-danger">{formError}</p>}

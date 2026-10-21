@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Gauge, Info } from 'lucide-react'
+import { ArrowLeft, Gauge } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 
@@ -28,14 +28,6 @@ export function IndicatorForm() {
         </Link>
       </div>
 
-      <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-        <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-info-fg">
-          Backend page: <code className="font-mono">payroll/indicator.php</code>. Selecting a Designation there reveals dynamic Technical/Behavioural
-          competency-row builders via <code className="font-mono">payroll/ajax_search.php</code>, which returns an HTML fragment rather than JSON — there's
-          no data contract this page can wire without reproducing that whole flow, so the field below is disabled.
-        </p>
-      </Card>
 
       <Card className="!h-auto space-y-3">
         <h3 className="text-sm font-semibold text-text!">Add Indicator</h3>

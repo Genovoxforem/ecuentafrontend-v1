@@ -1,14 +1,16 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Search, CalendarDays, X as XIcon } from 'lucide-react'
+import { FileEdit, Plus, ReceiptText, ShoppingCart, CalendarPlus, DollarSign, FileText, Search, X as XIcon } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
 import { Avatar } from '../../../shared/components/Avatar'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import type { OrderRow, SalesOrdersSummary } from '../salesOrders.queries'
+import { BillOrdersDialog } from './BillOrdersDialog'
 
 type SortKey = 'ref' | 'refCustomer' | 'projectRef' | 'thirdParty' | 'city' | 'zipCode' | 'orderDate' | 'plannedDelivery' | 'amountExclTax' | 'author' | 'shippable' | 'billed' | 'status'
 
@@ -83,9 +85,10 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
+  const dateRange = useDateRange()
   const [searchParams, setSearchParams] = useSearchParams()
-  // Real customer-scoping filter — reads OrderRow.socid (parsed from the
-  // row's own third-party link, see orderListParser.ts). Lets a customer's
+  // Real customer-scoping filter — reads OrderRow.socid (the list row's
+  // fk_soc, see salesOrders.queries.ts). Lets a customer's
   // own Related Items tab ("View all" on Orders) link here instead of the
   // legacy backend's own filtered list.php.
   const customerIdParam = searchParams.get('customerId')
@@ -93,9 +96,38 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
 
   const customerScoped = useMemo(() => (customerId ? summary.orders.filter((o) => o.socid === customerId) : summary.orders), [summary.orders, customerId])
   const customerName = customerId ? customerScoped[0]?.thirdParty : null
-  const filteredOrders = useMemo(() => customerScoped.filter((o) => matchesSearch(o, deferredSearch)), [customerScoped, deferredSearch])
+  const filteredOrders = useMemo(
+    () => customerScoped.filter((o) => matchesSearch(o, deferredSearch) && dateRange.inRange(o.orderDate)),
+    [customerScoped, deferredSearch, dateRange],
+  )
   const { sorted: sortedOrders, sort, toggleSort } = useSortableRows<OrderRow, SortKey>(filteredOrders, sortValue)
   const pageOrders = sortedOrders.slice((page - 1) * perPage, page * perPage)
+
+  // Unbilled orders can be selected and billed in one go (one invoice per customer).
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [showBill, setShowBill] = useState(false)
+  const billable = pageOrders.filter((o) => !o.billed)
+  const allPageSelected = billable.length > 0 && billable.every((o) => selected.has(o.id))
+  function toggleOrder(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function togglePage() {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allPageSelected) billable.forEach((o) => next.delete(o.id))
+      else billable.forEach((o) => next.add(o.id))
+      return next
+    })
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -135,9 +167,16 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileEdit size={20} className="text-brand" /> Orders
         </h2>
-        <Link to={ROUTES.orderCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-          <Plus size={14} /> New Order
-        </Link>
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button type="button" onClick={() => setShowBill(true)} className="flex items-center gap-1.5 rounded-lg border border-brand px-3 py-2 text-sm font-medium text-brand hover:bg-brand/5">
+              <ReceiptText size={14} /> Bill {selected.size} selected
+            </button>
+          )}
+          <Link to={ROUTES.orderCreate} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover">
+            <Plus size={14} /> New Order
+          </Link>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
@@ -230,14 +269,15 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
               />
             </div>
             <TableExportButtons title="Orders" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-              <CalendarDays size={14} />
-            </button>
+            <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <TheadRow>
+                <th className="px-4 py-3 w-8">
+                  <input type="checkbox" aria-label="Select unbilled orders on this page" checked={allPageSelected} disabled={billable.length === 0} onChange={togglePage} />
+                </th>
                 {COLUMNS.map((col) => (
                   <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
                     {col.label}
@@ -248,19 +288,22 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
             <tbody>
               {summary.orders.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
                     No Data Available In Table
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                  <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
                     No orders match "{search}".
                   </td>
                 </tr>
               ) : (
                 pageOrders.map((o) => (
                   <tr key={o.ref} className="border-b border-border">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" aria-label={`Select ${o.ref}`} checked={selected.has(o.id)} disabled={o.billed} onChange={() => toggleOrder(o.id)} />
+                    </td>
                     <td className="px-4 py-3">
                       <Link to={ROUTES.orderDetail.replace(':id', String(o.id))} className="text-brand hover:underline">
                         {o.ref}
@@ -295,6 +338,7 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
         </Card>
       </div>
       <ListPagination page={page} perPage={perPage} total={filteredOrders.length} onPageChange={setPage} edgeToEdge />
+      {showBill && <BillOrdersDialog orderIds={Array.from(selected)} onClose={() => setShowBill(false)} onDone={() => setSelected(new Set())} />}
     </div>
   )
 }

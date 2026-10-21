@@ -58,6 +58,25 @@ export interface ContractDetail extends ContractRow {
   }
 }
 
+export interface ContractStatsData {
+  currency: string
+  year: number
+  summary: {
+    total: number
+    draft: number
+    validated: number
+    running: number
+    expired: number
+    closed: number
+    without_lines: number
+    total_amount: number
+    total_amount_ht: number
+  }
+  by_status: Array<{ status: number; label: string; count: number }>
+  by_month: Array<{ month: string; count: number }>
+  top_customers: Array<{ id: number; name: string; count: number }>
+}
+
 export interface Pagination {
   page: number
   limit: number
@@ -88,16 +107,49 @@ export interface ContractListParams {
   direction?: 'asc' | 'desc'
 }
 
-export async function fetchContracts(params: ContractListParams = {}): Promise<{
-  items: ContractRow[]
+/** One row of contrat/fapi/list.php. A contract has no totals or validation date
+ *  of its own in this fork; its state is the per-status service counters. */
+export interface ContractListItem {
+  id: number
+  ref: string
+  ref_customer: string
+  ref_supplier: string
+  fk_soc: number
+  third_party_name: string
+  third_party_code: string
+  sales_reps: Array<{ id: number; name: string }>
+  date_contrat: number | null
+  date_creation: number | null
+  date_end: number | null
+  nb_initial: number
+  nb_running: number
+  nb_expired: number
+  nb_late: number
+  nb_closed: number
+  statut: number
+  status_label: string
+  author_login: string
+}
+
+export interface ContractListParams2 extends ContractListParams {
+  status?: number | string
+}
+
+export async function fetchContracts(params: ContractListParams2 = {}): Promise<{
+  items: ContractListItem[]
   pagination: Pagination
 }> {
-  const res = await fapi.get<FapiListResponse<ContractRow>>('/contrat/fapi/list.php', { params })
+  const res = await fapi.get<FapiListResponse<ContractListItem>>('/contrat/fapi/list.php', { params })
   return res.data.data
 }
 
 export async function fetchContract(id: number): Promise<ContractDetail> {
   const res = await fapi.get<FapiSuccess<ContractDetail>>('/contrat/fapi/get.php', { params: { id } })
+  return res.data.data
+}
+
+export async function fetchContractStats(params: { year?: number; socid?: number; userid?: number } = {}): Promise<ContractStatsData> {
+  const res = await fapi.get<FapiSuccess<ContractStatsData>>('/contrat/fapi/stats.php', { params })
   return res.data.data
 }
 

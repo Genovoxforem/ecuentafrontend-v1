@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react'
+﻿import { VirtualStockBreakdown } from './VirtualStockBreakdown'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ChevronLeft,
@@ -39,7 +40,6 @@ import {
   DollarSign,
 } from 'lucide-react'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
-import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
@@ -96,24 +96,35 @@ import {
   type Tab,
 } from './ProductDetailShared'
 
-function extractSelectOptions(html: string | null, name: string): { value: string; label: string; selected: boolean }[] {
-  if (!html) return []
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  const select = doc.querySelector(`select[name="${name}"]`)
-  if (!select) return []
-  return Array.from(select.querySelectorAll('option')).map((opt) => ({
-    value: opt.getAttribute('value') ?? '',
-    label: opt.textContent?.trim() ?? '',
-    selected: opt.hasAttribute('selected'),
-  }))
+// The backend returns document links as a path (or a full backend address). Both are
+// served through this app's own origin (the dev proxy / the deployed site), so the file
+// downloads in place with the user's session instead of opening the backend's address
+// in another tab.
+function sameOriginPath(url: string): string {
+  if (!/^https?:\/\//i.test(url)) return url.startsWith('/') ? url : `/${url}`
+  const u = new URL(url)
+  return `${u.pathname}${u.search}${u.hash}`
 }
 
 function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPriceOverview; onClose: () => void }) {
   const update = useUpdateProductPrice()
-  const vatOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'tva_tx'), [data.editFormHtml])
-  const iplOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'iplCatCd'), [data.editFormHtml])
-  const tlOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'tlCatCd'), [data.editFormHtml])
-  const exciseOptions = useMemo(() => extractSelectOptions(data.editFormHtml, 'exciseTxCatCd'), [data.editFormHtml])
+  // With no ZRA tax categories in play the price is saved through product/fapi/prices.php,
+  // whose VAT list is plain JSON; otherwise the older form's own options are used.
+  // The levy categories have their own fapi action now, so a ZRA product can use it too.
+  const fz = data.fapiZra
+  const levyViaFapi = !!fz && fz.enabled
+  const viaFapi = !!data.fapiVatRates && (!data.zraEnabled || !!fz)
+  const vatOptions = useMemo(
+    () => (data.fapiVatRates ?? []).map((v) => ({ value: v.value, label: v.label, selected: v.selected })),
+    [data.fapiVatRates],
+  )
+  const fapiLevyOptions = (levy: { code: string; options: { code: string; label: string; amount: number }[] } | undefined) => [
+    { value: '', label: 'None', selected: !levy?.code },
+    ...(levy?.options ?? []).map((o) => ({ value: o.code, label: `${o.code} — ${o.label} (${o.amount}%)`, selected: o.code === levy?.code })),
+  ]
+  const iplOptions = useMemo(() => fapiLevyOptions(fz?.levies.ipl), [fz])
+  const tlOptions = useMemo(() => fapiLevyOptions(fz?.levies.tourism_levy), [fz])
+  const exciseOptions = useMemo(() => fapiLevyOptions(fz?.levies.excise), [fz])
 
   const [baseType, setBaseType] = useState<'HT' | 'TTC'>(data.priceBaseType === 'TTC' ? 'TTC' : 'HT')
   const [price, setPrice] = useState(data.price.toFixed(2))
@@ -135,8 +146,29 @@ function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPric
     setError('')
     if (Number.isNaN(Number(selling)) || Number(selling) < 0) return setError('Selling price must be a valid number.')
     if (Number.isNaN(Number(min)) || Number(min) < 0) return setError('Min. selling price must be a valid number.')
+    const chosen = viaFapi ? data.fapiVatRates!.find((v) => v.value === vat) : undefined
+    // Only the levies that changed are sent (an unknown code is refused with the list of valid ones).
+    const levies =
+      levyViaFapi && fz
+        ? {
+            ...(ipl !== fz.levies.ipl.code ? { ipl_code: ipl } : {}),
+            ...(tl !== fz.levies.tourism_levy.code ? { tourism_levy_code: tl } : {}),
+            ...(excise !== fz.levies.excise.code ? { excise_code: excise } : {}),
+          }
+        : undefined
     update.mutate(
-      { id, price: selling, priceMin: min, priceBaseType: baseType, tvaTx: vat, iplCatCd: ipl, tlCatCd: tl, exciseTxCatCd: excise },
+      {
+        id,
+        price: selling,
+        priceMin: min,
+        priceBaseType: baseType,
+        tvaTx: vat,
+        iplCatCd: ipl,
+        tlCatCd: tl,
+        exciseTxCatCd: excise,
+        fapi: chosen ? { vatRate: chosen.rate, vatCode: chosen.code } : undefined,
+        levies: levies && Object.keys(levies).length > 0 ? (levies as { ipl_code: string; tourism_levy_code: string; excise_code: string }) : undefined,
+      },
       { onSuccess: onClose, onError: (err) => setError(err instanceof Error ? err.message : 'Save failed.') },
     )
   }
@@ -167,7 +199,7 @@ function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPric
             ))}
           </select>
         </ModalField>
-        {data.zraEnabled && (
+        {(data.zraEnabled || levyViaFapi) && (
           <>
             <ModalField label="IPL category code">
               <select value={ipl} onChange={(e) => setIpl(e.target.value)} className={modalInputCls}>
@@ -242,7 +274,10 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
   return (
     <div className="space-y-4">
       <Card className="!h-auto !py-2 sticky top-0 z-10 !bg-white dark:!bg-gray-950 border-b border-border">
-        <div className="flex flex-wrap items-center gap-6">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
+            <SectionIcon icon={Tag} color="green" /> Selling Prices
+          </h3>
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-text-faint">Default Tax Rate</span>
             <span className="text-sm font-medium">{data.vatDisplay || '0%'}</span>
@@ -261,15 +296,25 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             <span className="text-xs text-text-faint">Min Price</span>
             <span className="text-sm font-medium">{formatMoney(data.minPrice)} {data.priceBaseType}</span>
           </div>
+          <div className="ml-auto flex items-center gap-3">
           {data.canCreate && !data.isVariant ? (
-            <button type="button" onClick={() => setShowModal(true)} className="ml-auto px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:opacity-90">
+            <button type="button" onClick={() => setShowModal(true)} className="px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:opacity-90">
               Update Default Price
             </button>
           ) : (
-            <button type="button" disabled className="ml-auto px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-default">
+            <button type="button" disabled className="px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-default">
               Update Default Price
             </button>
           )}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-text-faint">Page Size</label>
+              <select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value) || 20); setPage(0) }} className={modalInputCls + ' py-1.5 w-24'}>
+                <option value="10">10 rows</option>
+                <option value="20">20 rows</option>
+                <option value="50">50 rows</option>
+              </select>
+            </div>
+          </div>
         </div>
       </Card>
       {showModal && (
@@ -282,20 +327,6 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
 
       <Card className="!h-auto flex flex-col">
         <div className="space-y-3 flex-1 flex flex-col">
-          <div className="sticky top-[50px] z-20 bg-white dark:bg-gray-950 -mx-4 px-4 py-1.5 flex items-center justify-between border-b border-border">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
-              <SectionIcon icon={Tag} color="green" /> Selling Prices
-            </h3>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-text-faint">Page Size</label>
-              <select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value) || 20); setPage(0) }} className={modalInputCls + ' py-1.5 w-24'}>
-                <option value="10">10 rows</option>
-                <option value="20">20 rows</option>
-                <option value="50">50 rows</option>
-              </select>
-            </div>
-          </div>
-
           <div className="flex-1 flex flex-col -mx-4 border border-border rounded overflow-hidden isolate">
             <div className={`overflow-y-auto ${pageSize === 50 ? 'max-h-[900px]' : pageSize === 20 ? 'max-h-[550px]' : 'max-h-[400px]'}`}>
               <table className="w-full text-sm">
@@ -355,7 +386,7 @@ function SellingPricesTab({ id }: { id: string | undefined }) {
             {totalRecords > 0 && (
               <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-white dark:bg-gray-950">
                 <span>
-                  {pageStart}â€“{pageEnd} of {totalRecords}
+                  {pageStart}–{pageEnd} of {totalRecords}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
@@ -611,7 +642,8 @@ function StockTab({ id }: { id: string | undefined }) {
   if (isError) return <LegacyErrorCard title="Couldn't load stock" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
 
-  const diff = data.stockDiff
+  // No breakdown from the source -> every row is undefined and the panel stays hidden.
+  const diff = data.stockDiff ?? {}
   const diffRows: { label: string; value: number; secondaryLabel: string; secondaryValue: number | undefined }[] = [
     { label: 'Customer Orders Running', value: diff.customer_orders_running, secondaryLabel: 'Draft', secondaryValue: diff.customer_orders_draft },
     { label: 'Shipment Already Sent', value: diff.shipment_already_sent, secondaryLabel: '', secondaryValue: undefined },
@@ -646,11 +678,10 @@ function StockTab({ id }: { id: string | undefined }) {
               <span className="inline-flex items-center gap-1.5">
                 <span className="font-semibold text-text!">{formatNumber(data.physicalStock)}</span>
                 {data.physicalBelowLimit && <AlertTriangle size={14} className="text-warning" />}
-                {/* Stock At Date / Virtual At Date are their own real
-                    legacy reports (product/stock/stockatdate.php) with no
-                    JSON API - native inert replica page, see
-                    StockAtDateReplica.tsx. Full List is real, native via
-                    movement_list_api.php - see stockMovements.queries.ts. */}
+                {/* Stock At Date / Virtual At Date open StockAtDatePage.tsx
+                    (product/stock/fapi/stock_at_date.php) for this product.
+                    Full List is real, native via movement_list_api.php - see
+                    stockMovements.queries.ts. */}
                 <Link to={`${ROUTES.productStockAtDate}?productid=${id}`} className="text-xs text-brand hover:underline">
                   Stock At Date
                 </Link>
@@ -676,7 +707,10 @@ function StockTab({ id }: { id: string | undefined }) {
               </FieldRow>
             )}
           </div>
-          {diffRows.length > 0 && (
+          <VirtualStockBreakdown
+            id={id}
+            fallback={
+              diffRows.length > 0 ? (
             <div className="mt-1 pt-2 border-t border-border space-y-1">
               <p className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">Virtual Stock Breakdown</p>
               {diffRows.map((row) => (
@@ -686,7 +720,9 @@ function StockTab({ id }: { id: string | undefined }) {
                 </p>
               ))}
             </div>
-          )}
+          ) : null
+            }
+          />
         </Card>
       </div>
 
@@ -969,7 +1005,7 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
                   <Td>
                     <div className="flex items-center gap-1">
                       <StatusPill active={c.forSale} activeLabel="Sell" inactiveLabel="Sell" tone="success" />
-                      <StatusPill active={c.forPurchase} activeLabel="Buy" inactiveLabel="Buy" tone="info" />
+                      {c.forPurchase !== null && <StatusPill active={c.forPurchase} activeLabel="Buy" inactiveLabel="Buy" tone="info" />}
                     </div>
                   </Td>
                   {data.canDelete && (
@@ -1002,9 +1038,9 @@ function StatisticsTab({ id }: { id: string | undefined }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricTile icon={DollarSign} color="green" label="Total Sales" value={formatMoney(data.totalSales)} caption="Last 12 months" />
-        <MetricTile icon={ShoppingCart} color="amber" label="Total Purchase" value={formatMoney(data.totalPurchase)} caption="Last 12 months" />
-        <MetricTile icon={Boxes} color="blue" label="Qty Sold" value={formatNumber(data.qtySold)} caption="Last 12 months" />
+        <MetricTile icon={DollarSign} color="green" label="Total Sales" value={formatMoney(data.totalSales)} caption={data.periodLabel} />
+        <MetricTile icon={ShoppingCart} color="amber" label="Total Purchase" value={formatMoney(data.totalPurchase)} caption={data.periodLabel} />
+        <MetricTile icon={Boxes} color="blue" label="Qty Sold" value={formatNumber(data.qtySold)} caption={data.periodLabel} />
         <MetricTile icon={TrendingUp} color="violet" label="Margin" value={`${data.marginPct.toFixed(1)}%`} caption="Sales vs. purchase" />
       </div>
 
@@ -1033,7 +1069,7 @@ function StatisticsTab({ id }: { id: string | undefined }) {
                   </Td>
                   <Td right>{formatMoney(m.sales)}</Td>
                   <Td right muted>
-                    {formatMoney(m.purchase)}
+                    {m.purchase === null ? '—' : formatMoney(m.purchase)}
                   </Td>
                 </tr>
               ))
@@ -1743,7 +1779,7 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                       )}
                     </Td>
                     <Td right muted>
-                      {formatNumber(r.nbThirdparties)}
+                      {r.nbThirdparties === null ? '—' : formatNumber(r.nbThirdparties)}
                     </Td>
                     <Td right muted>
                       {r.nbObjects}
@@ -1875,7 +1911,7 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
             {data.totalRecords > 0 && (
               <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-faint bg-white dark:bg-gray-950">
                 <span>
-                  {pageStart}â€“{pageEnd} of {data.totalRecords}
+                  {pageStart}–{pageEnd} of {data.totalRecords}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
@@ -1977,7 +2013,7 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
               <tr key={i} className="border-b border-border last:border-0">
                 <Td>
                   {d.fileUrl ? (
-                    <a href={resolveBackendAsset(d.fileUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-brand hover:underline">
+                    <a href={sameOriginPath(d.fileUrl)} download={d.fileName} className="flex items-center gap-1.5 text-brand hover:underline">
                       <Download size={14} /> {d.fileName}
                     </a>
                   ) : (
@@ -2057,11 +2093,22 @@ function MarginsTab({ id }: { id: string | undefined }) {
   if (isLoading) return <LegacyLoadingCard label="Loading margins..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Margins" />
   if (isError) return <LegacyErrorCard title="Couldn't load margins" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+  // Lines without a buying price recorded at the time of sale fall back to the
+  // product's current average cost; with that at 0 the margin is the whole revenue.
+  const basis = data?.costBasis
+  const estimatedLines = basis ? basis.linesTotal - basis.linesWithRecordedCost : 0
   return (
     <div>
       <p className="text-sm mb-4">
         <span className="text-text-faint">Total Margin</span> <span className="text-text! font-medium">{formatMoney(data?.totals.margin ?? 0)}</span>
       </p>
+      {basis && estimatedLines > 0 && (
+        <p className="text-xs text-warning mb-3 flex items-center gap-1.5">
+          <AlertTriangle size={13} />
+          {estimatedLines} of {basis.linesTotal} lines have no buying price recorded at the time of sale; they use the current average cost ({formatMoney(basis.currentPmp)})
+          {basis.currentPmp === 0 ? ', which is 0, so their margin is unknown rather than 100%.' : '.'}
+        </p>
+      )}
       <TabTable>
         <thead>
           <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
@@ -2080,11 +2127,12 @@ function MarginsTab({ id }: { id: string | undefined }) {
           {!data || data.lines.length === 0 ? (
             <EmptyRow span={9} label="No margin data for this product." />
           ) : (
-            data.lines.map((l) => (
-              <tr key={l.invoiceId} className="border-b border-border last:border-0">
+            // One invoice can carry the product on several lines, so the id alone is not a key.
+            data.lines.map((l, i) => (
+              <tr key={`${l.invoiceId}-${i}`} className="border-b border-border last:border-0">
                 <Td muted>{l.ref}</Td>
                 <Td>{l.customerName}</Td>
-                <Td muted>{l.customerCode}</Td>
+                <Td muted>{l.customerCode || '—'}</Td>
                 <Td muted>{l.date}</Td>
                 <Td right muted>
                   {formatMoney(l.sellingPrice)}
@@ -2096,7 +2144,7 @@ function MarginsTab({ id }: { id: string | undefined }) {
                   {formatNumber(l.qty)}
                 </Td>
                 <Td right>{formatMoney(l.margin)}</Td>
-                <Td muted>{l.paid ? 'Paid' : 'Unpaid'}</Td>
+                <Td muted>{l.paid === null ? '—' : l.paid ? 'Paid' : 'Unpaid'}</Td>
               </tr>
             ))
           )}

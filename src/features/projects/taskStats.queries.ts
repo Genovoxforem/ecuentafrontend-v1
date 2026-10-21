@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseYearOptions, parseResultsTable, parseEmbeddedCharts, looksLikeLegacyLoginPage } from './statsHtmlParser'
+import { parseYearOptions, parseSelectedYear, parseResultsTable, parseEmbeddedCharts, looksLikeLegacyLoginPage } from './statsHtmlParser'
 import type { ProjectStats } from './projectStats.queries'
 
 // No REST API exists for task statistics — reads projet/tasks/stats/index.php
@@ -18,7 +18,7 @@ export function useTaskStats(year?: string) {
       if (year) params.set('year', year)
       const doc = await fetchLegacyDocument('/projet/tasks/stats/index.php', params)
       if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return { yearOptions: parseYearOptions(doc), table: parseResultsTable(doc, 'Year'), charts: parseEmbeddedCharts(doc) }
+      return { yearOptions: parseYearOptions(doc), selectedYear: parseSelectedYear(doc), table: parseResultsTable(doc, 'Year'), charts: parseEmbeddedCharts(doc) }
     },
     staleTime: 1000 * 30,
     retry: false,

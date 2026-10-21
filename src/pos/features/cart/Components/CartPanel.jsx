@@ -131,7 +131,7 @@ function CartPanel({ cart, onRemove, total, cashSessionOpen = true }) {
                                         <div className="flex items-center gap-3 sm:gap-4 shrink-0">
                                             <AmountValue
                                                 value={lineTotal}
-                                                className="text-[#2c6291] dark:text-[#7fb0d8] text-[10px] sm:text-xs font-semibold whitespace-nowrap"
+                                                className="text-[#2f6fe4] dark:text-[#7fb0d8] text-[10px] sm:text-xs font-semibold whitespace-nowrap"
                                             />
                                             {!item.locked && (
                                                 <button
@@ -225,7 +225,7 @@ function CartPanel({ cart, onRemove, total, cashSessionOpen = true }) {
                     disabled={cart.length === 0 || !cashSessionOpen || !!checkoutBlockedReason}
                     onClick={() => setPaymentOpen(true)}
                     title={checkoutBlockedReason ? `Checkout unavailable: ${checkoutBlockedReason}` : undefined}
-                    className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 text-xs sm:text-sm font-semibold tracking-wide border border-transparent text-white bg-[#397db9] transition-all hover:bg-[#2c6291] active:scale-[0.98] disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-slate-800 dark:disabled:border-slate-600 dark:disabled:text-slate-500"
+                    className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 text-xs sm:text-sm font-semibold tracking-wide border border-transparent text-white bg-[#3b82f6] transition-all hover:bg-[#2f6fe4] active:scale-[0.98] disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-slate-800 dark:disabled:border-slate-600 dark:disabled:text-slate-500"
                 >
                     <Send size={14} className="sm:w-4 sm:h-4 shrink-0" />
                     <span className="hidden sm:inline">{pendingInvoice ? "Settle Invoice" : "Proceed Sale's"}</span>

@@ -1,28 +1,63 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
 import { api } from '../../api/axios'
-import { BACKEND_ACTION_UNAVAILABLE_PREFIX } from '../../shared/components/BackendUnavailable'
-import { fetchAllProductsRich, type RichProductRow } from './productAjax'
-import { fetchLegacyDocument, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { resolveBackendAsset } from '../../api/backends'
 import {
-  parseProductStocks,
-  parseProductStocksByLot,
-  parseLotSerials,
-  parseVariantAttributes,
-  parseProductStats,
-  parseProductDetailPanel,
-  parseProductCardMeta,
-  parseEditWizardForm,
-  looksLikeLegacyLoginPage,
-  type StockLocationRow,
-  type StockByLotRow,
-  type LotSerialRow,
-  type VariantAttributeRow,
-  type ProductStatSeries,
+  cloneProduct,
+  correctProductStock,
+  createProductCombination,
+  deleteProduct,
+  deleteProductCombination,
+  deleteProductCompositionChild,
+  deleteProductDocumentFile,
+  deleteProductPriceLog,
+  deleteProductUomConversion,
+  getProduct,
+  getProductAgenda,
+  getProductComposition,
+  getProductDashboard,
+  getProductDocuments,
+  getProductFormOptions,
+  getProductInvoiceStats,
+  getProductMargins,
+  getProductNotes,
+  getProductPrices,
+  getProductStats,
+  getProductStock,
+  getProductSuppliers,
+  getProductUom,
+  getProductVariants,
+  getProductsSummary,
+  isMissingEndpoint,
+  listAllProducts,
+  saveProductCompositionChild,
+  saveProductNotes,
+  saveProductUomConversion,
+  searchProducts,
+  setProductStockLimits,
+  transferProductStock,
+  updateProduct,
+  updateProductPrice,
+  updateProductZraLevies,
+  generateProductBarcode,
+  getProductEditForm,
+  type ProductZraLevies,
+  type ProductWriteFields,
+  uploadProductDocument,
+  type ProductDashboardData,
+  type ProductInvoiceStatsData,
+  type ProductSummaryData,
+} from '../../api/products'
+import { formatMoney } from '../../utils/format'
+import { NATURE_OPTIONS } from './productConstants'
+import { BACKEND_ACTION_UNAVAILABLE_PREFIX } from '../../shared/components/BackendUnavailable'
+import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
+import type { RichProductRow } from './productRich'
+import { parseListDate, richRowFromListItem } from './productListMapper'
+import { NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import {
   type ProductDetailPanel,
   type ProductDocumentRow,
-  type EditWizardFormData,
-} from './productLegacyParsers'
+} from './productTypes'
 
 export interface ProductRow {
   id: string
@@ -152,15 +187,19 @@ export function toRow(raw: RawProduct): ProductRow {
 // GET /api/products/ — confirmed live on this app's backend. Products and
 // services share this one endpoint (fk_product_type distinguishes them),
 // so both hooks below query the same cache key and split client-side
-// rather than each making their own request.
-export function useProductRows() {
+// rather than each making their own request. `enabled` lets a picker that is
+// only sometimes shown skip the request until it opens.
+export function useProductRows(enabled = true) {
   return useQuery({
     queryKey: ['products', 'all'],
     queryFn: async () => {
-      const { data } = await api.get<ProductsResponse>('/products/', { params: { limit: 250 } })
-      return { rows: (data.products ?? []).map(toRow), currency: data.currency ?? '' }
+      const { data } = await api.get<unknown>('/products/', { params: { limit: 250 } })
+      const body = legacyJsonBody<ProductsResponse>(data, 'Products API')
+      if (!Array.isArray(body.products)) throw new Error('Products API did not return product records.')
+      return { rows: body.products.map(toRow), currency: body.currency ?? '' }
     },
     staleTime: 1000 * 60,
+    enabled,
   })
 }
 
@@ -175,9 +214,57 @@ export function useProductsSummary() {
   return { data: summary, ...rest }
 }
 
+// product/fapi/summary.php — stock, ZRA and category figures the product list rows
+// cannot give (stock counts only stock-managed products, value is at weighted
+// average cost). null on a backend that does not have the endpoint, so the area
+// simply omits those tiles.
+export function useProductAreaSummary() {
+  return useQuery({
+    queryKey: ['products', 'areaSummary'],
+    queryFn: async (): Promise<ProductSummaryData | null> => {
+      try {
+        return await getProductsSummary()
+      } catch (error) {
+        if (isMissingEndpoint(error)) return null
+        throw error
+      }
+    },
+    staleTime: 1000 * 60,
+    retry: false,
+  })
+}
+
+// VAT categories (rate plus code, e.g. 16% (A)) from product/fapi/form_options.php, for
+// forms whose lines carry the code. null on a backend without that endpoint, so a
+// form can fall back to a plain rate field.
+export interface VatRateOption {
+  value: string
+  label: string
+  rate: number
+  code: string
+}
+export function useVatRateOptions() {
+  return useQuery({
+    queryKey: ['products', 'vatRateOptions'],
+    queryFn: async (): Promise<VatRateOption[] | null> => {
+      try {
+        const seen = new Set<string>()
+        return (await getProductFormOptions()).vat_rates
+          .filter((v) => (seen.has(`${v.rate}|${v.code}`) ? false : (seen.add(`${v.rate}|${v.code}`), true)))
+          .map((v) => ({ value: `${v.rate}|${v.code}`, label: `${v.rate}%${v.code ? ` (${v.code})` : ''}`, rate: v.rate, code: v.code }))
+      } catch (error) {
+        if (isMissingEndpoint(error)) return null
+        throw error
+      }
+    },
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  })
+}
+
 // Trimmed-down view of the same data, for <select> pickers on create forms.
-export function useProductOptions() {
-  const { data, ...rest } = useProductRows()
+export function useProductOptions(enabled = true) {
+  const { data, ...rest } = useProductRows(enabled)
   return { data: data?.rows, ...rest }
 }
 
@@ -193,6 +280,13 @@ export function useProductSearch(query: string) {
   return useQuery({
     queryKey: ['products', 'search', query],
     queryFn: async (): Promise<ProductSearchResult[]> => {
+      try {
+        // product/fapi/search.php ranks exact ref / barcode / prefix matches first.
+        const found = await searchProducts(query.trim())
+        return found.items.slice(0, 20).map((p) => ({ id: String(p.id), ref: p.ref, label: p.label }))
+      } catch (error) {
+        if (!isMissingEndpoint(error)) throw error
+      }
       const { data } = await api.get<ProductsResponse>('/products/', { params: { action: 'list', search: query, limit: 20 } })
       return (data.products ?? []).map((p) => ({ id: String(p.id ?? ''), ref: p.ref ?? '', label: p.label ?? '' }))
     },
@@ -203,79 +297,64 @@ export function useProductSearch(query: string) {
 
 // The "All Products" report (product/allproducts.php) shows several columns
 // /api/products/ doesn't have (Category, Desired/Reserved/Physical stock
-// breakdown, ZRA status, Classification, Country, Lot status) — these have
-// no REST equivalent, so this replays Dolibarr's own DataTables AJAX
-// endpoint directly (see productAjax.ts). Best-effort: ProductsList.tsx
-// falls back to "—" per-cell if this fails rather than blocking the page,
-// same pattern as useWarehouseLegacyStats.
+// breakdown, ZRA status, Classification, Country). They come from
+// product/fapi/list.php; a backend without that endpoint still answers through
+// Dolibarr's own DataTables AJAX endpoint (see productAjax.ts), which also
+// carries the Lot status and avatar colours the JSON list does not.
+// Best-effort: ProductsList.tsx falls back to "—" per-cell if this fails rather
+// than blocking the page, same pattern as useWarehouseLegacyStats.
 export function useAllProductsRich(type: 0 | 1) {
   return useQuery({
     queryKey: ['products', 'ajaxRich', type],
-    queryFn: () => fetchAllProductsRich(type),
+    queryFn: async (): Promise<RichProductRow[]> => {
+      return (await listAllProducts({ type })).map(richRowFromListItem)
+    },
     staleTime: 1000 * 30,
     retry: false,
   })
 }
 export type { RichProductRow }
 
-// Shared shape for the five report pages below (Stocks, Stocks By Lot,
-// Lots/Serials, Variant Attributes, Statistics) — none have a REST
-// equivalent, so all of them scrape the real legacy page client-side, same
-// approach as useWarehouseLegacyStats/useLedgerReport. See
-// productLegacyParsers.ts for how each page's markup was verified.
-function useLegacyProductReport<T>(queryKey: unknown[], path: string, parse: (doc: Document) => T, params?: URLSearchParams) {
-  return useQuery({
-    queryKey: ['products', 'legacy', ...queryKey],
-    queryFn: async (): Promise<T> => {
-      const doc = await fetchLegacyDocument(path, params)
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parse(doc)
-    },
-    staleTime: 1000 * 30,
-    retry: false,
-  })
+// Row-click detail panel — see ProductsList.tsx's expandedId state. Read from
+// product/fapi/get.php (photo, per-warehouse stock, prices, ZRA); a backend
+// without it falls back to the product/load_product_image.php HTML fragment.
+export function panelFromGet(d: Awaited<ReturnType<typeof getProduct>>): ProductDetailPanel {
+  const p = d.product
+  const warehouseStock = (d.stock.by_warehouse as { warehouse_id?: number; warehouse?: string; real?: number }[]).map((w) => ({
+    warehouse: w.warehouse ?? `#${w.warehouse_id ?? ''}`,
+    warehouseUrl: null,
+    quantity: Number(w.real ?? 0),
+  }))
+  return {
+    kind: Number(p.type) === 1 ? 'service' : 'product',
+    zraCodeIsDefault: d.zra.code === '000',
+    ref: p.ref,
+    label: p.label,
+    zraProductCode: d.zra.code || d.zra.id || '',
+    priceInclTax: formatMoney(Number(p.price_ttc ?? 0)),
+    rrp: p.rrp ? formatMoney(Number(p.rrp)) : '',
+    classificationCode: d.zra.classification ?? '',
+    images: d.photo ? [{ thumbUrl: resolveBackendAsset(d.photo), fullUrl: resolveBackendAsset(d.photo) }] : [],
+    warehouseStock,
+    totalStock: Number(d.stock.real ?? warehouseStock.reduce((sum, w) => sum + w.quantity, 0)),
+    notFound: false,
+  }
 }
 
-export function useProductStocksReport() {
-  return useLegacyProductReport<StockLocationRow[]>(['stocks'], '/product/reassort.php', parseProductStocks, new URLSearchParams({ type: '0' }))
-}
+const EMPTY_PANEL: ProductDetailPanel = { kind: 'product', zraCodeIsDefault: false, ref: '', label: '', zraProductCode: '', priceInclTax: '', rrp: '', classificationCode: '', images: [], warehouseStock: [], totalStock: 0, notFound: true }
 
-export function useProductStocksByLotReport() {
-  return useLegacyProductReport<StockByLotRow[]>(['stocksByLot'], '/product/reassortlot.php', parseProductStocksByLot, new URLSearchParams({ type: '0' }))
-}
-
-export function useLotSerialsReport() {
-  return useLegacyProductReport<LotSerialRow[]>(['lotSerials'], '/product/stock/productlot_list.php', parseLotSerials)
-}
-
-export function useVariantAttributesReport() {
-  return useLegacyProductReport<VariantAttributeRow[]>(['variantAttributes'], '/variants/list.php', parseVariantAttributes)
-}
-
-// type: 0 = Products, 1 = Services — the legacy report itself splits on
-// this (confirmed live: Products and Services return genuinely different
-// numbers), matching fk_product_type's convention everywhere else here.
-// id: 'all' (default, for the catalog-wide Statistics report page) or a
-// specific product's id (for the Product Detail page's own Statistics tab
-// — same underlying page, product/stats/card.php, just scoped differently).
-export function useProductStatsReport(type: 0 | 1, id: string = 'all') {
-  return useLegacyProductReport<ProductStatSeries[]>(['stats', type, id], '/product/stats/card.php', parseProductStats, new URLSearchParams({ id, type: String(type) }))
-}
-
-// Row-click detail panel (product/load_product_image.php) — see
-// ProductsList.tsx's expandedId state. Written directly (not through
-// useLegacyProductReport) since it needs a per-call `enabled` gate the
-// shared helper doesn't expose. GETPOST('id') on the legacy side accepts
-// GET query params fine, so this reuses fetchLegacyDocument like every
-// other report here rather than needing a POST-capable fetch helper.
 export function useProductDetailPanel(id: string | null) {
   return useQuery({
     queryKey: ['products', 'legacy', 'detailPanel', id],
-    queryFn: async (): Promise<ProductDetailPanel> => {
-      const doc = await fetchLegacyDocument('/product/load_product_image.php', new URLSearchParams({ id: id! }))
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseProductDetailPanel(doc)
-    },
+    queryFn: (): Promise<ProductDetailPanel> =>
+      (async () => {
+          try {
+            return panelFromGet(await getProduct(id!))
+          } catch (error) {
+            if (error instanceof Error && /not found/i.test(error.message)) return EMPTY_PANEL
+            throw error
+          }
+        })(),
     enabled: !!id,
     staleTime: 1000 * 30,
     retry: false,
@@ -402,37 +481,25 @@ export function useProductDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', id],
     queryFn: async (): Promise<ProductDetail> => {
-      const { data } = await api.get<{ success: boolean; product: RawProductDetail }>('/products/', { params: { action: 'detail', id } })
+      // product/fapi/get.php carries what /api/products/?action=detail leaves out (creation date, origin country
+      // code, categories, ZRA id and status). Best-effort: a failed call leaves those fields empty.
+      const [{ data }, extra] = await Promise.all([
+        api.get<{ success: boolean; product: RawProductDetail }>('/products/', { params: { action: 'detail', id } }),
+        getProduct(id!, { withStock: false, withPrices: false }).catch(() => null),
+      ])
       const p = data.product
-
-      // api/products/?action=detail stopped returning origin_country/
-      // manufacturer/created_at on the currently-active backend (confirmed
-      // live: the keys are simply absent from the JSON) — best-effort fill
-      // them in from the real product/card.php page instead (same page this
-      // whole "About" section was originally verified against). Best-effort
-      // and silent on failure: this is a header/field enrichment, not
-      // required data, and the rest of the page already renders correctly
-      // with these fields empty (matches every other legacy-scrape fallback
-      // in this app — see legacyHtmlFetch.ts).
-      let cardMeta = { originCountry: '', originCountryCode: '', manufacturer: '', createdAtIso: '' }
-      if (!p.origin_country || !p.manufacturer || !p.created_at) {
-        try {
-          const doc = await fetchLegacyDocument('/product/card.php', new URLSearchParams({ id: id! }))
-          if (!looksLikeLegacyLoginPage(doc)) cardMeta = parseProductCardMeta(doc)
-        } catch {
-          // Legacy session unavailable — leave the fields empty, as before.
-        }
-      }
+      const fapiCreated = parseListDate(typeof extra?.product.date_creation === 'string' ? extra.product.date_creation : '')
+      const fapiCountryCode = typeof extra?.product.country_code === 'string' ? extra.product.country_code : ''
 
       return {
         ...toRow(p),
         description: p.description ?? '',
-        categories: p.categories ?? [],
+        categories: p.categories?.length ? p.categories : (extra?.categories ?? []).map((c) => ({ id: c.id, label: c.label })),
         notePublic: p.note_public ?? '',
         notePrivate: p.note_private ?? '',
         currency: p.currency ?? '',
-        zraId: p.zraid ?? '',
-        zraStatus: p.zrastatus ?? '',
+        zraId: p.zraid || extra?.zra.id || '',
+        zraStatus: p.zrastatus || extra?.zra.status || '',
         useLotSerial: (p.tobatch ?? 0) !== 0,
         publicUrl: p.url ?? '',
         priceMinExclTax: Number(p.price_min ?? 0) || 0,
@@ -444,7 +511,7 @@ export function useProductDetail(id: string | undefined) {
         baseUnit: p.base_unit ?? '',
         packingUnit: p.packing_unit ?? '',
         barcodeType: p.barcode_type ?? '',
-        manufacturer: p.manufacturer || cardMeta.manufacturer,
+        manufacturer: p.manufacturer ?? '',
         defaultWarehouse: p.default_warehouse ?? '',
         totalSoldQty: Number(p.total_sold_qty ?? 0) || 0,
         totalSoldAmount: Number(p.total_sold_amount ?? 0) || 0,
@@ -459,10 +526,10 @@ export function useProductDetail(id: string | undefined) {
         volume: p.volume === null || p.volume === undefined ? null : Number(p.volume),
         volumeUnits: Number(p.volume_units ?? 0) || 0,
         customCode: p.customcode ?? '',
-        originCountry: p.origin_country || cardMeta.originCountry,
-        originCountryCode: p.origin_country_code || cardMeta.originCountryCode,
+        originCountry: p.origin_country ?? '',
+        originCountryCode: p.origin_country_code || fapiCountryCode,
         originState: p.origin_state ?? '',
-        createdAt: p.created_at || cardMeta.createdAtIso,
+        createdAt: p.created_at || (fapiCreated.time ? new Date(fapiCreated.time).toISOString() : ''),
       }
     },
     enabled: !!id,
@@ -522,67 +589,64 @@ export interface ProductMarginLine {
   buyingPrice: number
   qty: number
   margin: number
-  paid: boolean
+  // null when the source gives no payment state for that invoice.
+  paid: boolean | null
   status: number
 }
 export interface ProductMargins {
   lines: ProductMarginLine[]
   totals: { sellingPrice: number; buyingPrice: number; qty: number; margin: number }
+  // How many lines carry the buying price recorded at the time of sale; the rest
+  // use the product's current weighted average cost (pmp). null on the old source.
+  costBasis: { linesTotal: number; linesWithRecordedCost: number; currentPmp: number } | null
 }
+
+// product/fapi/margins.php — revenue, cost and margin per invoice line. Its lines
+// carry no payment state, so the invoice statistics (same endpoint family) supply it.
+async function fetchProductMargins(id: string): Promise<ProductMargins> {
+  const [m, invoiceStats] = await Promise.all([getProductMargins(id), getProductInvoiceStats(id).catch(() => null)])
+  const paidByInvoice = new Map((invoiceStats?.lines ?? []).map((l) => [l.invoice_id, l.paid === 1]))
+  return {
+    lines: m.lines.map((l) => ({
+      invoiceId: l.invoice_id,
+      ref: l.ref,
+      customerName: l.customer,
+      customerCode: '',
+      date: l.date,
+      sellingPrice: l.revenue_ht,
+      buyingPrice: l.cost_ht,
+      qty: l.qty,
+      margin: l.margin,
+      paid: paidByInvoice.get(l.invoice_id) ?? null,
+      status: 0,
+    })),
+    totals: { sellingPrice: m.summary.revenue_ht, buyingPrice: m.summary.cost_ht, qty: m.summary.qty, margin: m.summary.margin },
+    costBasis: { linesTotal: m.basis.lines_total, linesWithRecordedCost: m.basis.lines_with_recorded_cost, currentPmp: m.basis.current_pmp },
+  }
+}
+
 export function useProductMargins(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'margins', id],
-    queryFn: async (): Promise<ProductMargins> => {
-      const { data } = await api.get<{ success: boolean; lines?: ProductMarginLine[]; totals?: ProductMargins['totals']; products?: unknown }>('/products/', { params: { action: 'margins', id } })
-      // Same unrouted-action fallthrough as useProductDetailAction — see
-      // that function's comment. ecuenta9 returns {success:true,
-      // products:[...]} for this action too, with no `lines`/`totals` key
-      // at all.
-      if (!('lines' in data)) throw new Error(`${BACKEND_ACTION_UNAVAILABLE_PREFIX}margins`)
-      return { lines: data.lines ?? [], totals: data.totals ?? { sellingPrice: 0, buyingPrice: 0, qty: 0, margin: 0 } }
-    },
+    queryFn: (): Promise<ProductMargins> =>
+      (() => fetchProductMargins(id!))(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
 
-// Real JSON source (productinfo/api/document_api.php) — replaces the old
-// product/document.php scrape. Same ProductDocumentRow shape so the tab-bar
-// badge count and LinkedFilesTab don't need to change, just what feeds them.
-//
-// Real backend bug (confirmed live, root-caused, not fixed — frontend-only
-// scope): the `view` action always returns `documents: []`, even for a
-// product whose upload folder genuinely has files on disk (verified by
-// uploading a real file through this exact endpoint, then finding it
-// sitting untouched next to a pre-existing real file at
-// documents/produit/<ref>/ — neither one is ever listed). Root cause: `view`
-// calls Dolibarr's dol_dir_list() with an exclude filter of
-// array('(\.meta)$', '(/thumbs)$') — the second pattern's '/' isn't escaped,
-// which trips dol_dir_list()'s own filter-safety check (files.lib.php,
-// around the "unescaped_slash" validation) and makes it return an empty
-// array unconditionally, regardless of what's actually in the directory.
-// Upload/delete both work fine (verified live); only the listing is broken,
-// so a successful upload is invisible in the UI until this is fixed
-// upstream.
-interface RawProductDocument {
-  name: string
-  size: string
-  date: string
-  url: string
-}
 export function useProductDocuments(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'documents', id],
-    queryFn: async (): Promise<{ count: number; totalSize: string; documents: ProductDocumentRow[] }> => {
-      const body = await callProductInfoFile('document_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load documents.')
-      const d = body.data as { documents: RawProductDocument[] }
-      return {
-        count: d.documents.length,
-        totalSize: '',
-        documents: d.documents.map((f) => ({ fileName: f.name, fileUrl: f.url, size: f.size, date: f.date })),
-      }
-    },
+    queryFn: (): Promise<{ count: number; totalSize: string; documents: ProductDocumentRow[] }> =>
+      (async () => {
+          const d = await getProductDocuments(id!)
+          return {
+            count: d.meta?.count ?? d.files.length,
+            totalSize: '',
+            documents: d.files.map((f) => ({ fileName: f.name, fileUrl: f.url, size: String(f.size ?? ''), date: f.date })),
+          }
+        })(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
@@ -591,16 +655,8 @@ export function useProductDocuments(id: string | undefined) {
 export function useUploadProductDocument() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, file }: { id: string; file: File }) => {
-      const form = new FormData()
-      form.append('action', 'upload')
-      form.append('id', id)
-      form.append('file', file)
-      const res = await axios.post<string>('/productinfo/api/document_api.php', form, { transformResponse: (data) => data })
-      const body = JSON.parse(res.data.trim()) as { success: boolean; error: string | null }
-      if (!body.success) throw new Error(body.error || 'Upload failed.')
-      return body
-    },
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
+      (() => uploadProductDocument(id, file))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'documents', variables.id] })
     },
@@ -610,11 +666,8 @@ export function useUploadProductDocument() {
 export function useDeleteProductDocument() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, filename }: { id: string; filename: string }) => {
-      const body = await callProductInfoFile('document_api.php', 'delete', { id, filename })
-      if (!body.success) throw new Error(body.error || 'Failed to delete this file.')
-      return body.data
-    },
+    mutationFn: ({ id, filename }: { id: string; filename: string }) =>
+      (() => deleteProductDocumentFile(id, filename))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'documents', variables.id] })
     },
@@ -697,40 +750,42 @@ export function useProductDashboard(id: string | undefined, page: number = 1) {
   })
 }
 
+// product/fapi/dashboard.php — what the product sold and bought over a window:
+// validated customer invoice lines (credit notes excluded, so a refund does not read
+// as a sale), purchases, open documents and the monthly sales split. It sits above
+// the invoice timeline; null on a backend without the endpoint.
+export function useProductSalesWindow(id: string | undefined, months = 12) {
+  return useQuery({
+    queryKey: ['products', 'salesWindow', id, months],
+    queryFn: async (): Promise<ProductDashboardData | null> => {
+      try {
+        return await getProductDashboard(id!, months)
+      } catch (error) {
+        if (isMissingEndpoint(error)) return null
+        throw error
+      }
+    },
+    enabled: !!id,
+    staleTime: 1000 * 30,
+    retry: false,
+  })
+}
+
 // =============================================================================
-// Hero header actions (Delete/Duplicate) — a real, separate JSON CRUD API,
-// productinfo/api/product_api.php (session-cookie-authenticated like
-// societe/api/*, unrelated to api/products/'s ?action= routing). Its
-// responses are sometimes prefixed with stray CRLFs before the JSON body
-// even though Content-Type says application/json (same quirk confirmed live
-// on societe/api/list.php) — transformResponse + trim() before JSON.parse
-// sidesteps that rather than depending on a backend fix.
-export async function callProductInfoFile(file: string, action: string, params: Record<string, string>) {
-  const res = await axios.post<string>(`/productinfo/api/${file}`, new URLSearchParams({ action, ...params }), { transformResponse: (data) => data })
-  return JSON.parse(res.data.trim()) as { success: boolean; error: string | null; data: unknown }
-}
-function callProductInfoApi(action: string, params: Record<string, string>) {
-  return callProductInfoFile('product_api.php', action, params)
-}
+// Hero header actions (Delete / Duplicate) on product/fapi/product.php.
 
 export function useDeleteProduct() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const body = await callProductInfoApi('delete', { id })
-      // Real, confirmed backend gap: Product::delete() returns 0 (not <0)
-      // when the product is in use and blocks the delete, but
-      // product_api.php's `if ($result < 0)` check treats that as success —
-      // it can report success:true here even when nothing was actually
-      // deleted. Not fixable from the frontend (see the standing no-
-      // backend-PHP-edits rule); callers should treat a reported success as
-      // provisional; re-fetching the list afterward is the only way to
-      // confirm it's actually gone.
-      if (!body.success) throw new Error(body.error || 'Delete failed.')
-      return body.data
+      // product/fapi/product.php refuses (409) when the product is used by a document or holds stock, and says why - so a
+      // delete that reports success really happened.
+      return deleteProduct(id)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] })
+      // Only queries that are not on screen reload: the open page is the deleted
+      // product's own, and refetching it would just answer 404.
+      queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'inactive' })
     },
   })
 }
@@ -739,20 +794,14 @@ export interface DuplicateProductResult {
   id: number
   ref: string
 }
+// The new clone endpoint needs the reference for the copy (it never guesses one),
+// so the caller passes the original's reference and the copy is "<ref>-COPY".
 export function useDuplicateProduct() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string): Promise<DuplicateProductResult> => {
-      const body = await callProductInfoApi('clone', { id })
-      // Confirmed live: this action currently fails for every product on
-      // this backend — Product::create()'s verify()-failure branch returns
-      // -3 without ever setting $this->error (only $this->errors[], which
-      // product_api.php's clone handler never reads), so `error` comes back
-      // JSON null, not a usable message. Real bug, not fixable from the
-      // frontend — surfaced with a generic message instead of a silent
-      // failure or a fake success.
-      if (!body.success) throw new Error(body.error || 'Duplicate failed — the backend did not report a reason.')
-      return body.data as DuplicateProductResult
+    mutationFn: async ({ id, ref }: { id: string; ref: string }): Promise<DuplicateProductResult> => {
+      const copy = await cloneProduct(id, `${ref}-COPY`)
+      return { id: copy.id, ref: copy.ref }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -819,7 +868,8 @@ export interface ProductStockOverview {
   physicalBelowLimit: boolean
   virtualBelowLimit: boolean
   lastMovement: string | null
-  stockDiff: RawStockView['stock_diff']
+  // Pending documents behind the virtual stock; null when the source has no breakdown.
+  stockDiff: RawStockView['stock_diff'] | null
   warehouses: { id: number; ref: string; place: string; units: number; pmp: string; valuePurchase: string; sellPriceMin: string; valueSell: string }[]
   totals: { totalQty: number; avgPmp: string; totalValuePurchase: string; avgSellPrice: string; totalValueSell: string }
   movements: { id: number; dateFormatted: string; qty: number; label: string; warehouse: string; user: string }[]
@@ -829,54 +879,83 @@ export interface ProductStockOverview {
   canEdit: boolean
 }
 
+// product/fapi/stock.php — levels, per-warehouse rows and the last 50 movements. It
+// has no price block, so prices.php (selling, minimum and cost price) and
+// suppliers.php (cheapest buying price) fill the tab's pricing card, and warehouse
+// values are quantity x price, as product/stock/product.php computes them. It has no
+// pending-documents breakdown either: stockDiff is null and that panel stays hidden.
+async function fetchProductStockOverview(id: string): Promise<ProductStockOverview> {
+  const [s, prices, suppliers] = await Promise.all([getProductStock(id), getProductPrices(id).catch(() => null), getProductSuppliers(id).catch(() => null)])
+  const money = (n: number | null | undefined) => (n === null || n === undefined ? '' : `${formatMoney(n)}${s.currency ? ` ${s.currency}` : ''}`)
+  const sell = prices ? prices.current.price : null
+  const { alert, desired } = s.totals
+  return {
+    pricing: {
+      costPrice: money(prices?.current.cost_price),
+      pmp: money(s.totals.pmp),
+      buyingPriceMin: suppliers?.best ? money(suppliers.best.unit_price) : '',
+      sellingPrice: money(sell),
+      minPrice: money(prices?.current.price_min),
+    },
+    stockAlertThreshold: alert ? String(alert) : '',
+    desiredStock: desired ? String(desired) : '',
+    physicalStock: s.totals.real,
+    virtualStock: s.totals.virtual,
+    physicalBelowLimit: alert > 0 && s.totals.real < alert,
+    virtualBelowLimit: alert > 0 && s.totals.virtual < alert,
+    lastMovement: s.movements[0]?.date ?? null,
+    stockDiff: null,
+    warehouses: s.warehouses.map((w) => ({
+      id: w.id,
+      ref: w.ref,
+      place: w.location,
+      units: w.real,
+      pmp: money(w.pmp),
+      valuePurchase: money(w.real * w.pmp),
+      sellPriceMin: money(sell),
+      valueSell: sell === null ? '' : money(w.real * sell),
+    })),
+    totals: {
+      totalQty: s.totals.real,
+      avgPmp: money(s.totals.pmp),
+      totalValuePurchase: money(s.totals.value_pmp),
+      avgSellPrice: money(sell),
+      totalValueSell: sell === null ? '' : money(s.totals.real * sell),
+    },
+    movements: s.movements.map((m) => ({ id: m.id, dateFormatted: m.date, qty: m.qty, label: m.label, warehouse: m.warehouse, user: m.by })),
+    warehouseOptions: s.options.warehouses.map((w) => ({ value: String(w.id), label: w.location && w.location !== w.ref ? `${w.ref} (${w.location})` : w.ref })),
+    hasBatch: s.options.batch_enabled,
+    canStock: s.options.can_write,
+    canEdit: s.options.can_write,
+  }
+}
+
 export function useProductStockOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'stockOverview', id],
-    queryFn: async (): Promise<ProductStockOverview> => {
-      const body = await callProductInfoFile('stock_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load stock overview.')
-      const d = body.data as RawStockView
-      return {
-        pricing: {
-          costPrice: d.pricing.cost_price,
-          pmp: d.pricing.pmp,
-          buyingPriceMin: d.pricing.buying_price_min,
-          sellingPrice: d.pricing.selling_price,
-          minPrice: d.pricing.min_price,
-        },
-        stockAlertThreshold: d.stock_info.seuil_stock_alerte === null ? '' : String(d.stock_info.seuil_stock_alerte),
-        desiredStock: String(d.stock_info.desiredstock ?? ''),
-        physicalStock: d.stock_info.stock_reel,
-        virtualStock: d.stock_info.stock_theorique,
-        physicalBelowLimit: d.stock_info.stock_below_limit,
-        virtualBelowLimit: d.stock_info.virtual_below_limit,
-        lastMovement: d.last_movement,
-        stockDiff: d.stock_diff,
-        warehouses: d.warehouses.map((w) => ({ id: w.id, ref: w.ref, place: w.lieu, units: w.stock_real, pmp: w.pmp, valuePurchase: w.value_purchase, sellPriceMin: w.sell_price, valueSell: w.value_sell })),
-        totals: { totalQty: d.totals.total_qty, avgPmp: d.totals.avg_pmp, totalValuePurchase: d.totals.total_value_purchase, avgSellPrice: d.totals.avg_sell_price, totalValueSell: d.totals.total_value_sell },
-        movements: d.movements.map((m) => ({ id: m.id, dateFormatted: m.date_formatted, qty: m.qty, label: m.label, warehouse: m.warehouse, user: m.user })),
-        warehouseOptions: d.all_warehouses.map((w) => ({ value: String(w.id), label: w.label })),
-        hasBatch: d.hasbatch,
-        canStock: d.can_stock,
-        canEdit: d.can_create,
-      }
-    },
+    queryFn: (): Promise<ProductStockOverview> => (() => fetchProductStockOverview(id!))(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
+
 
 // Inline-editable Stock Alert Threshold / Desired Stock fields (matches the
 // real page's own onchange-save inputs, see productinfo_stock.js).
 export function useSetStockField() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, field, value }: { id: string; field: 'seuil_stock_alerte' | 'desiredstock'; value: string }) => {
-      const action = field === 'seuil_stock_alerte' ? 'set_stock_limit' : 'set_desired_stock'
-      const body = await callProductInfoFile('stock_api.php', action, { id, [field]: value })
-      if (!body.success) throw new Error(body.error || 'Save failed.')
-      return body.data
-    },
+    mutationFn: ({ id, field, value }: { id: string; field: 'seuil_stock_alerte' | 'desiredstock'; value: string }) =>
+      (() => {
+          // stock.php's set_limits takes both limits: the one not being edited is
+          // sent with its current value so saving one never clears the other.
+          const current = queryClient.getQueryData<ProductStockOverview>(['products', 'detail', 'stockOverview', id])
+          const num = (v: string | undefined) => (v === undefined || v.trim() === '' ? null : Number(v))
+          return setProductStockLimits(id, {
+            stock_alert: num(field === 'seuil_stock_alerte' ? value : current?.stockAlertThreshold),
+            desired_stock: num(field === 'desiredstock' ? value : current?.desiredStock),
+          })
+        })(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'stockOverview', variables.id] })
     },
@@ -895,19 +974,17 @@ export interface CorrectStockInput {
 export function useCorrectStock() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: CorrectStockInput) => {
-      const body = await callProductInfoFile('stock_api.php', 'correct_stock', {
-        id: input.id,
-        warehouse_id: input.warehouseId,
-        qty: input.qty,
-        mouvement: input.mouvement,
-        label: input.label,
-        unitprice: input.unitPrice,
-        batch_number: input.batchNumber,
-      })
-      if (!body.success) throw new Error(body.error || 'Failed to correct stock.')
-      return body.data
-    },
+    mutationFn: (input: CorrectStockInput) =>
+      (() =>
+          correctProductStock({
+            id: Number(input.id),
+            warehouse_id: Number(input.warehouseId),
+            qty: Number(input.qty),
+            movement: input.mouvement === '1' ? 1 : 0,
+            label: input.label,
+            unitprice: input.unitPrice.trim() === '' ? undefined : Number(input.unitPrice),
+            batch_number: input.batchNumber || undefined,
+          }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'stockOverview', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', variables.id] })
@@ -926,18 +1003,16 @@ export interface TransferStockInput {
 export function useTransferStock() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: TransferStockInput) => {
-      const body = await callProductInfoFile('stock_api.php', 'transfer_stock', {
-        id: input.id,
-        warehouse_from: input.warehouseFrom,
-        warehouse_to: input.warehouseTo,
-        qty: input.qty,
-        label: input.label,
-        batch_number: input.batchNumber,
-      })
-      if (!body.success) throw new Error(body.error || 'Failed to transfer stock.')
-      return body.data
-    },
+    mutationFn: (input: TransferStockInput) =>
+      (() =>
+          transferProductStock({
+            id: Number(input.id),
+            warehouse_from: Number(input.warehouseFrom),
+            warehouse_to: Number(input.warehouseTo),
+            qty: Number(input.qty),
+            label: input.label,
+            batch_number: input.batchNumber || undefined,
+          }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'stockOverview', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', variables.id] })
@@ -945,40 +1020,6 @@ export function useTransferStock() {
   })
 }
 
-// =============================================================================
-// UOM tab — productinfo/api/uom_api.php?action=view, real, replicates
-// product/uom_settings.php. "Available Units" is the count of every
-// packing/UOM/measurement unit defined system-wide (a dictionary size, not a
-// stock quantity) — confirmed by reading productinfo_uom.js's own
-// buildHTML(), not guessed from the label.
-interface RawUomOverviewConversion {
-  id: number
-  packing_unit_id: number
-  packing_label: string
-  uom_unit_id: number
-  uom_label: string
-  factor: number
-  price_override_ttc: number
-  barcode: string
-  note: string
-  is_default: boolean
-}
-interface RawUomUnit {
-  id: number
-  code: string
-  label: string
-  short_label: string
-}
-interface RawUomView {
-  product_barcode: string
-  product_status_batch: number
-  base_unit: { label?: string; code?: string } | []
-  conversions: RawUomOverviewConversion[]
-  packing_units: RawUomUnit[]
-  uom_units: RawUomUnit[]
-  measurement_units: unknown[]
-  permissions: { create: boolean }
-}
 export interface ProductUomOverview {
   baseUnitLabel: string
   conversionsCount: number
@@ -990,41 +1031,51 @@ export interface ProductUomOverview {
   uomUnitOptions: { value: string; label: string }[]
   canEdit: boolean
 }
+// product/fapi/uom.php — conversions through ProductUomManager. It has no product
+// barcode or batch flag, so get.php (barcode) and stock.php (batch tracking) add
+// them. Its uom_units list already includes the packing units (unit_type "pack"),
+// so it alone is the system-wide unit count.
+async function fetchProductUomOverview(id: string): Promise<ProductUomOverview> {
+  const [u, card, stock] = await Promise.all([
+    getProductUom(id),
+    getProduct(id, { withStock: false, withPrices: false }).catch(() => null),
+    getProductStock(id).catch(() => null),
+  ])
+  const unitOption = (o: { value: string; label: string; code: string }) => ({ value: String(o.value), label: `${o.label} (${o.code})` })
+  const base = u.options.base_unit
+  return {
+    baseUnitLabel: base?.label || base?.code || '—',
+    conversionsCount: u.conversions.length,
+    availableUnitsCount: u.options.uom_units.length,
+    productBarcode: typeof card?.product.barcode === 'string' ? card.product.barcode : '',
+    hasBatchTracking: !!stock?.options.batch_enabled,
+    conversions: u.conversions.map((c) => ({
+      id: c.id,
+      packingUnitId: c.packing_unit_id,
+      packingLabel: c.packing_label,
+      uomUnitId: c.uom_unit_id,
+      uomLabel: c.uom_label,
+      factor: c.factor,
+      priceOverrideTtc: c.price_override_ttc,
+      barcode: c.barcode,
+      note: c.note,
+      isDefault: c.is_default,
+    })),
+    packingUnitOptions: u.options.packing_units.map(unitOption),
+    uomUnitOptions: u.options.uom_units.map(unitOption),
+    canEdit: u.options.can_write,
+  }
+}
+
 export function useProductUomOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'uomOverview', id],
-    queryFn: async (): Promise<ProductUomOverview> => {
-      const body = await callProductInfoFile('uom_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load UOM settings.')
-      const d = body.data as RawUomView
-      const baseUnit = Array.isArray(d.base_unit) ? null : d.base_unit
-      return {
-        baseUnitLabel: baseUnit?.label || baseUnit?.code || '—',
-        conversionsCount: d.conversions.length,
-        availableUnitsCount: d.packing_units.length + d.uom_units.length + d.measurement_units.length,
-        productBarcode: d.product_barcode ?? '',
-        hasBatchTracking: !!d.product_status_batch,
-        conversions: d.conversions.map((c) => ({
-          id: c.id,
-          packingUnitId: c.packing_unit_id,
-          packingLabel: c.packing_label,
-          uomUnitId: c.uom_unit_id,
-          uomLabel: c.uom_label,
-          factor: c.factor,
-          priceOverrideTtc: c.price_override_ttc,
-          barcode: c.barcode,
-          note: c.note,
-          isDefault: c.is_default,
-        })),
-        packingUnitOptions: d.packing_units.map((u) => ({ value: String(u.id), label: `${u.label} (${u.code})` })),
-        uomUnitOptions: d.uom_units.map((u) => ({ value: String(u.id), label: `${u.label} (${u.code})` })),
-        canEdit: d.permissions.create,
-      }
-    },
+    queryFn: (): Promise<ProductUomOverview> => (() => fetchProductUomOverview(id!))(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
+
 
 export interface SaveUomConversionInput {
   id: string
@@ -1040,35 +1091,31 @@ export interface SaveUomConversionInput {
 export function useSaveUomConversion() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: SaveUomConversionInput) => {
-      const body = await callProductInfoFile('uom_api.php', 'save_conversion', {
-        id: input.id,
-        conv_id: String(input.convId),
-        packing_unit: input.packingUnit,
-        uom_unit: input.uomUnit,
-        factor: input.factor,
-        is_default: input.isDefault ? '1' : '0',
-        price_ttc: input.priceTtc,
-        barcode: input.barcode,
-        note: input.note,
-      })
-      if (!body.success) throw new Error(body.error || 'Failed to save this UOM conversion.')
-      return body.data
-    },
+    mutationFn: (input: SaveUomConversionInput) =>
+      (() =>
+          saveProductUomConversion({
+            id: Number(input.id),
+            conv_id: input.convId,
+            packing_unit: Number(input.packingUnit),
+            uom_unit: Number(input.uomUnit),
+            factor: Number(input.factor),
+            barcode: input.barcode,
+            is_default: input.isDefault ? 1 : 0,
+            price_override_ttc: input.priceTtc.trim() === '' ? 0 : Number(input.priceTtc),
+            note: input.note,
+          }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', variables.id] })
     },
   })
 }
 
+// The product's own barcode is a product field: product.php's update stores it.
 export function useSaveProductBarcode() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, barcode }: { id: string; barcode: string }) => {
-      const body = await callProductInfoFile('uom_api.php', 'save_barcode', { id, barcode_value: barcode })
-      if (!body.success) throw new Error(body.error || 'Failed to save barcode.')
-      return body.data
-    },
+    mutationFn: ({ id, barcode }: { id: string; barcode: string }) =>
+      (() => updateProduct(id, { barcode }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', variables.id] })
@@ -1076,14 +1123,14 @@ export function useSaveProductBarcode() {
   })
 }
 
+// Generates the PRODUCT's own barcode: product/fapi/uom.php?action=generate_product_barcode (the plain
+// generate_barcode there fills a packing conversion's). Another product already holding the barcode is a 409
+// naming the owner; the older productinfo/api/uom_api.php stays as the fallback on a backend without the action.
 export function useGenerateProductBarcode() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const body = await callProductInfoFile('uom_api.php', 'generate_barcode', { id })
-      if (!body.success) throw new Error(body.error || 'Failed to generate barcode.')
-      return body.data as { barcode: string }
-    },
+    mutationFn: async (id: string) =>
+      (() => generateProductBarcode(Number(id)))(),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', id] })
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', id] })
@@ -1094,39 +1141,14 @@ export function useGenerateProductBarcode() {
 export function useDeleteUomConversion() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ convId }: { id: string; convId: number }) => {
-      const body = await callProductInfoFile('uom_api.php', 'delete_conversion', { conv_id: String(convId) })
-      if (!body.success) throw new Error(body.error || 'Failed to delete conversion.')
-      return body.data
-    },
+    mutationFn: ({ id, convId }: { id: string; convId: number }) =>
+      (() => deleteProductUomConversion(id, convId))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', variables.id] })
     },
   })
 }
 
-// =============================================================================
-// Supplier Prices tab — productinfo/api/supplier_api.php?action=view, real,
-// replicates product/fournisseurs.php. Unlike stock_api.php's pricing block,
-// cost_price/pmp/price/unitprice here are RAW numbers straight off
-// ProductFournisseur (no price() formatting applied server-side), so this
-// formats them client-side with the same formatMoney() used everywhere else.
-interface RawSupplierRow {
-  rowid: number
-  supplier_name: string
-  ref_fourn: string
-  unitprice: number
-  quantity: number
-  tva_tx: string
-  delivery_time_days: number | null
-  supplier_reputation_label: string
-}
-interface RawSupplierView {
-  suppliers: RawSupplierRow[]
-  cost_price: number
-  pmp: number
-  best_price: { unitprice: number; supplier_name: string } | null
-}
 export interface ProductSupplierOverview {
   suppliersCount: number
   bestUnitPrice: number | null
@@ -1136,156 +1158,59 @@ export interface ProductSupplierOverview {
   bestPriceSupplierName: string | null
   suppliers: { rowid: number; supplierName: string; refFourn: string; unitPrice: number; quantity: number; vatRate: string; deliveryDays: number | null; reputation: string }[]
 }
+// product/fapi/suppliers.php — rows ordered by unit price, `best` = the cheapest.
+async function fetchProductSupplierOverview(id: string): Promise<ProductSupplierOverview> {
+  const d = await getProductSuppliers(id)
+  const prices = d.prices.map((s) => s.unit_price).filter((p) => p > 0)
+  return {
+    suppliersCount: d.prices.length,
+    bestUnitPrice: d.best?.unit_price ?? null,
+    avgUnitPrice: prices.length ? prices.reduce((sum, p) => sum + p, 0) / prices.length : null,
+    costPrice: d.cost_price,
+    pmp: d.pmp,
+    bestPriceSupplierName: d.best?.supplier ?? null,
+    suppliers: d.prices.map((s) => ({
+      rowid: s.id,
+      supplierName: s.supplier,
+      refFourn: s.ref_fourn,
+      unitPrice: s.unit_price,
+      quantity: s.qty,
+      vatRate: String(s.tva_tx),
+      deliveryDays: s.delivery_days ?? null,
+      reputation: '',
+    })),
+  }
+}
+
 export function useProductSupplierOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'supplierOverview', id],
-    queryFn: async (): Promise<ProductSupplierOverview> => {
-      const body = await callProductInfoFile('supplier_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load supplier prices.')
-      const d = body.data as RawSupplierView
-      const prices = d.suppliers.map((s) => s.unitprice).filter((p) => p > 0)
-      const avg = prices.length ? prices.reduce((sum, p) => sum + p, 0) / prices.length : null
-      return {
-        suppliersCount: d.suppliers.length,
-        bestUnitPrice: d.best_price?.unitprice ?? null,
-        avgUnitPrice: avg,
-        costPrice: d.cost_price,
-        pmp: d.pmp,
-        bestPriceSupplierName: d.best_price?.supplier_name ?? null,
-        suppliers: d.suppliers.map((s) => ({
-          rowid: s.rowid,
-          supplierName: s.supplier_name,
-          refFourn: s.ref_fourn,
-          unitPrice: s.unitprice,
-          quantity: s.quantity,
-          vatRate: s.tva_tx,
-          deliveryDays: s.delivery_time_days,
-          reputation: s.supplier_reputation_label,
-        })),
-      }
-    },
+    queryFn: (): Promise<ProductSupplierOverview> => (() => fetchProductSupplierOverview(id!))(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
 
+
 // =============================================================================
-// Edit wizard — productinfo/api/edit_wizard.php for the real, currently-
-// selected dropdown options (see parseEditWizardForm's own header comment
-// for why this is scraped rather than a JSON options endpoint), submitted to
-// productinfo/api/product_api.php?action=update (the same real CRUD API
-// Delete/Duplicate already use — see callProductInfoFile above). Field names
-// on the wire match that PHP's own GETPOST() calls exactly, read directly
-// from source, not guessed.
-export function useProductEditFormData(id: string | undefined) {
+// Edit wizard — product/fapi/edit_form.php (current values, every dropdown and the write
+// contract in one call) and product/fapi/product.php?action=update (only the changed fields).
+export function useProductEditForm(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'editForm', id],
-    queryFn: async (): Promise<EditWizardFormData> => {
-      const doc = await fetchLegacyDocument('/productinfo/api/edit_wizard.php', new URLSearchParams({ id: id! }))
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return parseEditWizardForm(doc)
-    },
+    queryFn: () => getProductEditForm(id!),
     enabled: !!id,
     staleTime: 0,
     retry: false,
   })
 }
 
-export interface UpdateProductInput {
-  id: string
-  label: string
-  ref: string
-  barcode: string
-  description: string
-  statut: string
-  statutBuy: string
-  finished: string
-  itemClassification: string
-  countryId: string
-  // Hidden passthrough — unchanged values from parseEditWizardForm's own
-  // hidden* fields, resent as-is (see that interface's own comment).
-  price: string
-  priceMin: string
-  priceBaseType: string
-  tvaTx: string
-  iplCatCd: string
-  tlCatCd: string
-  exciseTxCatCd: string
-  manufactuterTpin: string
-  manufacturerItemCd: string
-  rrp: string
-  durationValue: string
-  durationUnit: string
-  fkDefaultWarehouse: string
-  seuilStockAlerte: string
-  desiredStock: string
-  units: string
-  packing: string
-  weight: string
-  weightUnits: string
-  length: string
-  width: string
-  height: string
-  sizeUnits: string
-  manufacturerId: string
-  accountancySell: string
-  accountancySellExport: string
-  accountancyBuy: string
-  accountancyBuyExport: string
-  categories: string[]
-}
-
 export function useUpdateProduct() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: UpdateProductInput) => {
-      const body = new URLSearchParams({
-        action: 'update',
-        id: input.id,
-        label: input.label,
-        ref: input.ref,
-        barcode: input.barcode,
-        description: input.description,
-        statut: input.statut,
-        statut_buy: input.statutBuy,
-        finished: input.finished,
-        itemclassification: input.itemClassification,
-        country_id: input.countryId,
-        price: input.price,
-        price_min: input.priceMin,
-        price_base_type: input.priceBaseType,
-        tva_tx: input.tvaTx,
-        iplCatCd: input.iplCatCd,
-        tlCatCd: input.tlCatCd,
-        exciseTxCatCd: input.exciseTxCatCd,
-        manufactuterTpin: input.manufactuterTpin,
-        manufacturerItemCd: input.manufacturerItemCd,
-        rrp: input.rrp,
-        duration_value: input.durationValue,
-        duration_unit: input.durationUnit,
-        fk_default_warehouse: input.fkDefaultWarehouse,
-        seuil_stock_alerte: input.seuilStockAlerte,
-        desiredstock: input.desiredStock,
-        units: input.units,
-        packing: input.packing,
-        weight: input.weight,
-        weight_units: input.weightUnits,
-        size: input.length,
-        sizewidth: input.width,
-        sizeheight: input.height,
-        size_units: input.sizeUnits,
-        manufacturer_id: input.manufacturerId,
-        accountancy_code_sell: input.accountancySell,
-        accountancy_code_sell_export: input.accountancySellExport,
-        accountancy_code_buy: input.accountancyBuy,
-        accountancy_code_buy_export: input.accountancyBuyExport,
-      })
-      for (const catId of input.categories) body.append('categories[]', catId)
-
-      const res = await axios.post<string>('/productinfo/api/product_api.php', body, { transformResponse: (data) => data })
-      const parsed = JSON.parse(res.data.trim()) as { success: boolean; error: string | null; data: unknown }
-      if (!parsed.success) throw new Error(parsed.error || 'Update failed.')
-      return parsed.data
+    mutationFn: async ({ id, fields }: { id: string; fields: ProductWriteFields }) => {
+      if (Object.keys(fields).length === 0) return {}
+      return updateProduct(id, fields)
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', variables.id] })
@@ -1296,38 +1221,16 @@ export function useUpdateProduct() {
 }
 
 // =============================================================================
-// Selling Prices tab — productinfo/api/price_api.php?action=view, real,
-// replicates product/price.php's standard (non-multiprice) view — confirmed
+// Selling Prices tab — the view stays on productinfo/api/price_api.php: its ZRA
+// IPL / tourism-levy / excise categories and amounts (and the option lists the
+// update form needs for them) are not in product/fapi/prices.php. Deleting a
+// history line goes through prices.php?action=delete_log, and a price update
+// without ZRA categories through prices.php?action=update (see below).
+// price_api.php's view replicates
+// product/price.php's standard (non-multiprice) view — confirmed
 // live this deployment has neither PRODUIT_MULTIPRICES nor
 // PRODUIT_CUSTOMER_PRICES_BY_QTY enabled, same single-price shape every
 // other price field in this app already assumes.
-interface RawPriceLogEntry {
-  rowid: number
-  date_str: string
-  price: number
-  price_ttc: number
-  price_base_type: string
-  price_min: number
-  price_min_ttc: number
-  vat_display: string
-  user_name: string
-}
-interface RawPriceView {
-  product: {
-    price: number | string
-    price_ttc: number | string
-    price_min: number | string
-    price_min_ttc: number | string
-    price_base_type: string
-    vat_display: string
-    default_vat_code: string | null
-  }
-  zra: { enabled: boolean; iplCatCd_code: string; iplAmt: number; tlCatCd_code: string; tlAmt: number; exciseTxCatCd_code: string; exciseTxAmt: number }
-  price_log: RawPriceLogEntry[]
-  permissions: { create: boolean; delete: boolean }
-  edit_form_html?: string
-  is_variant: boolean
-}
 export interface ProductPriceOverview {
   vatDisplay: string
   sellingPrice: number
@@ -1344,46 +1247,70 @@ export interface ProductPriceOverview {
   canDelete: boolean
   canCreate: boolean
   isVariant: boolean
-  editFormHtml: string | null
+  // VAT categories from product/fapi/prices.php (rate + code, no markup to read), or
+  // null when this backend has no such endpoint. Used for the price update when ZRA
+  // tax categories are not in play.
+  fapiVatRates: { value: string; label: string; rate: number; code: string; selected: boolean }[] | null
+  // The three ZRA levies with their categories (product/fapi/prices.php zra block), or null on an older backend.
+  fapiZra: ProductZraLevies | null
 }
+// product/fapi/prices.php: the current prices, the VAT categories (rate + code), the price history and the ZRA levies
+// with their categories, in one call; get.php answers the delete / edit rights. ("16%(A)" is built here from the rate
+// and its code.)
 export function useProductPriceOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'priceOverview', id],
     queryFn: async (): Promise<ProductPriceOverview> => {
-      const body = await callProductInfoFile('price_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load selling prices.')
-      const d = body.data as RawPriceView
+      const [prices, card] = await Promise.all([getProductPrices(id!), getProduct(id!, { withStock: false, withPrices: false }).catch(() => null)])
+      const cur = prices.current
+      const seenVat = new Set<string>()
+      const fapiVatRates = prices.options.vat_rates
+        .filter((v) => (seenVat.has(`${v.rate}|${v.code}`) ? false : (seenVat.add(`${v.rate}|${v.code}`), true)))
+        .map((v) => ({
+          value: `${v.rate}|${v.code}`,
+          label: `${v.rate}%${v.code ? ` (${v.code})` : ''}`,
+          rate: v.rate,
+          code: v.code,
+          selected: v.rate === cur.tva_tx && v.code === cur.default_vat_code,
+        }))
       const zra: ProductPriceOverview['zra'] = []
-      if (d.zra.enabled && d.zra.iplCatCd_code) zra.push({ label: 'IPL category code', amount: d.zra.iplAmt, code: d.zra.iplCatCd_code })
-      if (d.zra.enabled && d.zra.tlCatCd_code) zra.push({ label: 'TL category code', amount: d.zra.tlAmt, code: d.zra.tlCatCd_code })
-      if (d.zra.enabled && d.zra.exciseTxCatCd_code) zra.push({ label: 'Excise tax category code', amount: d.zra.exciseTxAmt, code: d.zra.exciseTxCatCd_code })
+      const levies = prices.zra?.levies
+      if (levies) {
+        // The dictionary amount is the truth: a stored levy cannot drift from the category it names.
+        if (levies.ipl.code) zra.push({ label: 'IPL category code', amount: levies.ipl.amount, code: levies.ipl.code })
+        if (levies.tourism_levy.code) zra.push({ label: 'TL category code', amount: levies.tourism_levy.amount, code: levies.tourism_levy.code })
+        if (levies.excise.code) zra.push({ label: 'Excise tax category code', amount: levies.excise.amount, code: levies.excise.code })
+      }
+      const vatDisplay = (rate: number, code: string) => `${rate}%${code ? `(${code})` : ''}`
+      const baseTtc = cur.price_base_type === 'TTC'
       return {
-        vatDisplay: d.product.vat_display,
-        sellingPrice: Number(d.product.price_base_type === 'TTC' ? d.product.price_ttc : d.product.price) || 0,
-        minPrice: Number(d.product.price_base_type === 'TTC' ? d.product.price_min_ttc : d.product.price_min) || 0,
-        price: Number(d.product.price) || 0,
-        priceTtc: Number(d.product.price_ttc) || 0,
-        priceMin: Number(d.product.price_min) || 0,
-        priceMinTtc: Number(d.product.price_min_ttc) || 0,
-        priceBaseType: d.product.price_base_type,
-        defaultVatCode: d.product.default_vat_code ?? '',
-        zraEnabled: d.zra.enabled,
+        vatDisplay: vatDisplay(cur.tva_tx, cur.default_vat_code),
+        sellingPrice: Number(baseTtc ? cur.price_ttc : cur.price) || 0,
+        minPrice: Number(baseTtc ? cur.price_min_ttc : cur.price_min) || 0,
+        price: Number(cur.price) || 0,
+        priceTtc: Number(cur.price_ttc) || 0,
+        priceMin: Number(cur.price_min) || 0,
+        priceMinTtc: Number(cur.price_min_ttc) || 0,
+        priceBaseType: cur.price_base_type,
+        defaultVatCode: cur.default_vat_code ?? '',
+        zraEnabled: Boolean(prices.zra?.enabled),
         zra,
-        priceLog: d.price_log.map((p) => ({
-          rowid: p.rowid,
-          dateStr: p.date_str,
-          price: p.price,
-          priceTtc: p.price_ttc,
-          priceBaseType: p.price_base_type,
-          priceMin: p.price_min,
-          priceMinTtc: p.price_min_ttc,
-          vatDisplay: p.vat_display,
-          userName: p.user_name,
+        priceLog: prices.history.map((h) => ({
+          rowid: h.id,
+          dateStr: h.date,
+          price: h.price,
+          priceTtc: h.price_ttc,
+          priceBaseType: h.base_type,
+          priceMin: h.price_min,
+          priceMinTtc: h.price_min,
+          vatDisplay: vatDisplay(h.tva_tx, h.default_vat_code),
+          userName: h.by,
         })),
-        canDelete: d.permissions.delete,
-        canCreate: d.permissions.create,
-        isVariant: d.is_variant,
-        editFormHtml: d.edit_form_html ?? null,
+        canDelete: card ? Boolean(card.can?.delete) : false,
+        canCreate: card ? Boolean(card.can?.edit) : false,
+        isVariant: false,
+        fapiVatRates,
+        fapiZra: prices.zra ?? null,
       }
     },
     enabled: !!id,
@@ -1394,11 +1321,8 @@ export function useProductPriceOverview(id: string | undefined) {
 export function useDeletePriceLog() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, lineId }: { id: string; lineId: number }) => {
-      const body = await callProductInfoFile('price_api.php', 'delete_log', { id, lineid: String(lineId) })
-      if (!body.success) throw new Error(body.error || 'Failed to delete this price log entry.')
-      return body.data
-    },
+    mutationFn: ({ id, lineId }: { id: string; lineId: number }) =>
+      (() => deleteProductPriceLog(id, lineId))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'priceOverview', variables.id] })
     },
@@ -1414,23 +1338,26 @@ export interface UpdateProductPriceInput {
   iplCatCd: string
   tlCatCd: string
   exciseTxCatCd: string
+  // The VAT category, saved through product/fapi/prices.php, which keeps the VAT category code and the price history.
+  fapi?: { vatRate: number; vatCode: string }
+  // ZRA levy categories (product/fapi/prices.php?action=update_zra), a separate action on purpose: a levy is not a price change and writes no price-history row.
+  levies?: { ipl_code: string; tourism_levy_code: string; excise_code: string }
 }
 export function useUpdateProductPrice() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: UpdateProductPriceInput) => {
-      const body = await callProductInfoFile('price_api.php', 'update_price', {
-        id: input.id,
-        price: input.price,
-        price_min: input.priceMin,
-        price_base_type: input.priceBaseType,
-        tva_tx: input.tvaTx,
-        iplCatCd: input.iplCatCd,
-        tlCatCd: input.tlCatCd,
-        exciseTxCatCd: input.exciseTxCatCd,
+      const [rate, code] = input.fapi ? [input.fapi.vatRate, input.fapi.vatCode] : [Number(input.tvaTx.split('|')[0]) || 0, input.tvaTx.split('|')[1] ?? '']
+      const priced = await updateProductPrice({
+        id: Number(input.id),
+        price: Number(input.price),
+        price_min: Number(input.priceMin),
+        price_base_type: input.priceBaseType === 'TTC' ? 'TTC' : 'HT',
+        tva_tx: rate,
+        default_vat_code: code,
       })
-      if (!body.success) throw new Error(body.error || 'Failed to update price.')
-      return body.data
+      if (input.levies) await updateProductZraLevies(Number(input.id), input.levies)
+      return priced
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'priceOverview', variables.id] })
@@ -1439,37 +1366,6 @@ export function useUpdateProductPrice() {
   })
 }
 
-// =============================================================================
-// Variants tab — productinfo/api/variant_api.php, real, replicates
-// variants/combinations.php.
-interface RawVariantAttrValue {
-  id: number
-  ref: string
-  value: string
-}
-interface RawVariantAttr {
-  id: number
-  ref: string
-  label: string
-  values: RawVariantAttrValue[]
-}
-interface RawCombination {
-  combination_id: number
-  fk_product_child: number
-  child_ref: string
-  child_label: string
-  child_price_ttc: number
-  child_stock: number
-  child_status: number
-  child_status_buy: number
-  variation_price: number
-  attributes: { attr_label: string; val_value: string }[]
-}
-interface RawVariantView {
-  attributes: RawVariantAttr[]
-  combinations: RawCombination[]
-  permissions: { create: boolean; delete: boolean }
-}
 export interface ProductVariantOverview {
   attributes: { id: number; label: string; values: { id: number; value: string }[] }[]
   combinations: {
@@ -1480,7 +1376,8 @@ export interface ProductVariantOverview {
     priceTtc: number
     stock: number
     forSale: boolean
-    forPurchase: boolean
+    // null when the source does not say (product/fapi/variants.php's child has no tobuy).
+    forPurchase: boolean | null
     variationPrice: number
     attributes: { label: string; value: string }[]
   }[]
@@ -1488,32 +1385,37 @@ export interface ProductVariantOverview {
   canEdit: boolean
   canDelete: boolean
 }
+
+// product/fapi/variants.php — combinations through ProductCombination, each owning
+// a real child product. 501 (with a message) when the variants module is off.
+async function fetchProductVariantOverview(id: string): Promise<ProductVariantOverview> {
+  const d = await getProductVariants(id)
+  const attributes = d.options.attributes
+  return {
+    attributes: attributes.map((a) => ({ id: a.id, label: a.label, values: a.values.map((v) => ({ id: v.id, value: v.value })) })),
+    combinations: d.combinations.map((c) => ({
+      id: c.id,
+      childId: c.child.id,
+      ref: c.child.ref,
+      label: c.child.label,
+      priceTtc: c.child.price_ttc,
+      stock: c.child.stock,
+      forSale: c.child.tosell === 1,
+      forPurchase: c.child.tobuy === undefined ? null : c.child.tobuy === 1,
+      variationPrice: c.price_impact,
+      attributes: c.values.map((v) => ({ label: v.attribute_label, value: v.value_label })),
+    })),
+    totalValues: attributes.reduce((sum, a) => sum + a.values.length, 0),
+    canEdit: d.options.can_write,
+    canDelete: d.options.can_write,
+  }
+}
+
+
 export function useProductVariantOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'variantOverview', id],
-    queryFn: async (): Promise<ProductVariantOverview> => {
-      const body = await callProductInfoFile('variant_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load variants.')
-      const d = body.data as RawVariantView
-      return {
-        attributes: d.attributes.map((a) => ({ id: a.id, label: a.label, values: a.values.map((v) => ({ id: v.id, value: v.value })) })),
-        combinations: d.combinations.map((c) => ({
-          id: c.combination_id,
-          childId: c.fk_product_child,
-          ref: c.child_ref,
-          label: c.child_label,
-          priceTtc: c.child_price_ttc,
-          stock: c.child_stock,
-          forSale: c.child_status === 1,
-          forPurchase: c.child_status_buy === 1,
-          variationPrice: c.variation_price,
-          attributes: c.attributes.map((a) => ({ label: a.attr_label, value: a.val_value })),
-        })),
-        totalValues: d.attributes.reduce((sum, a) => sum + a.values.length, 0),
-        canEdit: d.permissions.create,
-        canDelete: d.permissions.delete,
-      }
-    },
+    queryFn: (): Promise<ProductVariantOverview> => (() => fetchProductVariantOverview(id!))(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
@@ -1530,93 +1432,35 @@ export interface CreateCombinationInput {
 export function useCreateCombination() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: CreateCombinationInput) => {
-      const body = new URLSearchParams({
-        action: 'create_combination',
-        id: input.id,
-        reference: input.reference,
-        price_impact: input.priceImpact,
-        price_impact_percent: input.priceImpactPercent ? '1' : '0',
-        weight_impact: input.weightImpact,
-      })
-      for (const f of input.features) body.append('features[]', f)
-      const res = await axios.post<string>('/productinfo/api/variant_api.php', body, { transformResponse: (data) => data })
-      const parsed = JSON.parse(res.data.trim()) as { success: boolean; error: string | string[] | null }
-      // Real backend bug (confirmed live, not fixed — frontend-only scope):
-      // variant_api.php's create_combination handler calls Dolibarr's
-      // ProductCombination::createProductCombination() with $weight_impact
-      // passed as a raw float where that positional arg ($forced_weightvar)
-      // is expected to be a per-level array — unlike $level_price_impact
-      // right next to it, which IS correctly wrapped as array(1 => ...).
-      // That mismatch makes the call fail and the handler falls back to
-      // `$prodcomb->errors` containing a single null entry, so `error` comes
-      // back as the JSON array [null] instead of a string — every
-      // combination create attempt on this install fails as a result.
-      // Coercing defensively here so the modal shows a real message instead
-      // of a blank one.
-      if (!parsed.success) {
-        const message = Array.isArray(parsed.error) ? parsed.error.filter(Boolean).join(', ') : parsed.error
-        throw new Error(message || 'Failed to create combination.')
-      }
-      return parsed
-    },
+    mutationFn: (input: CreateCombinationInput) =>
+      (() =>
+          createProductCombination({
+            id: Number(input.id),
+            // "attrId-valueId" pairs -> { attrId: valueId }
+            values: Object.fromEntries(input.features.map((f) => f.split('-')).map(([attr, value]) => [attr, Number(value)])),
+            price_impact: Number(input.priceImpact) || 0,
+            price_impact_is_percent: input.priceImpactPercent,
+            weight_impact: Number(input.weightImpact) || 0,
+            reference: input.reference || undefined,
+          }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'variantOverview', variables.id] })
     },
   })
 }
+
 
 export function useDeleteCombination() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, combinationId }: { id: string; combinationId: number }) => {
-      const body = await callProductInfoFile('variant_api.php', 'delete_combination', { id, combination_id: String(combinationId) })
-      if (!body.success) throw new Error(body.error || 'Failed to delete this combination.')
-      return body.data
-    },
+    mutationFn: ({ id, combinationId }: { id: string; combinationId: number }) =>
+      (() => deleteProductCombination(id, combinationId))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'variantOverview', variables.id] })
     },
   })
 }
 
-// =============================================================================
-// Composition tab — productinfo/api/subproduct_api.php, real, replicates
-// product/composition/card.php.
-interface RawParentProduct {
-  id: number
-  ref: string
-  label: string
-  qty: number
-}
-interface RawComposition {
-  id: number
-  ref: string
-  label: string
-  nb: number
-  stock: number
-  level: number
-  fourn_price: number
-  fourn_defined: number
-  sell_price_numeric: number | null
-}
-interface RawCompositionView {
-  product: { finished: string; finished_label: string | number; price_display: string }
-  parents: RawParentProduct[]
-  compositions: RawComposition[]
-  total_buy: number
-  total_sell: number
-  permissions: { create: boolean }
-}
-// Backend bug (confirmed live, not fixed — frontend-only scope): for a
-// product whose `finished` code isn't 0 or 1, subproduct_api.php's label
-// lookup falls through and returns the raw fallback code (-1) as
-// `finished_label` instead of resolving it to text. Normalizing here so the
-// UI never shows a bare "-1" instead of a real word.
-function normalizeNatureLabel(finishedLabel: string | number): string {
-  if (typeof finishedLabel === 'string' && finishedLabel.trim() && !/^-?\d+$/.test(finishedLabel.trim())) return finishedLabel
-  return 'Not defined'
-}
 export interface ProductCompositionOverview {
   natureLabel: string
   priceDisplay: string
@@ -1626,24 +1470,42 @@ export interface ProductCompositionOverview {
   totalSell: number
   canEdit: boolean
 }
+// product/fapi/composition.php — the kit's children and the kits it belongs to.
+// It has no buying prices, so each child's cheapest supplier price
+// (suppliers.php `best`, what the old tab showed) is fetched alongside; the
+// product's nature comes from the product detail the page has already loaded.
+async function fetchProductCompositionOverview(id: string, finished: number | undefined): Promise<ProductCompositionOverview> {
+  const d = await getProductComposition(id)
+  const buyPrices = await Promise.all(d.children.map((c) => getProductSuppliers(c.id).then((s) => s.best?.unit_price ?? null).catch(() => null)))
+  const compositions = d.children.map((c, i) => ({
+    id: c.id,
+    ref: c.ref,
+    label: c.label,
+    qty: c.qty,
+    stock: c.stock,
+    buyPrice: buyPrices[i] ?? 0,
+    buyDefined: buyPrices[i] !== null,
+    sellPrice: c.price,
+  }))
+  return {
+    natureLabel: NATURE_OPTIONS.find((o) => o.value === String(finished ?? ''))?.label ?? 'Not defined',
+    priceDisplay: '',
+    parents: d.parents.map((p) => ({ id: p.id, ref: p.ref, label: p.label, qty: p.qty })),
+    compositions,
+    totalBuy: compositions.reduce((sum, c) => sum + (c.buyDefined ? c.buyPrice * c.qty : 0), 0),
+    totalSell: compositions.reduce((sum, c) => sum + (c.sellPrice ?? 0) * c.qty, 0),
+    canEdit: d.can_write,
+  }
+}
+
+
 export function useProductCompositionOverview(id: string | undefined) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ['products', 'detail', 'compositionOverview', id],
-    queryFn: async (): Promise<ProductCompositionOverview> => {
-      const body = await callProductInfoFile('subproduct_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load composition.')
-      const d = body.data as RawCompositionView
-      return {
-        natureLabel: normalizeNatureLabel(d.product.finished_label),
-        priceDisplay: d.product.price_display,
-        parents: d.parents.map((p) => ({ id: p.id, ref: p.ref, label: p.label, qty: p.qty })),
-        compositions: d.compositions
-          .filter((c) => c.level <= 1)
-          .map((c) => ({ id: c.id, ref: c.ref, label: c.label, qty: c.nb, stock: c.stock, buyPrice: c.fourn_price, buyDefined: !!c.fourn_defined, sellPrice: c.sell_price_numeric })),
-        totalBuy: d.total_buy,
-        totalSell: d.total_sell,
-        canEdit: d.permissions.create,
-      }
+    queryFn: (): Promise<ProductCompositionOverview> => {
+      const finished = queryClient.getQueryData<ProductDetail>(['products', 'detail', id])?.finished
+      return (() => fetchProductCompositionOverview(id!, finished))()
     },
     enabled: !!id,
     staleTime: 1000 * 30,
@@ -1653,11 +1515,8 @@ export function useProductCompositionOverview(id: string | undefined) {
 export function useAddSubproduct() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, childId, qty, incdec }: { id: string; childId: string; qty: string; incdec: boolean }) => {
-      const body = await callProductInfoFile('subproduct_api.php', 'add_subproduct', { id, child_id: childId, qty, incdec: incdec ? '1' : '0' })
-      if (!body.success) throw new Error(body.error || 'Failed to add sub-product.')
-      return body.data
-    },
+    mutationFn: ({ id, childId, qty, incdec }: { id: string; childId: string; qty: string; incdec: boolean }) =>
+      (() => saveProductCompositionChild({ id: Number(id), child_id: Number(childId), qty: Number(qty), incdec: incdec ? 1 : 0 }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'compositionOverview', variables.id] })
     },
@@ -1667,89 +1526,67 @@ export function useAddSubproduct() {
 export function useDeleteSubproduct() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, childId }: { id: string; childId: number }) => {
-      const body = await callProductInfoFile('subproduct_api.php', 'delete_subproduct', { id, child_id: String(childId) })
-      if (!body.success) throw new Error(body.error || 'Failed to remove sub-product.')
-      return body.data
-    },
+    mutationFn: ({ id, childId }: { id: string; childId: number }) =>
+      (() => deleteProductCompositionChild(id, childId))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'compositionOverview', variables.id] })
     },
   })
 }
 
-// =============================================================================
-// Statistics tab — productinfo/api/stats_api.php, real sales/purchase
-// figures + top customers (replaces the old product/stats/card.php scrape).
-interface RawStatsMonth {
-  month: string
-  qty: number
-  amount: number
-}
-interface RawTopCustomer {
-  id: number
-  name: string
-  qty: number
-  amount: number
-}
-interface RawStatsView {
-  sales_data: RawStatsMonth[]
-  purchase_data: RawStatsMonth[]
-  sales_total: { qty: number; amount: number }
-  purchase_total: { qty: number; amount: number }
-  top_customers: RawTopCustomer[]
-}
 export interface ProductStatsOverview {
+  // The window the figures cover, for the tiles' captions.
+  periodLabel: string
   totalSales: number
   totalPurchase: number
   qtySold: number
   marginPct: number
-  monthly: { month: string; sales: number; purchase: number; qty: number }[]
+  // purchase is null when the source has no monthly purchase split.
+  monthly: { month: string; sales: number; purchase: number | null; qty: number }[]
   topCustomers: { id: number; name: string; qty: number; total: number }[]
 }
+
+// product/fapi/stats.php — scope=invoice gives sales (validated standard invoices,
+// credit notes kept apart as refunds) by month and by customer; the default scope
+// gives per-document totals, whose vendor invoices are the purchases. Both are
+// all-time, and there is no monthly purchase split.
+async function fetchProductStatsOverview(id: string): Promise<ProductStatsOverview> {
+  const [sales, all] = await Promise.all([getProductInvoiceStats(id), getProductStats(id)])
+  const totalSales = sales.invoices.amount_ht
+  const totalPurchase = all.by_document.supplier_invoices?.amount_ht ?? 0
+  return {
+    periodLabel: 'All time',
+    totalSales,
+    totalPurchase,
+    qtySold: sales.invoices.qty,
+    marginPct: totalSales > 0 ? ((totalSales - totalPurchase) / totalSales) * 100 : 0,
+    monthly: [...sales.by_month].sort((a, b) => a.month.localeCompare(b.month)).map((m) => ({ month: m.month, sales: m.amount_ht, purchase: null, qty: m.qty })),
+    topCustomers: [...sales.by_customer].sort((a, b) => b.amount_ht - a.amount_ht).map((c) => ({ id: c.id, name: c.name, qty: c.qty, total: c.amount_ht })),
+  }
+}
+
+
 export function useProductStatsOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'statsOverview', id],
-    queryFn: async (): Promise<ProductStatsOverview> => {
-      const body = await callProductInfoFile('stats_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load statistics.')
-      const d = body.data as RawStatsView
-      const months = Array.from(new Set([...d.sales_data.map((m) => m.month), ...d.purchase_data.map((m) => m.month)])).sort()
-      const totalSales = d.sales_total.amount
-      const totalPurchase = d.purchase_total.amount
-      const margin = totalSales > 0 ? ((totalSales - totalPurchase) / totalSales) * 100 : 0
-      return {
-        totalSales,
-        totalPurchase,
-        qtySold: d.sales_total.qty,
-        marginPct: margin,
-        monthly: months.map((month) => ({
-          month,
-          sales: d.sales_data.find((m) => m.month === month)?.amount ?? 0,
-          purchase: d.purchase_data.find((m) => m.month === month)?.amount ?? 0,
-          qty: d.sales_data.find((m) => m.month === month)?.qty ?? 0,
-        })),
-        topCustomers: d.top_customers.map((c) => ({ id: c.id, name: c.name, qty: c.qty, total: c.amount })),
-      }
-    },
+    queryFn: (): Promise<ProductStatsOverview> => (() => fetchProductStatsOverview(id!))(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
 
 // =============================================================================
-// Notes tab — productinfo/api/note_api.php, real (replaces the old
-// api/products/?action=update-note, which is unrouted on this backend — see
-// BACKEND_ACTION_UNAVAILABLE_PREFIX's own note elsewhere in this file).
+// Notes tab — product/fapi/notes.php (fallback productinfo/api/note_api.php,
+// which replaced the old api/products/?action=update-note, unrouted on this
+// backend — see BACKEND_ACTION_UNAVAILABLE_PREFIX's own note elsewhere in this file).
 export function useProductNotesOverview(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'notes', id],
-    queryFn: async (): Promise<{ notePublic: string; notePrivate: string }> => {
-      const body = await callProductInfoFile('note_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load notes.')
-      const d = body.data as { note_public: string; note_private: string }
-      return { notePublic: d.note_public ?? '', notePrivate: d.note_private ?? '' }
-    },
+    queryFn: (): Promise<{ notePublic: string; notePrivate: string }> =>
+      (async () => {
+          const d = await getProductNotes(id!)
+          return { notePublic: d.note_public ?? '', notePrivate: d.note_private ?? '' }
+        })(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
@@ -1758,11 +1595,8 @@ export function useProductNotesOverview(id: string | undefined) {
 export function useSaveProductNotes() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, notePublic, notePrivate }: { id: string; notePublic: string; notePrivate: string }) => {
-      const body = await callProductInfoFile('note_api.php', 'update', { id, note_public: notePublic, note_private: notePrivate })
-      if (!body.success) throw new Error(body.error || 'Failed to save notes.')
-      return body.data
-    },
+    mutationFn: ({ id, notePublic, notePrivate }: { id: string; notePublic: string; notePrivate: string }) =>
+      (() => saveProductNotes(id, { note_public: notePublic, note_private: notePrivate }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'notes', variables.id] })
     },
@@ -1788,70 +1622,32 @@ export interface ProductAgendaEvent {
 export function useProductAgendaEvents(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'agendaEvents', id],
-    queryFn: async (): Promise<ProductAgendaEvent[]> => {
-      const body = await callProductInfoFile('agenda_api.php', 'view', { id: id! })
-      if (!body.success) throw new Error(body.error || 'Failed to load events.')
-      const d = body.data as {
-        events: { id: number; label: string; date: string; date_end: string | null; type_label: string; user_name: string; percent: number; status: 'success' | 'warning' | 'info' | 'secondary' }[]
-      }
-      return d.events.map((e) => ({ id: e.id, label: e.label, date: e.date, dateEnd: e.date_end, typeLabel: e.type_label, userName: e.user_name, percent: e.percent, status: e.status }))
-    },
+    queryFn: (): Promise<ProductAgendaEvent[]> =>
+      (// product/fapi/agenda.php — each event's progress (percent, -1 = automatic
+        // event) and status text; the badge is derived from them.
+        async () => {
+          const d = await getProductAgenda(id!)
+          return d.events.map((e) => ({
+            id: e.id,
+            label: e.label,
+            date: e.date,
+            dateEnd: e.date_end || null,
+            typeLabel: e.percent < 0 ? 'Automatic' : e.status_label,
+            userName: e.owner,
+            percent: e.percent,
+            status: e.percent < 0 ? 'secondary' : e.percent >= 100 ? 'success' : e.percent > 0 ? 'info' : 'warning',
+          }))
+        })(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
 
-// =============================================================================
-// Invoice Stats tab — productinfo/api/invoice_stats_api.php, real customer
-// invoices with product, paginated + filterable by month/year (replaces the
-// old product/stats/facture.php scrape). Returns referers summary + invoice
-// detail list matching the legacy "Related items" table.
-interface RawReferer {
-  label: string
-  icon: string
-  link: string
-  nb_thirdparties: string | number
-  nb_objects: string | number
-  qty: string | number
-}
-interface RawInvoice {
-  facid: number
-  ref: string
-  socid: number
-  company: string
-  code_client: string
-  datef: string
-  datef_formatted: string
-  qty: number
-  total_ht: number
-  total_ht_formatted: string
-  paye: number
-  statut: number
-  type: number
-  status_label: string
-  status_class: string
-  payment_pct: number
-  paiement: number
-  is_credit_note: boolean
-}
-interface RawInvoiceStatsView {
-  referers: RawReferer[]
-  invoices: RawInvoice[]
-  total_ht: number
-  total_qty: number
-  total_records: number
-  years: number[]
-  limit: number
-  page: number
-  sortfield: string
-  sortorder: string
-  search_month: number
-  search_year: number
-}
 export interface InvoiceStatsReferer {
   label: string
   icon: string
-  nbThirdparties: number
+  // null when the source does not count distinct third parties for that document type.
+  nbThirdparties: number | null
   nbObjects: string
   qty: string
 }
@@ -1884,56 +1680,82 @@ export interface ProductInvoiceStats {
   currentYear: number
   totalPages: number
 }
+// The document types product/fapi/stats.php totals, as the Related Items table names them.
+const REFERER_LABELS = [
+  ['proposals', 'Quotations'],
+  ['orders', 'Sales orders'],
+  ['invoices', 'Customer invoices'],
+  ['supplier_orders', 'Purchase orders'],
+  ['supplier_invoices', 'Vendor invoices'],
+  ['contracts', 'Contracts'],
+] as const
+
+// product/fapi/stats.php returns every invoice line at once (scope=invoice) plus
+// per-document totals (default scope), so the month / year filter and the paging
+// happen here. Dates arrive as MM/DD/YYYY.
+export function buildProductInvoiceStats(
+  sales: ProductInvoiceStatsData,
+  documents: Awaited<ReturnType<typeof getProductStats>>,
+  page: number,
+  month: number,
+  year: number,
+  pageSize: number,
+): ProductInvoiceStats {
+  const dated = sales.lines.map((line) => {
+    const m = line.date.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    return { line, month: m ? Number(m[1]) : 0, year: m ? Number(m[3]) : 0 }
+  })
+  const filtered = dated.filter((d) => (!month || d.month === month) && (!year || d.year === year)).map((d) => d.line)
+  return {
+    referers: REFERER_LABELS.flatMap(([key, label]) => {
+      const d = documents.by_document[key]
+      if (!d?.available) return []
+      return [{ label, icon: '', nbThirdparties: key === 'invoices' ? sales.by_customer.length : null, nbObjects: String(d.count), qty: String(d.qty) }]
+    }),
+    invoices: filtered.slice(page * pageSize, (page + 1) * pageSize).map((l) => ({
+      id: l.invoice_id,
+      ref: l.ref,
+      companyId: 0,
+      company: l.customer,
+      customerCode: '',
+      date: l.date,
+      qty: l.qty,
+      totalHT: l.total_ht,
+      totalFormatted: formatMoney(l.total_ht),
+      status: l.paid === 1 ? 'Paid' : 'Unpaid',
+      statusClass: l.paid === 1 ? 'success' : 'warning',
+      paymentPct: l.paid === 1 ? 100 : 0,
+      paid: l.paid === 1 ? l.total_ttc : 0,
+      isCreditNote: l.is_credit_note,
+    })),
+    totalHT: filtered.reduce((sum, l) => sum + l.total_ht, 0),
+    totalQty: filtered.reduce((sum, l) => sum + l.qty, 0),
+    totalRecords: filtered.length,
+    years: Array.from(new Set(dated.map((d) => d.year).filter(Boolean))).sort((a, b) => b - a),
+    currentPage: page,
+    pageSize,
+    currentMonth: month,
+    currentYear: year,
+    totalPages: Math.ceil(filtered.length / pageSize),
+  }
+}
+
 export function useProductInvoiceStats(id: string | undefined, page: number = 0, month: number = 0, year: number = 0, pageSize: number = 20) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ['products', 'detail', 'invoiceStats', id, page, month, year, pageSize],
-    queryFn: async (): Promise<ProductInvoiceStats> => {
-      const body = await callProductInfoFile('invoice_stats_api.php', 'view', {
-        id: id!,
-        page: String(page),
-        limit: String(pageSize),
-        search_month: String(month),
-        search_year: String(year),
-      })
-      if (!body.success) throw new Error(body.error || 'Failed to load invoice stats.')
-      const d = body.data as RawInvoiceStatsView
-      const totalPages = Math.ceil(d.total_records / d.limit)
-      return {
-        referers: d.referers.map((r) => ({
-          label: r.label,
-          icon: r.icon,
-          nbThirdparties: typeof r.nb_thirdparties === 'string' ? parseInt(r.nb_thirdparties) || 0 : r.nb_thirdparties,
-          nbObjects: String(r.nb_objects),
-          qty: String(r.qty),
-        })),
-        invoices: d.invoices.map((inv) => ({
-          id: inv.facid,
-          ref: inv.ref,
-          companyId: inv.socid,
-          company: inv.company,
-          customerCode: inv.code_client,
-          date: inv.datef,
-          qty: inv.qty,
-          totalHT: inv.total_ht,
-          totalFormatted: inv.total_ht_formatted,
-          status: inv.status_label as 'Paid' | 'Unpaid' | 'Draft' | 'Abandoned',
-          statusClass: inv.status_class as 'success' | 'warning' | 'secondary' | 'danger',
-          paymentPct: inv.payment_pct,
-          paid: inv.paiement,
-          isCreditNote: inv.is_credit_note,
-        })),
-        totalHT: d.total_ht,
-        totalQty: d.total_qty,
-        totalRecords: d.total_records,
-        years: d.years,
-        currentPage: d.page,
-        pageSize: d.limit,
-        currentMonth: d.search_month,
-        currentYear: d.search_year,
-        totalPages,
-      }
-    },
+    queryFn: (): Promise<ProductInvoiceStats> =>
+      (async () => {
+          // Fetched once per product; changing page / month / year re-slices it.
+          const [sales, documents] = await queryClient.fetchQuery({
+            queryKey: ['products', 'detail', 'invoiceStatsSource', id],
+            queryFn: () => Promise.all([getProductInvoiceStats(id!), getProductStats(id!)]),
+            staleTime: 1000 * 30,
+          })
+          return buildProductInvoiceStats(sales, documents, page, month, year, pageSize)
+        })(),
     enabled: !!id,
     staleTime: 1000 * 30,
   })
 }
+

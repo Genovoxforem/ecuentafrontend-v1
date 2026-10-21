@@ -43,6 +43,30 @@ const PATH_ALIASES: Record<string, string> = {
   // than inventing a fake standalone menu entry for either.
   [ROUTES.ledgerSubledger]: ROUTES.ledgerDashboard,
   [ROUTES.ledgerCreate]: ROUTES.ledgerDashboard,
+  // Payroll V2's tab bar reaches screens the backend's Payroll menu has no
+  // entry for; they sit under its Dashboard the same way.
+  [ROUTES.payrollV2Templates]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Shifts]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Settings]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Employees]: ROUTES.payrollV2Dashboard,
+  [ROUTES.payrollV2Advances]: ROUTES.payrollV2Dashboard,
+  // The product price pages hang under the "Bulk Price Update" menu entry.
+  [ROUTES.productPriceUpdate]: ROUTES.productPriceList,
+  [ROUTES.productBulkPrice]: ROUTES.productPriceList,
+}
+
+// The page's own name, added after an aliased trail so the last crumb (and the
+// banner title read off it) names the page instead of the menu entry it sits under.
+const ALIAS_PAGE_TITLES: Record<string, string> = {
+  // The Subledger view is a variant of the Ledger page, so its banner names the view itself.
+  [ROUTES.ledgerSubledger]: 'Operations - View By Subledger Account',
+  [ROUTES.payrollV2Templates]: 'Templates',
+  [ROUTES.payrollV2Shifts]: 'Shifts',
+  [ROUTES.payrollV2Settings]: 'Settings',
+  [ROUTES.payrollV2Employees]: 'Employees',
+  [ROUTES.payrollV2Advances]: 'Advances/Loans',
+  [ROUTES.productPriceUpdate]: 'Product Price Update',
+  [ROUTES.productBulkPrice]: 'Bulk Price Change',
 }
 
 const DETAIL_ROUTES = Object.entries(ROUTES)
@@ -110,10 +134,11 @@ export function buildBreadcrumb(sections: NavSection[], pathname: string): Bread
   for (const section of sections) {
     if (sectionContainsPath(section, resolved)) {
       const chain = findBreadcrumbChain(section.items, resolved)
+      const pageTitle = ALIAS_PAGE_TITLES[pathname]
       return {
         sectionLabel: section.label,
         sectionKey: section.key,
-        crumbs: chain ?? [],
+        crumbs: pageTitle ? [...(chain ?? []), pageTitle] : (chain ?? []),
       }
     }
   }

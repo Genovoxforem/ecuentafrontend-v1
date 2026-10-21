@@ -10,7 +10,7 @@ function Button({
       type={type}
       onClick={onclick}
       disabled={disabled}
-      className={`bg-[#397db9] text-white text-sm font-semibold hover:bg-[#2c6291] focus:outline-none focus:ring-2 focus:ring-[#2c6291] transition disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
+      className={`bg-[#3b82f6] text-white text-sm font-semibold hover:bg-[#2f6fe4] focus:outline-none focus:ring-2 focus:ring-[#2f6fe4] transition disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
     >
       {text}
     </button>

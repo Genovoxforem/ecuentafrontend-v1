@@ -151,8 +151,8 @@ export function HotelReports() {
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={summary.trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-                  <XAxis dataKey="d" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} unit="%" />
+                  <XAxis dataKey="d" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
+                  <YAxis stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} unit="%" />
                   <Tooltip />
                   <Line type="monotone" dataKey="occ" name="Occupancy" stroke="var(--color-chart-1)" strokeWidth={2.5} dot={{ r: 3 }} />
                 </LineChart>

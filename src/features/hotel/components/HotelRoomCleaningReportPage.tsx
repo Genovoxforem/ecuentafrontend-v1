@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ClipboardList, Info } from 'lucide-react'
+import { ClipboardList } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -83,12 +83,6 @@ export function HotelRoomCleaningReportPage() {
         {isLoading && <LegacyLoadingCard label="Loading cleaning log…" />}
         {isError && <LegacyErrorCard title="Couldn't load cleaning log" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">booking/reports/room_cleaning_report.php</code>.
-          </p>
-        </Card>
 
         <Card className="!h-auto">
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 items-end">

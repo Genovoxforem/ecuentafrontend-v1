@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
 
 // Top progress bar that animates on every route change — gives immediate
 // visual feedback when a menu item or any link is clicked, covering the
@@ -67,42 +66,13 @@ export function RouteProgress() {
   )
 }
 
-// Inner-page content loader: shows a centered spinner inside the <main>
-// content area during every route transition. Unlike Suspense's fallback
-// (which only fires on the first lazy-chunk download), this fires on every
-// pathname change — so navigating between already-loaded routes still gives
-// clear "content is loading" feedback. Renders children (the actual page)
-// once the transition settles; renders the spinner overlay while waiting.
+// Wraps the routed page. A click used to blank the content out for a fixed
+// 400ms and show a spinner in its place, which read as a flash even when the
+// next page was already loaded. The page now stays mounted and the new one
+// fades in, so a fast route feels instant and a slow one still animates.
+// It adds no element of its own: several layout rules select the page root as a
+// direct child of #route-page-content, and the fade is run on that container by
+// AppShell instead (see its scroll-reset effect).
 export function ContentLoader({ children }: { children: ReactNode }) {
-  const location = useLocation()
-  const [loading, setLoading] = useState(false)
-  const prevPathRef = useRef(location.pathname)
-  const timerRef = useRef<number | undefined>(undefined)
-
-  useEffect(() => {
-    if (prevPathRef.current === location.pathname) return
-    prevPathRef.current = location.pathname
-
-    // Show spinner immediately on route change
-    setLoading(true)
-
-    // Clear it after a short delay — covers lazy chunk download + render.
-    // If the lazy Suspense fallback is already showing, this overlay sits
-    // on top briefly and then disappears to reveal the loaded content.
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => setLoading(false), 400)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [location.pathname])
-
-  if (!loading) return <>{children}</>
-
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20">
-      <Loader2 size={32} className="animate-spin text-brand" />
-      <p className="text-sm text-text-faint">Loading…</p>
-    </div>
-  )
+  return <>{children}</>
 }

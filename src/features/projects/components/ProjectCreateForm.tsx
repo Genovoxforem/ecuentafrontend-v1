@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Network, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { ROUTES } from '../../../routes'
 
@@ -49,6 +49,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
 
   return (
     <StickyFormShell
+      wizard={[{title:'Project Details',subtitle:'Label, customer & description'},{title:'Schedule & Budget',subtitle:'Dates, budget and leads'},{title:'Usage',subtitle:'How the project is used'}]}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Network size={20} className="text-brand" /> {isEdit ? 'Edit project' : 'New lead or project'}
@@ -67,6 +68,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
     >
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <WizardStep n={0}>
           <div>
             <label className="block text-xs font-medium text-text-faint mb-1">Project label*</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
@@ -82,6 +84,12 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
               ))}
             </select>
           </div>
+          <div className="sm:col-span-1">
+            <label className="block text-xs font-medium text-text-faint mb-1">Description</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
+          </div>
+          </WizardStep>
+          <WizardStep n={1}>
           <div>
             <label className="block text-xs font-medium text-text-faint mb-1">Visibility</label>
             <select disabled className={disabledCls}>
@@ -117,12 +125,10 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
             <label className="block text-xs font-medium text-text-faint mb-1">Lead amount</label>
             <input disabled className={disabledCls} />
           </div>
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-text-faint mb-1">Description</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
-          </div>
+          </WizardStep>
         </div>
 
+        <WizardStep n={2}>
         <div>
           <label className="block text-xs font-medium text-text-faint mb-2">Usage</label>
           <div className="flex flex-wrap gap-2">
@@ -144,6 +150,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
             ))}
           </div>
         </div>
+        </WizardStep>
       </Card>
     </StickyFormShell>
   )

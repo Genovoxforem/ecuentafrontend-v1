@@ -81,25 +81,6 @@ interface SessionChatMessage {
   createdAt: number
 }
 
-// Every tab past "Ticket" itself backs onto a real write action with NO
-// matching JSON read API anywhere on this backend (confirmed directly from
-// each PHP file's own source — see ticketDetail.queries.ts's header
-// comment) — so this banner is shown wherever a tab can only display what
-// was added in the current browser session, not the ticket's real full
-// history. Matches this app's existing "real write, no read API"
-// convention (see ActionFormShell.tsx's identical banner for Payroll).
-function SessionOnlyBanner({ what }: { what: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md bg-info-bg/40 px-3 py-2 mb-3">
-      <Info size={13} className="text-info-fg mt-0.5 shrink-0" />
-      <p className="text-xs text-info-fg">
-        {what} is saved for real, but this backend has no JSON API to read it back — this list only shows what's been added in this browser session. Open the classic ticket page to see the
-        full history.
-      </p>
-    </div>
-  )
-}
-
 function Unavailable({ label }: { label: string }) {
   return (
     <span title={`Not exposed by any real JSON API on this backend — only the classic page's own HTML renders ${label}.`} className="text-text-faint italic">
@@ -406,7 +387,6 @@ function TicketContactsTab({
 
   return (
     <Card className="!h-auto space-y-4">
-      <SessionOnlyBanner what="The ticket's contact list" />
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
         <label className="flex flex-col gap-1">
           <span className="text-xs text-text-faint">Nature Of Contact</span>
@@ -479,7 +459,6 @@ function TicketFilesTab({ ticket, sessionFiles, onAdded }: { ticket: TicketRow; 
 
   return (
     <Card className="!h-auto space-y-4">
-      <SessionOnlyBanner what="The ticket's attached/linked files list" />
       <div>
         <p className="text-xs text-text-faint uppercase tracking-wide mb-1.5">Attach a new file/document</p>
         <div className="flex items-center gap-2">
@@ -636,7 +615,6 @@ function TicketFollowupTab({ ticket, sessionFollowups, onAdded }: { ticket: Tick
 
       <Card className="!h-auto">
         <p className="text-sm font-semibold text-text! mb-2">Follow-up History</p>
-        <SessionOnlyBanner what="Follow-up history" />
         <div className="space-y-2">
           {sessionFollowups.length === 0 ? (
             <p className="text-text-faint italic text-sm">None added this session.</p>
@@ -667,7 +645,6 @@ function TicketTimelineTab({ followups, chats }: { followups: SessionFollowup[];
 
   return (
     <Card className="!h-auto">
-      <SessionOnlyBanner what="The timeline" />
       {entries.length === 0 ? (
         <p className="text-text-faint italic text-sm py-4 text-center">No activity added this session yet.</p>
       ) : (
@@ -725,7 +702,6 @@ function TicketChatTab({ ticket, sessionChats, onAdded }: { ticket: TicketRow; s
         <p className="text-sm font-semibold text-text! mb-2 flex items-center gap-1.5">
           <History size={15} /> Chat History
         </p>
-        <SessionOnlyBanner what="Chat history" />
         <div className="space-y-2">
           {sessionChats.length === 0 ? (
             <p className="text-text-faint italic text-sm">None sent this session.</p>

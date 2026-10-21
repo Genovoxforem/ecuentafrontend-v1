@@ -49,12 +49,26 @@ interface RawMenuRow {
 
 // Backend tree node — same fields as RawMenuRow plus a `children` array.
 interface BackendMenuTreeNode extends RawMenuRow {
+  // The backend only sends rows that are enabled and allowed for this user
+  // (checked live: 512 of 512 rows were both true), but the flags are part of
+  // every row, so a row that says otherwise is dropped here rather than shown.
+  enabled?: boolean | number | string
+  perms?: boolean | number | string
   children: BackendMenuTreeNode[]
+}
+
+const isOff = (flag: unknown) => flag === false || flag === 0 || flag === '0' || flag === ''
+
+// Exported for tests.
+export function isMenuNodeVisible(n: { enabled?: unknown; perms?: unknown }): boolean {
+  return !isOff(n.enabled) && !isOff(n.perms)
 }
 
 function flattenTree(nodes: BackendMenuTreeNode[]): RawMenuRow[] {
   const out: RawMenuRow[] = []
   function walk(n: BackendMenuTreeNode) {
+    // A disabled / not-permitted node takes its whole subtree with it.
+    if (!isMenuNodeVisible(n)) return
     out.push({
       rowid: n.rowid,
       fk_menu: n.fk_menu,
@@ -80,17 +94,21 @@ function flattenTree(nodes: BackendMenuTreeNode[]): RawMenuRow[] {
 // mainmenu key has real DB rows for the top tab itself and nothing else —
 // zero rows resolve into it as children — so without this, Home shows no
 // submenu at all instead of silently showing the wrong thing.
-const MODULE_DASHBOARDS: { url: string; title: string }[] = [
+//
+// Each entry names the top-menu key(s) of the module it belongs to; it is only
+// shown when the backend lists that module for this user, so a disabled or
+// not-permitted module has no dashboard link either.
+const MODULE_DASHBOARDS: { url: string; title: string; requires?: string[] }[] = [
   { url: '/index.php?mainmenu=dashboard', title: 'Main Dashboard' },
-  { url: '/custom/zra/zraindex.php?mainmenu=zra', title: 'ZRA Dashboard' },
-  { url: '/compta/facture/index.php?mainmenu=accountsreceivable', title: 'Sales Dashboard' },
-  { url: '/fourn/facture/index.php?mainmenu=ap', title: 'Purchases Dashboard' },
-  { url: '/product/stock/index.php?mainmenu=inventwarehouse', title: 'Warehouse Dashboard' },
-  { url: '/custom/payroll/payrollindex.php?mainmenu=payroll', title: 'Payroll Dashboard' },
-  { url: '/accountancy/bookkeeping/listbyaccount.php?mainmenu=dashboard', title: 'Ledger Dashboard' },
+  { url: '/custom/zra/zraindex.php?mainmenu=zra', title: 'ZRA Dashboard', requires: ['zra'] },
+  { url: '/compta/facture/index.php?mainmenu=accountsreceivable', title: 'Sales Dashboard', requires: ['accountsreceivable'] },
+  { url: '/fourn/facture/index.php?mainmenu=ap', title: 'Purchases Dashboard', requires: ['ap'] },
+  { url: '/product/stock/index.php?mainmenu=inventwarehouse', title: 'Warehouse Dashboard', requires: ['inventwarehouse'] },
+  { url: '/custom/payroll/payrollindex.php?mainmenu=payroll', title: 'Payroll Dashboard', requires: ['payroll', 'payrollv2'] },
+  { url: '/accountancy/bookkeeping/listbyaccount.php?mainmenu=dashboard', title: 'Ledger Dashboard', requires: ['generalledger'] },
   // { url: '/kitchen/dashboard.php?mainmenu=dashboard', title: 'Kitchen Dashboard' },
   // { url: '/booking/dashboard.php?mainmenu=dashboard', title: 'Hotel Dashboard' },
-  { url: '/user/list.php?mode=employee&mainmenu=dashboard', title: 'Users Dashboard' },
+  { url: '/user/list.php?mode=employee&mainmenu=dashboard', title: 'Users Dashboard', requires: ['employee', 'users'] },
 ]
 
 // Groups the flat row list into {topMenus, sections} — AND, unlike an
@@ -121,7 +139,7 @@ const MODULE_DASHBOARDS: { url: string; title: string }[] = [
 // List/Abandoned/Template Invoices) instead of one long flat ~40-item list,
 // which is what made every section look like it had no real submenus at
 // all once rendered.
-function buildAppMenuFromRows(rows: RawMenuRow[]): AppMenuResponse {
+export function buildAppMenuFromRows(rows: RawMenuRow[]): AppMenuResponse {
   const byId = new Map(rows.map((r) => [String(r.rowid), r]))
   const topMenus: BackendTopMenu[] = rows.filter((r) => r.type === 'top').map((r) => ({ key: r.mainmenu, title: r.titre, url: r.url }))
   // Case-insensitive top-key set — the backend's llx_menu.mainmenu field
@@ -196,7 +214,7 @@ function buildAppMenuFromRows(rows: RawMenuRow[]): AppMenuResponse {
   // behavior rather than only filling in when the DB-driven list is empty.
   for (const tm of topMenus) {
     if (tm.key === 'home' || tm.key === 'dashboard') {
-      sections[tm.key] = MODULE_DASHBOARDS.map((d) => ({ url: d.url, titre: d.title, level: 0, target: '', leftmenu: '', mainmenu: tm.key, children: [] }))
+      sections[tm.key] = MODULE_DASHBOARDS.filter((d) => !d.requires || d.requires.some((k) => topKeysLower.has(k))).map((d) => ({ url: d.url, titre: d.title, level: 0, target: '', leftmenu: '', mainmenu: tm.key, children: [] }))
     }
   }
 

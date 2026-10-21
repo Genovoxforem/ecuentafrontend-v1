@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   Receipt,
@@ -32,11 +33,25 @@ import {
   FileMinus,
   Printer,
   Banknote,
+  CreditCard,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { LinkDocumentButton } from '../../../shared/components/LinkDocumentButton'
+import { Card, StatusPill, type PillTone } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
+import { OnlinePaymentModal } from './OnlinePaymentModal'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useInvoiceDetail, useInvoiceNotes, useInvoiceNoteEditContext, useUpdateInvoiceNote, useInvoiceContacts, useAddInvoiceContact, useInvoiceStandingOrders, useInvoiceAgenda } from '../invoiceDetail.queries'
+import { useProductOptions } from '../../products/products.queries'
+import {
+  useInvoiceNotes,
+  useUpdateInvoiceNote,
+  useInvoiceContacts,
+  useAddInvoiceContact,
+  useChangeInvoiceContact,
+  useInvoiceStandingOrders,
+  useInvoiceAgenda,
+  useInvoiceAgendaCount,
+} from '../invoiceDetail.queries'
 import {
   useSalesInvoice,
   useAddSalesInvoiceLine,
@@ -129,15 +144,20 @@ function EmptyState({ icon: Icon, message }: { icon: React.ComponentType<{ size?
 
 export function InvoiceDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const [tab, setTab] = useState<TabKey>('invoice')
   // compta/sales/api/invoice.php — the real, reliable JSON API backing
   // compta/sales/card.php (see salesInvoiceApi.ts) — is the source for the
-  // header and the Customer Invoice tab. The other tabs (Contacts, Notes,
-  // Documents, Agenda, LedgerEntry, Standing Orders) still scrape
-  // compta/facture/card.php's HTML for now (useInvoiceDetail below), which
-  // is also where the sidebar badge counts come from.
+  // header and the Customer Invoice tab; the other tabs load their own data
+  // (see invoiceDetail.queries.ts). The Notes and Events/Agenda badges are the
+  // classic tab bar's own counts — how many of the two notes are filled in,
+  // and how many events — read from those tabs' small JSON answers rather
+  // than by downloading compta/facture/card.php (1.5 MB) just for two numbers.
   const { data, isLoading, isError, error, refetch } = useSalesInvoice(id)
-  const { data: legacyData } = useInvoiceDetail(id)
+  const { data: notes } = useInvoiceNotes(id)
+  const { data: agendaCount } = useInvoiceAgendaCount(id)
+  const notesBadge = notes ? [notes.notePublic, notes.notePrivate].filter(Boolean).length : 0
 
   if (isLoading) {
     return (
@@ -161,14 +181,18 @@ export function InvoiceDetail() {
       <div className="sticky -top-6 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+            <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
               <div>
                 <Link to={ROUTES.invoiceList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text mb-1.5">
                   <ChevronLeft size={14} /> Sales Invoices
                 </Link>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-bold text-text!">{inv.ref}</h2>
-                  {inv.status_label && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeCls(inv.status_color)}`}>{inv.status_label}</span>}
+                  {inv.status_label && (isBlueMetal ? (
+                    <StatusPill tone={statusBadgeTone(inv.status_color)}>{inv.status_label}</StatusPill>
+                  ) : (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeCls(inv.status_color)}`}>{inv.status_label}</span>
+                  ))}
                 </div>
                 <p className="text-xs text-text-faint mt-1">
                   Ref. customer: {inv.ref_client || '—'} · Third-party:{' '}
@@ -195,14 +219,14 @@ export function InvoiceDetail() {
                   >
                     <Icon size={14} className="shrink-0" />
                     {label}
-                    {key === 'notes' && !!legacyData?.notesBadge && (
-                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{legacyData.notesBadge}</span>
+                    {key === 'notes' && !!notesBadge && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{notesBadge}</span>
                     )}
                     {key === 'documents' && data.invoice.nb_files > 0 && (
                       <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{data.invoice.nb_files}</span>
                     )}
-                    {key === 'agenda' && !!legacyData?.agendaBadge && (
-                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{legacyData.agendaBadge}</span>
+                    {key === 'agenda' && !!agendaCount && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-surface-hover text-text-muted text-[10px] font-semibold">{agendaCount}</span>
                     )}
                   </button>
                 ))}
@@ -239,6 +263,20 @@ function statusBadgeCls(color: string): string {
       return 'bg-warning-bg text-warning-fg'
     default:
       return 'bg-surface-hover text-text-muted'
+  }
+}
+
+function statusBadgeTone(color: string): PillTone {
+  switch (color) {
+    case 'green':
+      return 'success'
+    case 'red':
+      return 'danger'
+    case 'orange':
+    case 'yellow':
+      return 'warning'
+    default:
+      return 'neutral'
   }
 }
 
@@ -754,8 +792,12 @@ function InvoiceActionButtons({ data }: { data: SalesInvoiceData }) {
   const [showModifyModal, setShowModifyModal] = useState(false)
   const [showUpdateZraModal, setShowUpdateZraModal] = useState(false)
   const [showRecurringModal, setShowRecurringModal] = useState(false)
-  const [showEmailModal, setShowEmailModal] = useState(false)
-  const [showPosTicket, setShowPosTicket] = useState(false)
+  // ?action=email / ?action=print: arriving from the quick invoice's Mail Invoice / Save and Print.
+  const [searchParams] = useSearchParams()
+  const arrivedFor = searchParams.get('action')
+  const [showEmailModal, setShowEmailModal] = useState(arrivedFor === 'email')
+  const [showPosTicket, setShowPosTicket] = useState(arrivedFor === 'print')
+  const [showOnlinePay, setShowOnlinePay] = useState(arrivedFor === 'pay')
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false)
   const [showDebitNoteModal, setShowDebitNoteModal] = useState(false)
   const [whatsAppNotice, setWhatsAppNotice] = useState(false)
@@ -771,9 +813,10 @@ function InvoiceActionButtons({ data }: { data: SalesInvoiceData }) {
   const formOptions = useSalesInvoiceDraftFormOptions(facid, anyModalOpen)
 
   useEffect(() => {
-    if (!formOptions.data) return
-    setWarehouse((w) => w || formOptions.data.warehouseOptions.find((o) => o.selected)?.value || formOptions.data.warehouseOptions[0]?.value || '')
-    setUnvalWarehouse((w) => w || formOptions.data.unvalidateWarehouseOptions.find((o) => o.selected)?.value || formOptions.data.unvalidateWarehouseOptions[0]?.value || '')
+    const opts = formOptions.data
+    if (!opts) return
+    setWarehouse((w) => w || opts.warehouseOptions.find((o) => o.selected)?.value || opts.warehouseOptions[0]?.value || '')
+    setUnvalWarehouse((w) => w || opts.unvalidateWarehouseOptions.find((o) => o.selected)?.value || opts.unvalidateWarehouseOptions[0]?.value || '')
   }, [formOptions.data])
 
   const action = useSalesInvoiceAction(facid)
@@ -813,6 +856,11 @@ function InvoiceActionButtons({ data }: { data: SalesInvoiceData }) {
         {(statut === 1 || statut === 2) && (
           <ActionButton tone="info" icon={Mail} onClick={() => setShowEmailModal(true)}>
             Send Email
+          </ActionButton>
+        )}
+        {statut === 1 && (
+          <ActionButton tone="outline-success" icon={CreditCard} onClick={() => setShowOnlinePay(true)}>
+            Online Payment
           </ActionButton>
         )}
         {(statut === 1 || statut === 2) && (
@@ -909,6 +957,7 @@ function InvoiceActionButtons({ data }: { data: SalesInvoiceData }) {
       )}
       {showRecurringModal && <RecurringInvoiceModal facid={facid} onCancel={() => setShowRecurringModal(false)} />}
       {showEmailModal && <SendEmailModal facid={facid} onCancel={() => setShowEmailModal(false)} />}
+      {showOnlinePay && <OnlinePaymentModal invoiceId={facid} onClose={() => setShowOnlinePay(false)} />}
       {showPosTicket && <PosTicketModal facid={facid} onCancel={() => setShowPosTicket(false)} />}
       {showCreditNoteModal && <CreateCreditNoteModal facid={facid} onCancel={() => setShowCreditNoteModal(false)} />}
       {showDebitNoteModal && <CreateDebitNoteModal facid={facid} onCancel={() => setShowDebitNoteModal(false)} />}
@@ -1176,6 +1225,7 @@ function LinkedFilesMiniCard({ data }: { data: SalesInvoiceData }) {
 }
 
 function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
+  const queryClient = useQueryClient()
   const inv = data.invoice
   const facid = inv.id
   const zraSync = useSyncSalesInvoiceZra(facid)
@@ -1203,46 +1253,30 @@ function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
       <div className="lg:col-span-2 space-y-4">
         <Card className="!h-auto">
           <TabTitle>Invoice Details</TabTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 mt-3 text-sm">
-            <div>
-              <p className="text-text-faint text-xs">Type</p>
-              <p className="font-medium text-text!">{inv.type_label || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Discounts</p>
-              <p className="font-medium text-text!">{inv.discount_info || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Invoice Date</p>
-              <p className="font-medium text-text!">{inv.date || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Payment Terms</p>
-              <p className="font-medium text-text!">{inv.cond_reglement_label || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Payment Due On</p>
-              <p className="font-medium text-text!">{inv.date_due || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Payment Type</p>
-              <p className="font-medium text-text!">{inv.mode_reglement_label || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Currency</p>
-              <p className="font-medium text-text!">{inv.currency || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Bank Account</p>
-              <p className="font-medium text-text!">{inv.bank_label || '—'}</p>
-            </div>
-            <div>
-              <p className="text-text-faint text-xs">Incoterms</p>
-              <p className="font-medium text-text!">{inv.incoterms || '—'}</p>
-            </div>
+          {/* Three columns with hairline dividers between cells; label above, value below. */}
+          <div className="mt-3 grid grid-cols-1 text-sm sm:grid-cols-3">
+            {[
+              ['Type', inv.type_label],
+              ['Discounts', inv.discount_info],
+              ['Invoice Date', inv.date],
+              ['Payment Terms', inv.cond_reglement_label],
+              ['Payment Due On', inv.date_due],
+              ['Payment Type', inv.mode_reglement_label],
+              ['Currency', inv.currency],
+              ['Bank Account', inv.bank_label],
+              ['Incoterms', inv.incoterms],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="border-t border-border px-4 py-3 first:border-t-0 sm:border-l sm:[&:nth-child(-n+3)]:border-t-0 sm:[&:nth-child(3n+1)]:border-l-0 sm:[&:nth-child(3n+1)]:pl-0"
+              >
+                <p className="text-xs text-text-faint">{label}</p>
+                <p className="mt-0.5 font-semibold text-text!">{value || '—'}</p>
+              </div>
+            ))}
           </div>
-          <div className="mt-3">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">
+          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-hover text-text-muted text-xs font-medium">
               {inv.ventil_compta ? 'Posted to Ledger' : 'Not Posted to Ledger'}
             </span>
           </div>
@@ -1414,7 +1448,10 @@ function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
         <LinkedFilesMiniCard data={data} />
 
         <Card className="!h-auto">
-          <TabTitle>Related Objects</TabTitle>
+          <div className="flex items-center justify-between gap-2">
+            <TabTitle>Related Objects</TabTitle>
+            <LinkDocumentButton element="facture" id={Number(data.invoice.id)} onLinked={() => void queryClient.invalidateQueries({ queryKey: ['salesInvoice', String(data.invoice.id)] })} />
+          </div>
           {data.related.length === 0 ? <p className="text-sm text-text-faint italic mt-2">None</p> : <p className="text-sm text-text-faint italic mt-2">{data.related.length} linked object(s).</p>}
         </Card>
 
@@ -1485,7 +1522,9 @@ function ItemTableCard({ data }: { data: SalesInvoiceData }) {
   const [editingLine, setEditingLine] = useState<EditingLineState | null>(null)
   const [deletingLineId, setDeletingLineId] = useState<string | null>(null)
 
-  const formOptions = useSalesInvoiceDraftFormOptions(facid, showAddRow)
+  // Products for sale, from /api/products/ — fetched once the add row opens.
+  const { data: products } = useProductOptions(showAddRow)
+  const productOptions = (products ?? []).filter((p) => p.forSale).map((p) => ({ value: p.id, text: p.ref ? `${p.ref} - ${p.label}` : p.label, label: p.label }))
   const addLine = useAddSalesInvoiceLine(facid)
   const updateLine = useUpdateSalesInvoiceLine(facid)
   const deleteLine = useDeleteSalesInvoiceLine(facid)
@@ -1518,7 +1557,7 @@ function ItemTableCard({ data }: { data: SalesInvoiceData }) {
 
   const submitAddLine = () => {
     if (!productId || Number(qty) <= 0) return
-    const label = formOptions.data?.productOptions.find((p) => p.value === productId)?.label ?? ''
+    const label = productOptions.find((p) => p.value === productId)?.label ?? ''
     const input: SalesLineInput = { productId, desc: label, qty: Number(qty), priceHt: Number(priceHt), vatRateStr, discountPercent: Number(discount) || 0, discountType: '1' }
     addLine.mutate(input, { onSuccess: () => { resetAddRow(); setShowAddRow(false) } })
   }
@@ -1636,9 +1675,9 @@ function ItemTableCard({ data }: { data: SalesInvoiceData }) {
                 <td className="px-3 py-2" colSpan={2}>
                   <select className={selectCls} value={productId} onChange={(e) => handleProductChange(e.target.value)}>
                     <option value="">Select product…</option>
-                    {(formOptions.data?.productOptions ?? []).map((p) => (
+                    {productOptions.map((p) => (
                       <option key={p.value} value={p.value}>
-                        {p.label}
+                        {p.text}
                       </option>
                     ))}
                   </select>
@@ -1738,7 +1777,6 @@ function NotesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useInvoiceNotes(id)
   const [editingField, setEditingField] = useState<'public' | 'private' | null>(null)
   const [value, setValue] = useState('')
-  const editContext = useInvoiceNoteEditContext(id, editingField)
   const updateNote = useUpdateInvoiceNote(id)
 
   if (isLoading) return <LegacyLoadingCard label="Loading notes…" />
@@ -1746,12 +1784,14 @@ function NotesTab({ id }: { id: string | undefined }) {
 
   function startEdit(field: 'public' | 'private') {
     setEditingField(field)
-    setValue('')
+    setValue(field === 'public' ? data!.rawPublic : data!.rawPrivate)
   }
 
+  // notes.php saves both notes at once: the other one goes back unchanged.
   function submit() {
-    if (!editingField || !editContext.data?.token) return
-    updateNote.mutate({ field: editingField, token: editContext.data.token, value }, { onSuccess: () => setEditingField(null) })
+    if (!editingField || !data) return
+    const next = editingField === 'public' ? { notePublic: value, notePrivate: data.rawPrivate } : { notePublic: data.rawPublic, notePrivate: value }
+    updateNote.mutate(next, { onSuccess: () => setEditingField(null) })
   }
 
   function NoteCard({ field, label, hint, content }: { field: 'public' | 'private'; label: string; hint: string; content: string }) {
@@ -1770,30 +1810,24 @@ function NotesTab({ id }: { id: string | undefined }) {
           )}
         </div>
         {editing ? (
-          editContext.isLoading ? (
-            <p className="text-xs text-text-faint flex items-center gap-1.5">
-              <LoaderCircle size={12} className="animate-spin" /> Loading real note form…
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <textarea
-                autoFocus
-                defaultValue={editContext.data?.currentValue ?? ''}
-                onChange={(e) => setValue(e.target.value)}
-                rows={4}
-                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
-              />
-              {updateNote.isError && <p className="text-xs text-danger">{updateNote.error instanceof Error ? updateNote.error.message : 'Failed to save.'}</p>}
-              <div className="flex gap-2">
-                <button type="button" disabled={updateNote.isPending} onClick={submit} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-                  {updateNote.isPending ? 'Saving…' : 'Save'}
-                </button>
-                <button type="button" onClick={() => setEditingField(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
-                  Cancel
-                </button>
-              </div>
+          <div className="space-y-2">
+            <textarea
+              autoFocus
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              rows={4}
+              className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
+            />
+            {updateNote.isError && <p className="text-xs text-danger">{updateNote.error instanceof Error ? updateNote.error.message : 'Failed to save.'}</p>}
+            <div className="flex gap-2">
+              <button type="button" disabled={updateNote.isPending} onClick={submit} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60">
+                {updateNote.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setEditingField(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
+                Cancel
+              </button>
             </div>
-          )
+          </div>
         ) : (
           <p className="text-sm text-text! whitespace-pre-wrap">{content || <span className="text-text-faint italic">Empty.</span>}</p>
         )}
@@ -1820,6 +1854,7 @@ function ContactsTab({ id }: { id: string | undefined }) {
   const [company, setCompany] = useState<string | undefined>(undefined)
   const { data, isLoading, isError, error, refetch } = useInvoiceContacts(id, company)
   const addContact = useAddInvoiceContact(id)
+  const changeContact = useChangeInvoiceContact(id)
 
   const [userid, setUserid] = useState('')
   const [type, setType] = useState('')
@@ -1957,12 +1992,13 @@ function ContactsTab({ id }: { id: string | undefined }) {
                 <th className="font-medium py-2 px-3">Contact</th>
                 <th className="font-medium py-2 px-3">Type</th>
                 <th className="font-medium py-2 px-4">Status</th>
+                <th className="py-2 px-4" />
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-sm text-text-faint italic">
+                  <td colSpan={6} className="py-6 text-center text-sm text-text-faint italic">
                     No contacts linked to this invoice yet.
                   </td>
                 </tr>
@@ -1973,7 +2009,22 @@ function ContactsTab({ id }: { id: string | undefined }) {
                     <td className="py-2 px-3 text-text-muted">{c.thirdParty}</td>
                     <td className="py-2 px-3 text-text-muted">{c.contact}</td>
                     <td className="py-2 px-3 text-text-muted">{c.contactType}</td>
-                    <td className="py-2 px-3 text-text-muted">{c.status}</td>
+                    <td className="py-2 px-3 text-text-muted">
+                      {c.rowid != null ? (
+                        <button type="button" disabled={changeContact.isPending} title="Activate / deactivate" onClick={() => changeContact.mutate({ action: 'swap', rowid: c.rowid! })} className="hover:underline disabled:opacity-50">
+                          {c.status}
+                        </button>
+                      ) : (
+                        c.status
+                      )}
+                    </td>
+                    <td className="py-2 px-4 text-right">
+                      {c.rowid != null && (
+                        <button type="button" disabled={changeContact.isPending} title="Remove this contact" onClick={() => changeContact.mutate({ action: 'delete', rowid: c.rowid! })} className="text-text-faint hover:text-danger disabled:opacity-50">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
@@ -2316,12 +2367,11 @@ function AgendaEventByAvatar({ name }: { name: string }) {
   )
 }
 
-// Real compta/facture/agenda.php page — header metadata (Created by/
-// Creation date/Latest modification date/Validated by/Validation date) plus
-// the real "Actions on invoice" table (Ref./Date/Owner/Label/Related
-// Objects/Status), matching Sales Orders' own already-built Agenda tab
-// (same generic Dolibarr agenda-list template, confirmed live — see
-// invoiceAgendaParser.ts header comment).
+// The invoice's Events/Agenda (compta/facture/fapi/agenda.php, see
+// useInvoiceAgenda) — header metadata (Created by/Creation date/Latest
+// modification date/Validated by/Validation date) plus the "Actions on
+// invoice" table (Ref./Date/Owner/Label/Related Objects/Status), matching
+// Sales Orders' own Agenda tab.
 function AgendaTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useInvoiceAgenda(id)
   if (isLoading) return <LegacyLoadingCard label="Loading events…" />

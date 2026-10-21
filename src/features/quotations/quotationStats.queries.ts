@@ -1,15 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseLegacyStats } from '../salesOrders/legacyStatsParser'
+import { fetchQuotationStats } from '../../api/quotations'
 import type { MonthlyStats } from '../salesOrders/orderStats.queries'
 
-// comm/propal/stats/index.php — the classic quotation statistics page, read
-// through the shared legacyStatsParser.ts. Replaces GET /api/quotations/stats/,
-// which does not exist on the backend (404).
 export function useQuotationStats(year: number) {
   return useQuery({
     queryKey: ['quotations', 'stats', year],
-    queryFn: async (): Promise<MonthlyStats> => parseLegacyStats(await fetchLegacyDocument('/comm/propal/stats/index.php', new URLSearchParams({ year: String(year) })), year),
+    queryFn: async (): Promise<MonthlyStats> => {
+      const stats = await fetchQuotationStats(year)
+      return {
+        year: stats.year,
+        countByMonth: stats.count_by_month,
+        amountByMonth: stats.amount_by_month,
+        summary: {
+          count: stats.summary.count,
+          totalAmount: stats.summary.total_amount,
+          averageAmount: stats.summary.average_amount,
+        },
+      }
+    },
     placeholderData: (prev) => prev,
   })
 }

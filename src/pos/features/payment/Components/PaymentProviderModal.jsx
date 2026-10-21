@@ -9,7 +9,7 @@ function PaymentProviderModal({ open, onClose, onSelect }) {
             <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-gray-800 dark:text-white">
-                        <Globe size={16} className="text-[#397db9]" />
+                        <Globe size={16} className="text-[#3b82f6]" />
                         Select Payment Provider
                     </h3>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-red-500">
@@ -20,9 +20,9 @@ function PaymentProviderModal({ open, onClose, onSelect }) {
                 <button
                     type="button"
                     onClick={() => onSelect("LencoPay")}
-                    className="w-full flex items-center gap-3 rounded-xl border-2 border-gray-200 dark:border-slate-700 px-4 py-3 text-left hover:border-[#397db9] hover:bg-[#397db9]/5 transition-colors"
+                    className="w-full flex items-center gap-3 rounded-xl border-2 border-gray-200 dark:border-slate-700 px-4 py-3 text-left hover:border-[#3b82f6] hover:bg-[#3b82f6]/5 transition-colors"
                 >
-                    <CreditCard size={20} className="text-[#397db9]" />
+                    <CreditCard size={20} className="text-[#3b82f6]" />
                     <span className="text-sm font-semibold text-gray-800 dark:text-white">LencoPay</span>
                 </button>
             </div>

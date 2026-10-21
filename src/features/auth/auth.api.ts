@@ -14,7 +14,11 @@ interface LoginSuccessData {
 }
 
 interface LoginResponse {
-  success?: LoginSuccessData | false
+  success?: LoginSuccessData | boolean
+  data?: LoginSuccessData
+  bearer_token?: string
+  api_key?: string
+  token?: string
   message?: string
 }
 
@@ -24,14 +28,20 @@ export async function loginRequest({ login, password, entity }: LoginCredentials
   body.set('password', password)
   body.set('entity', entity || '1')
 
-  const { data } = await api.post<LoginResponse>('/login/', body, {
+  const { data: response } = await api.post<LoginResponse>('/login/', body, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   })
 
-  if (!data.success) {
-    throw new Error(data.message ?? 'Login failed')
+  if (!response.success) {
+    throw new Error(response.message ?? 'Login failed')
   }
-  return data.success
+
+  const tokenData = typeof response.success === 'object' ? response.success : response.data ?? response
+  const token = tokenData.bearer_token ?? tokenData.api_key ?? tokenData.token
+  if (!token) {
+    throw new Error('Login succeeded but the server did not return an API key.')
+  }
+  return { bearer_token: token }
 }
 
 // Raw shape as returned by GET /user/ — this PHP endpoint serializes

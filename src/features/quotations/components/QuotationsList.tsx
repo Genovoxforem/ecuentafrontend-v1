@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, CalendarDays, TriangleAlert, FileDown, X as XIcon } from 'lucide-react'
+import { FileBadge, Plus, FileText, CalendarPlus, DollarSign, ListChecks, Search, TriangleAlert, FileDown, X as XIcon } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
@@ -69,8 +70,8 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
-  // Real customer-scoping filter — reads QuotationRow.socid (already parsed
-  // from the row's own third-party link, see quotationListParser.ts). Lets
+  // Real customer-scoping filter — reads QuotationRow.socid (the list row's
+  // fk_soc, see quotations.queries.ts). Lets
   // a customer's own Related Items tab ("View all" on its Proposals card)
   // link here instead of the legacy backend's own filtered list.php.
   const customerIdParam = searchParams.get('customerId')
@@ -78,9 +79,17 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
 
   const customerScoped = useMemo(() => (customerId ? summary.quotations.filter((q) => q.socid === customerId) : summary.quotations), [summary.quotations, customerId])
   const customerName = customerId ? customerScoped[0]?.thirdParty : null
-  const filteredQuotations = useMemo(() => customerScoped.filter((q) => matchesSearch(q, search)), [customerScoped, search])
+  const dateRange = useDateRange()
+  const filteredQuotations = useMemo(
+    () => customerScoped.filter((q) => matchesSearch(q, search) && dateRange.inRange(q.date)),
+    [customerScoped, search, dateRange],
+  )
   const { sorted: sortedQuotations, sort, toggleSort } = useSortableRows<QuotationRow, SortKey>(filteredQuotations, sortValue)
   const pageQuotations = sortedQuotations.slice((page - 1) * perPage, page * perPage)
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -201,9 +210,7 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
               />
             </div>
             <TableExportButtons title="List Of Quotations" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-              <CalendarDays size={14} />
-            </button>
+            <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

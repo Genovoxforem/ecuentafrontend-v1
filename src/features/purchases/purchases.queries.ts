@@ -1,4 +1,3 @@
-import { useVendorsSummary } from '../vendors/vendors.queries'
 import { usePurchaseOrdersSummary } from '../purchaseOrders/purchaseOrders.queries'
 import { useSupplierProposalAreaSummary } from '../supplierProposals/supplierProposalArea.queries'
 import { useVendorInvoices } from '../vendorInvoices/vendorInvoices.queries'
@@ -34,38 +33,26 @@ export interface PurchasesSummary {
   topProductsYear: number
 }
 
-// Vendors is real (societe/api/list.php?type=f — see vendors.queries.ts).
-// Purchase invoices is also real: /api/purchase-invoices/ (built for this
-// app against llx_facture_fourn, see vendorInvoices.queries.ts) — including
-// its own real 'automatic'/'manual' status filter, used here for
-// automaticPurchases. Supplier proposals and purchase orders are
-// local-only (no backend endpoint exists for either — a genuine app
-// limitation, not a fetch failure). This backend still has no ASYCUDA
-// integration and no endpoint for today's-activity/invoice-status-
-// breakdown/top-purchased-products, so those stay honest zeros/empty —
-// there really is nothing to compute them from, unlike purchaseInvoices
-// before this fix (see this session's PurchasesModule investigation:
-// wiring in the real /api/purchase-invoices/ endpoint, and fixing this
-// function's previous `!vendors` check — which treated "the vendors query
-// permanently failed" the same as "still loading", so a real vendors
-// fetch error hung this whole dashboard on "Loading…" forever).
+// Purchase invoices are real: fourn/facture/facture_ajax_list.php (see vendorInvoices.queries.ts), including its own
+// 'automatic' filter, used here for automaticPurchases. The vendor count comes from the same hook's
+// societe/api/societes.php?action=stats ("suppliers") — this dashboard used to wait on the full vendor list
+// (societe/fapi/list.php?type=vendor), which 404s on some backends and so kept the whole page on its loading
+// placeholders. Purchase orders and supplier proposals are optional here: if their endpoints are missing the
+// cards show 0 and the rest of the page still renders. There is no ASYCUDA integration and no endpoint for
+// today's activity / status breakdown / top products, so those stay honest zeros/empty.
 export function usePurchasesSummary() {
-  const { data: vendors, isLoading: vendorsLoading, isError: vendorsIsError, error: vendorsError } = useVendorsSummary()
   const { data: purchaseOrders } = usePurchaseOrdersSummary()
   const { data: supplierProposals } = useSupplierProposalAreaSummary()
   const { data: allInvoices, isLoading: invoicesLoading, isError: invoicesIsError, error: invoicesError } = useVendorInvoices('all')
   const { data: automaticInvoices } = useVendorInvoices('automatic')
 
-  if (vendorsLoading || invoicesLoading) {
+  if (invoicesLoading) {
     return { data: undefined, isError: false, isLoading: true }
-  }
-  if (vendorsIsError) {
-    return { data: undefined, isError: true, isLoading: false, error: vendorsError }
   }
   if (invoicesIsError) {
     return { data: undefined, isError: true, isLoading: false, error: invoicesError }
   }
-  if (!vendors || !allInvoices) {
+  if (!allInvoices) {
     return { data: undefined, isError: true, isLoading: false, error: new Error('Purchases dashboard data unexpectedly missing.') }
   }
 
@@ -74,7 +61,7 @@ export function usePurchasesSummary() {
       purchaseInvoices: allInvoices.total,
       supplierProposals: supplierProposals?.total ?? 0,
       purchaseOrders: purchaseOrders?.totalOrders ?? 0,
-      vendors: vendors.totalVendors,
+      vendors: allInvoices.summary.suppliers,
       asycudaDeclarations: 0,
       automaticPurchases: automaticInvoices?.total ?? 0,
     },

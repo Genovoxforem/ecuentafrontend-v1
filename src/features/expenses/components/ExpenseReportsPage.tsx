@@ -42,8 +42,8 @@ export function ExpenseReportsPage() {
   const set = (key: keyof ReportsFilters) => (value: string) => form && setDraft({ ...form, [key]: value })
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+    <div className="-m-6 flex-1 flex flex-col min-h-0 p-6 space-y-4">
+      <h2 className="shrink-0 flex items-center gap-2 text-lg font-bold text-text!">
         <BarChart3 size={20} className="text-brand" /> Expense Reports
       </h2>
 
@@ -58,12 +58,12 @@ export function ExpenseReportsPage() {
                 e.preventDefault()
                 setApplied(form)
               }}
-              className="grid grid-cols-1 items-end gap-3 md:grid-cols-4"
+              className="flex flex-wrap items-end gap-3"
             >
-              <Field label="Year From">
+              <Field label="Year From" className="w-28">
                 <input type="number" value={form.yearFrom} onChange={(e) => set('yearFrom')(e.target.value)} className={`${controlCls} w-full`} />
               </Field>
-              <Field label="Month From">
+              <Field label="Month From" className="w-36">
                 <select value={form.monthFrom} onChange={(e) => set('monthFrom')(e.target.value)} className={`${controlCls} w-full`}>
                   {data.months.map((m) => (
                     <option key={m.value} value={m.value}>
@@ -72,10 +72,10 @@ export function ExpenseReportsPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Year To">
+              <Field label="Year To" className="w-28">
                 <input type="number" value={form.yearTo} onChange={(e) => set('yearTo')(e.target.value)} className={`${controlCls} w-full`} />
               </Field>
-              <Field label="Month To">
+              <Field label="Month To" className="w-36">
                 <select value={form.monthTo} onChange={(e) => set('monthTo')(e.target.value)} className={`${controlCls} w-full`}>
                   {data.months.map((m) => (
                     <option key={m.value} value={m.value}>
@@ -84,23 +84,21 @@ export function ExpenseReportsPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Department">
+              <Field label="Department" className="w-40">
                 <input value={form.dept} onChange={(e) => set('dept')(e.target.value)} className={`${controlCls} w-full`} />
               </Field>
-              <Field label="Branch">
+              <Field label="Branch" className="w-40">
                 <input value={form.branch} onChange={(e) => set('branch')(e.target.value)} className={`${controlCls} w-full`} />
               </Field>
-              <div>
-                <button type="submit" className="h-9 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-hover">
-                  Filter
-                </button>
-              </div>
+              <button type="submit" className="h-9 shrink-0 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-hover">
+                Filter
+              </button>
             </form>
           </FormCard>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[7fr_5fr]">
-            <div className="min-w-0 space-y-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
+          <div className="flex-1 min-h-0 grid grid-cols-1 gap-4 xl:grid-cols-[7fr_5fr]">
+            <div className="min-w-0 flex flex-col min-h-0 space-y-2">
+              <h3 className="shrink-0 flex items-center gap-2 text-sm font-semibold text-text!">
                 <Users size={15} className="text-brand" /> By Employee
               </h3>
               <ExpenseTable
@@ -113,8 +111,8 @@ export function ExpenseReportsPage() {
                 empty="No expenses in this period."
               />
             </div>
-            <div className="min-w-0 space-y-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-text!">
+            <div className="min-w-0 flex flex-col min-h-0 space-y-2">
+              <h3 className="shrink-0 flex items-center gap-2 text-sm font-semibold text-text!">
                 <Tags size={15} className="text-brand" /> By Expense Type
               </h3>
               <ExpenseTable

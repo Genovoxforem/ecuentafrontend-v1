@@ -1,85 +1,24 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
-import { parseVendorInvoiceCardHtml, parseVendorInvoiceContactsHtml, type VendorInvoiceDetail, type VendorInvoiceContactRow } from './vendorInvoiceCardParser'
-import { parseVendorInvoiceLog, type VendorInvoiceLogData } from './vendorInvoiceInfoParser'
-import { parseOrderDocumentsHtml, parseDocumentsPageMeta, type OrderDocumentRow, type DocumentsPageMeta } from '../salesOrders/orderCardParser'
-import { parseInvoiceNotesHtml, type InvoiceNotes } from '../invoices/invoiceCardParser'
-import { parseInvoiceLedgerEntryHtml, type InvoiceLedgerEntryData } from '../invoices/invoiceLedgerEntryParser'
+import { fapi } from '../../api/axios'
+import { fapiPost as post } from '../../api/fapiEnvelope'
+import { requireJson } from '../salesOrders/orderApi'
+import { fapiGet, mapVendorInvoiceGet, mapVendorInvoiceLedger, VI_BASE } from './vendorInvoiceFapi'
+import type { VendorInvoiceDetail, VendorInvoiceContactRow, VendorInvoiceLogData } from './vendorInvoiceTypes'
+import type { OrderDocumentRow, DocumentsPageMeta } from '../salesOrders/orderDocumentTypes'
+import type { InvoiceLedgerEntryData } from '../invoices/invoiceTypes'
 
-// fourn/facture/card.php and its 5 tab pages — the classic, real Dolibarr
-// Vendor/Supplier Invoice card, confirmed live on demo.ecuenta.online
-// (invoice facid=19: real ref SI2604-0017, real header/tabs/fields). No
-// detail page existed for this feature at all before this — see
-// vendorInvoiceCardParser.ts's own header comment. Notes reuses the Sales
-// Invoice rebuild's own parseInvoiceNotesHtml (identical real markup
-// shape, confirmed live) and LedgerEntry reuses its
-// parseInvoiceLedgerEntryHtml (byte-for-byte identical table structure,
-// confirmed live) rather than duplicating either. Linked Files reuses Sales
-// Orders' own parseOrderDocumentsHtml/parseDocumentsPageMeta — confirmed
-// document.php here renders the same generic id="tablelines" template.
-// Contacts does NOT reuse Sales Orders'/the Sales Invoice's parser — this
-// page's real contacts table carries a different class combo (confirmed
-// live) — see vendorInvoiceCardParser.ts's own parseVendorInvoiceContactsHtml.
+// The vendor invoice card and its tabs, all on fourn/facture/fapi: get.php (header, lines, payments, available
+// actions), contacts.php, documents.php, agenda.php, ledger.php and notes.php (the notes tab is the shared
+// RecordNotesTab). These endpoints load the invoice through FactureFournisseur::fetch(), so on an instance whose
+// llx_facture_fourn lacks the fork's internal_exp column they answer 500 "This instance cannot read any vendor invoice"
+// until the ALTER TABLE named in the response is run.
 
 export function useVendorInvoiceDetail(id: string | undefined) {
   return useQuery<VendorInvoiceDetail>({
     queryKey: ['vendorInvoices', 'detail', id],
-    queryFn: async () => parseVendorInvoiceCardHtml(await fetchLegacyText(`/fourn/facture/card.php?facid=${id}`), Number(id)),
+    queryFn: async () => mapVendorInvoiceGet(await fapiGet(`${VI_BASE}/get.php`, { id }), Number(id)),
     enabled: !!id,
-  })
-}
-
-// --- Notes -------------------------------------------------------------
-// Same real pencil-then-form-then-submit mechanism as the Sales Invoice
-// rebuild's Notes tab (action=editnote_public/editnote_private reveal the
-// real textarea+token, action=setnote_public/setnote_private submit it) —
-// confirmed live, identical markup.
-
-export function useVendorInvoiceNotes(id: string | undefined) {
-  return useQuery<InvoiceNotes>({
-    queryKey: ['vendorInvoices', 'detail', id, 'notes'],
-    queryFn: async () => parseInvoiceNotesHtml(await fetchLegacyText(`/fourn/facture/note.php?facid=${id}`)),
-    enabled: !!id,
-  })
-}
-
-export interface VendorInvoiceNoteEditContext {
-  token: string
-  currentValue: string
-}
-
-export function useVendorInvoiceNoteEditContext(id: string | undefined, field: 'public' | 'private' | null) {
-  const action = field === 'public' ? 'editnote_public' : field === 'private' ? 'editnote_private' : null
-  const fieldName = field === 'public' ? 'note_public' : 'note_private'
-  return useQuery<VendorInvoiceNoteEditContext>({
-    queryKey: ['vendorInvoices', 'detail', id, 'noteEditContext', action],
-    queryFn: async () => {
-      const doc = await fetchLegacyDocument('/fourn/facture/note.php', new URLSearchParams({ facid: id ?? '', action: action ?? '', id: id ?? '' }))
-      const token = doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
-      const currentValue = doc.querySelector<HTMLTextAreaElement>(`textarea[name="${fieldName}"]`)?.value ?? ''
-      return { token, currentValue }
-    },
-    enabled: !!id && !!action,
-    staleTime: 1000 * 30,
-  })
-}
-
-export function useUpdateVendorInvoiceNote(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ field, token, value }: { field: 'public' | 'private'; token: string; value: string }) => {
-      const action = field === 'public' ? 'setnote_public' : 'setnote_private'
-      const fieldName = field === 'public' ? 'note_public' : 'note_private'
-      const body = new URLSearchParams({ token, action, id: id ?? '', [fieldName]: value })
-      const res = await fetch('/fourn/facture/note.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vendorInvoices', 'detail', id, 'notes'] }),
   })
 }
 
@@ -88,7 +27,17 @@ export function useUpdateVendorInvoiceNote(id: string | undefined) {
 export function useVendorInvoiceContacts(id: string | undefined) {
   return useQuery<VendorInvoiceContactRow[]>({
     queryKey: ['vendorInvoices', 'detail', id, 'contacts'],
-    queryFn: async () => parseVendorInvoiceContactsHtml(await fetchLegacyText(`/fourn/facture/contact.php?facid=${id}`)),
+    queryFn: async () => {
+      const d = await fapiGet<any>(`${VI_BASE}/contacts.php`, { id })
+      const rows: any[] = Array.isArray(d.rows) ? d.rows : [...(d.rows?.internal ?? []), ...(d.rows?.external ?? [])]
+      return rows.map((c) => ({
+        nature: c.nature_label ?? (c.nature === 'internal' ? 'User' : 'Third-Party Contact'),
+        thirdParty: c.thirdparty ?? '',
+        contact: c.name ?? '',
+        contactType: c.type_label ?? '',
+        status: c.status_label ?? '',
+      }))
+    },
     enabled: !!id,
   })
 }
@@ -98,7 +47,11 @@ export function useVendorInvoiceContacts(id: string | undefined) {
 export function useVendorInvoiceDocuments(id: string | undefined) {
   return useQuery<OrderDocumentRow[]>({
     queryKey: ['vendorInvoices', 'detail', id, 'documents'],
-    queryFn: async () => parseOrderDocumentsHtml(await fetchLegacyText(`/fourn/facture/document.php?facid=${id}`)),
+    queryFn: async () => {
+      const d = await fapiGet<any>(`${VI_BASE}/documents.php`, { id })
+      const canEdit = Boolean(d.meta?.can_upload ?? d.meta?.can_edit)
+      return (d.files ?? []).map((f: any) => ({ name: f.name ?? '', url: f.url ?? '', size: String(f.size ?? ''), date: f.date ?? '', deletable: canEdit }))
+    },
     enabled: !!id,
   })
 }
@@ -106,31 +59,30 @@ export function useVendorInvoiceDocuments(id: string | undefined) {
 export function useVendorInvoiceDocumentsPageMeta(id: string | undefined) {
   return useQuery<DocumentsPageMeta>({
     queryKey: ['vendorInvoices', 'detail', id, 'documentsMeta'],
-    queryFn: async () => parseDocumentsPageMeta(await fetchLegacyText(`/fourn/facture/document.php?facid=${id}`)),
+    queryFn: async () => {
+      const d = await fapiGet<any>(`${VI_BASE}/documents.php`, { id })
+      return {
+        attachedCount: d.meta?.attached_count ?? (d.files ?? []).length,
+        totalSize: d.meta?.total_size ?? '',
+        savingDocMask: d.meta?.saving_doc_mask ?? '',
+        attachToken: '',
+        links: (d.links ?? []).map((l: any) => ({ id: Number(l.id) || 0, label: l.label ?? '', url: l.url ?? '', date: l.date ?? '' })),
+      }
+    },
     enabled: !!id,
   })
 }
 
-// Multipart POST to the real action=sendit handler in
-// core/actions_linkedfiles.inc.php (included by fourn/facture/document.php,
-// the same generic include commande/document.php uses) — same real field
-// shape as Sales Orders' own useUploadOrderDocument.
 export function useUploadVendorInvoiceDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { token: string; file: File; savingDocMask: string; useMask: boolean }) => {
       const body = new FormData()
-      body.set('token', input.token)
-      body.set('section_dir', '')
-      body.set('section_id', '0')
-      body.set('sortfield', '')
-      body.set('sortorder', '')
-      body.set('max_file_size', '536870912')
-      body.set('userfile[]', input.file)
-      body.set('sendit', 'Upload')
+      body.set('id', id ?? '')
+      body.append('userfile[]', input.file)
       if (input.useMask) body.set('savingdocmask', input.savingDocMask)
-      const res = await fetch(`/fourn/facture/document.php?facid=${id}&uploadform=1`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const res = requireJson(await fapi.post(`${VI_BASE}/documents.php?action=upload`, body))
+      if (res.data?.success === false) throw new Error(res.data.message || 'Upload failed.')
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendorInvoices', 'detail', id, 'documents'] })
@@ -144,7 +96,16 @@ export function useUploadVendorInvoiceDocument(id: string | undefined) {
 export function useVendorInvoiceLog(id: string | undefined) {
   return useQuery<VendorInvoiceLogData>({
     queryKey: ['vendorInvoices', 'detail', id, 'log'],
-    queryFn: async () => parseVendorInvoiceLog(await fetchLegacyText(`/fourn/facture/info.php?facid=${id}`)),
+    queryFn: async () => {
+      const d = await fapiGet<any>(`${VI_BASE}/agenda.php`, { id })
+      return {
+        createdBy: d.created_by ?? '',
+        creationDate: d.creation_date ?? '',
+        latestModificationDate: d.latest_modification_date ?? '',
+        validatedBy: d.validated_by ?? '',
+        validationDate: d.validation_date ?? '',
+      }
+    },
     enabled: !!id,
   })
 }
@@ -154,7 +115,82 @@ export function useVendorInvoiceLog(id: string | undefined) {
 export function useVendorInvoiceLedgerEntries(id: string | undefined) {
   return useQuery<InvoiceLedgerEntryData>({
     queryKey: ['vendorInvoices', 'detail', id, 'ledgerEntries'],
-    queryFn: async () => parseInvoiceLedgerEntryHtml(await fetchLegacyText(`/fourn/facture/ledgerentry.php?id=${id}`)),
+    queryFn: async () => mapVendorInvoiceLedger(await fapiGet(`${VI_BASE}/ledger.php`, { id })),
     enabled: !!id,
   })
+}
+
+function useRefresh(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ['vendorInvoices', 'detail', id] })
+    void queryClient.invalidateQueries({ queryKey: ['vendor-invoices'] })
+  }
+}
+
+// --- Lifecycle (fourn/facture/fapi/actions.php) -----------------------------
+// POST actions.php?action=<key>: re-checks the state and the right itself (409 / 403). `key` comes from get.php's
+// available_actions, so the buttons never offer one the server would refuse. Row shapes of these three endpoints
+// (actions, payments, lines) are read from the reference, not from live data: newecuenta cannot read any vendor
+// invoice until llx_facture_fourn.internal_exp exists.
+export function useVendorInvoiceAction(id: string | undefined) {
+  const refresh = useRefresh(id)
+  return useMutation({
+    mutationFn: async ({ action, extra }: { action: string; extra?: Record<string, unknown> }) => post<any>(`${VI_BASE}/actions.php`, { id: Number(id), ...extra }, { action }),
+    onSuccess: refresh,
+  })
+}
+
+// --- Payments (fourn/facture/fapi/payments.php) -----------------------------
+// ?action=add posts the payment to the bank in one transaction and refuses an amount above what is outstanding unless
+// allow_overpay is sent; ?action=delete refuses a payment that is reconciled with a bank line.
+export interface VendorPaymentInput {
+  amount: number
+  date: string
+  modeId: number
+  accountId: number
+  allowOverpay?: boolean
+}
+
+export function useVendorInvoicePayments(id: string | undefined) {
+  const refresh = useRefresh(id)
+  return {
+    add: useMutation({
+      mutationFn: async (input: VendorPaymentInput) =>
+        post<any>(
+          `${VI_BASE}/payments.php`,
+          { id: Number(id), amount: input.amount, date: input.date, mode_id: input.modeId, payment_mode_id: input.modeId, account_id: input.accountId, fk_account: input.accountId, allow_overpay: input.allowOverpay || undefined },
+          { action: 'add' },
+        ),
+      onSuccess: refresh,
+    }),
+    remove: useMutation({ mutationFn: async (paymentId: number) => post<any>(`${VI_BASE}/payments.php`, { id: Number(id), payment_id: paymentId }, { action: 'delete' }), onSuccess: refresh }),
+  }
+}
+
+// --- Lines of a draft (fourn/facture/fapi/lines.php) -------------------------
+export interface VendorInvoiceLineInput {
+  description: string
+  qty: number
+  unitPriceHt: number
+  vatRate: number
+  discountPercent?: number
+  productId?: number
+}
+
+export function useVendorInvoiceLines(id: string | undefined) {
+  const refresh = useRefresh(id)
+  const body = (input: VendorInvoiceLineInput) => ({
+    ...(input.productId ? { product_id: input.productId } : {}),
+    description: input.description,
+    qty: input.qty,
+    pu_ht: input.unitPriceHt,
+    tva_tx: input.vatRate,
+    remise_percent: input.discountPercent ?? 0,
+  })
+  return {
+    add: useMutation({ mutationFn: (input: VendorInvoiceLineInput) => post<any>(`${VI_BASE}/lines.php`, { id: Number(id), ...body(input) }, { action: 'add' }), onSuccess: refresh }),
+    update: useMutation({ mutationFn: ({ lineId, ...input }: VendorInvoiceLineInput & { lineId: number }) => post<any>(`${VI_BASE}/lines.php`, { id: Number(id), line_id: lineId, ...body(input) }, { action: 'update' }), onSuccess: refresh }),
+    remove: useMutation({ mutationFn: (lineId: number) => post<any>(`${VI_BASE}/lines.php`, { id: Number(id), line_id: lineId }, { action: 'delete' }), onSuccess: refresh }),
+  }
 }

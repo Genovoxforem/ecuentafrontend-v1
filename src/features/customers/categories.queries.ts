@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from '../generalLedger/bindLines.queries'
+import { deleteProductCategory, getProductCategory, updateProductCategory } from '../../api/products'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { ROUTES } from '../../routes'
 
-// 1=vendor/supplier (Categorie::TYPE_SUPPLIER), 2=customer, 4=contact.
-export type CategoryType = 1 | 2 | 4
+// 0=product/service (Categorie::TYPE_PRODUCT), 1=vendor/supplier
+// (Categorie::TYPE_SUPPLIER), 2=customer, 4=contact.
+export type CategoryType = 0 | 1 | 2 | 4
 
 export interface CategoryRow {
   id: number
@@ -16,18 +17,11 @@ export interface CategoryRow {
   itemCount: number
 }
 
-// The classic tags/categories page (categories/index.php?type=customer|contact|
-// supplier) loads its tree from categories/api/index.php — confirmed live on
+// The classic tags/categories page (categories/index.php?type=product|customer|
+// contact|supplier) loads its tree from categories/api/index.php — confirmed live on
 // 172.16.5.10 (session-cookie auth, read-only: actions tree / search /
 // products). The names below are that page's own `type` values.
-const TYPE_NAME: Record<CategoryType, 'supplier' | 'customer' | 'contact'> = { 1: 'supplier', 2: 'customer', 4: 'contact' }
-
-interface TreeResponse {
-  success: boolean
-  error?: string
-  categories?: { id: number; fk_parent: number; label: string; fulllabel?: string; description?: string; color?: string | null; count?: number }[]
-  stats?: { total?: number; roots?: number; linked?: number; created_this_month?: number }
-}
+const TYPE_NAME: Record<CategoryType, 'product' | 'supplier' | 'customer' | 'contact'> = { 0: 'product', 1: 'supplier', 2: 'customer', 4: 'contact' }
 
 // The four cards above the tree: how many tags, how many top-level ones, how
 // many records are tagged and how many tags were created this month.
@@ -38,35 +32,40 @@ export interface CategoryStats {
   createdThisMonth: number
 }
 
-// GET categories/api/index.php?action=tree&type=… — replaces GET
-// /api/categories/, which does not exist on the backend (404). The whole tree
-// comes back in one response; the name filter runs client-side, and rows are
-// ordered so children follow their parent.
+const FAPI = '/categories/fapi'
+
+interface FapiTag {
+  id: number
+  label: string
+  description?: string
+  color?: string
+  parent_id: number
+  count: number
+  children?: FapiTag[]
+}
+
+// categories/fapi/list.php?type=…: the tree (children nested, a count per tag). The full labels are built here
+// and the rows are ordered parent-first like the classic tree.
+async function fetchTreeFapi(type: CategoryType) {
+  const d = await fapiGet<{ tree: FapiTag[] }>(`${FAPI}/list.php`, { type: TYPE_NAME[type] })
+  const items: CategoryRow[] = []
+  const walk = (nodes: FapiTag[], path: string) => {
+    for (const n of nodes) {
+      const full = path ? `${path} >> ${n.label}` : n.label
+      items.push({ id: n.id, label: n.label, fullLabel: full, description: n.description || null, color: n.color || null, parentId: n.parent_id || 0, itemCount: n.count ?? 0 })
+      walk(n.children ?? [], full)
+    }
+  }
+  walk(d.tree ?? [], '')
+  const stats: CategoryStats = { total: items.length, roots: items.filter((c) => !c.parentId).length, linked: items.reduce((sum, c) => sum + c.itemCount, 0), createdThisMonth: 0 }
+  return { items, total: items.length, stats }
+}
+
+// categories/fapi/list.php: the whole tree comes back in one response; the name filter runs client-side.
 export function useCategories(type: CategoryType, search = '') {
   return useQuery({
     queryKey: ['categories', type],
-    queryFn: async (): Promise<{ items: CategoryRow[]; total: number; stats: CategoryStats }> => {
-      const { data } = await axios.get<TreeResponse>('/categories/api/index.php', { params: { action: 'tree', type: TYPE_NAME[type] } })
-      if (!data.success) throw new Error(data.error ?? 'Could not load tags/categories.')
-      const items = (data.categories ?? []).map(
-        (c): CategoryRow => ({
-          id: c.id,
-          label: c.label,
-          fullLabel: c.fulllabel || c.label,
-          description: c.description || null,
-          color: c.color || null,
-          parentId: c.fk_parent || 0,
-          itemCount: c.count ?? 0,
-        }),
-      )
-      const stats: CategoryStats = {
-        total: data.stats?.total ?? items.length,
-        roots: data.stats?.roots ?? items.filter((c) => !c.parentId).length,
-        linked: data.stats?.linked ?? items.reduce((sum, c) => sum + c.itemCount, 0),
-        createdThisMonth: data.stats?.created_this_month ?? 0,
-      }
-      return { items, total: items.length, stats }
-    },
+    queryFn: () => fetchTreeFapi(type),
     select: (d) => {
       const q = search.trim().toLowerCase()
       const items = q ? d.items.filter((c) => c.fullLabel.toLowerCase().includes(q)) : d.items
@@ -75,80 +74,117 @@ export function useCategories(type: CategoryType, search = '') {
   })
 }
 
-// A record filed under a tag (a customer or a contact). `href` is the card
-// URL the backend printed for it — resolve it with resolveLegacyRoute, never
-// link to it directly.
+// A record filed under a tag (a customer, a vendor, a contact or a product), with the in-app route built from the
+// API's route key and id.
 export interface CategoryLinkedItem {
   id: number
   ref: string
   label: string
-  href: string | null
+  to: string | null
 }
 
-interface ProductsResponse {
-  success: boolean
-  error?: string
-  categories?: Record<string, { id: number; label: string; products?: { id: number; ref?: string; label?: string; link_html?: string }[] }>
+// A route key and an id from the API ("customers/42") → the React page.
+function routeFromUrlPath(urlPath: string | undefined): string | null {
+  const m = (urlPath ?? '').match(/^([a-z_]+)\/(\d+)/)
+  if (!m) return null
+  if (m[1] === 'customers') return ROUTES.customerDetail.replace(':id', m[2])
+  if (m[1] === 'vendors') return `${ROUTES.customerDetail.replace(':id', m[2])}?tab=vendor`
+  if (m[1] === 'contacts') return ROUTES.contactDetail.replace(':id', m[2])
+  if (m[1] === 'products') return ROUTES.productDetail.replace(':id', m[2])
+  return null
 }
 
-function toLinkedItem(p: { id: number; ref?: string; label?: string; link_html?: string }): CategoryLinkedItem {
-  const href = new DOMParser().parseFromString(p.link_html ?? '', 'text/html').querySelector('a')?.getAttribute('href') ?? null
-  return { id: p.id, ref: p.ref ?? '', label: p.label ?? '', href }
-}
-
-// GET categories/api/index.php?action=products&type=…[&category_id=…] — the
-// records filed under one tag, or under every tag when no id is given (the
-// classic page's "Expand products" button). Keyed by tag id.
-export async function fetchCategoryItems(type: CategoryType, categoryId?: number): Promise<Record<number, CategoryLinkedItem[]>> {
-  const { data } = await axios.get<ProductsResponse>('/categories/api/index.php', {
-    params: { action: 'products', type: TYPE_NAME[type], ...(categoryId ? { category_id: categoryId } : {}) },
-  })
-  if (!data.success) throw new Error(data.error ?? 'Could not load the tagged items.')
+async function fetchItemsFapi(type: CategoryType, categoryId?: number): Promise<Record<number, CategoryLinkedItem[]>> {
+  const ids = categoryId ? [categoryId] : (await fetchTreeFapi(type)).items.filter((c) => c.itemCount > 0).map((c) => c.id)
   const out: Record<number, CategoryLinkedItem[]> = {}
-  for (const [id, cat] of Object.entries(data.categories ?? {})) out[Number(id)] = (cat.products ?? []).map(toLinkedItem)
+  await Promise.all(
+    ids.map(async (id) => {
+      const d = await fapiGet<{ objects?: { id: number; ref?: string; label?: string; url_path?: string }[] }>(`${FAPI}/list.php`, { type: TYPE_NAME[type], id, limit: 500 })
+      out[id] = (d.objects ?? []).map((o) => ({ id: o.id, ref: o.ref ?? '', label: o.label ?? '', to: routeFromUrlPath(o.url_path) }))
+    }),
+  )
   return out
 }
 
-// The classic "New tag/category" form (categories/card.php?action=create&type=…)
-// — read for its fresh CSRF token, then posted the way the page itself does:
-// token, action=add, addcat, type, type_id, label, description, color, parent
-// (-1 = no parent). A successful add redirects to categories/index.php; a
-// refusal re-renders the form with a showToast(…, "error") message.
+// The records filed under one tag, or under every tag when no id is given (the classic page's "Expand products"
+// button), keyed by tag id. categories/fapi gives each member's route key and id, so no HTML anchor is parsed.
+export function fetchCategoryItems(type: CategoryType, categoryId?: number): Promise<Record<number, CategoryLinkedItem[]>> {
+  return fetchItemsFapi(type, categoryId)
+}
+
+// POST categories/fapi/create.php (409 on a duplicate name at the same level); the colour is stored without the #.
 export function useCreateCategory(type: CategoryType) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { label: string; description?: string; color?: string; parentId?: number }) => {
-      const name = TYPE_NAME[type]
-      const doc = await fetchLegacyDocument('/categories/card.php', new URLSearchParams({ action: 'create', type: name, type_id: String(type) }))
-      const token = doc.querySelector<HTMLInputElement>('form input[name="action"][value="add"]')?.form?.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
-      if (!token) throw new Error('Could not open the new tag form.')
-      const body = new URLSearchParams({
-        token,
-        action: 'add',
-        addcat: 'addcat',
-        id: '',
-        type: name,
-        type_id: String(type),
-        backtopage: '',
-        urlfrom: '',
+    mutationFn: async (input: { label: string; description?: string; color?: string; parentId?: number; visible?: boolean }) => {
+      await fapiPost(`${FAPI}/create.php`, {
+        type: TYPE_NAME[type],
         label: input.label,
         description: input.description ?? '',
         color: (input.color ?? '').replace('#', ''),
-        parent: String(input.parentId ?? -1),
+        parent_id: input.parentId && input.parentId > 0 ? input.parentId : 0,
+        visible: input.visible !== false,
       })
-      const res = await fetch(`/categories/card.php?type=${name}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const err = toastMessages(html).find((m) => m.type === 'error')
-      if (err) throw new Error(err.message)
       return { ok: true }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),
+  })
+}
+
+// categories/fapi/update.php (label, description, colour, visibility) and move.php (a new parent; 0 = top level) for
+// any of the four tag types. A tag cannot become its own parent or sit under one of its descendants (422), and two
+// siblings cannot share a label (409).
+export function useUpdateCategory(type: CategoryType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { id: number; label: string; description: string; color: string; parentId: number; previousParentId: number; visible: boolean }) => {
+      await fapiPost(`${FAPI}/update.php`, { type: TYPE_NAME[type], id: input.id, label: input.label, description: input.description, color: input.color.replace('#', ''), visible: input.visible })
+      if (input.parentId !== input.previousParentId) await fapiPost(`${FAPI}/move.php`, { type: TYPE_NAME[type], id: input.id, parent_id: input.parentId > 0 ? input.parentId : 0 })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),
+  })
+}
+
+// categories/fapi/delete.php: a tag with sub-tags is refused (409) unless confirm:true, because Categorie::delete()
+// re-parents them silently; the objects that were tagged are untouched.
+export function useDeleteCategory(type: CategoryType) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, confirm }: { id: number; confirm?: boolean }) => {
+      await fapiPost(`${FAPI}/delete.php`, { type: TYPE_NAME[type], id, confirm: confirm || undefined })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),
+  })
+}
+
+// Product tags only: product/fapi/categories.php reads one tag and updates or
+// deletes it (categories/api/index.php has no write besides create). A move that
+// would put a tag inside itself is refused with 422.
+export function useUpdateProductCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: number; label: string; description: string; color: string; parentId: number; visible: boolean }) =>
+      updateProductCategory(input.id, { label: input.label, description: input.description, color: input.color.replace('#', ''), parent: input.parentId > 0 ? input.parentId : 0, visible: input.visible ? 1 : 0 }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', 0] }),
+  })
+}
+
+export type ProductCategoryDeleteCheck = { ok: true; productCount: number } | { ok: false; reason: string }
+
+// What deleting would do, read before asking: a tag with sub-tags is refused
+// (they would be unreachable); one on products needs confirm:true, and the
+// products survive, only losing the tag.
+export async function checkProductCategoryDelete(id: number): Promise<ProductCategoryDeleteCheck> {
+  const tag = await getProductCategory(id)
+  if (!tag.can_delete) return { ok: false, reason: 'You are not allowed to delete tags.' }
+  if (tag.child_count > 0) return { ok: false, reason: `"${tag.label}" has ${tag.child_count} sub-tag${tag.child_count === 1 ? '' : 's'}. Move or delete them first.` }
+  return { ok: true, productCount: tag.product_count }
+}
+
+export function useDeleteProductCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, confirm }: { id: number; confirm: boolean }) => deleteProductCategory(id, confirm),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', 0] }),
   })
 }

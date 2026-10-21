@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { BookText, Loader2, AlertTriangle, FileText, Pencil, Trash2, ChevronLeft, ChevronRight, Search, X, Columns3, FileDown } from 'lucide-react'
+import { useRememberedToggle } from '../useRememberedToggle'
+import { SlidersHorizontal, BookText, Loader2, AlertTriangle, FileText, Pencil, Trash2, ChevronLeft, ChevronRight, Search, X, Columns3, FileDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
@@ -192,6 +193,7 @@ export function JournalsOverview() {
   // Edits of the filter row that have not been searched yet; null shows what the page reported.
   const [draft, setDraft] = useState<Record<string, string> | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [showFilters, toggleFilters] = useRememberedToggle('ecuenta:ledger-journals:filters', true)
   const { data: list, isLoading, isFetching, isError, error, refetch } = useJournalsList(request)
   const toggleReexport = useToggleReexport()
   const deleteTransaction = useDeleteTransaction()
@@ -243,6 +245,25 @@ export function JournalsOverview() {
   if (list) {
     toolbarExtra = (
       <>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={toggleFilters} aria-pressed={showFilters} className="flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm text-text-muted hover:bg-surface-hover hover:text-text">
+          <SlidersHorizontal size={14} /> {showFilters ? 'Hide filters' : 'Show filters'}
+        </button>
+        <select value={list.limit} onChange={(e) => go({ limit: Number(e.target.value) }, list)} className={selectCls} title="Max. number of records per page" aria-label="Rows per page">
+          {list.limitOptions.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={!list.hasPrev} onClick={() => go({ page: list.page - 1 }, list)} aria-label="Previous page" className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40">
+          <ChevronLeft size={16} />
+        </button>
+        <span className="grid h-9 min-w-9 place-items-center rounded-md bg-brand px-2 text-sm text-white">{list.page + 1}</span>
+        <button type="button" disabled={!list.hasNext} onClick={() => go({ page: list.page + 1 }, list)} aria-label="Next page" className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40">
+          <ChevronRight size={16} />
+        </button>
+      </div>
         <ReexportSwitch on={list.reexport} busy={toggleReexport.isPending} onChange={(next) => run(list, 'reexport', next)} />
         {list.exportTitle && (
           <button
@@ -269,26 +290,34 @@ export function JournalsOverview() {
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
             <BookText size={20} className="text-brand" /> Operations - Journals
           </h2>
-          {list && (
-            <div className="flex items-center gap-2">
-              <select value={list.limit} onChange={(e) => go({ limit: Number(e.target.value) }, list)} className={selectCls} title="Max. number of records per page" aria-label="Rows per page">
-                {list.limitOptions.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-              <button type="button" disabled={!list.hasPrev} onClick={() => go({ page: list.page - 1 }, list)} aria-label="Previous page" className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40">
-                <ChevronLeft size={16} />
-              </button>
-              <span className="grid h-9 min-w-9 place-items-center rounded-md bg-brand px-2 text-sm text-white">{list.page + 1}</span>
-              <button type="button" disabled={!list.hasNext} onClick={() => go({ page: list.page + 1 }, list)} aria-label="Next page" className="grid h-9 w-9 place-items-center rounded-md border border-border disabled:opacity-40">
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
         </div>
         <LedgerToolbar active="flat" extra={toolbarExtra} />
+        {list && hasFilterCells && showFilters && (
+          <form
+            className="flex flex-nowrap items-end gap-2 overflow-x-auto"
+            onSubmit={(e) => {
+              e.preventDefault()
+              search(list)
+            }}
+          >
+            {visible
+              .filter((c) => FILTER_SPECS[c.key])
+              .map((c) => (
+                <div key={c.key} className="min-w-24 flex-1 basis-24 max-w-56">
+                  <p className="mb-1 truncate text-[11px] font-medium text-text-muted">{c.label}</p>
+                  <FilterCell spec={FILTER_SPECS[c.key]} values={values} list={list} onChange={set} />
+                </div>
+              ))}
+            <div className="flex shrink-0 items-center gap-1 pb-1">
+              <button type="submit" title="Search" className="grid h-8 w-8 place-items-center rounded-md bg-brand text-white hover:bg-brand-hover">
+                <Search size={14} />
+              </button>
+              <button type="button" title="Remove filters" onClick={() => clear(list)} className="grid h-8 w-8 place-items-center rounded-md border border-danger/40 text-danger hover:bg-danger-bg">
+                <X size={14} />
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
@@ -318,25 +347,6 @@ export function JournalsOverview() {
             >
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-surface">
-                  {hasFilterCells && (
-                    <tr className="border-b border-border align-top">
-                      {visible.map((c) => (
-                        <th key={c.key} className="px-2 py-1.5 font-normal">
-                          <FilterCell spec={FILTER_SPECS[c.key]} values={values} list={list} onChange={set} />
-                        </th>
-                      ))}
-                      <th className="px-2 py-1.5">
-                        <span className="flex items-center gap-1">
-                          <button type="submit" title="Search" className="grid h-8 w-8 place-items-center rounded-md bg-brand text-white hover:bg-brand-hover">
-                            <Search size={14} />
-                          </button>
-                          <button type="button" title="Remove filters" onClick={() => clear(list)} className="grid h-8 w-8 place-items-center rounded-md border border-danger/40 text-danger hover:bg-danger-bg">
-                            <X size={14} />
-                          </button>
-                        </span>
-                      </th>
-                    </tr>
-                  )}
                   <tr className="border-b border-border">
                     {visible.map((c) => (
                       <th key={c.key} className={`px-3 py-2.5 text-xs font-semibold text-text whitespace-nowrap ${NUMERIC_KEYS.has(c.key) ? 'text-right' : CENTER_KEYS.has(c.key) ? 'text-center' : 'text-left'}`}>

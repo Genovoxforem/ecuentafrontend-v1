@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChartLine, Info } from 'lucide-react'
+import { ChartLine } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -83,13 +83,6 @@ export function HotelBookingReportPage() {
         {isLoading && <LegacyLoadingCard label="Loading bookings…" />}
         {isError && <LegacyErrorCard title="Couldn't load bookings" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">booking/reports/booking_report.php</code>. Booking Date isn't returned by the real Hotel Suite API, so
-            it's shown as "—" and its filter has no effect — Checkin/CheckOut date filters on real check-in/check-out dates instead.
-          </p>
-        </Card>
 
         <Card className="!h-auto">
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 items-end">

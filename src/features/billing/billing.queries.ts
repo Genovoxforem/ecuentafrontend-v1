@@ -1,3 +1,4 @@
+import { useSalesOverview } from './salesOverview.queries'
 import { useDashboardStatistics } from '../home/dashboardStats'
 import { useInvoicesSummary } from '../invoices/invoices.queries'
 import { useCustomersSummary } from '../customers/customers.queries'
@@ -34,27 +35,56 @@ export interface SalesSummary {
   topProductsYear: number
 }
 
-// Combines everything already wired elsewhere: real invoice/customer
-// counts and status breakdown from GET /api/dashboard/, real invoice list
-// (for today's amount) from the invoice list (invoice_ajax_list.php), and local-only
-// quotations/contracts counts (no backend endpoint exists for either — see
-// quotations.queries.ts / contracts.queries.ts). Credit notes, ASYCUDA, and
-// best-selling products have no data source at all on this backend, so
-// those stay honest zeros/empty rather than invented numbers.
 export function useSalesSummary() {
-  const { data: stats, isLoading: statsLoading } = useDashboardStatistics()
-  const { data: invoices, isLoading: invoicesLoading } = useInvoicesSummary()
-  const { data: customers, isLoading: customersLoading } = useCustomersSummary()
+  const statsQuery = useDashboardStatistics()
+  const invoicesQuery = useInvoicesSummary()
+  const customersQuery = useCustomersSummary()
   const { data: quotations } = useQuotationsSummary()
   const { data: contracts } = useContractsSummary()
+  const today = new Date().toISOString().slice(0, 10)
+  const year = Number(today.slice(0, 4))
+  const yearlyOverview = useSalesOverview({ year })
+  const todaysOverview = useSalesOverview({ date_start: today, date_end: today })
 
-  const isLoading = statsLoading || invoicesLoading || customersLoading
-  if (isLoading || !stats || !invoices || !customers) {
-    return { data: undefined, isError: false, isLoading: true }
+  if (statsQuery.isError) {
+    return { data: undefined, isError: true, isLoading: false, error: statsQuery.error }
+  }
+  if (invoicesQuery.isError) {
+    return { data: undefined, isError: true, isLoading: false, error: invoicesQuery.error }
+  }
+  if (customersQuery.isError) {
+    return { data: undefined, isError: true, isLoading: false, error: customersQuery.error }
+  }
+  if (yearlyOverview.isError) {
+    return { data: undefined, isError: true, isLoading: false, error: yearlyOverview.error }
+  }
+  if (todaysOverview.isError) {
+    return { data: undefined, isError: true, isLoading: false, error: todaysOverview.error }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const todaysRows = invoices.rows.filter((r) => r.invoiceDate.slice(0, 10) === today)
+  const isLoading =
+    statsQuery.isLoading ||
+    invoicesQuery.isLoading ||
+    customersQuery.isLoading ||
+    yearlyOverview.isLoading ||
+    todaysOverview.isLoading
+  if (isLoading) {
+    return { data: undefined, isError: false, isLoading: true }
+  }
+  const stats = statsQuery.data
+  const invoices = invoicesQuery.data
+  const customers = customersQuery.data
+  const annual = yearlyOverview.data
+  const daily = todaysOverview.data
+  if (!stats || !invoices || !customers || !annual || !daily) {
+    return {
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      error: new Error('Sales dashboard data is missing after all required requests completed.'),
+    }
+  }
+
   const [draftStatus, unpaidStatus, paidStatus] = stats.chartData?.invoicesByStatus ?? []
 
   const summary: SalesSummary = {
@@ -65,11 +95,10 @@ export function useSalesSummary() {
       contracts: contracts?.totalContracts ?? 0,
       customers: customers.totalCustomers,
     },
-    todaysInvoiceAmount: todaysRows.reduce((sum, r) => sum + r.amountInclTax, 0),
-    todaysInvoiceCount: todaysRows.length,
-    // No credit-note endpoint on this backend.
-    todaysRefundAmount: 0,
-    todaysCreditNoteCount: 0,
+    todaysInvoiceAmount: daily.sales.total_ttc,
+    todaysInvoiceCount: daily.sales.invoice_count,
+    todaysRefundAmount: daily.refunds.total_ttc,
+    todaysCreditNoteCount: daily.refunds.count,
     invoiceStatus: [
       { status: 'Draft (Needs To Be Validated)', count: draftStatus?.count ?? 0, amount: draftStatus?.amount ?? 0 },
       { status: 'Started', count: unpaidStatus?.count ?? 0, amount: unpaidStatus?.amount ?? 0 },
@@ -78,9 +107,8 @@ export function useSalesSummary() {
       // backend's status breakdown (only draft/unpaid/paid).
       { status: 'Closed (Unpaid)', count: 0, amount: 0 },
     ],
-    // No best-selling-products endpoint on this backend.
-    topProducts: [],
-    topProductsYear: new Date().getFullYear(),
+    topProducts: annual.top_products.map((product) => ({ product: product.label, count: product.qty })),
+    topProductsYear: year,
   }
 
   return { data: summary, isError: false, isLoading: false }

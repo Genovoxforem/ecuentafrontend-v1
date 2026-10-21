@@ -1,6 +1,7 @@
 import { useState, type ComponentType } from 'react'
 import { ChevronUp, Link2, Loader2, Save, Settings } from 'lucide-react'
 import { StickyFormShell } from '../../../../shared/components/layout/StickyFormShell'
+import { InBanner } from '../../../../shared/components/layout/bannerSlot'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useGeneralSettings, useSaveSettingValues, useToggleSetting, type GeneralSettings, type SettingRow } from '../../generalSettings.queries'
 
@@ -129,17 +130,18 @@ function Settings_({ data }: { data: GeneralSettings }) {
         </button>
       }
     >
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-brand to-cyan-500 px-5 py-5 sm:px-6 sm:py-6 shrink-0">
-        <div className="relative flex items-center gap-4">
-          <span className="shrink-0 w-12 h-12 rounded-xl bg-white/15 backdrop-blur grid place-items-center text-white">
-            <Settings size={22} />
+      {/* Shown in the page banner (in themes without a banner it stays here, above the settings). */}
+      <InBanner>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand">
+            <Settings size={18} />
           </span>
-          <div>
-            <h2 className="text-lg font-bold text-white">Configuration of the module accounting (double entry)</h2>
-            <p className="text-sm text-white/80 mt-0.5">On/off switches apply as soon as you flip them; the values below are saved with Save Changes.</p>
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-bold text-text!">Configuration of the module accounting (double entry)</h2>
+            <p className="truncate text-xs text-text-muted">On/off switches apply as soon as you flip them; the values below are saved with Save Changes.</p>
           </div>
         </div>
-      </div>
+      </InBanner>
 
       {saved && <div className="whitespace-pre-line rounded-lg border border-success/40 bg-success-bg/50 px-3.5 py-3 text-sm text-success-fg shrink-0">{saved}</div>}
       {(toggle.isError || save.isError) && (

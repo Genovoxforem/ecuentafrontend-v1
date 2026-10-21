@@ -76,7 +76,7 @@ function BarcodeScannerModal({ open, onClose, onScan }) {
     return (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="flex items-center justify-between px-5 py-2.5 bg-[#2c6291] text-white">
+                <div className="flex items-center justify-between px-5 py-2.5 bg-[#2f6fe4] text-white">
                     <h3 className="flex items-center gap-2 font-semibold">
                         <ScanBarcode size={20} />
                         Scan Barcode
@@ -113,7 +113,7 @@ function BarcodeScannerModal({ open, onClose, onScan }) {
                             />
                             <button
                                 type="submit"
-                                className="px-4 py-2 rounded-lg bg-[#397db9] text-white text-sm font-semibold hover:bg-[#2c6291]"
+                                className="px-4 py-2 rounded-lg bg-[#3b82f6] text-white text-sm font-semibold hover:bg-[#2f6fe4]"
                             >
                                 Search
                             </button>

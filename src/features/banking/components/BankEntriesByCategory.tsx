@@ -1,4 +1,3 @@
-import { ListTree } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useBankBudget } from '../banking.queries'
@@ -11,10 +10,6 @@ export function BankEntriesByCategory() {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <ListTree size={20} className="text-brand" /> Bank entries by categories
-      </h2>
-
       {isLoading && <LegacyLoadingCard label="Loading…" />}
       {isError && <LegacyErrorCard title="Couldn't load this report" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 

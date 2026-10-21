@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, Check, X, Plus, Pencil, Trash2, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { FileText, Info, Check, X, LoaderCircle, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
@@ -13,7 +13,8 @@ import { formatMoney, formatNumber } from '../../../utils/format'
 import { useVendorOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
-import { useBankAccountOptions, useWarehouseOptionsForPurchaseInvoice } from '../vendorInvoices.queries'
+import { useBankAccountOptions, useCreateVendorInvoice, useWarehouseOptionsForPurchaseInvoice } from '../vendorInvoices.queries'
+import { usePurchaseOrderFormOptions } from '../../purchaseOrders/purchaseOrderFapi'
 
 // GET /api/payment_types.php — same real dictionary Purchase/Sales Order
 // create forms already use for this exact field.
@@ -55,31 +56,12 @@ let lineKeySeq = 0
 const noSpinnerCls = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 const disabledClasses = `${inputClasses} bg-surface-hover text-text-faint cursor-not-allowed`
 
-// New purchase invoice — matches fourn/facture/purchase.php's real layout.
-// fourn/facture/api/supplier_invoice_lines_api.php?action=validateInvoice
-// is CONFIRMED BROKEN for a brand-new invoice — live-tested end-to-end
-// 2026-08-29, not just read from source (see vendorInvoices.queries.ts's
-// header comment for the full trace: it really does create a draft
-// FactureFournisseur header, then fails to save any lines against that
-// same, real, existing invoice — "Invoice not found" — and never
-// validates). "Save as Draft" was already known broken the same way. So
-// neither button can actually create a purchase invoice right now — both
-// stay visible to match the real screen, but disabled, with the real,
-// working legacy page offered as the actual way to do this (same fallback
-// this app already uses for Purchase Orders after the equivalent
-// discovery there). Warehouse/Bank account are still real fields worth
-// filling in for anyone using the legacy fallback link. Type, Payment due
-// on, Payment Terms, Incoterms and Currency aren't read by this action at
-// all regardless (Type is hardcoded to Standard invoice, currency to the
-// base ZMW, the invoice date itself is always "now" server-side) — kept in
-// the layout to match the real screen, marked inert.
-// `fixedCustomerId` powers VendorInvoiceCreateFromCustomerForm.tsx (reached
-// from a specific vendor's own Vendor tab, "Create Invoice Or Credit Note"
-// button) — same customer-locked-field generalization as
-// QuotationCreateForm.tsx (see its own comment). Note the Save actions below
-// are unrelated pre-existing, confirmed-broken backend behavior (see the
-// disabled buttons' own tooltips) — untouched here; this only fixes how the
-// vendor is pre-filled and threaded into the honest legacy-fallback link.
+// New purchase invoice. Save posts to fourn/facture/fapi/create.php, which writes the header, every
+// line and (for Save as Invoice) the validation in one transaction, so a failure leaves no orphan
+// draft. Payment terms, the due date and the payment mode go to that same call. The Type and Currency
+// fields are read-only: the call creates a standard invoice in the base currency.
+// `fixedCustomerId` powers VendorInvoiceCreateFromCustomerForm.tsx (reached from a specific vendor's own
+// Vendor tab, "Create Invoice Or Credit Note" button): the vendor is locked to that third-party.
 export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const { data: vendors, isLoading: vendorsLoading } = useVendorOptions()
   const { data: fixedVendor } = useCustomerDetail(fixedCustomerId)
@@ -108,6 +90,8 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
   const today = new Date().toISOString().slice(0, 10)
   const listLink = backTo ?? ROUTES.vendorInvoiceList
   const [vendorId, setVendorId] = useState(fixedCustomerId ?? '')
+  const { data: pickedVendor } = useCustomerDetail(fixedCustomerId ? undefined : vendorId || undefined)
+  const vendorProfile = fixedCustomerId ? fixedVendor : pickedVendor
   const [refSupplier, setRefSupplier] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(today)
   const [warehouseId, setWarehouseId] = useState('')
@@ -136,6 +120,22 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
   const [draftDiscountPct, setDraftDiscountPct] = useState(0)
   const [editingLineKey, setEditingLineKey] = useState<number | null>(null)
   const [formError, setFormError] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [paymentTermId, setPaymentTermId] = useState('')
+  const [incotermId, setIncotermId] = useState('')
+  const [showTypeInfo, setShowTypeInfo] = useState(false)
+  const [incotermLocation, setIncotermLocation] = useState('')
+  const create = useCreateVendorInvoice()
+  const navigate = useNavigate()
+  // form_options.php?socid resolves the vendor's own terms, payment mode and bank (then the install default).
+  const { data: formOptions } = usePurchaseOrderFormOptions(vendorId || undefined)
+  useEffect(() => {
+    if (!vendorId || !formOptions?.defaults) return
+    const d = formOptions.defaults
+    setPaymentTermId((prev) => prev || (d.payment_term_id ? String(d.payment_term_id) : ''))
+    setModeReglementId((prev) => prev || (d.payment_mode_id ? String(d.payment_mode_id) : ''))
+    setFkAccount((prev) => prev || (d.bank_account_id ? String(d.bank_account_id) : ''))
+  }, [vendorId, formOptions])
 
   function pickDraftProduct(productId: string) {
     const product = products?.find((p) => String(p.id) === productId)
@@ -204,13 +204,40 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
 
   const totalExcl = lines.reduce((sum, l) => sum + lineExclAfterDiscount(l.qty, l.unitPrice, l.discountPct), 0)
   const totalTax = lines.reduce((sum, l) => sum + lineExclAfterDiscount(l.qty, l.unitPrice, l.discountPct) * (l.vatRate / 100), 0)
-  const totalQty = lines.reduce((sum, l) => sum + l.qty, 0)
+
+  function submit(validate: boolean) {
+    setFormError('')
+    if (!vendorId) return setFormError('Select a vendor.')
+    if (!refSupplier.trim()) return setFormError('Supplier Invoice No is required.')
+    if (lines.length === 0) return setFormError('Add at least one line.')
+    if (validate && !warehouseId) return setFormError('Select a warehouse to save as an invoice.')
+    create.mutate(
+      {
+        vendorId,
+        refSupplier: refSupplier.trim(),
+        date: invoiceDate,
+        dueDate,
+        paymentTermId,
+        incotermId,
+        incotermLocation,
+        fkAccount,
+        modeReglementId,
+        warehouseId,
+        validate,
+        lines: lines.map((l) => ({ productId: l.productId, supplierRef: l.supplierRef, label: l.description, qty: l.qty, unitPriceHt: l.unitPrice, vatRate: l.vatRate, discPercent: l.discountPct })),
+      },
+      {
+        onSuccess: (res) => navigate(res.id ? ROUTES.vendorInvoiceDetail.replace(':id', String(res.id)) : listLink),
+        onError: (e) => setFormError(e instanceof Error ? e.message : 'The invoice could not be created.'),
+      },
+    )
+  }
 
   return (
     <StickyFormShell
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <FileText size={20} className="text-brand" /> New purchase invoice
+          <FileText size={20} className="text-brand" /> New vendor invoice
         </h2>
       }
       footerLeft={
@@ -218,28 +245,8 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
           <Link to={listLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
             <X size={14} /> Cancel
           </Link>
-          <div className="text-xs text-text-faint leading-tight">
-            <p>
-              Total Amount: <span className="font-medium text-text!">{formatMoney(totalExcl + totalTax)}</span>
-            </p>
-            <p>
-              Total Quantity: <span className="font-medium text-text!">{formatNumber(totalQty)}</span>
-            </p>
-          </div>
           <div className="flex flex-col gap-1">
-            {formError && <p className="text-sm font-medium text-danger">{formError}</p>}
-            {/* Both real create paths on this backend are confirmed broken by a live
-                end-to-end test (2026-08-29) — see vendorInvoices.queries.ts's own
-                header comment for the full trace. Not fixable from the frontend, so
-                the real, working legacy form is offered as the actual way to do this. */}
-            <a
-              href={`/fourn/facture/purchase.php${vendorId ? `?socid=${vendorId}` : ''}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-            >
-              Create in legacy system instead <ExternalLink size={13} />
-            </a>
+            {formError && <p role="alert" className="text-sm font-medium text-danger">{formError}</p>}
           </div>
         </div>
       }
@@ -247,24 +254,25 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
         <>
           <button
             type="button"
-            disabled
-            title="No real path exists on this backend to save a purchase invoice — confirmed broken by a live end-to-end test (creates an orphaned draft header, then fails to save any lines against it). Use the legacy system link instead."
-            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-faint cursor-not-allowed"
+            disabled={create.isPending}
+            onClick={() => submit(false)}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover disabled:opacity-60"
           >
             Save as Draft
           </button>
           <button
             type="button"
-            disabled
-            title="Confirmed broken by a live end-to-end test — creates an orphaned draft invoice with no lines and never validates. Use the legacy system link instead."
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60 cursor-not-allowed"
+            disabled={create.isPending}
+            onClick={() => submit(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
-            <Check size={14} /> Save as Invoice
+            {create.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Save as Invoice
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-4 flex-1 shrink-0">
+        <WizardStep n={0}>
         <Card className="!h-auto shrink-0">
           <div className="rounded-lg bg-surface-alt border border-border p-3 mb-4">
             <Field label="Vendor" required>
@@ -285,38 +293,108 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
             </Field>
           </div>
 
+          {/* After a vendor is picked: who they are, like the classic page's customer card. */}
+          {vendorProfile && (
+            <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-surface-alt px-4 py-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">
+                {vendorProfile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?'}
+              </span>
+              <div className="min-w-0">
+                <Link to={ROUTES.customerDetail.replace(':id', String(vendorProfile.id))} className="block truncate text-base font-semibold text-brand hover:underline">
+                  {vendorProfile.name}
+                </Link>
+                <p className="text-xs text-text-faint">{[vendorProfile.codeFournisseur, vendorProfile.countryLabel].filter(Boolean).join(' · ')}</p>
+                {vendorProfile.tpin && <p className="text-sm font-semibold text-success">Tpin: {vendorProfile.tpin}</p>}
+              </div>
+              {(vendorProfile.email || vendorProfile.phone) && (
+                <div className="ml-auto text-right text-xs text-text-muted">
+                  {vendorProfile.email && <p>{vendorProfile.email}</p>}
+                  {vendorProfile.phone && <p>{vendorProfile.phone}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mb-4">
+            <p className="mb-1.5 text-sm font-medium text-text-muted">
+              Type<span className="text-danger">*</span>
+            </p>
+            <div role="radiogroup" aria-label="Invoice type" className="flex flex-wrap items-center gap-2">
+              <button type="button" role="radio" aria-checked className="rounded-lg border border-brand bg-brand/10 px-3 py-1.5 text-sm font-medium text-brand">
+                Standard invoice
+              </button>
+              {['Template invoice', 'Credit note'].map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={false} disabled title="The vendor invoice create API only makes standard invoices" className="cursor-not-allowed rounded-lg border border-border px-3 py-1.5 text-sm text-text-faint">
+                  {t}
+                </button>
+              ))}
+              {/* The explanation shows only when the info badge is clicked. */}
+              <button type="button" onClick={() => setShowTypeInfo((v) => !v)} aria-expanded={showTypeInfo} aria-label="About the other invoice types" className="rounded-full text-info hover:opacity-80">
+                <Info size={16} />
+              </button>
+              {showTypeInfo && (
+                <span role="status" className="text-xs text-text-muted">
+                  (This option is only available when creating an invoice from the "Vendor" tab of a third party)
+                </span>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
             <Field label="Supplier Invoice No" required>
               <input type="text" value={refSupplier} onChange={(e) => setRefSupplier(e.target.value)} className={inputClasses} />
             </Field>
             <Field label="Invoice date" required>
-              <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={inputClasses} />
+              <div className="flex gap-2">
+                <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={inputClasses} />
+                <button type="button" onClick={() => setInvoiceDate(today)} className="shrink-0 rounded-lg border border-border px-3 text-sm font-medium text-text hover:bg-surface-hover">
+                  Now
+                </button>
+              </div>
             </Field>
-            <Field label="Type" required>
-              <select disabled className={disabledClasses}>
-                <option>Standard invoice</option>
+            <Field label="Payment Terms" required>
+              <select value={paymentTermId} onChange={(e) => setPaymentTermId(e.target.value)} className={inputClasses}>
+                <option value="">Select a payment terms</option>
+                {formOptions?.payment_terms.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
+            </Field>
+            <Field label="Payment Type" required>
+              <select value={modeReglementId} onChange={(e) => setModeReglementId(e.target.value)} className={inputClasses}>
+                <option value="">Select a payment type</option>
+                {paymentTypes?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.text}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Bank account" required>
+              <select value={fkAccount} onChange={(e) => setFkAccount(e.target.value)} className={inputClasses}>
+                <option value="">Select a bank account</option>
+                {bankAccounts?.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Payment due on">
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClasses} />
             </Field>
             <Field label="Currency">
               <select disabled className={disabledClasses}>
                 <option>Zambian Kwacha (ZMW)</option>
               </select>
             </Field>
-            <Field label="Payment due on">
-              <input disabled className={disabledClasses} placeholder="Not used by the real create API" />
-            </Field>
-            <Field label="Payment Terms">
-              <select disabled className={disabledClasses}>
-                <option>Due Upon Receipt</option>
-              </select>
-            </Field>
           </div>
-          <p className="text-xs text-text-faint italic mt-3">
-            Type, Currency, Payment due on, Payment Terms and Incoterms aren't read by the real create API on this backend — the invoice date it records is always the moment you click Save,
-            regardless of the Invoice date field above. Shown for layout reference only.
-          </p>
         </Card>
+        </WizardStep>
 
+        <WizardStep n={1}>
         <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <h3 className="font-semibold text-text!">Item Table</h3>
@@ -433,7 +511,9 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
             </table>
           </div>
         </Card>
+        </WizardStep>
 
+        <WizardStep n={2}>
         <Card className="!h-auto shrink-0">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
             <Field label="Warehouse" required>
@@ -446,30 +526,19 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
                 ))}
               </select>
             </Field>
-            <Field label="Bank account" required>
-              <select value={fkAccount} onChange={(e) => setFkAccount(e.target.value)} className={inputClasses}>
-                <option value="">Select a bank account</option>
-                {bankAccounts?.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Payment Type" required>
-              <select value={modeReglementId} onChange={(e) => setModeReglementId(e.target.value)} className={inputClasses}>
-                <option value="">Select a payment type</option>
-                {paymentTypes?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.text}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Incoterms">
-              <select disabled className={disabledClasses}>
-                <option>Select a incoterms</option>
-              </select>
+              {/* The list comes from fourn/commande/fapi/form_options.php; hidden by the server when incoterms are switched off. */}
+              <div className="flex gap-2">
+                <select value={incotermId} onChange={(e) => setIncotermId(e.target.value)} disabled={formOptions ? !formOptions.settings.incoterms_enabled : false} className={inputClasses}>
+                  <option value="">{formOptions && !formOptions.settings.incoterms_enabled ? 'Incoterms are not enabled' : 'Select a incoterms'}</option>
+                  {formOptions?.incoterms.map((i) => (
+                    <option key={i.value} value={i.value}>
+                      {i.label}
+                    </option>
+                  ))}
+                </select>
+                <input type="text" value={incotermLocation} onChange={(e) => setIncotermLocation(e.target.value)} placeholder="Location" disabled={!incotermId} className={inputClasses} />
+              </div>
             </Field>
           </div>
 
@@ -527,6 +596,7 @@ export function DetailedPurchaseCreateForm({ fixedCustomerId, backTo }: { fixedC
             </div>
           </div>
         </Card>
+        </WizardStep>
       </div>
     </StickyFormShell>
   )

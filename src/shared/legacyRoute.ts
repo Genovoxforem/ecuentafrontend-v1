@@ -80,6 +80,21 @@ const LIST_ROUTES: { path: string; when?: { param: string; value: string }; rout
   { path: '/categories/index.php', when: { param: 'type', value: 'customer' }, route: ROUTES.customerTags },
   { path: '/categories/index.php', when: { param: 'type', value: '4' }, route: ROUTES.contactTags },
   { path: '/categories/index.php', when: { param: 'type', value: 'contact' }, route: ROUTES.contactTags },
+  // Kitchen: the dashboard, the beverage orders (the same page with type=supplement) and the kitchen orders.
+  { path: '/kitchen/dashboard.php', route: ROUTES.kitchenDashboard },
+  { path: '/kitchen/ordermanagement.php', when: { param: 'type', value: 'supplement' }, route: ROUTES.kitchenBeverageOrders },
+  { path: '/kitchen/ordermanagement.php', route: ROUTES.kitchenOrderManagement },
+  // Payroll "Core HR" pages. The menu opens the resignation page on its new-resignation form.
+  { path: '/payroll/award.php', route: ROUTES.payrollEmployeeAward },
+  { path: '/payroll/transfers.php', route: ROUTES.payrollEmployeeTransfers },
+  { path: '/payroll/resignations.php', when: { param: 'action', value: 'create' }, route: ROUTES.payrollEmployeeResignationCreate },
+  { path: '/payroll/resignations.php', route: ROUTES.payrollEmployeeResignation },
+  { path: '/payroll/travel.php', route: ROUTES.payrollEmployeeTravel },
+  { path: '/payroll/complaints.php', route: ROUTES.payrollEmployeeComplaints },
+  { path: '/payroll/warnings.php', route: ROUTES.payrollEmployeeWarnings },
+  { path: '/payroll/terminations.php', route: ROUTES.payrollEmployeeTerminations },
+  { path: '/payroll/indicator.php', route: ROUTES.payrollEmployeeIndicator },
+  { path: '/payroll/appraisal.php', route: ROUTES.payrollEmployeeAppraisal },
   // The import wizard: Step 2 carries the dataset code, every other step starts the wizard over.
   { path: '/imports/import.php', route: ROUTES.importCustomers },
 ]
@@ -90,6 +105,24 @@ const LIST_ROUTES: { path: string; when?: { param: string; value: string }; rout
 // link to the backend page (see feedback-no-direct-php-links). Accepts absolute
 // URLs and the `/<dir>/htdocs` prefix some backend installs put in front of
 // every path.
+// Payroll V2 is a hash-routed app of its own (/payroll_v2/index.php#payrun),
+// so its menu entries are told apart by the fragment, not the query string.
+const PAYROLL_V2_HASH_ROUTES: Record<string, string> = {
+  '': ROUTES.payrollV2Dashboard,
+  dashboard: ROUTES.payrollV2Dashboard,
+  payrun: ROUTES.payrollV2PayRuns,
+  templates: ROUTES.payrollV2Templates,
+  shifts: ROUTES.payrollV2Shifts,
+  employees: ROUTES.payrollV2Employees,
+  attendance: ROUTES.payrollV2Attendance,
+  'leave-requests': ROUTES.payrollV2Leave,
+  advances: ROUTES.payrollV2Advances,
+  reports: ROUTES.payrollV2Reports,
+  analytics: ROUTES.payrollV2Analytics,
+  settings: ROUTES.payrollV2Settings,
+  setup: ROUTES.payrollV2Setup,
+}
+
 export function resolveLegacyRoute(url: string | null | undefined): string | null {
   if (!url) return null
   let parsed: URL
@@ -99,6 +132,13 @@ export function resolveLegacyRoute(url: string | null | undefined): string | nul
     return null
   }
   const path = parsed.pathname.replace(/^\/[^/]+\/htdocs(?=\/)/, '')
+
+  if (path.endsWith('/payroll_v2/ess.php')) return ROUTES.payrollV2SelfService
+  if (path.endsWith('/payroll_v2/index.php')) {
+    // The fragment is "#reports/summary?idmenu=…": the key is what precedes any / or ?.
+    const key = parsed.hash.replace(/^#/, '').split(/[/?]/)[0]
+    return PAYROLL_V2_HASH_ROUTES[key] ?? ROUTES.payrollV2Dashboard
+  }
   for (const page of LIST_ROUTES) {
     if (!path.endsWith(page.path)) continue
     if (page.when && parsed.searchParams.get(page.when.param) !== page.when.value) continue

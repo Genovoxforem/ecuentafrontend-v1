@@ -74,7 +74,7 @@ export interface StockMovementsPageData {
 // Invoice/Order/Reception ref) inside an otherwise fully-real JSON response
 // — parsing just that one fragment is the same established pattern used
 // throughout this app for JSON fields that carry a Dolibarr getNomUrl()
-// snippet (e.g. orderListParser.ts's parseThirdParty), not a page scrape.
+// snippet (e.g. purchaseOrderListParser.ts's parseThirdParty), not a page scrape.
 function parseOrigin(html: string | null): { ref: string; url: string } {
   if (!html) return { ref: '', url: '' }
   const hrefMatch = html.match(/href="([^"]*)"/)
@@ -130,7 +130,7 @@ function buildParams(filters: StockMovementFilters): URLSearchParams {
   return params
 }
 
-export function useStockMovementsList(filters: StockMovementFilters) {
+export function useStockMovementsList(filters: StockMovementFilters, enabled = true) {
   return useQuery({
     queryKey: ['warehouses', 'stockMovementsList', filters],
     queryFn: async (): Promise<StockMovementsPageData> => {
@@ -160,6 +160,7 @@ export function useStockMovementsList(filters: StockMovementFilters) {
       }
     },
     staleTime: 1000 * 30,
+    enabled,
   })
 }
 

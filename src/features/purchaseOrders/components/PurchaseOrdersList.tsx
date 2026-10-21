@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Search, CalendarDays, X as XIcon } from 'lucide-react'
+import { FileEdit, Plus, ShoppingCart, CalendarPlus, DollarSign, FileText, Search, X as XIcon } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, ICON_STYLES, TwoValueStatCard, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import type { PurchaseOrderRow, PurchaseOrdersSummary } from '../purchaseOrders.queries'
@@ -74,9 +75,17 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
 
   const customerScoped = useMemo(() => (customerId ? summary.orders.filter((o) => o.socid === customerId) : summary.orders), [summary.orders, customerId])
   const customerName = customerId ? customerScoped[0]?.thirdParty : null
-  const filteredOrders = useMemo(() => customerScoped.filter((o) => matchesSearch(o, search)), [customerScoped, search])
+  const dateRange = useDateRange()
+  const filteredOrders = useMemo(
+    () => customerScoped.filter((o) => matchesSearch(o, search) && dateRange.inRange(o.orderDate)),
+    [customerScoped, search, dateRange],
+  )
   const { sorted: sortedOrders, sort, toggleSort } = useSortableRows<PurchaseOrderRow, SortKey>(filteredOrders, sortValue)
   const pageOrders = sortedOrders.slice((page - 1) * perPage, page * perPage)
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -194,9 +203,7 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
               />
             </div>
             <TableExportButtons title="List Of Purchase Orders" getExportData={getExportData} />
-            <button type="button" disabled title="Not built yet" className="p-2 rounded-md border border-input-border bg-input-bg text-text-faint cursor-default ml-auto">
-              <CalendarDays size={14} />
-            </button>
+            <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

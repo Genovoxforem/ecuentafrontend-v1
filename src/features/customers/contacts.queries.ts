@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchContacts,
+  fetchContact,
+  fetchContactMeta,
   createContact,
+  updateContact,
   type ContactRow as FapiContactRow,
   type ContactType,
   type CreateContactInput,
@@ -44,6 +47,19 @@ export function useContacts(kind: ContactKind, search: string, page: number, lim
   })
 }
 
+/**
+ * One contact by id — GET /contact/fapi/get.php. Carries everything the list
+ * rows do plus the notes, entity and categories, so the detail page no longer
+ * has to find its contact inside the list's first page.
+ */
+export function useContact(id: string | undefined) {
+  return useQuery({
+    queryKey: ['contacts', 'detail', id],
+    queryFn: () => fetchContact(Number(id)),
+    enabled: !!id,
+  })
+}
+
 export interface NewContactInput {
   companyId: string
   firstName?: string
@@ -55,6 +71,10 @@ export interface NewContactInput {
   email?: string
   phonePro?: string
   phoneMobile?: string
+  phonePerso?: string
+  fax?: string
+  countryId?: string
+  isPrivate?: boolean
 }
 
 /**
@@ -78,6 +98,10 @@ export function useCreateContact() {
         email: input.email || '',
         phone_pro: input.phonePro || '',
         phone_mobile: input.phoneMobile || '',
+        phone_perso: input.phonePerso || '',
+        fax: input.fax || '',
+        country_id: input.countryId ? Number(input.countryId) : undefined,
+        priv: input.isPrivate ? 1 : 0,
         socid: input.companyId ? Number(input.companyId) : undefined,
       }
       const result = await createContact(payload)
@@ -85,6 +109,27 @@ export function useCreateContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
+    },
+  })
+}
+
+// contact/fapi/meta.php: civilities and social networks for the personal-data fields.
+export function useContactMeta() {
+  return useQuery({ queryKey: ['contacts', 'meta'], queryFn: fetchContactMeta, staleTime: 1000 * 60 * 10 })
+}
+
+// contact/fapi/update.php: personal data (civility, birthday, social networks). A birthday
+// alert cannot be stored on this fork; the backend refuses it with a 422 rather than drop it.
+export function useUpdateContact(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Partial<CreateContactInput>) => {
+      if (!id) throw new Error('Missing contact id.')
+      return updateContact(Number(id), input)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['contacts', 'detail', id] })
+      void queryClient.invalidateQueries({ queryKey: ['contacts'] })
     },
   })
 }

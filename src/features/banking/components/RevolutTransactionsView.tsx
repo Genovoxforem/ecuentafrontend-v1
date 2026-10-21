@@ -31,11 +31,7 @@ export function RevolutTransactionsView() {
         <p className="text-xs text-danger-fg">Curl error: SSL certificate problem: unable to get local issuer certificate</p>
       </Card>
 
-      <p className="text-xs text-text-faint">
-        Backend page: <code className="font-mono">custom/revolut/revolutindex.php</code> — its sync engine (<code className="font-mono">custom/revolut/bank_sync.php</code>) reads/writes bank-account
-        columns that don't exist in this backend's schema, so the real page always fails with the SSL error above and an empty table, confirmed live. Reproduced as that same state rather than
-        invented data.
-      </p>
+      
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">

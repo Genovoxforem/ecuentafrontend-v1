@@ -45,8 +45,6 @@ export interface SalesStatsFilters {
 }
 
 export function SalesStatsPage({
-  icon: Icon,
-  title,
   entityLabel,
   stats,
   isLoading,
@@ -72,16 +70,11 @@ export function SalesStatsPage({
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Icon size={20} className="text-brand" /> {title}
-      </h2>
-
       <span className="inline-block rounded-md bg-brand px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white">By Month/Year</span>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 items-start">
+      <div className="grid grid-cols-1 gap-4 items-start">
         <Card className="gap-3">
-          <h3 className="font-semibold text-text!">Filter</h3>
-          <div className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3 [&>label]:min-w-40 [&>label]:flex-1 [&>*]:min-w-0">
             {filters ? (
               <>
                 <label className="flex flex-col gap-1">
@@ -161,7 +154,7 @@ export function SalesStatsPage({
               type="button"
               onClick={onRefresh}
               disabled={isLoading}
-              className="w-full rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover flex items-center justify-center gap-1.5 disabled:opacity-60"
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover flex items-center justify-center gap-1.5 disabled:opacity-60"
             >
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Refresh
             </button>

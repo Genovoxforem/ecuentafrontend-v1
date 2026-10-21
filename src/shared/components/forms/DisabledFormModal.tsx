@@ -37,8 +37,7 @@ function FieldControl({ field }: { field: PreviewField }) {
 // the fields below are disabled rather than backed by a fake submit.
 export function DisabledFormModal({
   icon: Icon,
-  title,
-  sourcePath,
+  title,
   fields,
   onClose,
 }: {
@@ -62,9 +61,7 @@ export function DisabledFormModal({
 
         <div className="flex items-start gap-2 rounded-md bg-info-bg/40 p-2 mb-3">
           <Info size={14} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">{sourcePath}</code> — no JSON API, so these fields are disabled.
-          </p>
+          
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

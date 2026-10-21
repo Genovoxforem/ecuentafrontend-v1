@@ -1,4 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { listBankAccounts } from '../../api/bank'
+import { isMissingEndpoint } from '../../api/products'
 import { parseLegacyJson, fetchLegacyText, fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { parseBankAccountsList, type BankAccountListRow } from './bankAccountsListParser'
 import { parseBankAccountFormPage, type BankAccountFormContext } from './bankAccountFormParser'
@@ -59,6 +61,12 @@ export function useBankAccountsDropdown() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'dropdown'],
     queryFn: async (): Promise<BankAccountDropdownRow[]> => {
+      try {
+        // compta/bank/fapi/list.php carries the bank name too.
+        return (await listBankAccounts()).map((a) => ({ id: a.id, label: a.label, ref: a.ref, bank: a.bank ?? '' }))
+      } catch (error) {
+        if (!isMissingEndpoint(error)) throw error
+      }
       const res = await fetch('/api/bank_accounts.php', { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const data = await parseLegacyJson<RawBankAccountDropdownResponse>(res)
@@ -114,10 +122,29 @@ function mapBankSidebarRows(page: RawSidebarListResponse<RawBankAccountRow>): Ba
 // dashboard) use useBankAccountsFirstPage instead.
 const BANK_SIDEBAR_FULL_PAGE = 25
 const BANK_SIDEBAR_MAX_PAGES = 40
+// compta/bank/fapi/list.php answers with every account and its balance in one JSON call, so
+// the paging below only applies to a backend that does not have it.
+async function fetchBankAccountsFromApi(): Promise<BankAccountRow[] | null> {
+  try {
+    return (await listBankAccounts({ withBalance: true })).map((a) => ({
+      id: a.id,
+      label: a.label,
+      accountNumber: a.number || a.account_number || '',
+      currencyCode: a.currency,
+      balance: Number(a.balance ?? 0),
+    }))
+  } catch (error) {
+    if (isMissingEndpoint(error)) return null
+    throw error
+  }
+}
+
 export function useBankAccountsList() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'list'],
     queryFn: async (): Promise<BankAccountRow[]> => {
+      const fromApi = await fetchBankAccountsFromApi()
+      if (fromApi) return fromApi
       const all: BankAccountRow[] = []
       for (let page = 0; page < BANK_SIDEBAR_MAX_PAGES; page++) {
         const rows = (await fetchBankSidebarPage(all.length)).data
@@ -135,7 +162,7 @@ export function useBankAccountsList() {
 export function useBankAccountsFirstPage() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'first-page'],
-    queryFn: async (): Promise<BankAccountRow[]> => mapBankSidebarRows(await fetchBankSidebarPage(0)),
+    queryFn: async (): Promise<BankAccountRow[]> => (await fetchBankAccountsFromApi()) ?? mapBankSidebarRows(await fetchBankSidebarPage(0)),
     staleTime: 1000 * 30,
   })
 }

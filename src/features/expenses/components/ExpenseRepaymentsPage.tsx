@@ -122,8 +122,8 @@ export function ExpenseRepaymentsPage() {
   ]
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+    <div className="-m-6 flex-1 flex flex-col min-h-0 p-6 space-y-4">
+      <h2 className="shrink-0 flex items-center gap-2 text-lg font-bold text-text!">
         <ArrowLeftRight size={20} className="text-brand" /> Expense Repayments
       </h2>
 
@@ -135,8 +135,8 @@ export function ExpenseRepaymentsPage() {
         <>
           {data.canCreate && (
             <FormCard icon={<Plus size={15} />} title="Create Repayment">
-              <form onSubmit={submit} className="grid grid-cols-1 items-end gap-3 md:grid-cols-4">
-                <Field label="Expense Report" className="md:col-span-2">
+              <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+                <Field label="Expense Report" className="w-64 max-w-full">
                   <select value={reportId} onChange={(e) => setReportId(e.target.value)} className={`${controlCls} w-full`}>
                     {data.reports.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -145,10 +145,10 @@ export function ExpenseRepaymentsPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Advance Amount">
+                <Field label="Advance Amount" className="w-36">
                   <input type="number" step="0.01" min="0" value={advance} onChange={(e) => setAdvance(e.target.value)} className={`${controlCls} w-full`} />
                 </Field>
-                <Field label="Method">
+                <Field label="Method" className="w-44">
                   <select value={method} onChange={(e) => setMethod(e.target.value)} className={`${controlCls} w-full`}>
                     <option value="">Select Payment Mode</option>
                     {paymentTypes?.map((p) => (
@@ -158,7 +158,7 @@ export function ExpenseRepaymentsPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Settle Now">
+                <Field label="Settle Now" className="w-36">
                   <input
                     type="number"
                     step="0.01"
@@ -169,16 +169,14 @@ export function ExpenseRepaymentsPage() {
                     className={`${controlCls} w-full`}
                   />
                 </Field>
-                <div className="flex items-center gap-3 md:col-span-3">
-                  <button
-                    type="submit"
-                    disabled={create.isPending}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    <Save size={14} /> {create.isPending ? 'Saving…' : 'Create Repayment'}
-                  </button>
-                  <FormProblem message={problem} />
-                </div>
+                <button
+                  type="submit"
+                  disabled={create.isPending}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <Save size={14} /> {create.isPending ? 'Saving…' : 'Create Repayment'}
+                </button>
+                <FormProblem message={problem} />
               </form>
             </FormCard>
           )}

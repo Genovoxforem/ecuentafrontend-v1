@@ -43,11 +43,13 @@ const BACKEND_OWNED_PATHS = [
   '/userprofile',
   '/expensereport',
   '/expedition',
+  '/consumption',
   '/fourn',
   '/supplier_proposal',
   '/reception',
   '/user',
   '/payroll',
+  '/payroll_v2',
   '/loan',
   '/expense',
   '/ticket',
@@ -211,6 +213,8 @@ export default defineConfig({
       // intercepts those before any request — that's why this went
       // unnoticed). Anchored to match only /custom or /custom/... .
       '^/custom(/|$)': proxyConfig(BACKEND_URL),
+      // Payroll V2's own JSON API (payroll_v2/api/*.php, action=…).
+      '^/payroll_v2(/|$)': proxyConfig(BACKEND_URL),
       '/takeposnew': proxyConfig(BACKEND_URL),
       '/takepos': proxyConfig(BACKEND_URL),
       // Dolibarr's own classic login controller — see legacySession.ts. This
@@ -257,13 +261,9 @@ export default defineConfig({
       // No React route starts with /variants, so a plain prefix is safe,
       // but anchored anyway to match the rest of this list.
       '^/variants(/|$)': proxyConfig(BACKEND_URL),
-      // Generic import wizard (Sales > Settings > Import Customers/Vendors)
-      // — imports/import.php's Step 1 dataset list is scraped for its real
-      // datatoimport codes (see importsHtmlParser.ts), and Step 2's
-      // "Download Empty Example" links go straight to the real
-      // imports/emptyexample.php file-generator endpoint, same as the
-      // legacy page itself does. No REST API exists for either. No React
-      // route starts with /imports, so a plain prefix is safe.
+      // Import wizard's JSON API (/imports/fapi/*) and generated template
+      // downloads. No React route starts with /imports, so a plain prefix
+      // is safe.
       '^/imports(/|$)': proxyConfig(BACKEND_URL),
       // Projects/Leads module (projet/*.php) and its tag/category creation
       // (categories/card.php?type=6) and vendor-proposal statistics
@@ -387,6 +387,8 @@ export default defineConfig({
       // /expedition, so a plain prefix is safe, but anchored anyway to
       // match the rest of this list.
       '^/expedition(/|$)': proxyConfig(BACKEND_URL),
+      // Sales Order Detail's Stock Consumptions tab (consumption/api/history.php). No React route starts with /consumption.
+      '^/consumption(/|$)': proxyConfig(BACKEND_URL),
       // Third-Party Detail's native "Vendor" tab (societe/api/supplier.php)
       // links out to the real fourn/commande and fourn/purchase create
       // pages for its "Create Order"/"Create Invoice Or Credit Note"

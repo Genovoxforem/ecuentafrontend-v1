@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PackageSearch, Search, Filter, LoaderCircle, AlertTriangle, CheckCircle2, ShoppingCart } from 'lucide-react'
+import { Search, Filter, LoaderCircle, AlertTriangle, CheckCircle2, ShoppingCart } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -162,10 +162,8 @@ function MissingStocksTab({ onViewOrdersFor }: { onViewOrdersFor: (productId: nu
               Use physical stock
             </button>
           </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-3 mt-3">
-          <div>
-            <label className="block text-xs text-text-faint mb-1">Supplier</label>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-text-faint">Supplier</label>
             <select value={supplierDraft} onChange={(e) => setSupplierDraft(e.target.value)} className={selectCls + ' w-56'}>
               <option value="">All vendors</option>
               {vendors.data?.vendors.filter((v): v is typeof v & { id: number } => v.id != null).map((v) => (
@@ -434,12 +432,6 @@ export function ReplenishmentPage() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <PackageSearch size={20} className="text-brand" /> Replenishment
-        </h2>
-      </div>
-
       <div className="flex items-center gap-1 border-b border-border px-6 pt-3 bg-white dark:bg-gray-950">
         <button
           type="button"

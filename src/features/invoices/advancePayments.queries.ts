@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchAllPages, isoDate, pickNum, pickNumOrNull, pickStr } from '../../api/fapiRow'
 
 export interface AdvancePaymentRow {
   // The ref link on the classic list is "#" (no id), so rows are keyed by ref.
@@ -13,51 +15,27 @@ export interface AdvancePaymentRow {
   authorId: number | null
 }
 
-type RawAdvanceRow = Record<string, unknown>
-
-const parse = (html: unknown): Document => new DOMParser().parseFromString(String(html ?? ''), 'text/html')
-const cellText = (html: unknown): string => parse(html).body.textContent?.replace(/\s+/g, ' ').trim() ?? ''
-const linkId = (doc: Document, key: string): number | null => {
-  const v = Number(new URLSearchParams((doc.querySelector('a')?.getAttribute('href') ?? '').split('?')[1] ?? '').get(key))
-  return Number.isFinite(v) && v > 0 ? v : null
-}
-const isoDate = (us: string) => {
-  const m = us.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : us
-}
-
-// One DataTables row of compta/facture/advancelist_ajax.php (the classic
-// "Customer Advance Payments" list's own source — its column keys are
-// misnamed, see the PHP): cust_name = ref, currency = creation date
-// (MM/dd/yyyy), contact = third-party link, cust_type = payment mode,
-// tot_amount = advance amount, author = user link. (The "action" cell holds
-// receipt PDF links, which are not shown here.)
-export function parseAdvanceRow(r: RawAdvanceRow): AdvancePaymentRow {
-  const party = parse(r.contact)
-  const author = parse(r.author)
+// compta/facture/fapi/advances.php (15 Oct 2026): every advance payment (llx_paiement_advance: amount / used_amt /
+// remaining_amt, the columns the classic list read), searchable and paged by the server. Rows are read by their likely
+// field names because the reference only shows an empty answer.
+export function advanceFromApi(r: any): AdvancePaymentRow {
   return {
-    ref: cellText(r.cust_name),
-    date: isoDate(cellText(r.currency)),
-    thirdParty: (party.querySelector('a')?.lastChild?.textContent ?? cellText(r.contact)).trim() || null,
-    socid: linkId(party, 'socid'),
-    amount: Number(cellText(r.tot_amount).replace(/[^0-9.\-]/g, '')) || 0,
-    paymentTypeLabel: cellText(r.cust_type) || null,
-    author: cellText(r.author) || null,
-    authorId: linkId(author, 'id'),
+    ref: pickStr(r, 'ref', 'label'),
+    date: isoDate(r.date ?? r.datec ?? r.date_creation),
+    thirdParty: pickStr(r, 'third_party_name', 'thirdparty.name', 'customer.name', 'company') || null,
+    socid: pickNumOrNull(r, 'socid', 'fk_soc', 'customer.id'),
+    amount: pickNum(r, 'amount'),
+    paymentTypeLabel: pickStr(r, 'payment_mode', 'payment_mode_label', 'payment_type', 'mode_label') || null,
+    author: pickStr(r, 'author.name', 'author', 'author_name', 'user_name') || null,
+    authorId: pickNumOrNull(r, 'author.id', 'author_id', 'fk_user'),
   }
 }
 
-// POST compta/facture/advancelist_ajax.php — replaces GET
-// /api/invoices/advance-payments/, which does not exist on the backend (404).
-// One request returns every advance payment; search/sort/paging stay
-// client-side like the other lists.
 export function useAdvancePayments() {
   return useQuery({
     queryKey: ['invoices', 'advance-payments'],
     queryFn: async (): Promise<{ items: AdvancePaymentRow[]; total: number }> => {
-      const body = new URLSearchParams({ draw: '1', start: '0', length: '5000', 'search[value]': '' })
-      const { data } = await axios.post<{ aaData?: RawAdvanceRow[] }>('/compta/facture/advancelist_ajax.php?socid=0&userid=0&search_status=', body)
-      const items = (data.aaData ?? []).map(parseAdvanceRow)
+      const items = (await fetchAllPages((page) => fapiGet<any>('/compta/facture/fapi/advances.php', { page, limit: 100, sort: 'date' }))).map(advanceFromApi)
       return { items, total: items.length }
     },
   })

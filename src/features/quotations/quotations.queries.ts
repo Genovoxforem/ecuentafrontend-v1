@@ -1,14 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
-import { parseQuotationListRow, parseUsDate, type QuotationListRow, type RawQuotationListRow } from './quotationListParser'
+import { fetchQuotations, type QuotationRow as ApiQuotationRow } from '../../api/quotations'
 
 export interface QuotationRow {
-  id: number | null
+  id: number
   ref: string
   refCustomer: string
   projectRef: string
   thirdParty: string
-  socid: number | null
+  socid: number
   city: string
   zipCode: string
   date: string
@@ -30,70 +29,68 @@ export interface QuotationsSummary {
   quotations: QuotationRow[]
 }
 
-function toRow(r: QuotationListRow): QuotationRow {
+function formatDate(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return ''
+  const numeric = Number(value)
+  const date = Number.isFinite(numeric) && numeric > 1000000000 ? new Date(numeric * 1000) : new Date(value)
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('en-US')
+}
+
+function toRow(row: ApiQuotationRow): QuotationRow {
   return {
-    id: r.id,
-    ref: r.ref,
-    refCustomer: r.refCustomer,
-    projectRef: r.projectRef,
-    thirdParty: r.thirdPartyName,
-    socid: r.socid,
-    city: r.city,
-    zipCode: r.zipCode,
-    date: r.date,
-    endDate: r.endDate,
-    amountExclTax: r.amountExclTax,
-    author: r.author,
-    salesRep: r.salesRep,
-    status: r.statusLabel,
-    isLate: r.isLate,
-    documentUrl: r.documentUrl,
+    id: row.id,
+    ref: row.ref,
+    refCustomer: row.ref_client ?? '',
+    projectRef: row.project_ref ?? '',
+    thirdParty: row.third_party_name ?? '',
+    socid: row.fk_soc,
+    city: row.third_party_town ?? '',
+    zipCode: '',
+    date: formatDate(row.date_propal),
+    endDate: formatDate(row.fin_validite),
+    amountExclTax: row.total_ht,
+    author: [row.author_firstname, row.author_lastname].filter(Boolean).join(' ') || row.author_login,
+    salesRep: '',
+    status: row.status_label,
+    isLate: false,
+    documentUrl: null,
   }
 }
 
-// POST comm/propal/quotation_ajax_list.php (length=-1 in the body) — a
-// real, working DataTables JSON endpoint (confirmed by reading its PHP
-// source directly), unrelated to the old dead local-only collection this
-// replaces (no REST route for quotations/proposals ever existed under
-// /api/*). Same "length=-1 fetches everything, compute stats client-side"
-// convention as Purchase Orders' own list (see purchaseOrders.queries.ts).
-//
-// Must be a POST, not a GET with query params: the real PHP reads
-// `$_POST['length']` directly (not GETPOST(), which would accept either) —
-// confirmed live by comparing the two live: a GET with `?length=-1` still
-// falls through to the hardcoded default of 10 rows since $_POST is empty
-// for a GET request, silently truncating this list (and every stat card
-// computed from it) to 10 records even when more exist. The DataTables
-// convention this page's own JS follows is a POST in the first place
-// ('serverMethod': 'post', read directly from list.php), so this matches
-// the real contract rather than working around it.
-//
-// The 4 real stat cards on comm/propal/list.php are each their own raw SQL
-// query (COUNT(*), COUNT(*) this month, SUM(total_ht), and a COUNT(*) GROUP
-// BY fk_statut for statuses 1 and 0) — read directly from list.php, and
-// recomputed client-side here the same way. Unlike Purchase Orders' own
-// stat-card quirk, this one is internally consistent: status 1 genuinely is
-// Propal::STATUS_VALIDATED ("Validated") and status 0 genuinely is
-// STATUS_DRAFT ("Draft") — no relabeling mismatch to preserve here.
+async function fetchAllQuotations(): Promise<ApiQuotationRow[]> {
+  const firstPage = await fetchQuotations({ page: 1, limit: 100 })
+  const rows = [...firstPage.items]
+  for (let page = 2; page <= firstPage.pagination.pages; page += 5) {
+    const results = await Promise.all(
+      Array.from({ length: Math.min(5, firstPage.pagination.pages - page + 1) }, (_, index) =>
+        fetchQuotations({ page: page + index, limit: 100 }),
+      ),
+    )
+    rows.push(...results.flatMap((result) => result.items))
+  }
+  return rows
+}
+
 export function useQuotationsSummary() {
   return useQuery({
     queryKey: ['quotations', 'list'],
     queryFn: async (): Promise<QuotationsSummary> => {
-      const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
-      const { data } = await axios.post<{ aaData: RawQuotationListRow[] }>('/comm/propal/quotation_ajax_list.php', body)
-      const rows = (data.aaData ?? []).map(parseQuotationListRow)
+      const apiRows = await fetchAllQuotations()
+      const rows = apiRows.map(toRow)
       const now = new Date()
-      const proposalsThisMonth = rows.filter((r) => {
-        const d = parseUsDate(r.date)
-        return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      const proposalsThisMonth = apiRows.filter((row) => {
+        const raw = row.date_propal
+        const numeric = Number(raw)
+        const date = Number.isFinite(numeric) && numeric > 1000000000 ? new Date(numeric * 1000) : new Date(raw ?? '')
+        return !Number.isNaN(date.getTime()) && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
       }).length
       return {
-        totalProposals: rows.length,
+        totalProposals: apiRows.length,
         proposalsThisMonth,
-        totalProposalAmount: rows.reduce((sum, r) => sum + r.amountExclTax, 0),
-        validatedCount: rows.filter((r) => r.statusCode === 1).length,
-        draftCount: rows.filter((r) => r.statusCode === 0).length,
-        quotations: rows.map(toRow),
+        totalProposalAmount: apiRows.reduce((sum, row) => sum + row.total_ht, 0),
+        validatedCount: apiRows.filter((row) => row.fk_statut === 1).length,
+        draftCount: apiRows.filter((row) => row.fk_statut === 0).length,
+        quotations: rows,
       }
     },
     staleTime: 1000 * 30,

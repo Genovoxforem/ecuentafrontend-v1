@@ -66,7 +66,7 @@ export function ReportsModule() {
       {visibleCategories.length === 0 ? (
         <p className="text-sm text-text-faint italic py-6 text-center">No reports match "{search}".</p>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {visibleCategories.map((cat) => {
             const Icon = cat.icon
             const isExpanded = expanded[cat.key] ?? false

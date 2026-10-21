@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { RotateCcw, Eye, LoaderCircle, AlertTriangle } from 'lucide-react'
+import { Eye, LoaderCircle, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { ROUTES } from '../../../routes'
@@ -19,9 +19,6 @@ export function CreditNoteOrderListPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <RotateCcw size={20} className="text-brand" /> Return List
-      </h2>
 
       {isError && (
         <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">

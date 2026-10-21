@@ -13,7 +13,7 @@
 //    `SELECT * FROM llx_entity`), so ProductFilterModal's Entities field
 //    is a single always-true option, not a real predicate here at all.
 import type { ProductRow } from './products.queries'
-import type { RichProductRow } from './productAjax'
+import type { RichProductRow } from './productRich'
 
 export interface ProductFilters {
   // Selected category IDs from useProductFormOptions().categories; '-2' is

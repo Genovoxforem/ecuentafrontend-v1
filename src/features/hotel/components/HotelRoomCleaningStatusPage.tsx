@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Sparkles, Info } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -58,13 +58,6 @@ export function HotelRoomCleaningStatusPage() {
         {isLoading && <LegacyLoadingCard label="Loading cleaning jobs…" />}
         {isError && <LegacyErrorCard title="Couldn't load cleaning jobs" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">booking/service/room_cleaning.php</code>. Completed Date has no equivalent field in the real Hotel
-            Suite API, so it's shown as "—".
-          </p>
-        </Card>
 
         {jobs && (
           <Card className="!p-0 overflow-hidden flex-1 min-h-0">

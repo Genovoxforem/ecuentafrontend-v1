@@ -214,7 +214,11 @@ export function SupplierProposalsList({ summary, range, onRangeChange }: { summa
               ) : (
                 pageProposals.map((p) => (
                   <tr key={p.id} className="border-b border-border">
-                    <td className="px-4 py-3 font-medium text-text!">{p.ref}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link to={ROUTES.supplierProposalDetail.replace(':id', String(p.id))} className="text-brand hover:underline">
+                        {p.ref}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-text!">
                       {p.vendorId ? (
                         <Link to={ROUTES.customerDetail.replace(':id', String(p.vendorId))} className="text-brand hover:underline">

@@ -1,34 +1,125 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
-import { parseQuotationCard, type QuotationCard } from './quotationCardParser'
-import { parseQuotationAgenda, type QuotationAgendaData } from './quotationAgendaParser'
-// comm/propal/contact.php and comm/propal/document.php render the exact
-// same generic Dolibarr templates (core/tpl/contacts.tpl.php,
-// core/tpl/document_actions_post_headers.tpl.php) Purchase/Sales Orders'
-// own contact.php and document.php already do — confirmed by reading the
-// real propal contact.php/document.php source directly (both `@include
-// .../contacts.tpl.php` and `.../document_actions_post_headers.tpl.php`).
-// Reused here rather than duplicated, since these parse the shared
-// template's output, not anything order-specific.
 import {
-  parseOrderContactsHtml,
-  parseContactFormOptions,
-  type ContactRow,
-  type ContactFormOptions,
-} from '../salesOrders/orderExtraTabsParser'
-import { parseOrderDocumentsHtml, parseDocumentsPageMeta, type OrderDocumentRow, type DocumentsPageMeta } from '../salesOrders/orderCardParser'
+  changeQuotationContact,
+  createQuotationAgendaEvent,
+  declareQuotationConsumption,
+  deleteQuotationDocument,
+  deleteQuotationDocumentLink,
+  fetchQuotation,
+  fetchQuotationAgenda,
+  fetchQuotationConsumptionHistory,
+  fetchQuotationContacts,
+  fetchQuotationDocuments,
+  fetchQuotationFormOptions,
+  fetchQuotationNotes,
+  linkQuotationDocument,
+  quotationAction,
+  saveQuotationNotes,
+  uploadQuotationDocument,
+} from '../../api/quotations'
+import type { QuotationCard, QuotationLineDetail } from './quotationCard.types'
 
-async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  return res.text()
+function dateLabel(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return ''
+  const numeric = Number(value)
+  const date = Number.isFinite(numeric) && numeric > 1000000000
+    ? new Date(numeric * 1000)
+    : new Date(value)
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString()
+}
+
+function allowed(value: number | boolean | undefined): boolean {
+  return value === true || value === 1
 }
 
 export function useQuotationCard(id: string | undefined) {
   return useQuery<QuotationCard>({
     queryKey: ['quotations', 'detail', id],
-    queryFn: async () => parseQuotationCard(await fetchHtml(`/comm/propal/card.php?id=${id}`), Number(id)),
-    enabled: !!id,
+    queryFn: async () => {
+      const quotationId = Number(id)
+      const [quotation, options, documents] = await Promise.all([
+        fetchQuotation(quotationId),
+        fetchQuotationFormOptions(),
+        fetchQuotationDocuments(quotationId),
+      ])
+      const status = quotation.fk_statut
+      const lines: QuotationLineDetail[] = quotation.lines.map((line) => ({
+        id: line.line_id || line.id || line.rowid || 0,
+        productId: line.product_id ?? 0,
+        productLabel: line.label || line.ref || '',
+        description: line.description || '',
+        qty: line.qty,
+        unitPriceExcl: line.subprice ?? line.pu_ht ?? 0,
+        vatRate: line.tva_tx,
+        vatCode: '',
+        discountValue: line.remise_percent ?? 0,
+        discountType: '1',
+        buyingPrice: 0,
+        totalHt: line.total_ht ?? 0,
+        totalTva: line.total_vat ?? line.total_tva ?? 0,
+        totalTtc: line.total_ttc ?? 0,
+      }))
+      const modelOptions = options.document_models.map(({ value, label }) => ({ value, label }))
+      const langOptions = options.languages.map(({ value, label }) => ({ value, label }))
+      const apiActions = quotation.actions
+
+      return {
+        id: quotation.id,
+        ref: quotation.ref,
+        refCustomer: quotation.ref_client,
+        thirdPartyName: quotation.thirdparty?.name ?? quotation.third_party_name,
+        socid: quotation.thirdparty?.id ?? quotation.fk_soc,
+        projectRef: quotation.project_ref ?? '',
+        projectId: quotation.project_id,
+        statusLabel: quotation.status_label,
+        statusCode: status,
+        discountsText: '',
+        date: dateLabel(quotation.date ?? quotation.date_propal),
+        validityEndingDate: dateLabel(quotation.fin_validite),
+        paymentTerms: quotation.payment_terms ?? '',
+        deliveryDate: dateLabel(quotation.delivery_date),
+        availabilityDelay: quotation.availability ?? '',
+        shippingMethod: quotation.shipping_method ?? '',
+        source: quotation.channel ?? '',
+        paymentType: quotation.payment_type ?? '',
+        currency: quotation.multicurrency_code || quotation.currency || options.currency_default,
+        bankAccount: quotation.bank_account ?? '',
+        calculatedWeight: '',
+        incotermLabel: quotation.incoterm_label ?? '',
+        amountHt: quotation.total_ht,
+        amountVat: quotation.total_vat,
+        amountTtc: quotation.total_ttc,
+        lines,
+        docGen: {
+          token: '',
+          modelOptions,
+          langOptions,
+          defaultLang: langOptions[0]?.value ?? '',
+        },
+        closeReasons: options.close_reasons
+          .filter((option) => option.value === '2' || option.value === '3')
+          .map(({ value, label }) => ({ value, label })),
+        linkedFiles: documents.files.map(({ name, url }) => ({ name, url })),
+        relatedObjects: [],
+        marginRows: [],
+        latestLinkedEvents: [],
+        actions: {
+          canValidate: allowed(apiActions.can_validate),
+          canModify: allowed(apiActions.can_edit),
+          canReopen: allowed(apiActions.can_reopen),
+          canSendMail: allowed(apiActions.can_sendmail) || status === 1 || status === 2,
+          canCloseAsAcceptedRefused: allowed(apiActions.can_close) || allowed(apiActions.can_sign) || allowed(apiActions.can_refuse),
+          canCreateOrder: allowed(apiActions.can_create_order) || status === 1 || status === 2,
+          canCreateIntervention: allowed(apiActions.can_create_intervention) || status === 1 || status === 2,
+          canCreateContract: allowed(apiActions.can_create_contract) || status === 1 || status === 2,
+          canCreateInvoice: allowed(apiActions.can_create_invoice) || status === 2,
+          canClassifyBilled: allowed(apiActions.can_classify_billed) || status === 2,
+          canClone: allowed(apiActions.can_clone),
+          canDelete: allowed(apiActions.can_delete),
+        },
+      }
+    },
+    enabled: !!id && Number.isFinite(Number(id)),
   })
 }
 
@@ -37,95 +128,45 @@ function invalidateDetail(queryClient: ReturnType<typeof useQueryClient>, id: st
   queryClient.invalidateQueries({ queryKey: ['quotations', 'list'] })
 }
 
-// Real, clean JSON action — comm/propal/api/proposal_handler.php's own
-// `action=validate` (confirmed by reading handleValidateProposal() directly:
-// a plain GETPOST('id') + $proposal->valid($user), no CSRF token check).
-// Unlike Purchase Orders, Quotations' create-flow API also covers this one
-// simple status transition, so it's used here instead of scraping card.php.
 export function useValidateQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await axios.get<{ success?: boolean; error?: string }>('/comm/propal/api/proposal_handler.php', {
-        params: { action: 'validate', id },
-        validateStatus: () => true,
-      })
-      if (data.error) throw new Error(data.error)
-    },
+    mutationFn: async (id: string) => quotationAction(Number(id), 'validate'),
     onSuccess: (_data, id) => invalidateDetail(queryClient, id),
   })
 }
 
-// ReOpen / Classify Billed — real `?id=X&action=Y` GETs on card.php itself
-// (read directly from its action-buttons block). Classify Billed carries no
-// CSRF token check in that source; ReOpen's real button now submits through
-// a modal (`action=confirm_reopen&confirm=yes&token=X`) — replicated with a
-// freshly scraped token, same as Purchase Orders' Delete.
 export function useClassifyBilledQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, socid }: { id: string; socid: number | null }) => {
-      await fetchHtml(`/comm/propal/card.php?id=${id}&action=classifybilled&socid=${socid ?? ''}`)
-    },
+    mutationFn: async ({ id }: { id: string; socid: number | null }) => quotationAction(Number(id), 'classify_billed'),
     onSuccess: (_data, { id }) => invalidateDetail(queryClient, id),
   })
-}
-
-async function scrapeToken(id: string): Promise<string> {
-  const html = await fetchHtml(`/comm/propal/card.php?id=${id}`)
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  return doc.querySelector('#reopen-form input[name="token"]')?.getAttribute('value') ?? ''
 }
 
 export function useReopenQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await scrapeToken(id)
-      const body = new URLSearchParams({ token, action: 'confirm_reopen', confirm: 'yes' })
-      const res = await fetch(`/comm/propal/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
+    mutationFn: async (id: string) => quotationAction(Number(id), 'reopen'),
     onSuccess: (_data, id) => invalidateDetail(queryClient, id),
   })
 }
 
-// "Close as Accepted/Refused" — the real decision step for a Validated
-// quotation (statut===1): sets it to Signed(2) or NotSigned(3). Read
-// directly from the real #closeasconfirmModal form.
 export function useCloseAsQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, statut, notePrivate }: { id: string; statut: '2' | '3'; notePrivate: string }) => {
-      const html = await fetchHtml(`/comm/propal/card.php?id=${id}`)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const token = doc.querySelector('#closeas-form input[name="token"]')?.getAttribute('value') ?? ''
-      const body = new URLSearchParams({ token, action: 'confirm_closeas', confirm: 'yes', statut, note_private: notePrivate })
-      const res = await fetch(`/comm/propal/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
+    mutationFn: async ({ id, statut, notePrivate }: { id: string; statut: '2' | '3'; notePrivate: string }) =>
+      quotationAction(Number(id), 'close', { status: Number(statut) as 2 | 3, note: notePrivate }),
     onSuccess: (_data, { id }) => invalidateDetail(queryClient, id),
   })
 }
 
-// Clone (`action=confirm_clone`) redirects to the new cloned quotation's own
-// card.php?id=NEW_ID on success — `fetch` follows that redirect
-// automatically, so the new id is read back out of the final `res.url`.
-// The real modal also lets picking a different customer to clone into;
-// simplified here to always clone into the same customer, same
-// simplification already made for Purchase Orders' own Clone.
 export function useCloneQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, socid }: { id: string; socid: number | null }) => {
-      const html = await fetchHtml(`/comm/propal/card.php?id=${id}`)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const token = doc.querySelector('#clone-form input[name="token"]')?.getAttribute('value') ?? ''
-      const body = new URLSearchParams({ token, action: 'confirm_clone', object: 'propal', confirm: 'yes', socid: String(socid ?? '') })
-      const res = await fetch(`/comm/propal/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const newIdMatch = res.url.match(/[?&]id=(\d+)/)
-      return newIdMatch ? newIdMatch[1] : null
+      const result = await quotationAction(Number(id), 'clone', socid ? { socid } : {})
+      return String(result.id)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'list'] }),
   })
@@ -134,168 +175,73 @@ export function useCloneQuotation() {
 export function useDeleteQuotation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const html = await fetchHtml(`/comm/propal/card.php?id=${id}`)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const token = doc.querySelector('#delete-form input[name="token"]')?.getAttribute('value') ?? ''
-      const body = new URLSearchParams({ token, action: 'confirm_delete', confirm: 'yes' })
-      const res = await fetch(`/comm/propal/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
+    mutationFn: async (id: string) => quotationAction(Number(id), 'delete'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'list'] }),
   })
 }
 
-// Real doc-gen contract — same generic Dolibarr FormFile mechanism already
-// used for Warehouses/Purchase Orders, posted to this page's own URL.
 export function useGenerateQuotationDoc(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { token: string; model: string; langId: string }) => {
-      const body = new URLSearchParams()
-      body.set('action', 'builddoc')
-      body.set('token', input.token)
-      body.set('model', input.model)
-      body.set('lang_id', input.langId)
-      body.set('builddoc_generatebutton', 'Generate')
-      const res = await fetch(`/comm/propal/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id] })
-    },
+    mutationFn: async (input: { model: string; langId: string }) =>
+      quotationAction(Number(id), 'build_doc', { model: input.model, lang_id: input.langId }),
+    onSuccess: () => invalidateDetail(queryClient, id),
   })
 }
 
-// A page-wide CSRF token is embedded in every real page's own <meta
-// name="anti-csrf-newtoken"> tag (confirmed live — the same value as every
-// hidden `name="token"` input on that same page), so any already-fetched
-// page can supply a fresh token for a same-origin POST rather than needing
-// a dedicated token-only endpoint.
-function scrapePageToken(doc: Document): string {
-  return doc.querySelector('meta[name="anti-csrf-newtoken"]')?.getAttribute('content') ?? ''
-}
-
-// --- Contacts/Addresses tab (comm/propal/contact.php) ---------------------
-
-export interface QuotationContactsData {
-  rows: ContactRow[]
-  formOptions: ContactFormOptions
-}
-
-export function useQuotationContacts(id: string | undefined, newcompany?: string) {
-  return useQuery<QuotationContactsData>({
-    queryKey: ['quotations', 'detail', id, 'contacts', newcompany ?? ''],
-    queryFn: async () => {
-      const url = `/comm/propal/contact.php?id=${id}${newcompany ? `&newcompany=${newcompany}` : ''}`
-      const html = await fetchHtml(url)
-      return { rows: parseOrderContactsHtml(html), formOptions: parseContactFormOptions(html) }
-    },
+export function useQuotationContacts(id: string | undefined) {
+  return useQuery({
+    queryKey: ['quotations', 'detail', id, 'contacts'],
+    queryFn: () => fetchQuotationContacts(Number(id)),
     enabled: !!id,
   })
 }
 
-// Identical real contract to Sales/Purchase Orders' own add-contact
-// mutations (all post action=addcontact to their own contact.php, no CSRF
-// token check on this action — confirmed by reading comm/propal/contact.php's
-// own handler directly), just targeting the quotation page.
 export function useAddQuotationContact(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { source: 'internal' | 'external'; userid?: string; type?: string; contactid?: string; typecontact?: string }) => {
-      const body = new URLSearchParams()
-      body.set('id', id ?? '')
-      body.set('action', 'addcontact')
-      body.set('source', input.source)
-      if (input.userid) body.set('userid', input.userid)
-      if (input.type) body.set('type', input.type)
-      if (input.contactid) body.set('contactid', input.contactid)
-      if (input.typecontact) body.set('typecontact', input.typecontact)
-      const res = await fetch(`/comm/propal/contact.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
-      if (errorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = errorMatch[1]
-        throw new Error((div.textContent ?? 'The legacy backend rejected this contact.').trim())
+      if (input.source === 'internal') {
+        if (!input.userid || !input.type) throw new Error('Select a user and contact type.')
+        await changeQuotationContact(Number(id), { action: 'add', source: 'internal', userid: Number(input.userid), type: Number(input.type) })
+      } else {
+        if (!input.contactid || !input.typecontact) throw new Error('Select a contact and contact type.')
+        await changeQuotationContact(Number(id), { action: 'add', source: 'external', contactid: Number(input.contactid), type: Number(input.typecontact) })
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'contacts'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'contacts'] }),
   })
 }
 
-// --- Notes tab (comm/propal/note.php) --------------------------------------
-
-// core/tpl/notes.tpl.php's real markup (confirmed live): each note's
-// current value sits in a `.tagtdremove` div that's the next sibling of the
-// `.tagtd` div holding that note's own <label> — not inside an editable
-// <textarea> at all in the page's default (non-edit-mode) view. Read
-// directly rather than guessed, since the real page only turns a note into
-// an editable field after clicking its own pencil icon first.
-export interface QuotationNotes {
-  notePublic: string
-  notePrivate: string
-}
-
-function parseQuotationNotes(doc: Document): QuotationNotes {
-  function findValue(label: string): string {
-    const labelEl = Array.from(doc.querySelectorAll('label.form-label')).find((l) => (l.textContent ?? '').trim() === label)
-    const keyDiv = labelEl?.closest('.tagtd')
-    const valueDiv = keyDiv?.nextElementSibling
-    return (valueDiv?.textContent ?? '').trim()
-  }
-  return { notePublic: findValue('Note (public)'), notePrivate: findValue('Note (private)') }
+export function useChangeQuotationContact(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { action: 'delete' | 'swap'; lineid: number }) => changeQuotationContact(Number(id), input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'contacts'] }),
+  })
 }
 
 export function useQuotationNotes(id: string | undefined) {
-  return useQuery<QuotationNotes>({
+  return useQuery({
     queryKey: ['quotations', 'detail', id, 'notes'],
-    queryFn: async () => {
-      const html = await fetchHtml(`/comm/propal/note.php?id=${id}`)
-      return parseQuotationNotes(new DOMParser().parseFromString(html, 'text/html'))
-    },
+    queryFn: () => fetchQuotationNotes(Number(id)),
     enabled: !!id,
   })
 }
 
-// core/actions_setnotes.inc.php's real `setnote_public`/`setnote_private`
-// actions (read directly) — note this endpoint is shared with the exact
-// same auto-PDF-regeneration call (`$object->generateDocument()`) already
-// found to crash on this deployment when saving the PUBLIC note
-// specifically (see this session's Create Quotation live-test finding);
-// private notes don't trigger that call and aren't affected.
 export function useSetQuotationNote(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { field: 'note_public' | 'note_private'; value: string }) => {
-      const html = await fetchHtml(`/comm/propal/note.php?id=${id}`)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const token = scrapePageToken(doc)
-      const body = new URLSearchParams({ token, action: input.field === 'note_public' ? 'setnote_public' : 'setnote_private', [input.field]: input.value })
-      const res = await fetch(`/comm/propal/note.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
+    mutationFn: async (input: { field: 'note_public' | 'note_private'; value: string }) =>
+      saveQuotationNotes(Number(id), { [input.field]: input.value }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'notes'] }),
   })
 }
 
-// --- Linked Files tab (comm/propal/document.php) ---------------------------
-
-export interface QuotationDocumentsData {
-  rows: OrderDocumentRow[]
-  meta: DocumentsPageMeta
-}
-
 export function useQuotationDocuments(id: string | undefined) {
-  return useQuery<QuotationDocumentsData>({
+  return useQuery({
     queryKey: ['quotations', 'detail', id, 'documents'],
-    queryFn: async () => {
-      const html = await fetchHtml(`/comm/propal/document.php?id=${id}`)
-      return { rows: parseOrderDocumentsHtml(html), meta: parseDocumentsPageMeta(html) }
-    },
+    queryFn: () => fetchQuotationDocuments(Number(id)),
     enabled: !!id,
   })
 }
@@ -303,57 +249,43 @@ export function useQuotationDocuments(id: string | undefined) {
 export function useUploadQuotationDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { token: string; file: File; savingDocMask: string; useMask: boolean }) => {
-      const body = new FormData()
-      body.set('token', input.token)
-      body.set('section_dir', '')
-      body.set('section_id', '0')
-      body.set('sortfield', '')
-      body.set('sortorder', '')
-      body.set('max_file_size', '536870912')
-      body.set('userfile[]', input.file)
-      body.set('sendit', 'Upload')
-      if (input.useMask) body.set('savingdocmask', input.savingDocMask)
-      const res = await fetch(`/comm/propal/document.php?id=${id}&uploadform=1`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] })
-    },
+    mutationFn: (file: File) => uploadQuotationDocument(Number(id), file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
   })
 }
 
-// objecttype='propal' — Propal::$element, read directly from that class.
 export function useLinkQuotationDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { token: string; link: string; label: string }) => {
-      const body = new URLSearchParams()
-      body.set('token', input.token)
-      body.set('link_section_dir', '')
-      body.set('link_section_id', '0')
-      body.set('link', input.link)
-      body.set('label', input.label)
-      body.set('objecttype', 'propal')
-      body.set('objectid', id ?? '')
-      body.set('linkit', 'Link')
-      const res = await fetch(`/comm/propal/document.php?id=${id}&uploadform=1`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] })
-    },
+    mutationFn: (input: { link: string; label: string }) => linkQuotationDocument(Number(id), input.link, input.label),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
   })
 }
 
-// --- Stock Consumptions tab (custom/consumption/card.php?type=propal) -----
+export function useDeleteQuotationDocument(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => deleteQuotationDocument(Number(id), name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
+  })
+}
 
-// Real `action=conso` handler (custom/consumption/card.php, read directly):
-// product/id_entrepot/nbpiece/label/eatby/sellby/batch_number, redirects
-// back to the same page on success (a real GET redirect, not JSON — the
-// success/failure signal here is just whether the redirect happened).
-// nbpiece's sign is meaningful on the real page itself (negative reduces
-// stock, positive corrects/increases it) and is sent through unchanged.
+export function useDeleteQuotationDocumentLink(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (linkid: number) => deleteQuotationDocumentLink(Number(id), linkid),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
+  })
+}
+
+export function useQuotationConsumptionHistory(id: string | undefined) {
+  return useQuery({
+    queryKey: ['quotations', 'detail', id, 'consumptionHistory'],
+    queryFn: () => fetchQuotationConsumptionHistory(Number(id)),
+    enabled: !!id,
+  })
+}
+
 export function useDeclareConsumption(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -365,32 +297,35 @@ export function useDeclareConsumption(id: string | undefined) {
       lotSerial: string
       eatBy?: string
       sellBy?: string
-    }) => {
-      const body = new URLSearchParams({
-        action: 'conso',
-        type: 'propal',
-        id: id ?? '',
-        product: input.productId,
-        id_entrepot: input.warehouseId,
-        nbpiece: String(input.qty),
-        label: input.label,
-        batch_number: input.lotSerial,
-        eatby: input.eatBy ?? '',
-        sellby: input.sellBy ?? '',
-      })
-      const res = await fetch(`/custom/consumption/card.php?id=${id}&type=propal`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+    }) => declareQuotationConsumption({
+      id: Number(id),
+      product: Number(input.productId),
+      id_entrepot: Number(input.warehouseId),
+      nbpiece: input.qty,
+      label: input.label,
+      batch_number: input.lotSerial,
+      eatby: input.eatBy,
+      sellby: input.sellBy,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'consumptionHistory'] })
+      invalidateDetail(queryClient, id)
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id] }),
   })
 }
 
-// --- Events/Agenda tab (comm/propal/agenda.php) ----------------------------
-
 export function useQuotationAgenda(id: string | undefined) {
-  return useQuery<QuotationAgendaData>({
+  return useQuery({
     queryKey: ['quotations', 'detail', id, 'agenda'],
-    queryFn: async () => parseQuotationAgenda(await fetchHtml(`/comm/propal/agenda.php?id=${id}`)),
+    queryFn: () => fetchQuotationAgenda(Number(id)),
     enabled: !!id,
+  })
+}
+
+export function useAddQuotationAgendaEvent(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { label: string; start: string }) => createQuotationAgendaEvent(Number(id), input.label, input.start),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'agenda'] }),
   })
 }

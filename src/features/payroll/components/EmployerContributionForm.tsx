@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { UserMinus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
@@ -40,12 +39,8 @@ export function EmployerContributionForm() {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <UserMinus size={20} className="text-brand" /> Employer Contribution
-      </h2>
-
-      <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <Card className="!h-auto !flex-row flex-wrap items-end gap-4">
+        <div className="flex flex-1 flex-wrap items-end gap-4 [&>*]:min-w-44 [&>*]:flex-1">
           <Field label="Select Year" required>
             <input type="number" min={1900} max={2200} placeholder="YYYY" value={year} onChange={(e) => setYear(e.target.value)} className={inputClasses} />
           </Field>
@@ -53,7 +48,7 @@ export function EmployerContributionForm() {
             <SearchableSelect value={employee} onChange={setEmployee} options={employeeOptions} placeholder="Select Employee..." />
           </Field>
         </div>
-        <div className="flex flex-wrap items-center gap-2 mt-4">
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={handleGo} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover">
             Go
           </button>

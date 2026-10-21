@@ -1,21 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { fetchAllPages, pickNum, pickNumOrNull, pickStr, usDate } from '../../api/fapiRow'
 
-// Real reference page: delivery/card.php?action=pack_list ("Packing
-// Details"). SELECT * FROM llx_packing, read directly from source — a
-// genuine, simple custom Ecuenta table, no joins, no JSON endpoint but a
-// single classic HTML table with everything already needed in one fetch.
-// The "Update Delivery Status" dropdown and the Delete action are both real,
-// single-step backend writes (also read directly from source):
-//   action=update_status: UPDATE llx_packing SET delivery_status=<dele_status>
-//     WHERE rowid=<id> — id here is the PACKING record's own rowid (matches
-//     the real page's own JS: del_id is the packing rowid, not shipment_id
-//     or delivary_id, confirmed by reading both the print() call building
-//     the <select> id and the action's own SQL).
-//   action=packing_delet: DELETE FROM llx_packing WHERE rowid=<pack_id> — a
-//     genuine unconfirmed single-step delete on the real page itself (no
-//     confirm box, no client-side confirm() either); this wraps it in
-//     window.confirm() anyway since a silent destructive delete is worth
-//     guarding even where the reference app doesn't.
+const PACKING = '/expedition/fapi/packing.php'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// expedition/fapi/packing.php (16 Oct 2026): the packing records (llx_packing) with their shipment, the packers
+// (the comma-separated pack_employ column read back as an array) and the delivery status; writes are
+// ?action=set_delivery_status {id, delivery_status} and ?action=delete {id}. The classic delivery/card.php
+// pack_list page it replaces had an unescaped, unauthenticated pack_id in its SQL. Shapes are read defensively:
+// newecuenta holds no shipments, so no packing row has been seen yet.
 export const DELIVERY_STATUS_LABEL: Record<number, string> = {
   0: 'Delivery In Progress',
   1: 'Ready To Deliver',
@@ -33,32 +27,21 @@ export interface PackingRow {
   deliveryStatus: number
 }
 
-function parsePackingList(html: string): PackingRow[] {
-  const rows: PackingRow[] = []
-  const rowRe = /<tr><td>\d+<\/td><td><a href ="\/delivery\/card\.php\?id=(\d+)&action=packing_view">([^<]*)<\/a><\/td><td>([\s\S]*?)<\/td><td>([^<]*)<\/td>\s*<td>\s*<select[^>]*id="dele_status(\d+)">([\s\S]*?)<\/select>/g
-  let m: RegExpExecArray | null
-  while ((m = rowRe.exec(html))) {
-    const optionsHtml = m[6]
-    const selectedMatch = optionsHtml.match(/<option value="(\d+)" Selected>/)
-    rows.push({
-      packId: Number(m[5]),
-      ref: m[2].trim(),
-      shipmentId: Number(m[1]) || null,
-      orderStatus: m[3].replace(/<[^>]*>/g, '').trim(),
-      packingDate: m[4].trim(),
-      deliveryStatus: selectedMatch ? Number(selectedMatch[1]) : 0,
-    })
-  }
-  return rows
-}
-
 export function usePackingList() {
   return useQuery({
     queryKey: ['warehouses', 'packingList'],
     queryFn: async (): Promise<PackingRow[]> => {
-      const res = await fetch('/delivery/card.php?action=pack_list', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parsePackingList(await res.text())
+      const items = await fetchAllPages((page) => fapiGet<any>(PACKING, { page, limit: 100 }))
+      return items.map(
+        (r): PackingRow => ({
+          packId: pickNum(r, 'id', 'pack_id'),
+          ref: pickStr(r, 'ref', 'shipment.ref', 'shipment_ref'),
+          shipmentId: pickNumOrNull(r, 'shipment.id', 'shipment_id', 'fk_expedition'),
+          orderStatus: pickStr(r, 'status_label', 'order_status', 'shipment.status_label'),
+          packingDate: usDate(r.packed_date ?? r.date_packed ?? r.date_creation),
+          deliveryStatus: pickNum(r, 'delivery_status', 'dele_status'),
+        }),
+      )
     },
     staleTime: 1000 * 30,
   })
@@ -68,8 +51,7 @@ export function useUpdatePackingDeliveryStatus() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ packId, deliveryStatus }: { packId: number; deliveryStatus: number }) => {
-      const res = await fetch(`/delivery/card.php?id=${packId}&dele_status=${deliveryStatus}&action=update_status`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(PACKING, { id: packId, delivery_status: deliveryStatus }, { action: 'set_delivery_status' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'packingList'] }),
   })
@@ -79,8 +61,7 @@ export function useDeletePacking() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (packId: number) => {
-      const res = await fetch(`/delivery/card.php?id=&pack_id=${packId}&action=packing_delet`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(PACKING, { id: packId }, { action: 'delete' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouses', 'packingList'] }),
   })

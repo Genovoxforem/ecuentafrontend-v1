@@ -1,6 +1,5 @@
 import { ShoppingCart } from 'lucide-react'
 import { ROUTES } from '../../routes'
-import { reportPath } from '../reports/reportsStructure'
 import type { NavSection } from '../navTypes'
 
 // Mirrors the real app's "Sales" left menu (llx_menu, mainmenu=accountsreceivable)
@@ -71,12 +70,9 @@ export const nav: NavSection = {
         { label: 'Abandoned (Customers only)', path: ROUTES.invoiceAbandoned },
         { label: 'Template invoices', path: ROUTES.invoiceTemplates },
         { label: 'Payment (Payments received from customers)', path: ROUTES.paymentsList },
-        // Real live menu item (custom/customersowed/view/customers_owed_report.php,
-        // confirmed enabled) with no dedicated page of its own — reuses the
-        // existing inert Reports Center entry for this exact same backend
-        // page ("Unpaid Customer List" under Receivables, see
-        // reportsStructure.ts) rather than duplicating a second placeholder.
-        { label: 'Due payments', path: reportPath('receivables', 'unpaid-customer-list') },
+        // compta/facture/fapi/due_payments.php: customers owed with ageing (the classic
+        // customersowed report page is a 404).
+        { label: 'Due payments', path: ROUTES.paymentsDue },
         { label: 'Reporting', path: ROUTES.paymentsReport },
         { label: 'Statistics (Customers invoices statistics)', path: ROUTES.invoiceStats },
         { label: 'Advance Payment List', path: ROUTES.invoiceAdvancePayments },

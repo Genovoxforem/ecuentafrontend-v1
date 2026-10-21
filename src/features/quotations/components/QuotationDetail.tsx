@@ -25,6 +25,8 @@ import { formatMoney, formatNumber } from '../../../utils/format'
 import { LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
+import { LinkDocumentButton } from '../../../shared/components/LinkDocumentButton'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useQuotationCard,
   useValidateQuotation,
@@ -39,7 +41,7 @@ import { TABS, type TabKey, InfoRow } from './QuotationDetailShared'
 
 const LazyTabRenderer = lazy(() => import('./QuotationDetailTabs').then(m => ({ default: m.LazyTabRenderer })))
 
-function CloseAsForm({ id }: { id: string }) {
+function CloseAsForm({ id, reasons }: { id: string; reasons: Array<{ value: string; label: string }> }) {
   const closeAs = useCloseAsQuotation()
   const [statut, setStatut] = useState<'2' | '3'>('2')
   const [note, setNote] = useState('')
@@ -55,8 +57,11 @@ function CloseAsForm({ id }: { id: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
       <select value={statut} onChange={(e) => setStatut(e.target.value as '2' | '3')} className={inputClasses}>
-        <option value="2">Signed (needs billing)</option>
-        <option value="3">Not signed (closed)</option>
+        {reasons.map((reason) => (
+          <option key={reason.value} value={reason.value}>
+            {reason.label}
+          </option>
+        ))}
       </select>
       <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note" className={inputClasses} />
       <button
@@ -108,7 +113,7 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
         </button>
       )}
       {showSendEmail && <SendQuotationEmailModal id={id} quotationRef={data?.ref ?? id} onClose={() => setShowSendEmail(false)} />}
-      {actions.canCloseAsAcceptedRefused && <CloseAsForm id={id} />}
+      {actions.canCloseAsAcceptedRefused && <CloseAsForm id={id} reasons={data?.closeReasons ?? []} />}
       {actions.canCreateOrder && (
         <Link to={ROUTES.orderCreate} className={btnCls}>
           <ShoppingCart size={14} /> Create Order
@@ -197,7 +202,7 @@ function LinkedFilesSection({ id }: { id: string }) {
         <button
           type="button"
           disabled={generateDoc.isPending}
-          onClick={() => generateDoc.mutate({ token: docGen.token, model: selectedModel, langId: selectedLang })}
+          onClick={() => generateDoc.mutate({ model: selectedModel, langId: selectedLang })}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
           {generateDoc.isPending ? <LoaderCircle size={14} className="animate-spin" /> : null} Generate
@@ -223,11 +228,12 @@ function LinkedFilesSection({ id }: { id: string }) {
 // Form::showLinkedObjectBlock() — the real "Related Objects" table showing
 // other documents linked to/from this quotation (e.g. a Contract created
 // via the "Create Contract" button above). Generic across every Dolibarr
-// document type, not propal-specific — see quotationCardParser.ts's
-// RelatedObjectRow comment. No native detail page exists yet for these
-// other document types, so each ref opens the real legacy page.
+// document type, not propal-specific — see quotationCard.types.ts's
+// RelatedObjectRow comment. Each ref opens that record's React page
+// (LegacyObjectLink); a type without one shows as plain text.
 function RelatedObjectsSection({ id }: { id: string }) {
   const { data } = useQuotationCard(id)
+  const queryClient = useQueryClient()
   if (!data) return null
   const { relatedObjects } = data
 
@@ -235,6 +241,7 @@ function RelatedObjectsSection({ id }: { id: string }) {
     <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h3 className="font-semibold text-text!">Related Objects</h3>
+        <LinkDocumentButton element="propal" id={Number(id)} onLinked={() => void queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id] })} />
       </div>
       {relatedObjects.length === 0 ? (
         <p className="px-4 py-4 text-sm text-text-faint italic">No related objects.</p>

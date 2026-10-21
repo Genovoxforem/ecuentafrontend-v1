@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Loader2, Search, Wallet } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { ListPagination } from '../../../shared/components/ListPagination'
@@ -26,8 +26,6 @@ interface RowState {
 // renders an HTML fragment — not scraped here; the row list below is built
 // from the real user list instead, same approach as Mark Attendance.
 export function ShiftSalarySearchForm({
-  title,
-  sourcePath,
   shiftId,
   unitLabel,
 }: {
@@ -97,14 +95,6 @@ export function ShiftSalarySearchForm({
     // offsets compensate for AppShell main's own p-6 inset.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       <div className="sticky -top-6 z-10 -mx-6 border-b border-border bg-white px-6 py-3 dark:bg-gray-950 space-y-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <Wallet size={20} className="text-brand" /> {title}
-          </h2>
-          <p className="text-xs text-text-faint italic mt-0.5">
-            Backend page: <code className="font-mono">{sourcePath}</code>
-          </p>
-        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>

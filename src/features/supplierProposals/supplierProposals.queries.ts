@@ -1,9 +1,22 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText, legacyMissingContentError, legacyRefusalMessages, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from '../generalLedger/bindLines.queries'
-import { parseSupplierProposalRows, type SupplierProposalAjaxResponse, type SupplierProposalRow } from './supplierProposalListParser'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 
-export type { SupplierProposalRow }
+export interface SupplierProposalRow {
+  id: number
+  ref: string
+  vendorId: number | null
+  vendor: string
+  // The dates as the lists print them (MM/DD/YYYY), and the same as ISO for sorting.
+  validationDate: string
+  validationIso: string
+  plannedDelivery: string
+  plannedDeliveryIso: string
+  amountExclTax: number
+  amountInclTax: number
+  author: string
+  status: string
+  createdIso: string
+}
 
 export interface SupplierProposalsSummary {
   totalProposals: number
@@ -14,34 +27,54 @@ export interface SupplierProposalsSummary {
   proposals: SupplierProposalRow[]
 }
 
-// yyyy-mm-dd -> MM/DD/YYYY, the real page's own date range format.
-function toLegacyDateSlash(iso: string): string {
-  const [y, m, d] = iso.split('-')
-  return `${m}/${d}/${y}`
-}
-
 export interface SupplierProposalRange {
   from: string // yyyy-mm-dd, '' = from the beginning
   to: string // yyyy-mm-dd, '' = no end
 }
 
-// supplier_proposal/supplier_proposal_ajax.php — the real DataTables endpoint
-// behind supplier_proposal/list.php. With no date filter the backend quietly
-// limits the list to the current month, so an open range is sent as an explicit
-// "everything" range instead, which is what "All supplier proposal records" needs.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// MM/DD/YYYY, the way the classic page prints a date (the list sorts and filters on the ISO form next to it).
+function usFromIso(value: unknown): string {
+  const m = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})-(\d{2})/) : null
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
+}
+
+function rowFromFapi(p: any): SupplierProposalRow {
+  return {
+    id: Number(p.id),
+    ref: p.ref ?? '',
+    vendorId: p.supplier?.id != null ? Number(p.supplier.id) : null,
+    vendor: p.supplier?.name ?? '',
+    validationDate: usFromIso(p.date_valid),
+    validationIso: typeof p.date_valid === 'string' ? p.date_valid.slice(0, 10) : '',
+    plannedDelivery: usFromIso(p.date_delivery),
+    plannedDeliveryIso: typeof p.date_delivery === 'string' ? p.date_delivery.slice(0, 10) : '',
+    amountExclTax: Number(p.total_ht) || 0,
+    amountInclTax: Number(p.total_ttc) || 0,
+    author: p.author?.name ?? p.author?.login ?? '',
+    status: p.status_label ?? '',
+    createdIso: typeof (p.date_creation ?? p.date) === 'string' ? String(p.date_creation ?? p.date).slice(0, 10) : '',
+  }
+}
+
+// supplier_proposal/fapi/list.php: every row with the supplier as an object, real status codes and no hidden
+// date default (an empty filter returns every proposal, where the classic list shows nothing until a month and
+// year are sent). The range is applied by the server.
+async function fetchProposalsFapi(range: SupplierProposalRange): Promise<SupplierProposalRow[]> {
+  const items: any[] = []
+  let pages = 1
+  for (let page = 1; page <= pages && page <= 50; page += 1) {
+    const d = await fapiGet<any>('/supplier_proposal/fapi/list.php', { page, limit: 100, date_from: range.from || undefined, date_to: range.to || undefined, sort: 'date', direction: 'desc' })
+    pages = d.pages ?? 1
+    items.push(...(d.items ?? []))
+  }
+  return items.map(rowFromFapi)
+}
+
 export function useSupplierProposals(range: SupplierProposalRange) {
   return useQuery({
     queryKey: ['supplier-proposals', 'list', range],
-    queryFn: async (): Promise<SupplierProposalRow[]> => {
-      const body = new URLSearchParams({
-        draw: '1',
-        start: '0',
-        length: '-1',
-        datefilter: `${toLegacyDateSlash(range.from || '2000-01-01')} - ${toLegacyDateSlash(range.to || '2099-12-31')}`,
-      })
-      const text = await fetchLegacyText('/supplier_proposal/supplier_proposal_ajax.php', { method: 'POST', body })
-      return parseSupplierProposalRows(JSON.parse(text) as SupplierProposalAjaxResponse)
-    },
+    queryFn: (): Promise<SupplierProposalRow[]> => fetchProposalsFapi(range),
     // Keep the rows on screen while a new date range loads.
     placeholderData: keepPreviousData,
   })
@@ -63,7 +96,7 @@ export function summarizeSupplierProposals(rows: SupplierProposalRow[]): Supplie
   }
 }
 
-// ── New price request (supplier_proposal/card.php?action=create) — real ─────
+// ── New price request (supplier_proposal/fapi/create.php) ───────────────────
 
 export interface SupplierProposalFormOption {
   value: string
@@ -83,44 +116,66 @@ export interface SupplierProposalCreateFormData {
   defaultCurrency: string
 }
 
-// The legacy page's markup is malformed enough that a parsed <form>'s controls are
-// not its descendants, so everything is looked up on the document (each name is
-// unique on this page). Placeholder options ("Select a …", value '', '-1' or '0')
-// are left out — the form shows its own.
-function readSelect(doc: Document, name: string): { options: SupplierProposalFormOption[]; selected: string } {
-  const select = doc.querySelector<HTMLSelectElement>(`select[name="${name}"]`)
-  const all = Array.from(select?.options ?? [])
-  return {
-    options: all
-      .filter((o) => !['', '-1', '0'].includes(o.value.trim()))
-      // A vendor's option label carries its codes on further lines — the name is the first.
-      .map((o) => ({ value: o.value, label: (o.textContent ?? '').split('\n')[0].replace(/\s+/g, ' ').trim() })),
-    selected: all.find((o) => o.hasAttribute('selected'))?.value ?? '',
-  }
+// What form_options.php?socid resolved for a chosen vendor, with the step that produced each value.
+export interface SupplierProposalDefaults {
+  paymentTermsId: string
+  paymentTypeId: string
+  bankAccountId: string
+  shippingMethodId: string
+  resolvedFrom: Record<string, string>
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const SP_BASE = '/supplier_proposal/fapi'
+
+function fapiChoices(list: any[] | undefined): SupplierProposalFormOption[] {
+  return (list ?? []).map((o) => ({ value: String(o.value ?? o.id), label: String(o.label ?? o.name ?? o.value) }))
+}
+
+// supplier_proposal/fapi/form_options.php: suppliers, payment terms and modes, bank accounts, shipping methods, PDF
+// templates, projects and currencies.
 export function useSupplierProposalCreateForm() {
   return useQuery({
     queryKey: ['supplier-proposals', 'createForm'],
     queryFn: async (): Promise<SupplierProposalCreateFormData> => {
-      const doc = await fetchLegacyDocument('/supplier_proposal/card.php', new URLSearchParams({ action: 'create' }))
-      if (!doc.querySelector('select[name="socid"]')) throw legacyMissingContentError(doc, 'The price request form on this backend page was not recognised.')
-      const template = readSelect(doc, 'model')
-      const currency = readSelect(doc, 'multicurrency_code')
+      const d = await fapiGet<any>(`${SP_BASE}/form_options.php`)
       return {
-        vendors: readSelect(doc, 'socid').options,
-        paymentTerms: readSelect(doc, 'cond_reglement_id').options,
-        paymentTypes: readSelect(doc, 'mode_reglement_id').options,
-        bankAccounts: readSelect(doc, 'fk_account').options,
-        shippingMethods: readSelect(doc, 'shipping_method_id').options,
-        templates: template.options,
-        projects: readSelect(doc, 'projectid').options,
-        currencies: currency.options,
-        defaultTemplate: template.selected,
-        defaultCurrency: currency.selected,
+        vendors: fapiChoices(d.suppliers),
+        paymentTerms: fapiChoices(d.payment_terms),
+        paymentTypes: fapiChoices(d.payment_modes),
+        bankAccounts: fapiChoices(d.bank_accounts),
+        shippingMethods: fapiChoices(d.shipping_methods),
+        templates: fapiChoices(d.models),
+        projects: fapiChoices(d.projects),
+        currencies: fapiChoices(d.currencies),
+        defaultTemplate: String(d.default_model ?? d.defaults?.model ?? ''),
+        defaultCurrency: String(d.defaults?.currency_code ?? ''),
       }
     },
     staleTime: 1000 * 60 * 5,
+  })
+}
+
+// form_options.php?socid=N: the defaults for that vendor (its own payment terms, mode and bank), so the
+// form can pre-fill them and say where they came from. An unknown vendor, or a third-party that is not
+// flagged as a supplier, answers an error (404 / 422), which the form simply ignores.
+export function useSupplierProposalDefaults(socid: string) {
+  return useQuery({
+    queryKey: ['supplier-proposals', 'defaults', socid],
+    queryFn: async (): Promise<SupplierProposalDefaults> => {
+      const d = await fapiGet<any>(`${SP_BASE}/form_options.php`, { socid })
+      const id = (v: unknown) => (v ? String(v) : '')
+      return {
+        paymentTermsId: id(d.defaults?.payment_term_id),
+        paymentTypeId: id(d.defaults?.payment_mode_id),
+        bankAccountId: id(d.defaults?.bank_account_id),
+        shippingMethodId: id(d.defaults?.shipping_method_id),
+        resolvedFrom: d.defaults_resolved_from ?? {},
+      }
+    },
+    enabled: !!socid,
+    staleTime: 1000 * 60,
+    retry: false,
   })
 }
 
@@ -136,55 +191,31 @@ export interface NewSupplierProposalInput {
   currency: string
 }
 
-// The same POST the real form sends (token, action=add, socid, payment terms/type,
-// bank account, shipping method, the delivery date as MM/dd/yyyy plus its day,
-// month and year parts, doc template, project, currency). The token is scraped
-// fresh off the create page right before. The result is a draft price request:
-// success is a redirect to card.php?id=<new id>, a refusal re-shows the form with
-// the reason in an inline toast (still HTTP 200).
 export function useCreateSupplierProposal() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: NewSupplierProposalInput): Promise<string> => {
-      const createDoc = await fetchLegacyDocument('/supplier_proposal/card.php', new URLSearchParams({ action: 'create' }))
-      const token = createDoc.querySelector<HTMLInputElement>('input[name="token"]')?.value
-      if (!token) throw legacyMissingContentError(createDoc, 'Could not find a CSRF token on the price request page.')
-
-      const [y, m, d] = input.deliveryDate ? input.deliveryDate.split('-') : ['', '', '']
-      const body = new URLSearchParams({
-        token,
-        action: 'add',
-        socid: input.vendorId,
-        cond_reglement_id: input.paymentTermsId || '0',
-        mode_reglement_id: input.paymentTypeId,
-        fk_account: input.bankAccountId || '-1',
-        shipping_method_id: input.shippingMethodId || '-1',
-        liv_: input.deliveryDate ? `${m}/${d}/${y}` : '',
-        liv_day: d,
-        liv_month: m,
-        liv_year: y,
-        model: input.template,
-        projectid: input.projectId || '0',
-        multicurrency_code: input.currency,
-        createmode: 'empty',
-      })
-      const res = await fetch('/supplier_proposal/card.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-
-      const landed = new URL(res.url)
-      const createdId = landed.searchParams.get('id')
-      if (createdId && /^\d+$/.test(createdId)) return createdId
-      const refusal = toastMessages(html).find((t) => t.type === 'error')?.message ?? legacyRefusalMessages(html)[0]
-      if (refusal) throw new Error(refusal)
-      // No reason given: a redirect away from the form still means it was created;
-      // being handed the form back means it was not.
-      if (!landed.pathname.endsWith('/supplier_proposal/card.php')) return ''
-      throw new Error('The backend did not create the price request.')
-    },
+    mutationFn: async (input: NewSupplierProposalInput): Promise<string> => createViaFapi(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-proposals'] })
     },
   })
+}
+
+// supplier_proposal/fapi/create.php: the header and its lines in one transaction; answers the new
+// draft's id and its provisional (PROV…) reference.
+async function createViaFapi(input: NewSupplierProposalInput): Promise<string> {
+  const num = (v: string) => (v ? Number(v) : undefined)
+  const d = await fapiPost<{ id: number }>(`${SP_BASE}/create.php`, {
+    socid: Number(input.vendorId),
+    payment_term_id: num(input.paymentTermsId),
+    payment_mode_id: num(input.paymentTypeId),
+    bank_account_id: num(input.bankAccountId),
+    shipping_method_id: num(input.shippingMethodId),
+    date_delivery: input.deliveryDate || undefined,
+    model: input.template || undefined,
+    project_id: num(input.projectId),
+    currency_code: input.currency || undefined,
+    lines: [],
+  })
+  return String(d.id)
 }

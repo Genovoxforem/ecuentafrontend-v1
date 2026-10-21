@@ -27,7 +27,7 @@ export function LoanProductsPage() {
 
       <div className="flex items-start gap-2 rounded-lg border border-info-bg bg-info-bg/40 px-3 py-2 text-xs text-info-fg">
         <Info size={14} className="shrink-0 mt-0.5" />
-        <p>Design only — loan_product.php has no JSON API (its list and Add New form are plain server-rendered PHP). Every control below is inert.</p>
+        
       </div>
 
       {showAddProduct && (

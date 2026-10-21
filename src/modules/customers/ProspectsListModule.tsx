@@ -1,22 +1,26 @@
 import { useProspectsSummary } from '../../features/customers/prospects.queries'
 import { ProspectsList } from '../../features/customers/components/ProspectsList'
-import { BackendUnavailableCard, isBackendUnavailable } from '../../shared/components/BackendUnavailable'
+import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
+import { NoDataToast } from '../../shared/components/NoDataToast'
 
 export function ProspectsListModule() {
-  const { data: summary, isError, error } = useProspectsSummary()
+  const { data: summary, isError, isLoading, error } = useProspectsSummary()
 
-  // useProspectsSummary now calls the real societe/api/list.php (type=p),
-  // same as CustomersListModule — this gate is a defensive fallback for a
-  // genuine outage, not the normal path anymore.
-  if (isError && isBackendUnavailable(error)) {
-    return <BackendUnavailableCard feature="Prospects list" />
-  }
+  const dataUnavailable = isError && isBackendUnavailable(error)
+  const statusMessage = isError
+    ? dataUnavailable
+      ? 'Prospect page is ready, but prospect data is not available from this backend yet.'
+      : 'Could not load prospect data. The page is still available; please try again later.'
+    : undefined
 
   return (
     <>
-      {isError && <p className="text-sm text-danger">Could not load the prospect list.</p>}
-      {!summary && !isError && <p className="text-sm text-text-muted">Loading…</p>}
-      {summary && <ProspectsList summary={summary} />}
+      {dataUnavailable && <NoDataToast message="Prospect data is not available on this backend yet." />}
+      <ProspectsList
+        summary={summary}
+        isLoading={!summary && (isLoading || dataUnavailable)}
+        statusMessage={statusMessage}
+      />
     </>
   )
 }

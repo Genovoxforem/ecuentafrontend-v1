@@ -3,7 +3,7 @@ import { AlertTriangle } from "lucide-react";
 function ConfirmDialog({ open, title, message, confirmLabel = "OK", cancelLabel = "Cancel", variant = "danger", onConfirm, onCancel }) {
     if (!open) return null;
 
-    const confirmClasses = variant === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-[#397db9] hover:bg-[#2c6291]";
+    const confirmClasses = variant === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-[#3b82f6] hover:bg-[#2f6fe4]";
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>

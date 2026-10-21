@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SalesInvoiceData } from './salesInvoiceApi'
+import { fapi } from '../../api/axios'
+import { fetchInvoiceFormSettings, type InvoiceFormSettings } from '../../api/invoices'
 
 // compta/sales/api/invoice.php — see salesInvoiceApi.ts header comment for
 // why this replaces the compta/facture/card.php HTML-scraping approach for
@@ -182,51 +184,29 @@ export interface SalesWarehouseOption {
   selected: boolean
 }
 
-export interface SalesProductOption {
-  value: string
-  label: string
-}
-
 export interface SalesDraftFormOptions {
   warehouseOptions: SalesWarehouseOption[]
   unvalidateWarehouseOptions: SalesWarehouseOption[]
-  productOptions: SalesProductOption[]
 }
 
-function scrapeSelectOptions(doc: Document, selector: string): SalesWarehouseOption[] {
-  const select = doc.querySelector<HTMLSelectElement>(selector)
-  return select ? Array.from(select.options).map((o) => ({ value: o.value, label: (o.textContent ?? '').trim(), selected: o.selected })) : []
+// compta/facture/fapi/form_settings.php + product/stock/fapi/warehouses.php: the settings carry the configured default
+// warehouse (it decides where stock moves on validation) and the debit-note flag (the "Create Debit Note" button is
+// only offered when it is on).
+const settingsQuery = {
+  queryKey: ['invoices', 'formSettings'],
+  queryFn: async (): Promise<{ settings: InvoiceFormSettings; warehouses: SalesWarehouseOption[] }> => {
+    const settings = await fetchInvoiceFormSettings()
+    const res = await fapi.get<{ success: boolean; data?: { items?: Array<{ id: number; ref?: string; label?: string }> } }>('/product/stock/fapi/warehouses.php', { params: { limit: 500 } })
+    const warehouses = (res.data?.data?.items ?? []).map((w) => ({ value: String(w.id), label: w.ref ?? w.label ?? '', selected: w.id === settings.default_warehouse_id }))
+    return { settings, warehouses }
+  },
+  staleTime: 1000 * 60 * 5,
 }
 
-// `#vm-warehouse` (real "Validate" modal), `#um-warehouse` (real "Modify"/
-// unvalidate modal) and `#nl-idprod` (real add-line product select) are all
-// plain server-rendered markup, not part of invoice.php's own JSON — same
-// small, deliberate HTML-scrape exception this app already uses elsewhere
-// when no JSON API covers a field (see AGENTS.md/project convention).
-// Combined into one fetch since all three selects live on the same real
-// page.
-export function useSalesInvoiceDraftFormOptions(facid: string | undefined, enabled: boolean) {
-  return useQuery<SalesDraftFormOptions>({
-    queryKey: ['salesInvoice', facid, 'draftFormOptions'],
-    queryFn: async () => {
-      const res = await fetch(`${SALES_BASE}/card.php?facid=${facid}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const productSelect = doc.querySelector<HTMLSelectElement>('#nl-idprod')
-      const productOptions: SalesProductOption[] = productSelect
-        ? Array.from(productSelect.options)
-            .filter((o) => o.value)
-            .map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
-        : []
-      return {
-        warehouseOptions: scrapeSelectOptions(doc, '#vm-warehouse'),
-        unvalidateWarehouseOptions: scrapeSelectOptions(doc, '#um-warehouse'),
-        productOptions,
-      }
-    },
-    enabled: enabled && !!facid,
-  })
+export function useSalesInvoiceDraftFormOptions(_facid: string | undefined, enabled: boolean) {
+  const settings = useQuery({ ...settingsQuery, enabled })
+  const data: SalesDraftFormOptions | undefined = settings.data ? { warehouseOptions: settings.data.warehouses, unvalidateWarehouseOptions: settings.data.warehouses } : undefined
+  return { data }
 }
 
 export interface SalesProductPricing {
@@ -273,22 +253,7 @@ export async function fetchSalesProductPricing(productId: string, socid: string)
   }
 }
 
-// `DEBIT_NOTE_ENABLED` is a page-level config flag set in the real page's
-// own inline <script> (not part of invoice.php's JSON) — confirmed live to
-// genuinely differ per backend/install (0 on 172.16.5.10, 1 on 172.16.5.55),
-// so it can't be hardcoded. The real page omits the "Create Debit Note"
-// button entirely when this is 0 (not just disables it), so this must be
-// checked before showing that button at all.
 export function useDebitNoteEnabled(facid: string | undefined) {
-  return useQuery<boolean>({
-    queryKey: ['salesInvoice', facid, 'debitNoteEnabled'],
-    queryFn: async () => {
-      const res = await fetch(`${SALES_BASE}/card.php?facid=${facid}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const m = html.match(/DEBIT_NOTE_ENABLED\s*=\s*([^;]+);/)
-      return m ? m[1].trim() === '1' : false
-    },
-    enabled: !!facid,
-  })
+  const settings = useQuery({ ...settingsQuery, enabled: !!facid })
+  return { data: settings.data ? settings.data.settings.debit_note_enabled === 1 : undefined }
 }

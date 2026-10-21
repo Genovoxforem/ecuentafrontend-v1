@@ -107,8 +107,8 @@ export function HotelDashboard() {
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={trends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-                <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
                 <Tooltip />
                 <Bar dataKey="bookings" name="Bookings" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -124,8 +124,8 @@ export function HotelDashboard() {
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={trends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 6" stroke="var(--color-border)" vertical={false} opacity={0.5} />
-                <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--color-text-faint)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `K${v}`} />
+                <XAxis dataKey="label" stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-text-faint)" fontSize={11.55} tickLine={false} axisLine={false} tickFormatter={(v) => `K${v}`} />
                 <Tooltip formatter={(v) => [`K${Number(v).toLocaleString()}`, 'Revenue']} />
                 <Bar dataKey="revenue" name="Revenue" fill="var(--color-chart-2)" radius={[4, 4, 0, 0]} />
               </BarChart>

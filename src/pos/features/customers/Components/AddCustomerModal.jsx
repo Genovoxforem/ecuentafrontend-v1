@@ -193,7 +193,7 @@ function AddCustomerModal({ open, onClose, onCreated }) {
                         type="button"
                         disabled={submitting}
                         onClick={handleSubmit}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#397db9] hover:bg-[#2c6291] disabled:opacity-50"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4] disabled:opacity-50"
                     >
                         <Save size={16} />
                         {submitting ? "Creating..." : "Create Customer"}
@@ -202,7 +202,7 @@ function AddCustomerModal({ open, onClose, onCreated }) {
                         type="button"
                         disabled={submitting}
                         onClick={handleClose}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#397db9] hover:bg-[#2c6291] disabled:opacity-50"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4] disabled:opacity-50"
                     >
                         <X size={16} />
                         Cancel

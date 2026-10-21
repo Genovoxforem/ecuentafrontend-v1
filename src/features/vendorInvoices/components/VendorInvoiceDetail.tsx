@@ -1,22 +1,27 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Receipt, Users2, StickyNote, Paperclip, ScrollText, BookOpen, Upload, LoaderCircle, Pencil, Ship, ReceiptText, Calculator } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Check, ChevronLeft, Receipt, Users2, StickyNote, Paperclip, ScrollText, BookOpen, Upload, Ship, ReceiptText, Calculator, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
   useVendorInvoiceDetail,
-  useVendorInvoiceNotes,
-  useVendorInvoiceNoteEditContext,
-  useUpdateVendorInvoiceNote,
   useVendorInvoiceContacts,
   useVendorInvoiceDocuments,
   useVendorInvoiceDocumentsPageMeta,
   useUploadVendorInvoiceDocument,
   useVendorInvoiceLog,
   useVendorInvoiceLedgerEntries,
+  useVendorInvoiceAction,
+  useVendorInvoicePayments,
+  useVendorInvoiceLines,
 } from '../vendorInvoiceDetail.queries'
-import type { VendorInvoiceDetail as VendorInvoiceDetailData } from '../vendorInvoiceCardParser'
+import { useBankAccountOptions, usePaymentModeOptions } from '../vendorInvoices.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { RecordNotesTab } from '../../contracts/components/ContractTabs'
+import { VI_BASE } from '../vendorInvoiceFapi'
+import type { VendorInvoiceDetail as VendorInvoiceDetailData } from '../vendorInvoiceTypes'
 
 const TABS = [
   { key: 'invoice', label: 'Vendor Invoice', icon: Receipt },
@@ -49,8 +54,248 @@ function EmptyState({ icon: Icon, message }: { icon: React.ComponentType<{ size?
   )
 }
 
+const smallInput = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30'
+
+// The card's buttons come from get.php's available_actions (each one says whether the server would accept it and why
+// not); actions.php re-checks the state and the right when one is pressed.
+function ActionBar({ data }: { data: VendorInvoiceDetailData }) {
+  const navigate = useNavigate()
+  const confirm = useConfirm()
+  const run = useVendorInvoiceAction(String(data.id))
+  const [error, setError] = useState('')
+  const visible = data.actions.filter((a) => a.key)
+  if (visible.length === 0) return null
+
+  async function press(key: string) {
+    setError('')
+    if (key === 'delete' && !(await confirm({ title: 'Delete this vendor invoice?', message: 'The draft and its lines are deleted.', confirmLabel: 'Delete' }))) return
+    run.mutate(
+      { action: key, extra: key === 'delete' ? { confirm: true } : undefined },
+      {
+        onSuccess: (res) => {
+          if (key === 'delete') navigate(ROUTES.vendorInvoiceList)
+          else if (key === 'clone' && res?.id) navigate(ROUTES.vendorInvoiceDetail.replace(':id', String(res.id)))
+        },
+        onError: (e) => setError(e instanceof Error ? e.message : 'The action failed.'),
+      },
+    )
+  }
+
+  return (
+    <div className="px-4 py-3 border-t border-border">
+      {error && (
+        <p role="alert" className="mb-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {visible.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            disabled={!a.enabled || run.isPending}
+            title={a.enabled ? undefined : a.reason}
+            onClick={() => void press(a.key)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${a.key === 'delete' ? 'border-danger/40 text-danger hover:bg-danger/10' : 'border-border text-text hover:bg-surface-hover'}`}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// payments.php?action=add: an amount above what is outstanding is refused (422) unless "allow overpayment" is ticked.
+function PaymentForm({ data }: { data: VendorInvoiceDetailData }) {
+  const payments = useVendorInvoicePayments(String(data.id))
+  const banks = useBankAccountOptions()
+  const modes = usePaymentModeOptions()
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [account, setAccount] = useState('')
+  const [mode, setMode] = useState('')
+  const [over, setOver] = useState(false)
+  const [error, setError] = useState('')
+  // Only an invoice that can still take a payment (validated, not paid) shows the form.
+  if (data.statusBadgeNumber !== 1) return null
+  return (
+    <div className="px-4 py-3 border-b border-border space-y-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <input type="number" min="0" step="0.01" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className={smallInput} />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={smallInput} />
+        <select value={account} onChange={(e) => setAccount(e.target.value)} className={smallInput}>
+          <option value="">Bank account</option>
+          {(banks.data ?? []).map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.label}
+            </option>
+          ))}
+        </select>
+        <select value={mode} onChange={(e) => setMode(e.target.value)} className={smallInput}>
+          <option value="">Payment mode</option>
+          {(modes.data ?? []).map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={payments.add.isPending || !(Number(amount) > 0) || !account || !mode}
+          onClick={() => {
+            setError('')
+            payments.add.mutate(
+              { amount: Number(amount), date, modeId: Number(mode) || 0, accountId: Number(account), allowOverpay: over },
+              { onSuccess: () => setAmount(''), onError: (e) => setError(e instanceof Error ? e.message : 'The payment was refused.') },
+            )
+          }}
+          className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+        >
+          Record payment
+        </button>
+      </div>
+      <label className="flex items-center gap-2 text-xs text-text-muted">
+        <input type="checkbox" checked={over} onChange={(e) => setOver(e.target.checked)} /> Allow overpayment
+      </label>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function DeletePaymentButton({ invoiceId, paymentId }: { invoiceId: string; paymentId: number }) {
+  const payments = useVendorInvoicePayments(invoiceId)
+  const confirm = useConfirm()
+  if (!paymentId) return null
+  return (
+    <button
+      type="button"
+      disabled={payments.remove.isPending}
+      title="Delete payment"
+      onClick={async () => {
+        if (await confirm({ title: 'Delete this payment?', message: 'A payment that is reconciled with a bank line is refused.', confirmLabel: 'Delete' })) payments.remove.mutate(paymentId)
+      }}
+      className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger"
+    >
+      <X size={14} />
+    </button>
+  )
+}
+
+// lines.php for a draft: update / delete a line (the values shown are the formatted ones, so a line is re-entered).
+function LineButtons({ invoiceId, line }: { invoiceId: string; line: VendorInvoiceDetailData['lines'][number] }) {
+  const lines = useVendorInvoiceLines(invoiceId)
+  const confirm = useConfirm()
+  const [editing, setEditing] = useState(false)
+  const [qty, setQty] = useState(line.qty)
+  const [price, setPrice] = useState(line.unitPriceExcl.replace(/,/g, ''))
+  const [error, setError] = useState('')
+  if (!editing) {
+    return (
+      <>
+        <button type="button" title="Edit line" onClick={() => setEditing(true)} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand">
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          title="Delete line"
+          disabled={lines.remove.isPending}
+          onClick={async () => {
+            if (await confirm({ title: 'Delete this line?', message: 'The line is removed from the draft.', confirmLabel: 'Delete' })) lines.remove.mutate(Number(line.rowid))
+          }}
+          className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger"
+        >
+          <Trash2 size={14} />
+        </button>
+      </>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1">
+      <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} className={smallInput + ' !w-16'} title="Quantity" />
+      <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className={smallInput + ' !w-24'} title="Unit price (excl.)" />
+      <button
+        type="button"
+        disabled={lines.update.isPending}
+        onClick={() =>
+          lines.update.mutate(
+            { lineId: Number(line.rowid), description: line.productLabel, qty: Number(qty), unitPriceHt: Number(price), vatRate: Number(line.vatRatePercent) || 0, discountPercent: Number(line.discountPercent) || 0 },
+            { onSuccess: () => setEditing(false), onError: (e) => setError(e instanceof Error ? e.message : 'The line was refused.') },
+          )
+        }
+        className="p-1.5 rounded-md text-success hover:bg-surface-hover"
+        title="Save line"
+      >
+        <Check size={14} />
+      </button>
+      <button type="button" onClick={() => setEditing(false)} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover" title="Cancel">
+        <X size={14} />
+      </button>
+      {error && <span className="text-xs text-danger">{error}</span>}
+    </div>
+  )
+}
+
+function AddLineRow({ invoiceId }: { invoiceId: string }) {
+  const lines = useVendorInvoiceLines(invoiceId)
+  const [description, setDescription] = useState('')
+  const [qty, setQty] = useState('1')
+  const [price, setPrice] = useState('')
+  const [vat, setVat] = useState('0')
+  const [error, setError] = useState('')
+  return (
+    <>
+      <tr className="bg-surface-alt/50">
+        <td colSpan={3} className="px-4 py-2">
+          <input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className={smallInput} />
+        </td>
+        <td className="px-2 py-2">
+          <input type="number" placeholder="VAT %" value={vat} onChange={(e) => setVat(e.target.value)} className={smallInput} />
+        </td>
+        <td />
+        <td className="px-2 py-2">
+          <input type="number" step="0.01" placeholder="Unit price" value={price} onChange={(e) => setPrice(e.target.value)} className={smallInput} />
+        </td>
+        <td className="px-2 py-2">
+          <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} className={smallInput} />
+        </td>
+        <td />
+        <td />
+        <td className="px-2 py-2 text-center">
+          <button
+            type="button"
+            disabled={lines.add.isPending || !description.trim() || !(Number(qty) > 0)}
+            onClick={() =>
+              lines.add.mutate(
+                { description: description.trim(), qty: Number(qty), unitPriceHt: Number(price) || 0, vatRate: Number(vat) || 0 },
+                { onSuccess: () => { setDescription(''); setPrice(''); setQty('1'); setError('') }, onError: (e) => setError(e instanceof Error ? e.message : 'The line was refused.') },
+              )
+            }
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-surface-hover disabled:opacity-50"
+          >
+            <Plus size={13} /> Add
+          </button>
+        </td>
+      </tr>
+      {error && (
+        <tr>
+          <td colSpan={10} className="px-4 pb-2 text-sm text-danger">
+            {error}
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 export function VendorInvoiceDetail() {
   const { id } = useParams<{ id: string }>()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const [tab, setTab] = useState<TabKey>('invoice')
   const { data, isLoading, isError, error, refetch } = useVendorInvoiceDetail(id)
 
@@ -74,14 +319,18 @@ export function VendorInvoiceDetail() {
       <div className="sticky -top-6 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+            <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
               <div>
                 <Link to={ROUTES.vendorInvoiceList} className="flex items-center gap-1.5 text-xs text-text-faint hover:text-text mb-1.5">
                   <ChevronLeft size={14} /> Vendor Invoices
                 </Link>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-bold text-text!">{data.ref}</h2>
-                  {data.statusLabel && <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">{data.statusLabel}</span>}
+                  {data.statusLabel && (isBlueMetal ? (
+                    <StatusPill tone="neutral">{data.statusLabel}</StatusPill>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-hover text-text-muted text-xs font-medium">{data.statusLabel}</span>
+                  ))}
                   {data.secondaryStatusLabel && <span className="text-xs text-text-faint">{data.secondaryStatusLabel}</span>}
                 </div>
                 <p className="text-xs text-text-faint mt-1">
@@ -243,12 +492,13 @@ function MainTab({ data }: { data: VendorInvoiceDetailData }) {
                   <th className="font-medium px-4 py-2.5 text-right">Qty</th>
                   <th className="font-medium px-4 py-2.5 text-right">Disc.</th>
                   <th className="font-medium px-4 py-2.5 text-right">Total (Incl.)</th>
+                  {data.statusBadgeNumber === 0 && <th className="w-24" />}
                 </tr>
               </thead>
               <tbody>
                 {data.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-text-faint italic">
+                    <td colSpan={10} className="px-4 py-6 text-center text-text-faint italic">
                       No lines on this invoice.
                     </td>
                   </tr>
@@ -272,21 +522,19 @@ function MainTab({ data }: { data: VendorInvoiceDetailData }) {
                       <td className="px-4 py-2.5 text-right text-text-muted">{l.qty}</td>
                       <td className="px-4 py-2.5 text-right text-text-muted">{l.discountPercent}%</td>
                       <td className="px-4 py-2.5 text-right text-text!">{l.totalIncl}</td>
+                      {data.statusBadgeNumber === 0 && (
+                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                          <LineButtons invoiceId={String(data.id)} line={l} />
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
+                {data.statusBadgeNumber === 0 && <AddLineRow invoiceId={String(data.id)} />}
               </tbody>
             </table>
           </div>
-          {data.actions.length > 0 && (
-            <div className="flex flex-wrap gap-2 px-4 py-3 border-t border-border">
-              {data.actions.map((a) => (
-                <a key={a.label} href={a.url} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
-                  {a.label}
-                </a>
-              ))}
-            </div>
-          )}
+          <ActionBar data={data} />
         </Card>
 
         <ExtraPanels data={data} />
@@ -295,6 +543,7 @@ function MainTab({ data }: { data: VendorInvoiceDetailData }) {
           <div className="px-4 py-3 border-b border-border">
             <TabTitle>Payment Details</TabTitle>
           </div>
+          <PaymentForm data={data} />
           {data.payments.length === 0 ? (
             <p className="text-sm text-text-faint italic p-4">No payments recorded yet.</p>
           ) : (
@@ -307,20 +556,22 @@ function MainTab({ data }: { data: VendorInvoiceDetailData }) {
                     <th className="font-medium px-4 py-2.5">Type</th>
                     <th className="font-medium px-4 py-2.5">Bank Account</th>
                     <th className="font-medium px-4 py-2.5 text-right">Amount</th>
+                    <th className="w-10" />
                   </tr>
                 </thead>
                 <tbody>
                   {data.payments.map((p) => (
                     <tr key={p.ref} className="border-b border-border last:border-0">
                       <td className="px-4 py-2.5">
-                        <a href={p.url} className="font-medium text-brand hover:underline">
-                          {p.ref}
-                        </a>
+                        <span className="font-medium text-text!">{p.ref}</span>
                       </td>
                       <td className="px-4 py-2.5 text-text-muted">{p.date}</td>
                       <td className="px-4 py-2.5 text-text-muted">{p.type}</td>
                       <td className="px-4 py-2.5 text-text-muted">{p.bankAccount}</td>
                       <td className="px-4 py-2.5 text-right text-text!">{p.amount}</td>
+                      <td className="px-2 text-center">
+                        <DeletePaymentButton invoiceId={String(data.id)} paymentId={p.id} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -383,81 +634,7 @@ function MainTab({ data }: { data: VendorInvoiceDetailData }) {
 }
 
 function NotesTab({ id }: { id: string | undefined }) {
-  const { data, isLoading, isError, error, refetch } = useVendorInvoiceNotes(id)
-  const [editingField, setEditingField] = useState<'public' | 'private' | null>(null)
-  const [value, setValue] = useState('')
-  const editContext = useVendorInvoiceNoteEditContext(id, editingField)
-  const updateNote = useUpdateVendorInvoiceNote(id)
-
-  if (isLoading) return <LegacyLoadingCard label="Loading notes…" />
-  if (isError || !data) return <LegacyErrorCard title="Couldn't load notes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
-
-  function startEdit(field: 'public' | 'private') {
-    setEditingField(field)
-    setValue('')
-  }
-
-  function submit() {
-    if (!editingField || !editContext.data?.token) return
-    updateNote.mutate({ field: editingField, token: editContext.data.token, value }, { onSuccess: () => setEditingField(null) })
-  }
-
-  function NoteCard({ field, label, hint, content }: { field: 'public' | 'private'; label: string; hint: string; content: string }) {
-    const editing = editingField === field
-    return (
-      <Card className="!h-auto">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <p className="text-sm font-semibold text-text!">{label}</p>
-            <p className="text-xs text-text-faint">{hint}</p>
-          </div>
-          {!editing && (
-            <button type="button" onClick={() => startEdit(field)} className="shrink-0 w-7 h-7 rounded-md bg-brand text-white flex items-center justify-center hover:bg-brand-hover">
-              <Pencil size={12} />
-            </button>
-          )}
-        </div>
-        {editing ? (
-          editContext.isLoading ? (
-            <p className="text-xs text-text-faint flex items-center gap-1.5">
-              <LoaderCircle size={12} className="animate-spin" /> Loading real note form…
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <textarea
-                autoFocus
-                defaultValue={editContext.data?.currentValue ?? ''}
-                onChange={(e) => setValue(e.target.value)}
-                rows={4}
-                className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
-              />
-              {updateNote.isError && <p className="text-xs text-danger">{updateNote.error instanceof Error ? updateNote.error.message : 'Failed to save.'}</p>}
-              <div className="flex gap-2">
-                <button type="button" disabled={updateNote.isPending} onClick={submit} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-                  {updateNote.isPending ? 'Saving…' : 'Save'}
-                </button>
-                <button type="button" onClick={() => setEditingField(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )
-        ) : (
-          <p className="text-sm text-text! whitespace-pre-wrap">{content || <span className="text-text-faint italic">Empty.</span>}</p>
-        )}
-      </Card>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <TabTitle>Notes</TabTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <NoteCard field="public" label="Public Note" hint="Visible to vendor on printed documents" content={data.notePublic} />
-        <NoteCard field="private" label="Private Note" hint="Internal use only — not visible on documents" content={data.notePrivate} />
-      </div>
-    </div>
-  )
+  return <RecordNotesTab id={id} base={VI_BASE} />
 }
 
 function ContactsTab({ id }: { id: string | undefined }) {

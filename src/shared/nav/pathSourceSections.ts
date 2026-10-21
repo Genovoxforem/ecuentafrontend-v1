@@ -22,6 +22,7 @@ import { nav as membersNav } from '../../features/members/members.nav'
 import { nav as settingsNav } from '../../features/settings/settings.nav'
 import { nav as reportsNav } from '../../features/reports/reports.nav'
 import { ROUTES } from '../../routes'
+import { LayoutGrid } from 'lucide-react'
 import type { NavSection } from '../../features/navTypes'
 
 // Sections whose real backend menu tree is genuinely empty (confirmed via
@@ -34,13 +35,17 @@ export const EMPTY_SECTION_HOME_PATH: Record<string, string> = {
   reports: ROUTES.reports,
 }
 
+// What the sidebars show while GET /api/menu/ has not answered (or failed): a
+// single empty section — never the hard-coded module list below, because that
+// list includes modules the backend has disabled or the user may not open.
+export const MENU_UNAVAILABLE_SECTIONS: NavSection[] = [{ key: 'home', label: 'Menu', icon: LayoutGrid, items: [] }]
+
 // Used only as a label->path lookup by buildNavSections (see that file) —
 // the actual section list, order, and item hierarchy come from GET
 // /api/menu/ (the real backend's own llx_menu data for this user), not from
-// this array. Kept as a fallback so Sidebar.tsx isn't empty for the one
-// frame before that request resolves, and reused as-is by AllAppsDrawer.tsx
-// (the navbar search launcher) so "what's a real page" stays defined in one
-// place. Split into its own module (rather than living in Sidebar.tsx)
+// this array. Reused as-is by AllAppsDrawer.tsx (the navbar search
+// launcher) and AppShell's breadcrumb / page banner so "what's a real page"
+// stays defined in one place. Split into its own module (rather than living in Sidebar.tsx)
 // because exporting a plain constant from a component file breaks React
 // Fast Refresh for that file.
 export const PATH_SOURCE_SECTIONS: NavSection[] = [

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { fapi } from '../../../api/axios'
+import { preferNewApi, requireJson } from '../orderApi'
 import type { ConfirmInput } from '../../../shared/components/ConfirmDialog'
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
@@ -91,7 +92,11 @@ async function deleteOrderDocument(orderId: string | undefined, name: string, re
     ),
   })
   if (!ok) return
-  await fapi.post(`/commande/fapi/documents.php`, { action: 'deletefile', id: Number(orderId), name })
+  await preferNewApi(
+    'documents',
+    async () => requireJson(await fapi.post(`/commande/fapi/documents.php?action=delete_file`, { id: Number(orderId), name })),
+    () => fapi.post(`/commande/fapi/documents.php`, { action: 'deletefile', id: Number(orderId), name }),
+  )
   refetch()
 }
 

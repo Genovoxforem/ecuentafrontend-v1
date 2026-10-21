@@ -1,39 +1,16 @@
 import { useMemo, useState } from 'react'
-import { ScanBarcode, XCircle, AlertTriangle, HelpCircle, Filter, Info, Lock, Search } from 'lucide-react'
+import { ScanBarcode, XCircle, AlertTriangle, HelpCircle, Filter, Info, Trash2, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useProductStocksByLotReport } from '../../products/products.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import type { StockByLotRow } from '../../products/productLegacyParsers'
+import { useFefoLots, useWriteOffLot, type FefoLotRow, type FefoStatus } from '../fefo.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
 
-type FefoStatus = 'Expired' | 'Expiring Soon' | 'No Date' | 'OK'
-
-interface FefoRow extends StockByLotRow {
-  eatByParsed: Date | null
-  daysLeft: number | null
-  status: FefoStatus
-}
-
-// Legacy Dolibarr dates render as MM/DD/YYYY, which the JS Date constructor
-// parses correctly as-is — no manual format juggling needed.
-function parseLegacyDate(value: string): Date | null {
-  if (!value || value === '-') return null
-  const d = new Date(value)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-
-function computeStatus(eatBy: Date | null, warnDays: number): { status: FefoStatus; daysLeft: number | null } {
-  if (!eatBy) return { status: 'No Date', daysLeft: null }
-  const daysLeft = Math.ceil((eatBy.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-  if (daysLeft < 0) return { status: 'Expired', daysLeft }
-  if (daysLeft <= warnDays) return { status: 'Expiring Soon', daysLeft }
-  return { status: 'OK', daysLeft }
-}
+type FefoRow = FefoLotRow
 
 function StatCard({ label, value, caption, icon: Icon, tone }: { label: string; value: string; caption: string; icon: typeof XCircle; tone: 'danger' | 'warning' | 'info' | 'neutral' }) {
   const toneCls = {
@@ -102,11 +79,11 @@ function sortValue(r: FefoRow, key: SortKey): string | number {
     case 'warehouse':
       return r.warehouse
     case 'qty':
-      return r.physicalStock
+      return r.qty
     case 'eatBy':
-      return r.eatByParsed ? r.eatByParsed.getTime() : Number.POSITIVE_INFINITY
+      return r.eatByDate ? new Date(r.eatByDate).getTime() : Number.POSITIVE_INFINITY
     case 'sellBy':
-      return parseLegacyDate(r.sellByDate)?.getTime() ?? Number.POSITIVE_INFINITY
+      return r.sellByDate ? new Date(r.sellByDate).getTime() : Number.POSITIVE_INFINITY
     case 'daysLeft':
       return r.daysLeft ?? Number.POSITIVE_INFINITY
     case 'status':
@@ -114,41 +91,25 @@ function sortValue(r: FefoRow, key: SortKey): string | number {
   }
 }
 
-// Real data — First Expired First Out lot tracking, sourced from the same
-// legacy scrape (product/reassortlot.php) ProductStocksByLotPage.tsx uses
-// (see useProductStocksByLotReport / productLegacyParsers.ts). The legacy
-// FEFO dashboard itself pulls eat-by/sell-by from the same underlying
-// llx_product_lot table, so this is genuinely equivalent data — just
-// computed into FEFO order/status client-side instead of server-side.
-// Mfg Date and Shelf Life aren't returned by this scrape (no source page
-// exposes them), so those two columns are honestly shown as "-" rather
-// than guessed. Write-off has no real backend action, so it's disabled.
+// First Expired First Out: product/stock/fapi/fefo.php returns one row per lot per warehouse in expiry order with the
+// status (expired / expiring / ok / no date) and the counters worked out by the server, so nothing is computed from
+// a stock-by-lot scrape any more. Expired stock can be written off from the row (write-off is a recorded stock
+// movement). Mfg Date and Shelf Life are not part of the endpoint and stay "-".
 export function FefoExpiryDashboardPage() {
-  const { data: rows, isLoading, isError, error, refetch } = useProductStocksByLotReport()
+  const [warnDays, setWarnDays] = useState(30)
+  const { data, isLoading, isError, error, refetch } = useFefoLots(warnDays)
+  const rows = data?.rows
+  const writeOff = useWriteOffLot()
+  const [writeOffError, setWriteOffError] = useState('')
   const [warehouseFilter, setWarehouseFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | FefoStatus>('')
-  const [warnDays, setWarnDays] = useState(30)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
 
-  const warehouseOptions = useMemo(() => Array.from(new Set((rows ?? []).map((r) => r.warehouse).filter(Boolean))).sort(), [rows])
+  const warehouseOptions = useMemo(() => Array.from(new Set([...(data?.warehouses ?? []), ...(rows ?? []).map((r) => r.warehouse)].filter(Boolean))).sort(), [data, rows])
 
-  const fefoRows = useMemo<FefoRow[]>(() => {
-    return (rows ?? [])
-      .filter((r) => r.lotSerial)
-      .map((r) => {
-        const eatByParsed = parseLegacyDate(r.eatByDate)
-        const { status, daysLeft } = computeStatus(eatByParsed, warnDays)
-        return { ...r, eatByParsed, daysLeft, status }
-      })
-      .sort((a, b) => {
-        if (!a.eatByParsed && !b.eatByParsed) return 0
-        if (!a.eatByParsed) return 1
-        if (!b.eatByParsed) return -1
-        return a.eatByParsed.getTime() - b.eatByParsed.getTime()
-      })
-  }, [rows, warnDays])
+  const fefoRows = useMemo<FefoRow[]>(() => rows ?? [], [rows])
 
   const filtered = useMemo(
     () => fefoRows.filter((r) => (!warehouseFilter || r.warehouse === warehouseFilter) && (!statusFilter || r.status === statusFilter) && matchesSearch(r, search)),
@@ -157,11 +118,21 @@ export function FefoExpiryDashboardPage() {
   const { sorted, sort, toggleSort } = useSortableRows<FefoRow, SortKey>(filtered, sortValue)
   const pageRows = sorted.slice((page - 1) * perPage, page * perPage)
 
-  const expiredLots = fefoRows.filter((r) => r.status === 'Expired')
-  const expiringSoon = fefoRows.filter((r) => r.status === 'Expiring Soon')
-  const noDate = fefoRows.filter((r) => r.status === 'No Date')
-  const expiredUnits = expiredLots.reduce((sum, r) => sum + r.physicalStock, 0)
-  const expiringUnits = expiringSoon.reduce((sum, r) => sum + r.physicalStock, 0)
+  const counters = data?.counters
+  const expiredLots = counters?.expiredLots ?? 0
+  const expiringSoon = counters?.expiringLots ?? 0
+  const noDate = counters?.noExpiryLots ?? 0
+  const expiredUnits = counters?.expiredQty ?? 0
+  const expiringUnits = counters?.expiringQty ?? 0
+
+  function handleWriteOff(r: FefoRow) {
+    if (!r.lotId || !r.warehouseId) return
+    const qty = Number(window.prompt(`Write off how many units of ${r.label} (lot ${r.lotSerial}) from ${r.warehouse}? Up to ${r.qty}.`, String(r.qty)))
+    if (!(qty > 0)) return
+    const reason = window.prompt('Reason for the write-off', 'Expired') ?? ''
+    setWriteOffError('')
+    writeOff.mutate({ lotId: r.lotId, warehouseId: r.warehouseId, qty, reason }, { onError: (e) => setWriteOffError(e instanceof Error ? e.message : 'The write-off failed.') })
+  }
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -178,7 +149,7 @@ export function FefoExpiryDashboardPage() {
       r.label,
       r.lotSerial,
       r.warehouse,
-      r.physicalStock.toFixed(2),
+      r.qty.toFixed(2),
       r.eatByDate || '-',
       r.sellByDate || '-',
       String(r.daysLeft ?? '-'),
@@ -189,26 +160,18 @@ export function FefoExpiryDashboardPage() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <ScanBarcode size={20} className="text-brand" /> FEFO Expiry Dashboard
-          </h2>
-          <p className="text-xs text-text-faint">First Expired First Out — lot tracking, expiry alerts, and write-off</p>
-        </div>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isError && <LegacyErrorCard title="Couldn't load lot expiry data" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-        {isLoading && <LegacyLoadingCard label="Loading real lot/expiry data from the accounting backend…" />}
+        {isLoading && <LegacyLoadingCard label="Loading lot expiry data…" />}
+        {writeOffError && <p role="alert" className="text-sm text-danger">{writeOffError}</p>}
 
         {rows && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard label="Expired Lots" value={String(expiredLots.length)} caption={`${expiredUnits.toFixed(2)} units`} icon={XCircle} tone="danger" />
-              <StatCard label="Expiring Soon" value={String(expiringSoon.length)} caption={`within ${warnDays} days`} icon={AlertTriangle} tone="warning" />
+              <StatCard label="Expired Lots" value={String(expiredLots)} caption={`${expiredUnits.toFixed(2)} units`} icon={XCircle} tone="danger" />
+              <StatCard label="Expiring Soon" value={String(expiringSoon)} caption={`within ${warnDays} days`} icon={AlertTriangle} tone="warning" />
               <StatCard label="Expiring Units" value={expiringUnits.toFixed(2)} caption="need priority pick" icon={ScanBarcode} tone="info" />
-              <StatCard label="No Expiry Date" value={String(noDate.length)} caption="lots missing expiry" icon={HelpCircle} tone="neutral" />
+              <StatCard label="No Expiry Date" value={String(noDate)} caption="lots missing expiry" icon={HelpCircle} tone="neutral" />
             </div>
 
             <Card className="!h-auto">
@@ -296,12 +259,12 @@ export function FefoExpiryDashboardPage() {
                       </tr>
                     ) : (
                       pageRows.map((r, i) => (
-                        <tr key={`${r.ref}-${r.lotSerial}-${i}`} className="border-b border-border hover:bg-surface-hover">
+                        <tr key={r.key} className="border-b border-border hover:bg-surface-hover">
                           <td className="px-3 py-2 text-text-faint">{(page - 1) * perPage + i + 1}</td>
                           <td className="px-3 py-2 text-brand font-medium whitespace-nowrap">{r.label}</td>
                           <td className="px-3 py-2 text-text! font-medium whitespace-nowrap">{r.lotSerial}</td>
                           <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.warehouse}</td>
-                          <td className="px-3 py-2 text-right tabular-nums text-text!">{r.physicalStock.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-text!">{r.qty.toFixed(2)}</td>
                           <td className="px-3 py-2 text-text-faint">-</td>
                           <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.eatByDate || '-'}</td>
                           <td className="px-3 py-2 text-text-muted whitespace-nowrap">{r.sellByDate || '-'}</td>
@@ -313,8 +276,14 @@ export function FefoExpiryDashboardPage() {
                             </span>
                           </td>
                           <td className="px-3 py-2">
-                            <button type="button" disabled title="Not built yet — no real write-off endpoint" className="p-1.5 rounded-md text-text-faint cursor-not-allowed">
-                              <Lock size={13} />
+                            <button
+                              type="button"
+                              disabled={!data?.canWriteOff || !r.lotId || writeOff.isPending}
+                              onClick={() => handleWriteOff(r)}
+                              title={data?.canWriteOff ? 'Write off stock of this lot' : 'You are not allowed to write off stock'}
+                              className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 size={13} />
                             </button>
                           </td>
                         </tr>

@@ -105,6 +105,61 @@ export interface InvoiceSummary {
   currency: string
 }
 
+export interface InvoiceAgendaEvent {
+  id: number
+  ref: string
+  url: string
+  date: string
+  date_end: string
+  owner: string
+  label: string
+  type_code?: string
+  location?: string
+  related_object_ref: string
+  related_object_url: string
+  status_label: string
+  percent: number
+}
+
+export interface InvoiceAgendaData {
+  id: number
+  ref: string
+  created_by: string
+  creation_date: string
+  latest_modification_date: string
+  validated_by: string
+  validation_date: string
+  closing_date?: string
+  events: InvoiceAgendaEvent[]
+}
+
+export interface SalesOverviewData {
+  currency: string
+  period: { start: string; end: string; only_validated: boolean }
+  sales: {
+    invoice_count: number
+    total_ht: number
+    total_ttc: number
+    net_of_refunds_ttc: number
+  }
+  refunds: {
+    count: number
+    total_ht: number
+    total_ttc: number
+    by_month: Array<{ month: string; count: number; total: number }>
+    top_customers: Array<{ id: number; name: string; count: number; total: number }>
+  }
+  top_products: Array<{
+    product_id: number
+    ref: string
+    label: string
+    qty: number
+    total_ht: number
+    total_ttc: number
+    invoice_count: number
+  }>
+}
+
 export interface ProductPrice {
   product_id: number
   product_ref: string
@@ -176,10 +231,90 @@ export async function fetchInvoiceSummary(socid?: number): Promise<InvoiceSummar
   return res.data.data
 }
 
+export async function fetchInvoiceAgenda(id: number): Promise<InvoiceAgendaData> {
+  const res = await fapi.get<FapiSuccess<InvoiceAgendaData>>('/compta/facture/fapi/agenda.php', { params: { id } })
+  return res.data.data
+}
+
+export interface SalesOverviewParams {
+  year?: number
+  date_start?: string
+  date_end?: string
+  socid?: number
+  limit?: number
+  only_validated?: number
+}
+
+export async function fetchSalesOverview(params: SalesOverviewParams = {}): Promise<SalesOverviewData> {
+  const res = await fapi.get<FapiSuccess<SalesOverviewData>>('/compta/facture/fapi/sales_overview.php', { params })
+  return res.data.data
+}
+
 export async function fetchProductPrice(productId: number, socid: number, qty = 1, fkUnit?: number): Promise<ProductPrice> {
   const res = await fapi.get<FapiSuccess<ProductPrice>>('/compta/facture/fapi/product-price.php', {
     params: { product_id: productId, socid, qty, fk_unit: fkUnit },
   })
+  return res.data.data
+}
+
+export interface InvoiceIncoterm {
+  value: string
+  code: string
+  label: string
+  description: string
+}
+
+export interface InvoiceIncotermsData {
+  enabled: boolean
+  incoterms: InvoiceIncoterm[]
+  count: number
+  // Only present with ?id= — the invoice's saved incoterm.
+  selected: { fk_incoterms: number; code: string; location_incoterms: string } | null
+}
+
+// Replaces select[name="incoterm_id"] on compta/facture/card.php. `enabled` is
+// false when the incoterm module is off (the classic form then omits the field).
+export async function fetchInvoiceIncoterms(id?: number): Promise<InvoiceIncotermsData> {
+  const res = await fapi.get<FapiSuccess<InvoiceIncotermsData>>('/compta/facture/fapi/incoterms.php', { params: id ? { id } : {} })
+  return res.data.data
+}
+
+export interface InvoiceDocumentModelsData {
+  models: Array<{ value: string; label: string; description: string }>
+  count: number
+  default_model: string
+  default_by_type: Record<string, string>
+  languages: Array<{ value: string; label: string }>
+  default_language: string
+  // Only present with ?id= — the invoice's saved template.
+  selected: { model_pdf: string; type: number; from_default: boolean } | null
+  // Added 15 Oct 2026: the invoice types this install offers (standard always; Lpo = 6 and
+  // Export = 7 only when the ZRA module is on or ZRA_Tpin is set, as the classic card's radios).
+  invoice_types?: Array<{ value: number; code: string; label: string; hidden_for_credit_note: boolean }>
+}
+
+// Replaces select[name="model"] on compta/facture/card.php.
+export async function fetchInvoiceDocumentModels(id?: number): Promise<InvoiceDocumentModelsData> {
+  const res = await fapi.get<FapiSuccess<InvoiceDocumentModelsData>>('/compta/facture/fapi/document_models.php', { params: id ? { id } : {} })
+  return res.data.data
+}
+
+// compta/facture/fapi/form_settings.php: the install-level settings the draft invoice
+// screen used to read out of 1.4-1.7 MB of compta/sales/card.php HTML.
+export interface InvoiceFormSettings {
+  debit_note_enabled: number
+  default_warehouse_id: number
+  default_warehouse: { id: number; ref: string; label: string; location: string } | null
+  cond_options: Array<{ id: number; code: string; label: string; days: number }>
+  mode_options: Array<{ id: number; code: string; label: string; type: number }>
+  bank_options: Array<{ id: number; ref: string; label: string; currency: string; type: number }>
+  backdate_days: number
+  currency: string
+}
+
+export async function fetchInvoiceFormSettings(): Promise<InvoiceFormSettings> {
+  const res = await fapi.get<FapiSuccess<InvoiceFormSettings>>('/compta/facture/fapi/form_settings.php')
+  if (typeof res.data !== 'object' || res.data === null) throw new Error('Invoice form settings are not available on this backend.')
   return res.data.data
 }
 
@@ -275,4 +410,35 @@ export async function deleteInvoiceLine(invoiceId: number, lineId: number): Prom
     { id: invoiceId, action: 'delete', line_id: lineId },
   )
   return res.data.data
+}
+
+// compta/facture/fapi/create_from_orders.php: bill a customer's orders, one invoice per
+// customer (Facture::createFromOrder). Every order is checked before anything is written;
+// one bad order means nothing is billed (422 with the reason per order). At most 100 orders.
+export interface BilledInvoice {
+  id: number
+  ref: string
+  socid: number
+  third_party_name: string
+  order_ids: number[]
+  order_refs: string[]
+  total_ht: number
+  total_ttc: number
+  status: number
+  validated: boolean
+}
+
+export async function createInvoicesFromOrders(input: {
+  order_ids: number[]
+  validate?: 0 | 1
+  classify_orders_billed?: 0 | 1
+  warehouse_id?: number
+}): Promise<{ invoices: BilledInvoice[]; orders_classified: number[] }> {
+  const res = await fapi.post<FapiSuccess<{ invoices: BilledInvoice[]; orders_classified: number[] }>>('/compta/facture/fapi/create_from_orders.php', input, { validateStatus: () => true })
+  const body = res.data as unknown as { success?: boolean; message?: string | null; errors?: unknown; data?: { invoices: BilledInvoice[]; orders_classified: number[] } }
+  if (!body?.success) {
+    const detail = Array.isArray(body?.errors) ? body.errors.map((e) => (typeof e === 'string' ? e : JSON.stringify(e))).join('; ') : ''
+    throw new Error([body?.message, detail].filter(Boolean).join(' - ') || 'The orders could not be billed.')
+  }
+  return body.data ?? { invoices: [], orders_classified: [] }
 }

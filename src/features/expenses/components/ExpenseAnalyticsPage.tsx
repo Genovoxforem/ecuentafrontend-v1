@@ -66,11 +66,11 @@ export function ExpenseAnalyticsPage() {
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border, #e5e7eb)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="amount" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={84} tickFormatter={(v) => money(Number(v), data.currency)} />
-                  <YAxis yAxisId="count" orientation="right" allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="amount" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} width={84} tickFormatter={(v) => money(Number(v), data.currency)} />
+                  <YAxis yAxisId="count" orientation="right" allowDecimals={false} tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} width={32} />
                   <Tooltip formatter={(v, name) => (name === 'Total TTC' ? money(Number(v), data.currency, true) : String(v))} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Legend wrapperStyle={{ fontSize: 11.55 }} />
                   <Bar yAxisId="amount" dataKey="amount" name="Total TTC" fill="#397db9" radius={[4, 4, 0, 0]} maxBarSize={48} />
                   <Line yAxisId="count" dataKey="count" name="Expenses" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
                 </ComposedChart>
@@ -89,7 +89,7 @@ export function ExpenseAnalyticsPage() {
                       ))}
                     </Pie>
                     <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
-                    <Legend verticalAlign="bottom" iconType="circle" itemSorter={null} wrapperStyle={{ fontSize: 11 }} />
+                    <Legend verticalAlign="bottom" iconType="circle" itemSorter={null} wrapperStyle={{ fontSize: 11.55 }} />
                   </PieChart>
                 </ResponsiveContainer>
               )}
@@ -104,8 +104,8 @@ export function ExpenseAnalyticsPage() {
                 <ResponsiveContainer width="100%" height={Math.max(160, data.employees.length * 34 + 40)}>
                   <BarChart data={data.employees} layout="vertical" margin={{ left: 16 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border, #e5e7eb)" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => money(Number(v), data.currency)} />
-                    <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                    <XAxis type="number" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} tickFormatter={(v) => money(Number(v), data.currency)} />
+                    <YAxis type="category" dataKey="label" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} width={110} />
                     <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
                     <Bar dataKey="amount" name="Total TTC" fill="#397db9" radius={[0, 4, 4, 0]} maxBarSize={22} />
                   </BarChart>
@@ -120,8 +120,8 @@ export function ExpenseAnalyticsPage() {
                 <ResponsiveContainer width="100%" height={Math.max(160, data.departments.length * 34 + 40)}>
                   <BarChart data={data.departments} layout="vertical" margin={{ left: 16 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border, #e5e7eb)" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => money(Number(v), data.currency)} />
-                    <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                    <XAxis type="number" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} tickFormatter={(v) => money(Number(v), data.currency)} />
+                    <YAxis type="category" dataKey="label" tick={{ fontSize: 11.55 }} axisLine={false} tickLine={false} width={110} />
                     <Tooltip formatter={(v) => money(Number(v), data.currency, true)} />
                     <Bar dataKey="amount" name="Total TTC" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={22} />
                   </BarChart>

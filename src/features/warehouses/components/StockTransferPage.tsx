@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Shuffle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { useProductOptions, useProductStockOverview, useTransferStock } from '../../products/products.queries'
 import { useWarehouses } from '../warehouseExtras.queries'
 import { StockMovementsListPage } from './StockMovementsListPage'
@@ -82,83 +83,79 @@ export function StockTransferPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Shuffle size={20} className="text-brand" /> Stock transfer
-      </h2>
-
-      <Card className="!h-auto">
-        {error && (
-          <p role="alert" className="text-sm font-medium text-danger mb-3">
-            {error}
-          </p>
-        )}
-        {saved && (
-          <p role="status" className="text-sm font-medium text-success mb-3">
-            {saved}
-          </p>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3">
-          <Field label="Warehouse" required>
-            <select value={warehouseFrom} onChange={(e) => setWarehouseFrom(e.target.value)} className={selectCls}>
-              <option value="">Select a warehouse</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={String(w.id)}>
-                  {w.shortName || w.ref}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Product" required>
-            <select value={productId} onChange={(e) => setProductId(e.target.value)} className={selectCls}>
-              <option value="">Select Predefined Product/services</option>
-              {(products ?? [])
-                .filter((p) => p.type === 'product')
-                .map((p) => (
-                  <option key={p.id} value={String(p.id)}>
-                    {p.ref} — {p.label}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Target warehouse" required>
-            <select value={warehouseTo} onChange={(e) => setWarehouseTo(e.target.value)} className={selectCls}>
-              <option value="">Select a warehouse</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={String(w.id)}>
-                  {w.shortName || w.ref}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Number of units" required>
-            <input type="number" min={1} value={units} onChange={(e) => setUnits(e.target.value)} className={inputCls} />
-          </Field>
-          {hasBatch && (
-            <Field label="Lot/Serial number" required>
-              <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="e.g. LOT-001" className={inputCls} />
-            </Field>
-          )}
-          <Field label="Label of movement">
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Stock transfer of product into another warehouse" className={inputCls} />
-          </Field>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
+    <div className="-m-6 flex flex-1 min-h-0 flex-col">
+      <div className="flex shrink-0 flex-col gap-4 px-6 pt-4">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <Shuffle size={20} className="text-brand" /> Stock transfer
+        </h2>
+        <InBanner>
           <button type="button" onClick={handleCancel} className="rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={transferStock.isPending}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-          >
+          <button type="button" onClick={handleSave} disabled={transferStock.isPending} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
             {transferStock.isPending ? 'Saving…' : 'Save'}
           </button>
-        </div>
-      </Card>
+        </InBanner>
 
+        <Card className="!h-auto shrink-0">
+          {error && (
+            <p role="alert" className="text-sm font-medium text-danger mb-3">
+              {error}
+            </p>
+          )}
+          {saved && (
+            <p role="status" className="text-sm font-medium text-success mb-3">
+              {saved}
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-x-4 gap-y-3">
+            <Field label="Warehouse" required>
+              <select value={warehouseFrom} onChange={(e) => setWarehouseFrom(e.target.value)} className={selectCls}>
+                <option value="">Select a warehouse</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={String(w.id)}>
+                    {w.shortName || w.ref}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Product" required>
+              <select value={productId} onChange={(e) => setProductId(e.target.value)} className={selectCls}>
+                <option value="">Select Predefined Product/services</option>
+                {(products ?? [])
+                  .filter((p) => p.type === 'product')
+                  .map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.ref} — {p.label}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            <Field label="Target warehouse" required>
+              <select value={warehouseTo} onChange={(e) => setWarehouseTo(e.target.value)} className={selectCls}>
+                <option value="">Select a warehouse</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={String(w.id)}>
+                    {w.shortName || w.ref}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Number of units" required>
+              <input type="number" min={1} value={units} onChange={(e) => setUnits(e.target.value)} className={inputCls} />
+            </Field>
+            {hasBatch && (
+              <Field label="Lot/Serial number" required>
+                <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="e.g. LOT-001" className={inputCls} />
+              </Field>
+            )}
+            <Field label="Label of movement">
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Stock transfer of product into another warehouse" className={inputCls} />
+            </Field>
+          </div>
+        </Card>
+
+      </div>
       <StockMovementsListPage embedded />
     </div>
   )

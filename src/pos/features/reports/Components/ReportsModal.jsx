@@ -492,7 +492,7 @@ function ReportsModal({ open, onClose }) {
     return (
         <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2">
             <div className="w-[89vw] h-[88vh] flex flex-col overflow-hidden rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xl">
-                <div className="shrink-0 flex items-center justify-between px-5 py-1.5 bg-[#2c6291] rounded-t-xl text-white">
+                <div className="shrink-0 flex items-center justify-between px-5 py-1.5 bg-[#2f6fe4] rounded-t-xl text-white">
                     <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
                             <BarChart3 size={16} />
@@ -531,7 +531,7 @@ function ReportsModal({ open, onClose }) {
                             type="button"
                             onClick={handleApplyFilter}
                             disabled={isFetching}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold text-white bg-[#397db9] hover:bg-[#2c6291] disabled:opacity-70 disabled:cursor-wait"
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4] disabled:opacity-70 disabled:cursor-wait"
                         >
                             {isFetching ? <Loader2 size={14} className="animate-spin" /> : <Filter size={14} />}
                             {isFetching ? "Applying..." : "Apply Filter"}
@@ -581,7 +581,7 @@ function ReportsModal({ open, onClose }) {
                                                 className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 shadow-sm px-3 py-2"
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    <div className="w-8 h-8 shrink-0 rounded-lg bg-[#397db9] text-white flex items-center justify-center">
+                                                    <div className="w-8 h-8 shrink-0 rounded-lg bg-[#3b82f6] text-white flex items-center justify-center">
                                                         <Icon size={15} />
                                                     </div>
                                                     <span className="text-xs font-semibold truncate">{p.label}</span>
@@ -812,7 +812,7 @@ function ReportsModal({ open, onClose }) {
                                             >
                                                 <ChevronLeft size={12} />
                                             </button>
-                                            <span className="w-7 h-6 flex items-center justify-center rounded bg-[#2c6291] text-white font-semibold">
+                                            <span className="w-7 h-6 flex items-center justify-center rounded bg-[#2f6fe4] text-white font-semibold">
                                                 {safePage}
                                             </span>
                                             <button
@@ -951,7 +951,7 @@ function ReportsModal({ open, onClose }) {
                                 <button
                                     type="button"
                                     onClick={() => printReceipt(previewReceipt, { thermalWidth })}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#397db9] hover:bg-[#2c6291]"
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4]"
                                 >
                                     <Printer size={14} />
                                     Print Receipt

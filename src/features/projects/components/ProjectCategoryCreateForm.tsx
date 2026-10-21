@@ -66,7 +66,7 @@ export function ProjectCategoryCreateForm() {
       {saved && <Card className="!h-auto !bg-success-bg border-success/40 text-success-fg text-sm font-medium">Category created.</Card>}
 
       <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-medium text-text-faint mb-1">Ref.*</label>
             <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />

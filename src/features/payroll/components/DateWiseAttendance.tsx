@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CalendarCheck, History, RotateCcw, Search, Users, UserCheck, UserX, Clock, CalendarDays, Loader2, X } from 'lucide-react'
+import { History, RotateCcw, Search, Users, UserCheck, UserX, Clock, CalendarDays, Loader2, X } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -168,15 +168,6 @@ export function DateWiseAttendance() {
     // only the table below scrolls instead of the whole page.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
       <div className="sticky -top-6 z-10 -mx-6 space-y-3 border-b border-border bg-white px-6 pt-6 pb-4 dark:bg-gray-950">
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-brand/10 text-brand">
-            <CalendarCheck size={22} />
-          </span>
-          <div>
-            <h2 className="text-lg font-bold text-text!">Payroll - Attendance Report</h2>
-            <p className="text-xs text-text-faint mt-0.5">View and manage employee attendance, leaves and working hours.</p>
-          </div>
-        </div>
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-sm text-text-muted mb-1">Date</label>

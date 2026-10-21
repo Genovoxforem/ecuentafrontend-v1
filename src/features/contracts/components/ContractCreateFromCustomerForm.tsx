@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { FileEdit, Check, X, LoaderCircle } from 'lucide-react'
+import { Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { api } from '../../../api/axios'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -51,7 +51,7 @@ function useProjectOptions() {
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+export function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="text-sm text-text">
@@ -69,7 +69,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // the one currently logged in. Renders as a removable chip once a user is
 // picked (click the X to clear and search again), same visual as the
 // reference's own selected-rep chips.
-function RepField({
+export function RepField({
   label,
   required,
   userId,
@@ -189,11 +189,7 @@ export function ContractCreateFromCustomerForm() {
 
   return (
     <StickyFormShell
-      header={
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <FileEdit size={20} className="text-brand" /> New Contract
-        </h2>
-      }
+      header={<></>}
       footerLeft={
         <Link to={backLink} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
           <X size={14} /> Cancel

@@ -1,5 +1,6 @@
 import { FolderOpen, BarChart2, CalendarDays, TrendingUp, FileText, FileSignature, ShoppingCart, FileBadge2, User, Banknote, Receipt, Calculator } from 'lucide-react'
 import { ROUTES } from '../../../routes'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { SectionHeading, StatCard, TodayStatCard, InvoiceStatusChart, InvoiceStatusTable, TopProductsTable, fmtZMW, fmtLongDate } from '../../../shared/components/dashboard/DashboardKit'
 import type { SalesSummary } from '../billing.queries'
 
@@ -8,11 +9,18 @@ export function SalesOverview({ summary }: { summary: SalesSummary }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <FolderOpen size={20} className="text-brand" /> Customer billing area
-      </h2>
+      {/* Shown in the page banner (in themes without a banner it stays here, above the cards). */}
+      <InBanner>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+          <span className="flex items-center gap-2 text-sm font-bold text-text!">
+            <FolderOpen size={16} className="text-brand" /> Customer billing area
+          </span>
+          <span className="flex items-center gap-2 text-sm font-semibold text-text-muted">
+            <BarChart2 size={16} className="text-brand" /> Overall Statistics
+          </span>
+        </div>
+      </InBanner>
 
-      <SectionHeading icon={BarChart2}>Overall Statistics</SectionHeading>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard
           label="Sales Invoices"

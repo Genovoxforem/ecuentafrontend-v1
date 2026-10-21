@@ -64,7 +64,7 @@ function EntitySelect({
                                     onClick={() => handleSelect(option)}
                                     className={`px-3 py-2.5 text-sm cursor-pointer ${
                                         isSelected
-                                            ? "bg-[#397db9] text-white font-semibold"
+                                            ? "bg-[#3b82f6] text-white font-semibold"
                                             : "text-gray-700 hover:bg-gray-100"
                                     }`}
                                 >

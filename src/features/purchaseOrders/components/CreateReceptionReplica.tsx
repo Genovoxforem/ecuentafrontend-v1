@@ -1,34 +1,26 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { PackageCheck } from 'lucide-react'
-import { DisabledFormPage } from '../../../shared/components/forms/DisabledFormPage'
+import { ROUTES } from '../../../routes'
 import { usePurchaseOrderCard } from '../purchaseOrderDetail.queries'
+import { ReceiveGoodsForm } from './ReceiveGoodsForm'
 
-// Native replacement for linking out to fourn/commande/dispatch.php?id=X —
-// no JSON API (confirmed by reading the PHP source directly) and no
-// native "receiving" module exists elsewhere in this app yet. Fields below
-// match the real dispatch form's per-line receiving grid.
+// Create Reception: the per-line receiving grid of fourn/commande/dispatch.php, on
+// fourn/commande/fapi/dispatch.php.
 export function CreateReceptionReplica() {
   const { id } = useParams<{ id: string }>()
   const { data } = usePurchaseOrderCard(id)
 
   return (
-    <DisabledFormPage
-      icon={PackageCheck}
-      title={`Create Reception${data?.ref ? ` — ${data.ref}` : ''}`}
-      sourcePath={`fourn/commande/dispatch.php?id=${id}`}
-      sections={[
-        { heading: 'Reception', fields: [{ label: 'Warehouse', type: 'select', required: true }, { label: 'Date', type: 'date' }, { label: 'Comment', type: 'textarea' }] },
-        {
-          heading: 'Lines to receive',
-          fields: [
-            { label: 'Product' },
-            { label: 'Qty Ordered' },
-            { label: 'Qty Already Dispatched' },
-            { label: 'Qty To Dispatch', required: true },
-            { label: 'Buying Price' },
-          ],
-        },
-      ]}
-    />
+    <div className="flex-1 flex flex-col min-h-0 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
+          <PackageCheck size={20} className="text-brand" /> Create Reception{data?.ref ? ` — ${data.ref}` : ''}
+        </h2>
+        <Link to={ROUTES.purchaseOrderDetail.replace(':id', id ?? '')} className="text-sm font-medium text-brand hover:underline">
+          Back to order
+        </Link>
+      </div>
+      {id && <ReceiveGoodsForm id={id} />}
+    </div>
   )
 }

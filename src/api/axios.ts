@@ -77,13 +77,11 @@ export function notifyUnauthorized() {
   onUnauthorized?.()
 }
 
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      setStoredToken(null)
-      onUnauthorized?.()
-    } else if (axios.isAxiosError(error) && !error.response) {
+function handleApiError(error: unknown) {
+  if (axios.isAxiosError(error) && error.response?.status === 401) {
+    setStoredToken(null)
+    onUnauthorized?.()
+  } else if (axios.isAxiosError(error) && !error.response) {
       // The browser never got a response at all — this is either a real
       // network failure, or the request was genuinely cross-origin and got
       // CORS-blocked before reaching this code. Confirmed live against the
@@ -106,7 +104,9 @@ api.interceptors.response.use(
       // bare, unexplained "Network Error".
       error.message =
         'Unable to reach the server — this may be a network issue, or a request went directly to a remote backend instead of through the app\'s same-origin proxy (check VITE_BACKEND_URL and that requests use relative /api paths).'
-    }
-    return Promise.reject(error)
-  },
-)
+  }
+  return Promise.reject(error)
+}
+
+api.interceptors.response.use((response) => response, handleApiError)
+fapi.interceptors.response.use((response) => response, handleApiError)

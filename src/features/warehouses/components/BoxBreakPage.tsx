@@ -15,7 +15,6 @@ import {
   Download,
   Printer,
   Tag,
-  Info,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -85,23 +84,21 @@ function ErrorBanner({ message }: { message: string }) {
 function KpiCards() {
   const { data: history, isLoading } = useBoxBreakHistory({})
   const kpi = history?.kpi
+  const tiles: [string, number | undefined][] = [
+    ['Breaks (30 days)', kpi?.total_breaks],
+    ['Boxes broken (30d)', kpi?.total_boxes],
+    ['Units created (30d)', kpi?.total_units],
+  ]
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <Card className="!p-4">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Breaks (30 Days)</p>
-        <p className="text-xl font-bold text-text! mt-1">{isLoading ? <Loader2 size={18} className="animate-spin" /> : (kpi?.total_breaks ?? 0)}</p>
-        <p className="text-xs text-text-faint mt-0.5">total breaks</p>
-      </Card>
-      <Card className="!p-4">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Boxes Broken (30d)</p>
-        <p className="text-xl font-bold text-text! mt-1">{isLoading ? <Loader2 size={18} className="animate-spin" /> : (kpi?.total_boxes ?? 0)}</p>
-        <p className="text-xs text-text-faint mt-0.5">packs processed</p>
-      </Card>
-      <Card className="!p-4">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Units Created (30d)</p>
-        <p className="text-xl font-bold text-text! mt-1">{isLoading ? <Loader2 size={18} className="animate-spin" /> : (kpi?.total_units ?? 0)}</p>
-        <p className="text-xs text-text-faint mt-0.5">individual units</p>
-      </Card>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {tiles.map(([label, value]) => (
+        <Card key={label} className="!h-auto !px-4 !py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
+            <p className="text-xl font-bold text-text!">{isLoading ? <Loader2 size={18} className="animate-spin" /> : (value ?? 0)}</p>
+          </div>
+        </Card>
+      ))}
     </div>
   )
 }
@@ -346,7 +343,7 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
 
   return (
     <Card className="!h-auto">
-      <h3 className="flex items-center gap-2 text-base font-semibold text-text! mb-4">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-text! mb-3">
         <Wrench size={16} className="text-brand" /> Perform Box Break
       </h3>
 
@@ -366,7 +363,7 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-x-4 gap-y-3">
         <div>
           <label className="block text-sm mb-1 text-danger">Product*</label>
           <SearchableSelect
@@ -427,7 +424,6 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
             placeholder="auto-filled from UOM"
             className={inputCls + ' w-full'}
           />
-          <p className="text-[11px] text-text-faint mt-1">Auto-filled from the selected UOM — override if this pack's actual count differs.</p>
         </div>
         <div>
           <label className="block text-sm mb-1 text-danger">How many boxes to break*</label>
@@ -456,16 +452,31 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
           </datalist>
           {(lots?.some((l) => l.urgent)) && <p className="text-[11px] text-warning-fg mt-1">FEFO: oldest lot expires within 30 days — consider using it first.</p>}
         </div>
-        <div className="sm:col-span-2 xl:col-span-4">
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div className="min-w-[260px] flex-1">
           <label className="block text-sm mb-1 text-text-muted">Note</label>
           <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Optional reason / reference" className={inputCls + ' w-full'} />
         </div>
+        <label className="flex h-9 items-center gap-2 text-sm text-text!" title="Chain through intermediate UOMs (e.g. PALLET → BOX → UNIT in one step)">
+          <input type="checkbox" checked={form.cascade} onChange={(e) => setForm((f) => ({ ...f, cascade: e.target.checked }))} className="text-brand focus:ring-brand/30" />
+          <span className="font-semibold">Cascade break</span>
+        </label>
+        <div className="flex gap-2">
+          <button type="button" onClick={handleBreak} disabled={!readyToSubmit || doBreak.isPending} className="flex h-9 items-center gap-1.5 rounded-lg bg-brand px-4 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
+            {doBreak.isPending ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />} Perform Box Break
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveTemplate}
+            disabled={!readyToSubmit || saveTemplate.isPending}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-4 text-sm font-medium text-text-muted hover:bg-surface-hover disabled:opacity-50"
+          >
+            <Star size={14} /> Save as Template
+          </button>
+        </div>
       </div>
-
-      <label className="flex items-center gap-2 mt-3 text-sm text-text!">
-        <input type="checkbox" checked={form.cascade} onChange={(e) => setForm((f) => ({ ...f, cascade: e.target.checked }))} className="text-brand focus:ring-brand/30" />
-        <span className="font-semibold">Cascade Break</span> — chain through intermediate UOMs (e.g. PALLET → BOX → UNIT in one step)
-      </label>
 
       {doBreak.isError && (
         <div className="mt-3">
@@ -493,19 +504,6 @@ function PerformBreakForm({ prefill, onDone }: { prefill: { productId: number; w
         </div>
       )}
 
-      <div className="flex gap-2 mt-4">
-        <button type="button" onClick={handleBreak} disabled={!readyToSubmit || doBreak.isPending} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
-          {doBreak.isPending ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />} Perform Box Break
-        </button>
-        <button
-          type="button"
-          onClick={handleSaveTemplate}
-          disabled={!readyToSubmit || saveTemplate.isPending}
-          className="flex items-center gap-1.5 rounded-lg border border-input-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover disabled:opacity-50"
-        >
-          <Star size={14} /> Save as Template
-        </button>
-      </div>
     </Card>
   )
 }
@@ -697,7 +695,7 @@ function TrendCard() {
 
   return (
     <Card className="!h-auto">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="flex items-center gap-2 text-base font-semibold text-text!">
           <Layers size={16} className="text-brand" /> Break Trend
         </h3>
@@ -717,7 +715,7 @@ function TrendCard() {
       {isLoading ? (
         <Loader2 size={16} className="animate-spin text-brand" />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-text-faint italic py-6 text-center">No breaks recorded in this window.</p>
+        <p className="text-sm text-text-faint italic">No breaks recorded in this window.</p>
       ) : (
         <div className="flex items-end gap-1 h-28">
           {rows.map((r) => (
@@ -735,15 +733,10 @@ export function BoxBreakPage() {
   const [prefill, setPrefill] = useState<{ productId: number; warehouseId: number } | null>(null)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
         <Box size={20} className="text-brand" /> Box Break
       </h2>
-
-      <div className="flex items-start gap-2 rounded-md bg-info-bg/40 px-3 py-2 text-xs text-info-fg">
-        <Info size={14} className="mt-0.5 shrink-0" />
-        Backed by the real UOM Box Break API — every field below (stock, UOM chain, FEFO lots, history, approvals) is live data from this backend.
-      </div>
 
       <KpiCards />
       <PendingApprovalsCard />

@@ -18,19 +18,18 @@ import {
   FileText,
   Clock,
   RefreshCw,
-  Mail,
   Package,
   ClipboardCheck,
   Tags,
 } from 'lucide-react'
-import { Card, DetailMetricTile } from '../../../shared/components/dashboard/DashboardKit'
+import { Card, DetailMetricRow, DetailMetricTile, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
+import { useTheme } from '../../../context/ThemeContext'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useInventoryDetail, useDeleteInventoryReal, useSetInventoryToDraftReal } from '../warehouseExtras.queries'
+import { useInventoryDetail, useDeleteInventoryReal, useSetInventoryToDraftReal, useValidateInventory } from '../warehouseExtras.queries'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { AddEventModal } from '../../agenda/components/AddEventModal'
-import { SendInventoryEmailModal } from './SendInventoryEmailModal'
 import { InventoryCountLines } from './InventoryCountLines'
 
 // Native rebuild of product/inventory/card.php?id=X — see
@@ -72,12 +71,14 @@ function ActionIconLink({ href, icon: Icon, label }: { href: string; icon: typeo
 export function InventoryDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { theme } = useTheme()
+  const isBlueMetal = theme === 'blue-metal'
   const { data, isLoading, isError, error, refetch } = useInventoryDetail(id)
   const [tab, setTab] = useState<'card' | 'inventory'>('card')
   const [showAddEvent, setShowAddEvent] = useState(false)
-  const [showSendEmail, setShowSendEmail] = useState(false)
   const deleteInventory = useDeleteInventoryReal()
   const setToDraft = useSetInventoryToDraftReal()
+  const validateInventory = useValidateInventory()
   const confirm = useConfirm()
 
   async function handleDelete() {
@@ -107,7 +108,7 @@ export function InventoryDetail() {
     )
   }
 
-  const hasBannerAction = !!(data.emailUrl || data.backToDraftUrl || data.deleteUrl)
+  const hasBannerAction = !!(data.backToDraftUrl || data.deleteUrl)
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
@@ -127,15 +128,19 @@ export function InventoryDetail() {
       <div className="sticky top-0 z-10 -mx-6 pt-4 pb-2 bg-white dark:bg-gray-950">
         <div className="px-6">
           <Card className="!h-auto">
-            <div className="flex flex-wrap items-start justify-between gap-4 p-4 border-b border-border">
+            <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
               <div className="flex items-start gap-4 min-w-[240px] flex-1">
-                <span className="flex items-center justify-center w-16 h-16 rounded-lg bg-brand text-white shrink-0">
+                <span className={`flex items-center justify-center w-16 h-16 bg-brand text-white shrink-0 ${isBlueMetal ? 'rounded-full' : 'rounded-lg'}`}>
                   <ClipboardList size={28} />
                 </span>
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-bold text-text!">{data.label || `Inventory #${data.id}`}</h2>
-                    {data.statusLabel && <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{data.statusLabel}</span>}
+                    {data.statusLabel && (isBlueMetal ? (
+                      <StatusPill tone="brand">{data.statusLabel}</StatusPill>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-medium">{data.statusLabel}</span>
+                    ))}
                   </div>
                   <p className="text-xs text-text-faint">#{data.id}</p>
                   {data.warehouseId && (
@@ -149,13 +154,20 @@ export function InventoryDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {data.emailUrl && (
-                  <button type="button" onClick={() => setShowSendEmail(true)} title="Send Email" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
-                    <Send size={16} />
-                  </button>
-                )}
                 <ActionIconLink href={data.modifyUrl} icon={Pencil} label="Modify" />
-                <ActionIconLink href={data.validateUrl} icon={CheckCircle2} label="Validate" />
+                {data.validateUrl === 'validate' ? (
+                  <button
+                    type="button"
+                    disabled={validateInventory.isPending}
+                    onClick={() => id && validateInventory.mutate(id)}
+                    title="Validate"
+                    className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text disabled:opacity-50"
+                  >
+                    {validateInventory.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  </button>
+                ) : (
+                  <ActionIconLink href={data.validateUrl} icon={CheckCircle2} label="Validate" />
+                )}
                 {data.backToDraftUrl && (
                   <button
                     type="button"
@@ -185,9 +197,13 @@ export function InventoryDetail() {
               </div>
             </div>
 
-            {(setToDraft.isError || deleteInventory.isError) && (
+            {(setToDraft.isError || deleteInventory.isError || validateInventory.isError) && (
               <p className="px-4 pt-3 text-xs text-danger">
-                {setToDraft.isError
+                {validateInventory.isError
+                  ? validateInventory.error instanceof Error
+                    ? validateInventory.error.message
+                    : 'Could not validate this inventory.'
+                  : setToDraft.isError
                   ? setToDraft.error instanceof Error
                     ? setToDraft.error.message
                     : 'Could not set this inventory back to draft.'
@@ -197,11 +213,11 @@ export function InventoryDetail() {
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-b border-border">
-              <DetailMetricTile label="Label" value={data.label || '—'} icon={Tags} />
-              <DetailMetricTile label="Product" value={data.productLabel || '—'} icon={Package} />
-              <DetailMetricTile label="Value Date" value={data.valueDate || '—'} icon={CalendarDays} />
-            </div>
+            <DetailMetricRow className="px-4 py-3 border-b border-border">
+              <DetailMetricTile label="Label" value={data.label || '—'} icon={Tags} color="violet" sparkline={false} />
+              <DetailMetricTile label="Product" value={data.productLabel || '—'} icon={Package} color="green" sparkline={false} />
+              <DetailMetricTile label="Value Date" value={data.valueDate || '—'} icon={CalendarDays} color="blue" sparkline={false} />
+            </DetailMetricRow>
 
             <div className="border-t border-border px-3 py-2.5">
               <div className="flex items-center gap-1 bg-surface rounded-full p-1 w-fit">
@@ -226,7 +242,6 @@ export function InventoryDetail() {
             </div>
           </Card>
         </div>
-        {showSendEmail && <SendInventoryEmailModal id={id!} inventoryLabel={data.label || `Inventory #${data.id}`} onClose={() => setShowSendEmail(false)} />}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
@@ -238,15 +253,6 @@ export function InventoryDetail() {
           <Card className="!h-auto !p-0 overflow-hidden bg-gradient-to-r from-brand/5 to-transparent">
             <div className="flex flex-wrap items-center justify-between gap-6 p-5">
               <div className="flex flex-wrap items-center gap-3">
-                {data.emailUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSendEmail(true)}
-                    className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
-                  >
-                    <Mail size={16} /> Send Email
-                  </button>
-                )}
                 {data.backToDraftUrl && (
                   <button
                     type="button"

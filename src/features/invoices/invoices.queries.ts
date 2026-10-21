@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '../../api/axios'
-import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
+import { fetchInvoices, type InvoiceListParams, type InvoiceRow as FapiInvoiceRow } from '../../api/invoices'
+import { fapiInvoiceToRow, type InvoiceListLookups } from './invoiceListMapper'
 
 export interface InvoiceRow {
   id: number
@@ -50,102 +51,47 @@ export interface InvoicesSummary {
   rows: InvoiceRow[]
 }
 
-// compta/facture/invoice_ajax_list.php — the classic Sales Invoices list's own
-// DataTables source, and the one endpoint this list reads from. Confirmed live
-// against 172.16.5.10 (492 rows in one POST with length=5000, the same count
-// as the classic screen). It replaces GET /api/invoices/, which runs a query
-// that selects newer columns (f.is_rebate, …) and fails outright on a database
-// that doesn't have them, while this endpoint works everywhere the classic
-// page does.
+// compta/facture/fapi/list.php — the JSON list of sales invoices (the classic
+// screen's own source, compta/facture/invoice_ajax_list.php, returns every cell
+// as HTML, 1.5 MB of it for ~300 invoices). Every field is mapped onto the row
+// the screens render by invoiceListMapper.ts, which was checked against all 294
+// invoices of 172.16.5.10.
 //
-// Its column keys are misnamed but the cells are exactly the classic screen's:
-//   cust_name  = ref link (…facid=<id>)         invoiceno = ZRA invoice no ("-" if none)
-//   currency   = "<date><br><small>Due: …</small>"
-//   typent_code= third-party link (…socid=<id>, avatar initials + name)
-//   cust_type  = "<payment type><br><small>terms</small>"
-//   tot_amount = "<div>total incl. tax</div><small>HT | VAT</small>"
-//   author     = user link      status = badge      zrastatus = badge
-// A row's status badge reads Draft / Not paid / Started (partly paid) / Paid /
-// Abandoned; Not paid and Started are both "validated, still owing".
-type RawAjaxInvoice = Record<string, unknown>
-
-const parse = (html: unknown): Document => new DOMParser().parseFromString(String(html ?? ''), 'text/html')
-const cellText = (html: unknown): string => parse(html).body.textContent?.replace(/\s+/g, ' ').trim() ?? ''
-const firstLine = (html: unknown): string => cellText(String(html ?? '').split(/<br\s*\/?>/i)[0])
-
-// "09/24/2026" (the classic screen's format) -> "2026-09-24" so rows sort and
-// compare as plain strings.
-function toIsoDate(us: string): string {
-  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : us
-}
-
-function statusOf(html: unknown): { status: string; rawStatut: number } {
-  const label = cellText(html).toLowerCase()
-  if (label.startsWith('draft')) return { status: 'Draft', rawStatut: 0 }
-  if (label.startsWith('paid')) return { status: 'Paid', rawStatut: 2 }
-  if (label.startsWith('abandon')) return { status: 'Abandoned', rawStatut: 3 }
-  return { status: 'Unpaid', rawStatut: 1 }
-}
-
-export function parseInvoiceListRow(r: RawAjaxInvoice): InvoiceRow | null {
-  const id = Number(r.id)
-  if (!id) return null
-  const thirdPartyDoc = parse(r.typent_code)
-  const zraDoc = parse(r.zrastatus)
-  const link = thirdPartyDoc.querySelector('a')
-  const socid = Number(new URLSearchParams((link?.getAttribute('href') ?? '').split('?')[1] ?? '').get('socid'))
-  const statusCell = String(r.status ?? '').split(/<br\s*\/?>/i)
-  const { status, rawStatut } = statusOf(statusCell[0])
-  const invoiceNo = cellText(r.invoiceno)
-  const amountDoc = parse(r.tot_amount)
-  const amountLine = amountDoc.querySelector('small')?.textContent ?? ''
-  const authorDoc = parse(r.author)
-  const authorLink = authorDoc.querySelector('a')
-  const dateLine = String(r.currency ?? '').split(/<br\s*\/?>/i)
-  const invoiceDateLabel = firstLine(r.currency)
-  return {
-    id,
-    ref: cellText(r.cust_name),
-    invoiceNo: invoiceNo === '-' ? '' : invoiceNo,
-    invoiceDate: toIsoDate(invoiceDateLabel),
-    invoiceDateLabel,
-    dueDate: cellText(dateLine[1]).replace(/^Due:\s*/i, ''),
-    // The link holds an initials badge plus the name — take the name node.
-    thirdParty: (link?.lastChild?.textContent ?? cellText(r.typent_code)).trim(),
-    socid: socid || null,
-    thirdPartyColor: thirdPartyDoc.querySelector<HTMLElement>('.avatar-circle')?.style.backgroundColor ?? '',
-    city: '',
-    paymentType: firstLine(r.cust_type),
-    amountInclTax: Number((amountDoc.querySelector('div')?.textContent ?? '').replace(/[^0-9.\-]/g, '')) || 0,
-    amountHt: /HT:\s*([^|]*?)\s*(\||$)/.exec(amountLine)?.[1]?.trim() ?? '',
-    vatAmount: /VAT:\s*(.*)$/.exec(amountLine)?.[1]?.trim() ?? '',
-    author: cellText(r.author),
-    authorId: Number(new URLSearchParams((authorLink?.getAttribute('href') ?? '').split('?')[1] ?? '').get('id')) || null,
-    authorPhoto: authorDoc.querySelector('img')?.getAttribute('src') ?? '',
-    status,
-    statusLabel: cellText(statusCell[0]),
-    currency: cellText(statusCell[1]).replace(/^Currency:\s*/i, ''),
-    zraStatus: cellText(r.zrastatus),
-    zraQrUrl: zraDoc.querySelector('a[title="View QR Code"]')?.getAttribute('href') ?? '',
-    // Only invoices that still owe money can take a payment.
-    canRecordPayment: status === 'Unpaid',
-    rawStatut,
+// Credit notes are a separate query (`type=2`): the default list leaves them
+// out, while the classic list shows them with the other invoices.
+async function fetchEveryInvoice(params: InvoiceListParams): Promise<FapiInvoiceRow[]> {
+  const items: FapiInvoiceRow[] = []
+  for (let page = 1; ; page++) {
+    const result = await fetchInvoices({ ...params, page, limit: 1000 })
+    items.push(...result.items)
+    if (result.items.length === 0 || page >= result.pagination.pages) return items
   }
 }
 
-// One POST fetches every row ("fetch once, page/filter client-side", same
+// Payment-type names and user ids/photos are not in the invoice rows. A lookup
+// that fails only blanks that column (payment type) or the author's link and
+// photo — it never fails the list.
+async function fetchListLookups(): Promise<InvoiceListLookups> {
+  const [modes, users] = await Promise.allSettled([
+    api.get<{ success: boolean; results: { id: string | number; text: string }[] }>('/payment_types.php'),
+    axios.get<{ rows?: { id: number; login: string; photo: string }[] }>('/userprofile/api/users.php', { params: { action: 'list', mode: 'all', limit: 500 } }),
+  ])
+  const paymentModes = new Map<number, string>()
+  if (modes.status === 'fulfilled' && modes.value.data.success) for (const m of modes.value.data.results) paymentModes.set(Number(m.id), m.text)
+  const userMap = new Map<string, { id: number; photo: string }>()
+  if (users.status === 'fulfilled' && Array.isArray(users.value.data.rows)) for (const u of users.value.data.rows) userMap.set(String(u.login).toLowerCase(), { id: u.id, photo: u.photo })
+  return { paymentModes, users: userMap }
+}
+
+// One request fetches every row ("fetch once, page/filter client-side", same
 // convention as ThirdPartyList.tsx). Client count is derived from the distinct
 // third parties; Paid / Unpaid are the sums of the paid rows and the
 // validated-but-owing rows — on 172.16.5.10 that gives 113,654.00 and 1,425.00,
 // exactly the classic screen's own cards.
 export async function fetchInvoicesSummary(): Promise<InvoicesSummary> {
-  const body = new URLSearchParams({ draw: '1', start: '0', length: '5000', 'order[0][column]': '2', 'order[0][dir]': 'desc', 'columns[0][data]': 'ref' })
-  const { data: raw } = await axios.post<unknown>('/compta/facture/invoice_ajax_list.php?socid=0&userid=0&search_status=', body)
-  const data = legacyJsonBody<{ aaData?: RawAjaxInvoice[] }>(raw, 'The invoice list')
-  const rows = (data.aaData ?? [])
-    .map(parseInvoiceListRow)
-    .filter((r): r is InvoiceRow => r !== null)
+  const [invoices, creditNotes, lookups] = await Promise.all([fetchEveryInvoice({}), fetchEveryInvoice({ type: 2 }), fetchListLookups()])
+  const rows = [...invoices, ...creditNotes]
+    .map((item) => fapiInvoiceToRow(item, lookups))
     .sort((a, b) => (a.invoiceDate === b.invoiceDate ? b.id - a.id : a.invoiceDate < b.invoiceDate ? 1 : -1))
   const sum = (status: string) => rows.filter((r) => r.status === status).reduce((total, r) => total + r.amountInclTax, 0)
   return {

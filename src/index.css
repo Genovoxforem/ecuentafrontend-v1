@@ -1,10 +1,36 @@
   @import 'tailwindcss';
-@import './theme/tokens.css';
+  @import './theme/tokens.css';
 
-@custom-variant dark (&:where(.dark, .dark *));
+  @custom-variant dark (&:where(.dark, .dark *):not(:where(.pos-light, .pos-light *)));
+
+  @theme {
+    /* Emulates a browser zoom-out of ~24% total (0.8 x 0.9 x 1.05, applied in
+       passes): spacing (p-*, m-*, gap-*, w-*, h-*, etc.) and every
+       --text-* size below are both scaled by the same factor, so text and
+       layout shrink together uniformly like real browser zoom, without
+       using CSS `zoom` itself — zoom breaks every `h-screen`/100vh shell
+       in this app (AppShell, PosLayout, HotelSuiteLayout) because it
+       rescales rendering but not what 100vh resolves to, so those shells
+       render at full window height then get visually shrunk, leaving a
+       blank gap at the bottom of every page instead of filling it. */
+    --spacing: 0.189rem;
+    --text-xs: 0.59535rem;
+    --text-sm: 0.69458rem;
+    --text-base: 0.7938rem;
+    --text-lg: 0.89303rem;
+    --text-xl: 0.99225rem;
+    --text-2xl: 1.1907rem;
+    --text-3xl: 1.48838rem;
+    --text-4xl: 1.78605rem;
+    --text-5xl: 2.3814rem;
+    --text-6xl: 2.97675rem;
+    --text-7xl: 3.5721rem;
+    --text-8xl: 4.7628rem;
+    --text-9xl: 6.3504rem;
+  }
 
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: Poppins, Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -36,36 +62,38 @@ body {
   color: var(--color-text);
 }
 
-html[data-theme='blue-metal'] table thead {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table thead {
   color: var(--color-table-header-text);
   background: linear-gradient(105deg, var(--color-table-header-from), var(--color-table-header-to));
 }
 
-html[data-theme='blue-metal'] table thead tr,
-html[data-theme='blue-metal'] table thead th {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table thead tr,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table thead th {
   color: inherit;
   background-color: transparent;
   border-color: var(--color-table-header-border);
 }
 
-html[data-theme='blue-metal'] table thead th:hover {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table thead th:hover {
   background-color: rgb(255 255 255 / 10%);
 }
 
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] h1,
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] h2[class~='text-lg'][class~='font-bold'],
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] h2[class~='text-lg'][class~='font-semibold'],
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] h2[class~='text-xl'][class~='font-bold'] {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-duplicate-page-title {
   display: none;
 }
 
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] a[href$='/create'],
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] a[href$='/new'] {
+/* What follows a hidden title row must not keep the gap `space-y-*` put under it. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-duplicate-page-title + * {
+  margin-top: 0 !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] a[href$='/create'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] a[href$='/new'] {
   display: none;
 }
 
 /* A page's own title bar whose title and buttons the banner already shows (opt-in). */
-html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] [data-hide-under-banner] {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] [data-hide-under-banner] {
   display: none;
 }
 
@@ -78,34 +106,32 @@ html[data-theme='blue-metal'] #route-page-content[data-list-banner='true'] [data
   display: none;
 }
 
-html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'],
-html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] {
   overflow: hidden;
-  padding: 1rem 1.5rem 0.75rem;
+  padding: 0.6rem 0.9rem 0.45rem;
   border: 1px solid #2879ad;
   border-radius: 0.75rem;
   background-color: #06111d !important;
-  background-image: linear-gradient(90deg, rgba(3, 14, 28, 0.94) 0%, rgba(3, 14, 28, 0.8) 52%, rgba(3, 14, 28, 0.55) 100%), url('/blue-metal-dashboard.jpg');
-  background-size: cover;
-  background-position: center 48%;
+  background-image: linear-gradient(110deg, #102b40 0%, #0b1b2a 65%, #10283a 100%);
 }
 
-html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'] > .bg-surface-alt,
-html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'] > div > .bg-surface-alt,
-html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] > .bg-surface-alt,
-html[data-theme='blue-metal'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] > div > .bg-surface-alt {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'] > .bg-surface-alt,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'] > div > .bg-surface-alt,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] > .bg-surface-alt,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] > div > .bg-surface-alt {
   background-color: rgba(5, 21, 37, 0.56) !important;
   border-color: rgba(164, 215, 255, 0.22) !important;
   box-shadow: 0 8px 26px rgba(0, 8, 18, 0.22);
 }
 
 /* Title row inside the banner (Customer Details draws its own h1 instead). */
-html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='top-0']::before,
-html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4']::before {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='top-0']::before,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4']::before {
   content: var(--detail-title);
   display: block;
   margin-bottom: 0.75rem;
-  font-size: 1.25rem;
+  font-size: 0.99225rem;
   font-weight: 700;
   line-height: 1.75rem;
   color: #fff;
@@ -113,22 +139,22 @@ html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div
 
 /* The old top bar (back link, close, page-name label) duplicates the banner title: drop its label,
    and drop the bar itself when nothing else (e.g. Order's quick search) is left in it. */
-html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='border-b'] span[class~='font-semibold'] {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='border-b'] span[class~='font-semibold'] {
   display: none;
 }
 
-html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='border-b']:not(:has(button)) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='border-b']:not(:has(button)) {
   display: none;
 }
 
 /* Wrappers that pad their card with an inner px-6 get the same inset on the title. */
-html[data-theme='blue-metal'] #route-page-content[data-detail-title] > div > div[class~='sticky']:has(> div[class~='px-6'])::before {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-title] > div > div[class~='sticky']:has(> div[class~='px-6'])::before {
   padding-left: 1.5rem;
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10']:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9']:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8']:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10']:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9']:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8']:has(> svg) {
   --card-icon-start: #31aaff;
   --card-icon-mid: #0875dc;
   --card-icon-end: #073d7d;
@@ -138,71 +164,419 @@ html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][cl
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(0 106 217 / 32%);
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-cyan-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-cyan-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-cyan-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-info-fg:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-info-fg:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-info-fg:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-cyan-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-cyan-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-cyan-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-info-fg:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-info-fg:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-info-fg:has(> svg) {
   --card-icon-start: #42e2f2;
   --card-icon-mid: #028ea4;
   --card-icon-end: #034f61;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(0 190 220 / 28%);
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-emerald-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-emerald-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-emerald-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-success-fg:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-success-fg:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-success-fg:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-emerald-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-emerald-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-emerald-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-success-fg:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-success-fg:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-success-fg:has(> svg) {
   --card-icon-start: #35e8b0;
   --card-icon-mid: #009977;
   --card-icon-end: #075440;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(0 190 139 / 28%);
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-amber-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-amber-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-amber-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-warning-fg:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-warning-fg:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-warning-fg:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-amber-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-amber-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-amber-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-warning-fg:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-warning-fg:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-warning-fg:has(> svg) {
   --card-icon-start: #ffd166;
   --card-icon-mid: #e18400;
   --card-icon-end: #7d3800;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(235 130 0 / 28%);
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-violet-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-violet-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-violet-500:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-violet-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-violet-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-violet-500:has(> svg) {
   --card-icon-start: #c084fc;
   --card-icon-mid: #843ee8;
   --card-icon-end: #3f177a;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(132 62 232 / 32%);
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-rose-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-rose-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-rose-500:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-rose-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-rose-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-rose-500:has(> svg) {
   --card-icon-start: #ff7dbc;
   --card-icon-mid: #d83383;
   --card-icon-end: #6d1746;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(216 51 131 / 32%);
 }
 
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-indigo-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-indigo-500:has(> svg),
-html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-indigo-500:has(> svg) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-10'][class~='h-10'].text-indigo-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-9'][class~='h-9'].text-indigo-500:has(> svg),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) span:not(.pos-app *):is(.rounded-lg, .rounded-xl)[class~='w-8'][class~='h-8'].text-indigo-500:has(> svg) {
   --card-icon-start: #86a5ff;
   --card-icon-mid: #4067e8;
   --card-icon-end: #1d347d;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(64 103 232 / 32%);
 }
 
+/* THE page spacing value. Side padding, top/bottom padding and the gap between cards on every page, the
+   header/footer side gutters and the list wrappers all read this one token - change it here and the whole
+   app's padding follows. */
+:root {
+  --page-gap: 0.5rem;
+  /* Left/right padding. */
+  --page-gap-x: 5px;
+}
+
 #root {
   height: 100%;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .app-card:not([class~='!p-0']) {
+  padding: 4px !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .app-card.blue-compact-card {
+  padding: 4px !important;
+}
+
+/* Excludes `overflow-auto`: a table's own scroll wrapper also happens to
+   carry this exact bg-surface-alt+border-border+rounded-xl combo for its
+   panel look, but giving it padding-top breaks its sticky <thead> — padding
+   is reserved space inside the scrollport, not a scroll-clipping boundary,
+   so scrolled-past rows could still be painted inside that top padding strip
+   and peek out above the header instead of being fully covered by it. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content
+  :is(div, section, article)[class~='bg-surface-alt'][class~='border-border'][class~='rounded-xl']:not([class~='!p-0']):not([class~='overflow-auto']) {
+  padding: 10px !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-compact-card {
+  padding: 6px !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .invoice-summary-card {
+  min-height: 0;
+  padding: 6px !important;
+  gap: 0.5rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .invoice-summary-label,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .invoice-summary-caption {
+  font-size: 0.49613rem;
+  line-height: 1rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .invoice-summary-value {
+  margin-top: 0;
+  font-size: 0.7938rem;
+  line-height: 1.25rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .invoice-summary-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .invoice-summary-icon > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table {
+  width: 100%;
+  font-size: 0.59535rem;
+  line-height: 1.25;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table th,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) table td {
+  padding: 0.225rem 0.3rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-toolbar {
+  gap: 7px;
+  padding: 10px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-toolbar > select {
+  height: 22px;
+  padding: 2px 4px;
+  font-size: 7.938px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-search {
+  width: 116px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-search > input {
+  height: 22px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-right: 6px;
+  font-size: 7.938px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-search > svg {
+  left: 7px;
+  width: 11px;
+  height: 11px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-search > input {
+  padding-left: 23px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-export {
+  gap: 4px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-export > button {
+  min-height: 22px;
+  gap: 4px;
+  padding: 2px 5px;
+  font-size: 7.938px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-export > button > svg {
+  width: 11px;
+  height: 11px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-date > button {
+  min-height: 22px;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 7.938px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-date > button > svg {
+  width: 11px;
+  height: 11px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class~='bg-brand']:not([role='switch']),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[class~='bg-brand']:not([role='switch']),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class*='bg-gradient-to-r'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[class*='bg-gradient-to-r'] {
+  border-color: #47748e !important;
+  background-color: #256b92 !important;
+  background-image: none !important;
+  color: #f4f8fb !important;
+  box-shadow: none;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class~='bg-brand']:not([role='switch']):hover,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[class~='bg-brand']:not([role='switch']):hover,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class*='bg-gradient-to-r']:hover,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[class*='bg-gradient-to-r']:hover {
+  background-color: #2d7eaa !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class~='bg-blue-600'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[class~='bg-blue-600'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class~='bg-cyan-600'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[class~='bg-cyan-600'] {
+  border-color: #47748e !important;
+  background-color: #256b92 !important;
+  color: #f4f8fb !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell {
+  --blue-link: #66b7ed;
+  --blue-focus: #61b8ef;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content {
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table {
+  font-size: 0.64496rem;
+  line-height: 1.3;
+}
+
+/* The default table border-spacing (2px) leaves a gap between the sticky
+   <thead> and the row beneath it, so while scrolling, the gap briefly shows
+   that row's own background/content peeking out above the header instead of
+   the header fully covering it. collapse removes that gap everywhere. */
+#route-page-content table {
+  border-collapse: collapse;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table td {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.64496rem;
+}
+
+/* Pages whose root is a plain stacked block (space-y-*) used to stop at their content, leaving the
+   rest of the screen empty. Let the root fill the page and its last panel absorb the spare height. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content > [class*='space-y-']:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content > [class*='space-y-']:first-child > :last-child:is([class*='rounded'], .app-card) {
+  flex: 1 1 auto;
+}
+
+/* One minimum row height for every table; rows with wrapped/multi-line content still grow. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table tbody > tr {
+  height: 2.4rem;
+}
+
+/* Taller than data cells on purpose — a cramped sortable header row is both
+   harder to read and harder to click. Solid background on <thead> itself
+   (not just the <tr>/<th> inside it) so its sticky box has no seam a scrolled
+   row can show through at the boundary — the thin sliver of the next row
+   that used to peek out above the header as the table scrolled. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table th {
+  padding: 0.65rem 0.6rem;
+  font-size: 0.59535rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table thead {
+  background-color: var(--color-brand);
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content a.text-brand {
+  color: var(--blue-link) !important;
+  text-decoration: underline;
+  text-decoration-color: rgb(102 183 237 / 45%);
+  text-underline-offset: 2px;
+}
+
+/* Several tables (and non-table rows, e.g. a dataset-picker list) put
+   `text-brand` on a <td>/<span>/wrapper and leave the actual link/text with
+   only `hover:underline`, so it inherits the plain (dim) --color-brand
+   instead of the brighter link color above — this catches every one of
+   those, wherever `.text-brand` shows up as page text, not just on an
+   anchor directly. Icons styled via `text-brand` (badges, section headers)
+   are excluded since those read fine at the dimmer brand shade and aren't
+   what "make the blue font brighter" is about. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(span, div, p, td, th, a).text-brand:not(:has(> svg:only-child)) {
+  color: var(--blue-link) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content a:focus-visible,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content button:focus-visible,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content input:focus-visible,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content select:focus-visible,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content textarea:focus-visible {
+  outline: 2px solid var(--blue-focus);
+  outline-offset: 2px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content button:not([aria-label]),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content a.blue-theme-primary {
+  min-height: 28px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-density-toolbar > select,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-density-search > input {
+  height: 26px;
+  font-size: 0.59535rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-density-export > button,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-density-date > button {
+  min-height: 26px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 0.59535rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-header {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-form-content,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-list-content {
+  row-gap: 0.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-footer {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination {
+  gap: 0.5rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+  font-size: 0.64496rem;
+  line-height: 1.25rem;
+}
+
+/* A footer bar placed inside StickyListLayout/StickyFormShell's content wrapper would otherwise sit
+   inset by that wrapper's own horizontal gutter; bleed it back out by exactly that amount so every
+   list footer spans the same full width, with its text at the same x, however the page nests it. */
+:is(.blue-density-list-content, .blue-density-form-content) > .blue-density-pagination {
+  margin-left: calc(var(--page-gutter, 16px) * -1);
+  margin-right: calc(var(--page-gutter, 16px) * -1);
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-list-content, .blue-density-form-content) > .blue-density-pagination {
+  margin-bottom: calc(var(--page-top-gap) * -1);
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination > div {
+  gap: 0.2rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination button {
+  min-height: 1.75rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell label:not(.sr-only) {
+  color: var(--color-text-muted);
+  font-size: 0.64496rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell select,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell textarea {
+  box-sizing: border-box;
+  min-height: 2.25rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 0.375rem;
+  background-color: var(--color-input-bg);
+  color: var(--color-text);
+  font-size: 0.69458rem;
+  line-height: 1.35;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell select {
+  padding: 0.4rem 0.625rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell textarea {
+  min-height: 5rem;
+  padding: 0.5rem 0.625rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell input::placeholder,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-shell textarea::placeholder {
+  color: var(--color-text-faint);
+  opacity: 1;
 }
 
 /* Same visual convention as pos/index.css's own toast-in — adapted for a
@@ -290,6 +664,29 @@ html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][cl
   display: none;
 }
 
+/* App-wide: every scroll container (tables, sidebars, dropdowns, modals, the
+   page body, ...) keeps scrolling but never shows its scrollbar track/thumb —
+   the same behavior `.no-scrollbar` opts individual elements into, applied
+   universally instead of needing that class on each one. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* A minimum visible gap between table cells for any table that doesn't
+   already set its own td/th padding — a safety net, not an override: any
+   component's own padding class (always a higher-specificity class selector)
+   wins over this plain type-selector fallback. */
+#route-page-content table :is(td, th) {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
 /* Minimal Bootstrap-lookalike rules for legacy HTML fragments embedded
    verbatim from the real ecuenta9 ZRA AJAX endpoints (see
    AsycudaImportList.tsx) — this app doesn't load Bootstrap, so those
@@ -306,7 +703,7 @@ html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][cl
 .legacy-html .badge {
   display: inline-block;
   padding: 0.2em 0.55em;
-  font-size: 0.7rem;
+  font-size: 0.55566rem;
   font-weight: 600;
   border-radius: 0.25rem;
 }
@@ -314,7 +711,7 @@ html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][cl
 .legacy-html .btn {
   display: inline-block;
   padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
+  font-size: 0.59535rem;
   font-weight: 500;
   border-radius: 0.375rem;
   border: none;
@@ -323,7 +720,7 @@ html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][cl
   line-height: 1.2;
 }
 .legacy-html .btn:hover { opacity: 0.9; }
-.legacy-html .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.7rem; }
+.legacy-html .btn-sm { padding: 0.18rem 0.396rem; font-size: 0.6174rem; }
 .legacy-html .btn-success { background: var(--color-success); }
 .legacy-html .btn-danger { background: var(--color-danger); }
 .legacy-html .btn-warning,
@@ -340,4 +737,1416 @@ html[data-theme='blue-metal'] span:is(.rounded-lg, .rounded-xl)[class~='w-8'][cl
   -webkit-text-fill-color: #1e293b;
   caret-color: #1e293b;
   transition: background-color 9999s ease-out 0s;
+}
+
+/* ==========================================================================
+   Blue-metal page frame — one set of gutters, gaps and sizes for every page.
+   Scoped to pages that sit under the page banner (not the detail pages, which
+   have their own header treatment above).
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) {
+  --page-gutter: var(--page-gap-x);
+  --page-top-gap: 4px;
+  --page-control-height: 2.25rem;
+  /* 40% shorter than the 5.5rem these cards used to be; the type and icon
+     below are scaled to match so nothing is clipped. */
+  --page-kpi-height: 3.9rem;
+}
+
+/* Pages that pad themselves (no -m-6) start one gap below the banner. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) > :first-child:not([class~='-m-6']) {
+  margin-top: calc(var(--page-gap) - 18.144px);
+  margin-left: var(--page-gap-x);
+  margin-right: var(--page-gap-x);
+}
+
+/* The sticky page header/footer bars of the shared list and form layouts were
+   black bands cut off from the page. Blend them into it: same background, no
+   rule under the header, the same gutters, and nothing when they are empty. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .blue-density-header {
+  border-bottom-width: 0;
+  background-color: var(--color-surface) !important;
+  padding: var(--page-gap) var(--page-gap-x) 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .blue-density-header:not(:has(*)) {
+  display: none;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-list-content, .blue-density-form-content) {
+  padding: var(--page-gap) var(--page-gap-x);
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-footer, .blue-density-pagination) {
+  background-color: var(--color-surface) !important;
+  padding: 0.5rem var(--page-gutter);
+}
+
+/* One spacing for every page's content area (everything except the sticky header and footer bars):
+   the side gutter, the top/bottom padding and the gap between stacked cards are all --page-gap, so
+   the cards of any list, form or dashboard sit the same distance from the edges and from each other.
+   Page wrappers written as `px-6 py-4` (or `px-6 pt-4` when a footer follows) are normalised here
+   instead of per page. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']):not(.blue-density-footer):not(.blue-density-pagination) {
+  padding: var(--page-gap) var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6'][class~='pt-4'] {
+  padding: var(--page-gap) var(--page-gap-x) 0 !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is([class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']), [class~='px-6'][class~='pt-4']):is([class*='space-y-']) > :not(:first-child) {
+  margin-top: var(--page-gap) !important;
+}
+
+/* One size for the headline numbers at the top of a page: a card with an icon,
+   a label, a value and a caption (whatever component drew it). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] {
+  min-height: var(--page-kpi-height);
+  align-items: center;
+}
+
+/* Tailwind's `!p-*` utilities are important rules in a layer, which beat important
+   rules outside one; an important rule in the base layer beats them back. */
+@layer base {
+  html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] {
+    height: var(--page-kpi-height) !important;
+    padding: 0.3125rem 0.75rem !important;
+    overflow: hidden;
+  }
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:first-child {
+  font-size: 0.49613rem;
+  line-height: 0.75rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:nth-child(2) {
+  margin-top: 0;
+  font-size: 0.74419rem;
+  line-height: 1.125rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > div > p:nth-child(n + 3) {
+  margin-top: 0;
+  font-size: 0.49613rem;
+  line-height: 0.75rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > span:has(> svg) {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .app-card[class~='!flex-row'] > span > svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* One height for form fields, everywhere (not the small inline ones in table cells). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden'], [type='button'], [type='submit'], [type='reset'], [type='color']), select):not(table *) {
+  box-sizing: border-box;
+  height: var(--page-control-height);
+  min-height: var(--page-control-height);
+}
+
+/* One size for the main buttons, banner and page alike. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] :is(button, a)[class~='bg-brand']:not([role='switch']):not(table *),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner .blue-theme-primary {
+  min-height: var(--page-control-height, 2.25rem);
+  padding: 0.375rem 1rem;
+  font-size: 0.69458rem;
+  line-height: 1.25rem;
+  border-radius: 0.5rem;
+}
+
+/* Controls a page puts into the banner (see bannerSlot.tsx) use the same sizes as the page's own. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(input:not([type='checkbox'], [type='radio']), select) {
+  box-sizing: border-box;
+  height: 2.25rem;
+  min-height: 2.25rem;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a)[class~='bg-brand']:not([role='switch']) {
+  min-height: 2.25rem;
+  padding: 0.375rem 1rem;
+  font-size: 0.69458rem;
+  line-height: 1.25rem;
+  border-radius: 0.5rem;
+}
+
+/* Detail pages: the header card and the body sit inside the same 24px gutters as every other page
+   (their `-mx-6` made them wider than the page, so the body started flush against the sidebar and
+   the header was cut off on the right). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] {
+  --page-gutter: var(--page-gap-x);
+  --page-top-gap: 4px;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > [class~='-m-6'] > div[class~='-mx-6'] {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > [class~='-m-6'] > div[class~='sticky'] {
+  margin: var(--page-top-gap) var(--page-gutter) 0;
+}
+
+/* A header whose card is drawn by an inner card gets no second frame around it. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > [class~='-m-6'] > div[class~='sticky']:is(:has(> .bg-surface-alt), :has(> div > .bg-surface-alt)) {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0;
+  background-color: transparent !important;
+  background-image: none !important;
+  overflow: visible;
+}
+
+/* ==========================================================================
+   The banner and the header blocks a page draws right under it are one header:
+   same surface, no gap, no second frame (see layout/bannerHeading.ts).
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner {
+  --blue-banner-bg: #10283a;
+  border-bottom: 1px solid rgba(148, 197, 255, 0.14);
+  margin-bottom: 0;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues {
+  margin: 0 calc(var(--page-gutter, 1.5rem) * -1) !important;
+  padding-left: var(--page-gutter, 1.5rem) !important;
+  padding-right: var(--page-gutter, 1.5rem) !important;
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  background-color: #10283a !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* The last of them carries the line that separates the header from the page. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues:last-of-type,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues + :not(.blue-banner-continues) {
+  border-top: 0;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues:not(:has(+ .blue-banner-continues)) {
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+/* Cards inside the merged header sit on it, not in their own frame. The extra
+   class hooks outrank the detail-page card styling further up this file. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] .blue-banner-continues .app-card[class~='bg-surface-alt'][class~='rounded-xl'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] .blue-banner-continues > div[class~='rounded-xl'],
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] .blue-banner-continues > div > div[class~='rounded-xl']:not([data-kpi-tile]) {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* The page's first content block then starts one gap below that line. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues + * {
+  margin-top: var(--page-gap) !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues + [class~='px-6'] {
+  /* these wrappers already pad themselves by --page-gap */
+  margin-top: 0 !important;
+}
+
+/* Route transitions: the new page fades in rather than the old one being
+   replaced by a spinner (see layout/RouteProgress.tsx). */
+@keyframes route-fade-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.route-fade {
+  animation: route-fade-in 180ms ease-out both;
+}
+
+/* A chunk that downloads quickly never gets to show its spinner. */
+@keyframes route-pending-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.route-pending {
+  animation: route-pending-in 200ms ease-out 250ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-fade,
+  .route-pending {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Headline-number cards (see layout/bannerHeading.ts findStatCards): every
+   module draws them differently, so one professional look is applied here —
+   the same dark tinted surface, hairline border, icon tile and type scale as
+   the Home dashboard's KPI cards, whatever component drew the card.
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card {
+  padding: 0.55rem 0.8rem !important;
+  gap: 0.15rem !important;
+  min-height: 3.9rem;
+  border: 1px solid rgb(120 170 230 / 22%) !important;
+  border-radius: 0.75rem !important;
+  background: linear-gradient(135deg, rgb(59 130 246 / 11%) 0%, rgb(8 19 31 / 90%) 100%) !important;
+  box-shadow: none !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card :is(p, div, span, h2, h3, h4) {
+  line-height: 1.2 !important;
+}
+
+/* Tailwind's size classes are explicit on each element, so each step is
+   remapped rather than inherited: one value size, one label size. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card :is([class~='text-3xl'], [class~='text-2xl'], [class~='text-xl'], [class~='text-lg']) {
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card :is([class~='text-base'], [class~='text-sm']) {
+  font-size: 0.7rem !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card :is([class~='text-xs'], [class~='text-[11px]'], [class~='text-[10px]']) {
+  font-size: 0.6rem !important;
+}
+
+html [class~='text-[7px]'] { font-size: 5.5566px; }
+html [class~='text-[8px]'] { font-size: 6.3504px; }
+html [class~='text-[9px]'] { font-size: 7.1442px; }
+html [class~='text-[10px]'] { font-size: 7.938px; }
+html [class~='text-[10.5px]'] { font-size: 8.3349px; }
+html [class~='text-[11px]'] { font-size: 8.7318px; }
+html [class~='text-[11.5px]'] { font-size: 9.1287px; }
+html [class~='text-[13px]'] { font-size: 10.3194px; }
+
+/* The icon tile beside or above the number: one muted blue tile for every card. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card span:has(> svg):not(:is(a, button) *),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card div:has(> svg):not(:has(> :not(svg))):not(:is(a, button) *) {
+  display: grid !important;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.1rem !important;
+  height: 2.1rem !important;
+  border-radius: 0.55rem !important;
+  border: 1px solid rgb(96 165 250 / 35%) !important;
+  background: linear-gradient(135deg, rgb(59 130 246 / 30%), rgb(30 64 120 / 35%)) !important;
+  color: #8ec1ff !important;
+  box-shadow: none !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card :is(span, div):not(:is(a, button) *) > svg {
+  width: 1.05rem !important;
+  height: 1.05rem !important;
+}
+
+/* Margins the card used to space its three lines apart. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card :is([class~='mt-1'], [class~='mt-2'], [class~='mt-3'], [class~='mb-1'], [class~='mb-2']) {
+  margin-top: 0.1rem !important;
+  margin-bottom: 0 !important;
+}
+
+/* Page roots that bleed over the content padding with -m-6 also hold full-bleed
+   bars with -mx-6 (the sticky list/detail headers). Those bars overshoot the
+   content area by another 24px, which gave ~90 pages a sideways scrollbar.
+   `clip` cuts that overshoot off without turning the root into a scroll container
+   (unlike `hidden`), so the bars' position: sticky keeps working against the page
+   scroll. Roots that already set overflow-x-hidden are left as they are. */
+#route-page-content [class~='-m-6']:not([class~='overflow-x-hidden']) {
+  overflow-x: clip;
+}
+
+/* Light theme + "modern" sidebar: the panel is a plain light surface. The component's white-on-dark
+   text/border/active-state tokens are remapped here instead of forking every class. */
+html[data-theme='light'] .modern-sb-light {
+  border-right-width: 0;
+}
+html[data-theme='light'] .modern-sb-light [class*='text-white'] {
+  color: #64748b !important;
+}
+html[data-theme='light'] .modern-sb-light [class~='text-white'] {
+  color: #0f172a !important;
+}
+html[data-theme='light'] .modern-sb-light [class*='border-white'] {
+  border-color: #e2e8f0 !important;
+}
+html[data-theme='light'] .modern-sb-light [class~='bg-white/10'],
+html[data-theme='light'] .modern-sb-light [class~='bg-white/15'] {
+  background-color: #e8f0fe !important;
+}
+html[data-theme='light'] .modern-sb-light button:hover {
+  background-color: #f1f5f9;
+}
+
+/* Light theme: darker, higher-contrast icons in the navbar and both sidebars. */
+html[data-theme='light'] nav :is(button, a) > svg,
+html[data-theme='light'] aside:not(.pos-app aside) :is(button, a) svg {
+  color: #1e3a5f !important;
+}
+html[data-theme='light'] aside:not(.pos-app aside) :is(button, a):hover svg,
+html[data-theme='light'] nav :is(button, a):hover > svg {
+  color: #0b5ed7 !important;
+}
+
+/* Light theme: stronger table, card and rule lines than the shared token alone gives. */
+html[data-theme='light'] table :is(th, td) {
+  border-color: #b9c2d0;
+}
+html[data-theme='light'] table tbody tr {
+  border-bottom: 1px solid #c3cbd8;
+}
+html[data-theme='light'] table thead th {
+  border-bottom: 1px solid #94a0b2;
+}
+
+/* Set by ThemeContext for the instant a theme is switched, so components don't animate between themes. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Light legacy rail: pale blue rail, navy icons and labels, the current section as a soft blue row
+   with a solid blue icon tile. */
+html[data-theme='light'] aside:not(.pos-app aside) button:not([class~='text-brand']) {
+  color: #1e3a6e;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] {
+  background-color: #dce9fb;
+  color: #1d5fd0;
+  font-weight: 600;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] svg {
+  color: #ffffff !important;
+}
+
+/* One simple switch everywhere: slim pill track, white round knob, no extra chrome. */
+button[role='switch'] {
+  min-height: 0 !important;
+  height: 1.5rem;
+  width: 2.75rem;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+  transition: background-color 0.2s ease;
+}
+button[role='switch'] > span {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 30%);
+}
+
+/* Buttons in the page banner: roomier padding and a lighter, brighter fill. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']) {
+  padding: 0.5rem 1.25rem !important;
+  min-height: 2.25rem;
+  filter: none;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']):hover {
+  filter: none;
+}
+
+/* Compact switch: 36x20 track, 16px knob, position driven by aria-checked so every component agrees. */
+button[role='switch'] {
+  width: 2.25rem !important;
+  height: 1.25rem !important;
+  display: inline-flex;
+  align-items: center;
+}
+button[role='switch'] > span {
+  width: 1rem !important;
+  height: 1rem !important;
+  margin: 0 !important;
+  transform: translateX(0.125rem) !important;
+  transition: transform 0.18s ease;
+}
+button[role='switch'][aria-checked='true'] > span {
+  transform: translateX(1.125rem) !important;
+}
+button[role='switch'] > span {
+  translate: none !important;
+  left: auto !important;
+  position: static !important;
+}
+
+/* Footer added by shared/autoPaginate.ts to tables that do not page themselves. */
+.auto-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+.auto-pager__left,
+.auto-pager__right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.auto-pager__select {
+  height: 1.75rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 0.375rem;
+  background: var(--color-input-bg);
+  color: var(--color-text);
+  font-size: 0.7rem;
+}
+.auto-pager__btn {
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.auto-pager__btn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.auto-pager__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.auto-pager__btn.is-active {
+  background: var(--color-brand);
+  color: #fff;
+  font-weight: 600;
+}
+.auto-pager__gap {
+  padding: 0 0.2rem;
+}
+
+/* One minimum, uniform gap between stacked blocks (cards, banner-to-content,
+   grids of cards) on every page, instead of each page picking space-y-4/6 or
+   gap-4/6 on its own. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-3, .space-y-4, .space-y-5, .space-y-6, .space-y-8) > :not([hidden]):not(:first-child) {
+  margin-top: var(--page-gap) !important;
+  margin-bottom: 0 !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .grid:is(.gap-3, .gap-4, .gap-5, .gap-6),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .flex-col:is(.gap-3, .gap-4, .gap-5, .gap-6) {
+  gap: var(--page-gap) !important;
+}
+
+/* Every button in the page banner: identical padding on all four sides, same height, content aligned to the left edge. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a[role='button'], a.inline-flex):not([role='switch']):not(:has(> svg:only-child)) {
+  padding: 0.5rem 1.25rem !important;
+  min-height: 2.25rem;
+  box-sizing: border-box;
+  justify-content: flex-start !important;
+  text-align: left;
+  border-radius: 0.5rem;
+}
+
+/* Banner buttons are sized to sit fully inside the fixed-height banner. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a[role='button'], a.inline-flex):not([role='switch']):not(:has(> svg:only-child)) {
+  padding: 0.3rem 1.25rem !important;
+  min-height: 2rem;
+  max-height: 2.5rem;
+  line-height: 1.15;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a[role='button'], a.inline-flex):not([role='switch']):not(:has(> svg:only-child)) {
+  max-height: 2.25rem;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+}
+
+/* Inactive wizard step titles/subtitles hoisted into the banner were too faint to read on the photo. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a) .text-text-faint,
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a).text-text-faint {
+  color: rgba(226, 238, 248, 0.85) !important;
+}
+
+/* ==========================================================================
+   Light mode on the shared layout: the same banner, density and controls as Blue
+   Metal, in light mode's own neutral surfaces (no photo, no blue fills).
+   ========================================================================== */
+html[data-theme='light'] .blue-theme-banner {
+  --blue-banner-bg: #eef1f5;
+  border-bottom-color: var(--color-border);
+}
+html[data-theme='light'] .blue-theme-banner > div:first-child {
+  background-image: linear-gradient(100deg, #f7f9fb 0%, #edf0f4 55%, #e4e9ef 100%) !important;
+}
+html[data-theme='light'] .blue-theme-banner :is(h1, nav, nav *, [class~='text-white'], [class*='text-white/']):not(button, a):not(button *):not(a *) {
+  color: var(--color-text) !important;
+}
+html[data-theme='light'] .blue-theme-banner nav > span:not(.font-semibold), html[data-theme='light'] .blue-theme-banner nav svg {
+  color: var(--color-text-muted) !important;
+}
+html[data-theme='light'] .blue-theme-banner span[class*='bg-sky-500'] {
+  border-color: var(--color-border) !important;
+  background-color: #fff !important;
+  color: var(--color-text-muted) !important;
+}
+html[data-theme='light'] .blue-theme-banner .blue-theme-primary,
+html[data-theme='light'] .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']) {
+  background-color: var(--color-brand) !important;
+  border-color: var(--color-brand) !important;
+  color: #fff !important;
+  filter: none;
+}
+html[data-theme='light'] #route-page-content .blue-banner-continues {
+  background-color: var(--color-surface) !important;
+}
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'],
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] {
+  border-color: var(--color-border);
+  background-color: var(--color-surface) !important;
+  background-image: none;
+}
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'] > .bg-surface-alt,
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'] > div > .bg-surface-alt,
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] > .bg-surface-alt,
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] > div > .bg-surface-alt {
+  background-color: var(--color-surface-alt) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: none;
+}
+html[data-theme='light'] #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='top-0']::before,
+html[data-theme='light'] #route-page-content[data-detail-title] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4']::before {
+  color: var(--color-text);
+}
+html[data-theme='light'] button[class~='bg-brand']:not([role='switch']),
+html[data-theme='light'] a[class~='bg-brand']:not([role='switch']),
+html[data-theme='light'] button[class*='bg-gradient-to-r'],
+html[data-theme='light'] a[class*='bg-gradient-to-r'],
+html[data-theme='light'] button[class~='bg-blue-600'],
+html[data-theme='light'] a[class~='bg-blue-600'],
+html[data-theme='light'] button[class~='bg-cyan-600'],
+html[data-theme='light'] a[class~='bg-cyan-600'] {
+  border-color: var(--color-brand) !important;
+  background-color: var(--color-brand) !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+html[data-theme='light'] #route-page-content a.text-brand {
+  color: var(--color-brand) !important;
+  text-decoration-color: transparent;
+}
+html[data-theme='light'] #route-page-content .blue-stat-card {
+  background: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%) !important;
+}
+html[data-theme='light'] table thead th:hover {
+  background-color: rgb(255 255 255 / 14%);
+}
+
+/* Light mode table headers and stat icon tiles: neutral light-grey, not the blue Blue Metal uses. */
+html[data-theme='light'] #route-page-content table thead,
+html[data-theme='light'] table thead {
+  background: #eceff4 !important;
+  color: var(--color-text) !important;
+}
+html[data-theme='light'] table thead tr,
+html[data-theme='light'] table thead th {
+  background-color: transparent !important;
+  color: var(--color-text) !important;
+  border-color: #c3cbd8 !important;
+}
+html[data-theme='light'] table thead th:hover {
+  background-color: rgb(15 23 42 / 5%) !important;
+}
+html[data-theme='light'] #route-page-content .blue-stat-card :is(span, div):has(> svg):not(:has(> :not(svg))):not(:is(a, button) *) {
+  background: var(--color-surface-alt) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+}
+
+/* Banner icon buttons and links (white on the dark banner) read in dark text on the light banner. */
+html[data-theme='light'] .blue-theme-banner :is(button, a):not(.blue-theme-primary):not([class~='bg-brand']),
+html[data-theme='light'] .blue-theme-banner :is(button, a):not(.blue-theme-primary):not([class~='bg-brand']) :is(svg, span) {
+  color: var(--color-text-muted) !important;
+}
+html[data-theme='light'] .blue-theme-banner :is(button, a):not(.blue-theme-primary):not([class~='bg-brand']):hover {
+  color: var(--color-text) !important;
+  background-color: rgb(15 23 42 / 6%) !important;
+}
+
+/* ==========================================================================
+   Light mode palette: a calm neutral scheme in the style of current product
+   sites. Page background is a cool off-white, cards are white with a hairline
+   border and a soft shadow, text is slate (not black), and the one accent is
+   the app's blue, used sparingly.
+   ========================================================================== */
+html[data-theme='light'] {
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8fafc;
+  --color-surface-hover: #eef2f6;
+  --color-input-bg: #ffffff;
+  --color-border: #dfe5ec;
+  --color-input-border: #c5cdd8;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-faint: #64748b;
+  --color-rail-bg: #f1f5f9;
+  --color-brand: #2f6fb3;
+  --color-brand-hover: #255a93;
+}
+html[data-theme='light'] .blue-theme-shell {
+  background-color: #f4f6f9;
+}
+html[data-theme='light'] #route-page-content .app-card {
+  background-color: #ffffff;
+  border-color: var(--color-border);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%), 0 1px 1px rgb(15 23 42 / 3%);
+}
+html[data-theme='light'] table :is(th, td) {
+  border-color: #e6ebf1;
+}
+html[data-theme='light'] table tbody tr {
+  border-bottom: 1px solid #e9eef4;
+}
+html[data-theme='light'] table tbody tr:nth-child(even) {
+  background-color: #fafbfd;
+}
+html[data-theme='light'] table tbody tr:hover {
+  background-color: #f1f5f9;
+}
+html[data-theme='light'] table thead th {
+  border-bottom: 1px solid #d5dce6;
+  color: #334155 !important;
+  letter-spacing: 0.03em;
+}
+html[data-theme='light'] table thead,
+html[data-theme='light'] #route-page-content table thead {
+  background: #f1f5f9 !important;
+}
+html[data-theme='light'] .blue-theme-banner > div:first-child {
+  background-image: linear-gradient(100deg, #ffffff 0%, #f4f7fb 60%, #eaf0f7 100%) !important;
+}
+html[data-theme='light'] .blue-theme-banner {
+  border-bottom-color: #dfe5ec;
+  box-shadow: 0 1px 0 rgb(15 23 42 / 3%);
+}
+html[data-theme='light'] #route-page-content input:not([type='checkbox'], [type='radio']),
+html[data-theme='light'] #route-page-content select,
+html[data-theme='light'] #route-page-content textarea {
+  border-color: #c9d1dc;
+  background-color: #fff;
+}
+html[data-theme='light'] #route-page-content input:focus,
+html[data-theme='light'] #route-page-content select:focus,
+html[data-theme='light'] #route-page-content textarea:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(47 111 179 / 15%);
+  outline: none;
+}
+
+/* Light mode: a slightly deeper grey-slate shade for the banner and the headers under it, so they stand apart from the white cards. */
+html[data-theme='light'] .blue-theme-banner > div:first-child {
+  background-image: linear-gradient(100deg, #e9eef4 0%, #dde5ee 55%, #d0dae6 100%) !important;
+}
+html[data-theme='light'] .blue-theme-banner {
+  border-bottom-color: #c9d3df;
+}
+html[data-theme='light'] #route-page-content .blue-banner-continues {
+  background-color: #eef2f7 !important;
+}
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'],
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] {
+  background-color: #eef2f7 !important;
+  border-color: #d3dbe5;
+}
+html[data-theme='light'] .blue-density-header,
+html[data-theme='light'] .blue-density-footer {
+  background-color: #eef2f7 !important;
+}
+html[data-theme='light'] table thead,
+html[data-theme='light'] #route-page-content table thead {
+  background: #e6ecf3 !important;
+}
+
+/* Light mode: darker type for readability (body, secondary and faint text, table headers, banner text). */
+html[data-theme='light'] {
+  --color-text: #020617;
+  --color-text-muted: #1e293b;
+  --color-text-faint: #334155;
+}
+html[data-theme='light'] table thead th {
+  color: #0f172a !important;
+  font-weight: 700;
+}
+html[data-theme='light'] #route-page-content table tbody td {
+  color: #0f172a;
+}
+html[data-theme='light'] #route-page-content label,
+html[data-theme='light'] #route-page-content :is(dt, th) {
+  color: #1e293b;
+}
+html[data-theme='light'] #route-page-content input::placeholder,
+html[data-theme='light'] #route-page-content textarea::placeholder {
+  color: #64748b;
+}
+html[data-theme='light'] .blue-theme-banner :is(h1, nav, nav *):not(button, a):not(button *):not(a *) {
+  color: #020617 !important;
+}
+
+/* Links read in a deep blue on light surfaces (the lighter link blue is for dark backgrounds). */
+html[data-theme='light'] #route-page-content a:is(.text-brand, [class*='text-brand']):not([class~='bg-brand']),
+html[data-theme='light'] #route-page-content table a {
+  color: #1b4f8a !important;
+  font-weight: 500;
+}
+html[data-theme='light'] #route-page-content table a :is(span, p) {
+  color: inherit !important;
+}
+
+/* ==========================================================================
+   Light mode, "clean product UI" pass (light only): white sidebar with flat
+   outline icons and a light-blue active state, restrained flat icon chips,
+   small corner radii, subtle borders instead of heavy shadows, and readable
+   13-14px labels and values.
+   ========================================================================== */
+html[data-theme='light'] {
+  --color-rail-bg: #ffffff;
+}
+html[data-theme='light'] aside:not(.pos-app aside),
+html[data-theme='light'] .modern-sb-light {
+  background-color: #ffffff;
+}
+html[data-theme='light'] aside:not(.pos-app aside) {
+  border-right: 1px solid #e5eaf1;
+}
+
+/* Icon chips: flat tinted tiles instead of glossy blue gradients. */
+html[data-theme='light'] span:not(.pos-app *):is(.rounded-lg, .rounded-xl):is([class~='w-8'], [class~='w-9'], [class~='w-10']):is([class~='h-8'], [class~='h-9'], [class~='h-10']):has(> svg) {
+  color: var(--color-brand) !important;
+  border: 1px solid #dbe5f1;
+  background-image: none !important;
+  background-color: #eff4fa !important;
+  box-shadow: none !important;
+}
+/* The current section in the rail: light-blue tile and label. */
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] {
+  background-color: #e8f1fb;
+  color: var(--color-brand);
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] > span:has(> svg) {
+  background-color: #d7e6f8 !important;
+  border-color: #bcd4ef;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] svg {
+  color: var(--color-brand) !important;
+}
+
+/* Small radii, hairline borders, no heavy shadows. */
+html[data-theme='light'] #route-page-content :is(.rounded-xl, .rounded-2xl, .rounded-3xl, .app-card) {
+  border-radius: 0.5rem;
+}
+html[data-theme='light'] #route-page-content :is(.shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%) !important;
+}
+
+/* Type: 13px field labels, 14px inputs and values. */
+html[data-theme='light'] #route-page-content :is(label, dt) {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+html[data-theme='light'] #route-page-content :is(input:not([type='checkbox'], [type='radio']), select, textarea) {
+  font-size: 0.875rem;
+}
+
+/* ==========================================================================
+   Dark theme only: palette tokens. Layout stays on the compact, data-dense
+   scale shared with Blue Metal (more rows and fields per screen, small type).
+   ========================================================================== */
+html[data-theme='dark'] {
+  --color-surface: #0d2032;
+  --color-surface-alt: #122a40;
+  --color-surface-hover: #142e45;
+  --color-input-bg: #0a1b2b;
+  --color-border: #29445c;
+  --color-input-border: #2d4d68;
+  --color-text: #e8f0fa;
+  --color-text-muted: #a5b6c8;
+  --color-text-faint: #8499af;
+  --color-brand: #2196f3;
+  --color-brand-hover: #42a5f5;
+  --color-success-fg: #4ade80;
+  --color-warning-fg: #fbbf24;
+  --color-danger-fg: #f87171;
+  --color-info-fg: #38bdf8;
+}
+html[data-theme='dark'] main {
+  background-color: #071522;
+}
+html[data-theme='dark'] #route-page-content .app-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+html[data-theme='dark'] #route-page-content :is(input, select, textarea):focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(33 150 243 / 25%);
+}
+html[data-theme='dark'] #route-page-content table thead,
+html[data-theme='dark'] #route-page-content table thead th {
+  background-color: #122a40 !important;
+  color: #cfe0f2 !important;
+  border-color: var(--color-border) !important;
+}
+html[data-theme='dark'] #route-page-content table tbody tr:hover {
+  background-color: #142e45;
+}
+
+/* ==========================================================================
+   Dark theme only: one shared layout grid. Header 60px / 20px side padding;
+   content 24px sides, 20px top, 24px bottom (20 / 16 / 12 on smaller screens);
+   header, banner, content and footer share the same side boundary.
+   ========================================================================== */
+html[data-theme='dark'] {
+  --layout-pad-x: 16px;
+  --layout-pad-top: 12px;
+  --layout-pad-bottom: 16px;
+  --layout-header-h: 60px;
+  --layout-header-px: 20px;
+  --layout-footer-py: 3px;
+}
+@media (max-width: 639px) { html[data-theme='dark'] { --layout-pad-x: 12px; --layout-pad-top: 12px; --layout-pad-bottom: 12px; } }
+
+html[data-theme='dark'] nav.h-\[67px\] {
+  height: var(--layout-header-h);
+  padding-right: var(--layout-header-px);
+}
+html[data-theme='dark'] #route-page-content {
+  padding: var(--layout-pad-top) var(--layout-pad-x) var(--layout-pad-bottom);
+  --page-gutter: var(--layout-pad-x);
+}
+/* Negative margins that pull full-bleed bars (banner, sticky headers, footers) out to the edges follow the same padding. */
+html[data-theme='dark'] #route-page-content :is(.-m-6) {
+  margin: calc(var(--layout-pad-top) * -1) calc(var(--layout-pad-x) * -1) calc(var(--layout-pad-bottom) * -1);
+}
+html[data-theme='dark'] #route-page-content :is(.-mx-6) {
+  margin-left: calc(var(--layout-pad-x) * -1);
+  margin-right: calc(var(--layout-pad-x) * -1);
+}
+html[data-theme='dark'] #route-page-content .-top-6 { top: calc(var(--layout-pad-top) * -1); }
+html[data-theme='dark'] #route-page-content .-bottom-6 { bottom: calc(var(--layout-pad-bottom) * -1); }
+html[data-theme='dark'] .blue-theme-banner {
+  padding-left: var(--layout-pad-x);
+  padding-right: var(--layout-pad-x);
+}
+html[data-theme='dark'] #route-page-content :is(.blue-density-header, .blue-density-form-content, .blue-density-list-content) {
+  padding-left: var(--layout-pad-x);
+  padding-right: var(--layout-pad-x);
+}
+html[data-theme='dark'] #route-page-content .blue-density-footer {
+  padding: var(--layout-footer-py) var(--layout-pad-x);
+}
+html[data-theme='dark'] #route-page-content .blue-density-pagination {
+  padding: var(--layout-footer-py) var(--layout-pad-x);
+}
+html[data-theme='dark'] #route-page-content table :is(th, td) {
+  padding: 10px 12px;
+}
+html[data-theme='dark'] #route-page-content table td:first-child a {
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Light mode (white mode) design system. Tokens first, then the few
+   component rules that the tokens alone do not reach. Light only; Dark and
+   Blue Metal keep their own palettes.
+   ========================================================================== */
+html[data-theme='light'] {
+  --color-brand: #1769e0;
+  --color-brand-hover: #1258bd;
+  --color-brand-pressed: #0f4aa3;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8fafc;
+  --color-surface-hover: #edf4ff;
+  --color-surface-selected: #e5efff;
+  --color-input-bg: #ffffff;
+  --color-border: #dfe5ed;
+  --color-border-strong: #c7d2e0;
+  --color-divider: #e9eef5;
+  --color-input-border: #c7d2e0;
+  --color-text: #172b4d;
+  --color-text-muted: #5e6c84;
+  --color-text-faint: #7a869a;
+  --color-focus-ring: #93bfff;
+  --color-success: #16803d;
+  --color-success-bg: #e8f7ee;
+  --color-success-fg: #16803d;
+  --color-warning-bg: #fff4d6;
+  --color-warning-fg: #a15c00;
+  --color-warning-border: #f3dca0;
+  --color-danger: #c62828;
+  --color-danger-bg: #fdecec;
+  --color-danger-fg: #c62828;
+  --color-info-bg: #e8f4fc;
+  --color-info-fg: #0969a3;
+  --color-neutral-bg: #f1f4f8;
+  --color-neutral-fg: #5e6c84;
+  --color-rail-bg: #ffffff;
+}
+html[data-theme='light'] .blue-theme-shell {
+  background-color: #f5f7fa;
+}
+
+/* Header: white, hairline bottom border, navy icons, blue hover. */
+html[data-theme='light'] nav.h-\[67px\] {
+  height: 60px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #dfe5ed;
+}
+html[data-theme='light'] nav :is(button, a) > svg,
+html[data-theme='light'] aside:not(.pos-app aside) :is(button, a) svg {
+  color: #42526e !important;
+}
+html[data-theme='light'] aside:not(.pos-app aside) :is(button, a):hover svg,
+html[data-theme='light'] nav :is(button, a):hover > svg {
+  color: #1769e0 !important;
+}
+
+/* Sidebar: white, #42526E text, active #EAF2FF with blue text/icon, hover #F3F6FB. */
+html[data-theme='light'] aside:not(.pos-app aside) button:not([class~='text-brand']) {
+  color: #42526e;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button:not([class~='text-brand']):hover {
+  background-color: #f3f6fb;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'],
+html[data-theme='light'] .modern-sb-light [class~='bg-white/10'],
+html[data-theme='light'] .modern-sb-light [class~='bg-white/15'] {
+  background-color: #eaf2ff !important;
+  color: #1769e0;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] svg {
+  color: #1769e0 !important;
+}
+html[data-theme='light'] aside:not(.pos-app aside) button[class~='text-brand'] > span:has(> svg) {
+  background-color: #dbe9ff !important;
+  border-color: #c3d9fa;
+}
+
+/* Page header: soft white strip, navy title, muted breadcrumb with a darker current page. */
+html[data-theme='light'] .blue-theme-banner > div:first-child {
+  background-image: linear-gradient(100deg, #ffffff 0%, #f5f8fc 100%) !important;
+}
+html[data-theme='light'] .blue-theme-banner {
+  border-bottom-color: #dfe5ed;
+}
+html[data-theme='light'] .blue-theme-banner h1 {
+  color: #172b4d !important;
+  font-weight: 600;
+}
+html[data-theme='light'] .blue-theme-banner nav span:not(.font-semibold) {
+  color: #5e6c84 !important;
+}
+html[data-theme='light'] .blue-theme-banner nav span.font-semibold {
+  color: #172b4d !important;
+}
+html[data-theme='light'] #route-page-content .blue-banner-continues,
+html[data-theme='light'] .blue-density-header,
+html[data-theme='light'] .blue-density-footer {
+  background-color: #f5f7fa !important;
+}
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='top-0'],
+html[data-theme='light'] #route-page-content[data-detail-page='true'] > div > div[class~='sticky'][class~='-top-6'][class~='pt-4'] {
+  background-color: #ffffff !important;
+  border-color: #dfe5ed;
+}
+
+/* Cards: white, hairline border, 8px radius, no heavy shadow. KPI numbers navy. */
+html[data-theme='light'] #route-page-content .app-card {
+  background-color: #ffffff;
+  border-color: #dfe5ed;
+  box-shadow: none;
+}
+html[data-theme='light'] #route-page-content .blue-stat-card {
+  background: #ffffff !important;
+  border-color: #dfe5ed !important;
+  box-shadow: none !important;
+}
+html[data-theme='light'] #route-page-content .blue-stat-card :is(p, h2, h3, span):not(:has(> svg)) {
+  color: #172b4d;
+}
+
+/* Tables. */
+html[data-theme='light'] table thead,
+html[data-theme='light'] #route-page-content table thead {
+  background: #f8fafc !important;
+}
+html[data-theme='light'] table thead th,
+html[data-theme='light'] #route-page-content table thead th {
+  background-color: transparent !important;
+  color: #42526e !important;
+  border-bottom: 1px solid #dfe5ed !important;
+  font-weight: 600;
+}
+html[data-theme='light'] table :is(th, td) {
+  border-color: #e9eef5;
+}
+html[data-theme='light'] table tbody tr {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e9eef5;
+}
+html[data-theme='light'] table tbody tr:nth-child(even) {
+  background-color: #ffffff;
+}
+html[data-theme='light'] table tbody tr:hover {
+  background-color: #f3f7fd;
+}
+html[data-theme='light'] table tbody tr[aria-selected='true'],
+html[data-theme='light'] table tbody tr.selected {
+  background-color: #eaf2ff;
+}
+
+/* Buttons. */
+html[data-theme='light'] button[class~='bg-brand']:not([role='switch']),
+html[data-theme='light'] a[class~='bg-brand']:not([role='switch']),
+html[data-theme='light'] .blue-theme-banner .blue-theme-primary,
+html[data-theme='light'] .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']) {
+  background-color: #1769e0 !important;
+  border-color: #1769e0 !important;
+  color: #ffffff !important;
+  border-radius: 6px;
+  box-shadow: none;
+  filter: none;
+}
+html[data-theme='light'] button[class~='bg-brand']:not([role='switch']):hover,
+html[data-theme='light'] a[class~='bg-brand']:not([role='switch']):hover,
+html[data-theme='light'] .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']):hover {
+  background-color: #1258bd !important;
+  filter: none;
+}
+html[data-theme='light'] button[class~='bg-brand']:not([role='switch']):active {
+  background-color: #0f4aa3 !important;
+}
+html[data-theme='light'] :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid #93bfff;
+  outline-offset: 1px;
+}
+
+/* Inputs: #C7D2E0 border, #94A3B8 on hover, blue on focus, muted placeholder. */
+html[data-theme='light'] #route-page-content :is(input:not([type='checkbox'], [type='radio']), select, textarea) {
+  border-color: #c7d2e0;
+  color: #172b4d;
+  border-radius: 6px;
+}
+html[data-theme='light'] #route-page-content :is(input:not([type='checkbox'], [type='radio']), select, textarea):hover {
+  border-color: #94a3b8;
+}
+html[data-theme='light'] #route-page-content :is(input, select, textarea):focus {
+  border-color: #1769e0;
+  box-shadow: 0 0 0 3px rgb(147 191 255 / 45%);
+}
+html[data-theme='light'] #route-page-content ::placeholder {
+  color: #7a869a;
+}
+html[data-theme='light'] #route-page-content :is(label, dt) {
+  color: #42526e;
+}
+
+/* Links, pagination, icon chips: one blue accent. */
+html[data-theme='light'] #route-page-content a:is(.text-brand, [class*='text-brand']):not([class~='bg-brand']),
+html[data-theme='light'] #route-page-content table a {
+  color: #1769e0 !important;
+}
+html[data-theme='light'] #route-page-content table a :is(span, p) {
+  color: inherit !important;
+}
+html[data-theme='light'] span:not(.pos-app *):is(.rounded-lg, .rounded-xl):is([class~='w-8'], [class~='w-9'], [class~='w-10']):is([class~='h-8'], [class~='h-9'], [class~='h-10']):has(> svg) {
+  color: #1769e0 !important;
+  border-color: #dbe6f5;
+  background-color: #eef4fc !important;
+}
+
+
+/* ==========================================================================
+   Shared compact spacing scale (all themes): 10px between blocks, 12px for
+   larger row gaps, 16px between form columns. Applies to every page through
+   #route-page-content, so pages do not need their own gap/margin overrides.
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content {
+  --gap-block: 4px;
+  --gap-row: 4px;
+  --gap-col: 4px;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.flex, .inline-flex):is(.gap-5, .gap-6, .gap-8, .gap-10) {
+  gap: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .grid:is(.gap-8, .gap-10) {
+  gap: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.gap-x-5, .gap-x-6, .gap-x-8, .gap-x-10) {
+  column-gap: var(--gap-col);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.gap-y-4, .gap-y-5, .gap-y-6, .gap-y-8) {
+  row-gap: var(--gap-block);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.mb-5, .mb-6, .mb-8, .mb-10) {
+  margin-bottom: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.mt-5, .mt-6, .mt-8, .mt-10) {
+  margin-top: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-2, .space-y-2\.5) > :not([hidden]):not(:first-child) {
+  margin-top: 0.5rem !important;
+}
+
+/* One primary-button colour on every page and theme. The per-theme rules above each force their own
+   (teal / brand blue) with !important, so this repeats [data-theme] to out-rank them. Disabled buttons
+   keep their own styling. Matches PRIMARY_BTN in src/pos2/buttonStyles.js. */
+html[data-theme][data-theme][data-theme] :is(button, a):is([class~='bg-brand'], [class~='bg-blue-600'], [class~='bg-cyan-600'], [class*='bg-gradient-to-r'], .blue-theme-primary):not([role='switch'], :disabled, [aria-disabled='true']) {
+  background-color: #3b82f6 !important;
+  background-image: none !important;
+  border-color: #3b82f6 !important;
+  color: #fff !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+html[data-theme][data-theme][data-theme] :is(button, a):is([class~='bg-brand'], [class~='bg-blue-600'], [class~='bg-cyan-600'], [class*='bg-gradient-to-r'], .blue-theme-primary):not([role='switch'], :disabled, [aria-disabled='true']):hover {
+  background-color: #2f6fe4 !important;
+  border-color: #2f6fe4 !important;
+}
+html[data-theme][data-theme][data-theme] :is(button, a):is([class~='bg-brand'], [class~='bg-blue-600'], [class~='bg-cyan-600'], [class*='bg-gradient-to-r'], .blue-theme-primary):not([role='switch'], :disabled, [aria-disabled='true']):active {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+/* One footer size on every page: the bottom bar of a form (Cancel / Next / Save) and of a list
+   (pagination) both get 3px at the top and nothing on the other three sides, and so does the pager
+   the auto-paginate helper adds under a table. Earlier theme rules set 6px, 8px, 12px, 0.6rem and
+   the page gutter, so this wins with !important. */
+html[data-theme] :is(.blue-density-footer, .blue-density-pagination, .auto-pager) {
+  padding: 3px 0 0 !important;
+}
+
+/* No left/right padding on pages: the content runs the full width of the area beside the sidebar.
+   The gutter variables feed the page, banner, header and footer bars; the -m-6 / -mx-6 bars that bleed
+   out to the edges are told not to bleed sideways (they would otherwise overshoot by the old gutter).
+   Top and bottom spacing is unchanged. */
+html[data-theme] {
+  --layout-pad-x: 0px;
+}
+html[data-theme] #route-page-content,
+html[data-theme] #route-page-content[data-page-banner='true'] {
+  --page-gutter: 0px;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+html[data-theme] #route-page-content :is(.-m-6, .-mx-6) {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* List footers: the "Showing 1 to N of N entries" text stays at the left and the pager sits at the right
+   corner, each 12px in from its edge so neither touches the bar's end. */
+html[data-theme] :is(.blue-density-pagination, .auto-pager) {
+  justify-content: space-between !important;
+}
+html[data-theme] :is(.blue-density-pagination, .auto-pager) > :first-child {
+  padding-left: 12px;
+}
+html[data-theme] :is(.blue-density-pagination, .auto-pager) > :last-child:not(:first-child) {
+  margin-left: auto;
+  padding-right: 12px;
+}
+
+/* The banner keeps one even 12px of side padding in every theme, so the breadcrumb, title and buttons inside it line up. */
+html[data-theme] .blue-theme-banner {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+/* Form footers (Cancel / Back / Next / Save): the buttons sit together at the right corner of the bar. */
+html[data-theme] .blue-density-footer {
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+/* Switches: the "on" track uses the same blue as every primary button, in all themes (it was a different blue per theme). */
+html[data-theme] button[role='switch'][aria-checked='true'] {
+  background-color: #3b82f6 !important;
+}
+
+/* ==========================================================================
+   Compact density: ONE tighter scale for every page, in Light, Dark and Blue
+   Metal alike (these three themes used to drift apart: Dark had taller table
+   cells and different page padding). Last in the file on purpose, so it wins
+   over the earlier per-theme rules of equal weight. Sizes:
+     header bar 52px, page banner 60px, headline cards 44px, controls 32px,
+     table header ~28px / rows ~30px, list footer ~30px, page gaps 8px.
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) {
+  --layout-header-h: 52px;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) {
+  --page-kpi-height: 2.75rem;
+  --page-control-height: 2rem;
+}
+
+/* Header bar */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) nav.h-\[67px\] {
+  height: var(--layout-header-h);
+}
+
+/* Page banner: the markup fixes it at 76px (58px on third-party lists). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner[class~='h-[76px]'] {
+  height: 60px;
+  min-height: 60px;
+  max-height: 60px;
+  padding-top: 2px;
+  padding-bottom: 4px;
+  gap: 2px;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner[class~='min-h-[58px]'] {
+  min-height: 46px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* Banner controls: 32px, so the breadcrumb row and the title row both fit the 60px banner. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']) {
+  min-height: 2rem;
+  max-height: 2rem;
+  padding: 0.25rem 1rem !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a[role='button'], a.inline-flex):not([role='switch']):not(:has(> svg:only-child)) {
+  max-height: 2rem;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(input:not([type='checkbox'], [type='radio']), select) {
+  height: 2rem;
+  min-height: 2rem;
+}
+
+/* Cards that carry their own padding rule */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.blue-compact-card, .invoice-summary-card) {
+  padding: 4px 8px !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(div, section, article)[class~='bg-surface-alt'][class~='border-border'][class~='rounded-xl']:not([class~='!p-0']):not([class~='overflow-auto']) {
+  padding: 8px !important;
+}
+
+/* Tables: header row ~28px, data rows ~30px, the same in every theme */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table th {
+  padding: 0.35rem 0.6rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table td {
+  padding: 0.25rem 0.6rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table tbody > tr {
+  height: 1.9rem;
+}
+
+/* List footer / pager */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) :is(.blue-density-pagination, .auto-pager) button {
+  min-height: 1.5rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination {
+  line-height: 1.1rem;
+}
+
+/* Page wrappers (the common "space-y-* px-6 py-4" root of list and form pages) and stacked blocks */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='space-y-4'][class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']) {
+  padding: var(--page-gap) var(--page-gap-x);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-4, .space-y-5, .space-y-6) > :not(:last-child) {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .space-y-3 > :not(:last-child) {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.grid, .flex, .inline-flex):is(.gap-4) {
+  gap: 0.5rem;
+}
+
+/* Number fields inside item tables (VAT %, Qty, Unit price, Disc. %): the browser spinner and the
+   form's wide side padding left no room for the value ("0" was clipped to a "C" in narrow columns).
+   No spinner, tighter side padding and a floor width so the value always shows. */
+#route-page-content table input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  min-width: 4.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+#route-page-content table input[type='number']::-webkit-outer-spin-button,
+#route-page-content table input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Left/right edges: the page banner, the list footer and the cards all start and end at the same x,
+   one --page-gap in from the page edge. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination > span:first-child {
+  padding-left: 0 !important;
+}
+
+/* A sticky page header whose only content is the page title (already shown in the banner) takes no space, so the
+   gap under the banner is the same --page-gap as on every other page. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-density-header:not(:has(> :not(.blue-duplicate-page-title))) {
+  display: none;
+}
+
+/* Page wrappers that write their padding as an arbitrary value (px-[16px] py-[12px]) follow the same tokens as
+   the px-6 ones, so the banner and every page's content share one left/right and top/bottom padding. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='min-h-0'][class*='px-['] {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='min-h-0'][class*='px-['][class*='py-['] {
+  padding-top: var(--page-gap) !important;
+  padding-bottom: var(--page-gap) !important;
+}
+
+/* Page roots padded with a plain p-4 / p-5 / p-6 follow the same page padding. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='-m-6']:is([class~='p-4'], [class~='p-5'], [class~='p-6']) {
+  padding: var(--page-gap) var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='space-y-'][class*='px-['] {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+/* A bar that continues the banner inside a full-bleed (-m-6) page root already spans the page width, so it must
+   not bleed out by the gutter a second time; its own padding then puts its content under the banner content. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='-m-6'] > .blue-banner-continues {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }

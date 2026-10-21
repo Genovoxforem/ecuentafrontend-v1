@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FileBadge, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
-import { useCreateSupplierProposal, useSupplierProposalCreateForm, type SupplierProposalFormOption } from '../supplierProposals.queries'
+import { useCreateSupplierProposal, useSupplierProposalCreateForm, useSupplierProposalDefaults, type SupplierProposalFormOption } from '../supplierProposals.queries'
 
 function OptionSelect({ value, onChange, options, placeholder }: { value: string; onChange: (value: string) => void; options: SupplierProposalFormOption[]; placeholder?: string }) {
   return (
@@ -49,6 +49,16 @@ export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedC
   const [projectId, setProjectId] = useState('')
   const [currency, setCurrency] = useState('')
   const [formError, setFormError] = useState('')
+  const { data: defaults } = useSupplierProposalDefaults(vendorId)
+
+  // The vendor's own payment terms, mode and bank (then the install default), into fields still blank.
+  useEffect(() => {
+    if (!defaults) return
+    setPaymentTermsId((prev) => prev || defaults.paymentTermsId)
+    setPaymentTypeId((prev) => prev || defaults.paymentTypeId)
+    setBankAccountId((prev) => prev || defaults.bankAccountId)
+    setShippingMethodId((prev) => prev || defaults.shippingMethodId)
+  }, [defaults])
 
   if (isLoading) return <LegacyLoadingCard label="Loading price request form…" />
   if (isError || !form) {
@@ -83,6 +93,7 @@ export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedC
 
   return (
     <StickyFormShell
+      wizard={[{title:'Proposal Details',subtitle:'Vendor & payment'},{title:'Delivery & Settings',subtitle:'Shipping, template & project'}]}
       header={
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <FileBadge size={20} className="text-brand" /> New price request
@@ -106,6 +117,7 @@ export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedC
     >
       <Card className="flex-1">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          <WizardStep n={0}>
           <Field label="Ref.">
             <input disabled defaultValue="Draft" className={`${inputClasses} text-text-faint`} />
           </Field>
@@ -133,6 +145,8 @@ export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedC
             <OptionSelect value={paymentTypeId} onChange={setPaymentTypeId} options={form.paymentTypes} placeholder="Select a payment type" />
           </Field>
 
+          </WizardStep>
+          <WizardStep n={1}>
           <Field label="Bank account">
             <OptionSelect value={bankAccountId} onChange={setBankAccountId} options={form.bankAccounts} placeholder="Select a bank account" />
           </Field>
@@ -153,6 +167,7 @@ export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedC
           <Field label="Currency">
             <OptionSelect value={currency || form.defaultCurrency} onChange={setCurrency} options={form.currencies} />
           </Field>
+          </WizardStep>
         </div>
       </Card>
 

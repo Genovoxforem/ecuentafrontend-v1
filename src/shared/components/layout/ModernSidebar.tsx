@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Loader2 } from 'lucide-react'
-import { EMPTY_SECTION_HOME_PATH } from '../../nav/pathSourceSections'
+import { EMPTY_SECTION_HOME_PATH, MENU_UNAVAILABLE_SECTIONS } from '../../nav/pathSourceSections'
+import { CurrentNavItem, navContains, pickCurrentItem, rememberNavClick } from './sidebarCurrent'
 import {
   House,
   Shield,
@@ -58,8 +59,6 @@ import { prefetchRoute } from '../../../app/routePrefetch'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
 import { useTheme } from '../../../context/ThemeContext'
 import { getNavItemIcon } from '../../nav/getNavItemIcon'
-import logoFull from '../../../assets/Ecuenta_logo.png'
-import logoIcon from '../../../assets/log3.png'
 
 // Used only as a label->path lookup by buildNavSections now (see there) —
 // the actual section list, order, and item hierarchy come from GET
@@ -150,20 +149,7 @@ function itemContainsCurrent(item: NavItem, pathname: string, search: string): b
   return pathMatchesLocation(item.path, pathname, search)
 }
 
-// A group node can carry the exact same `path` as one of its own
-// descendants (e.g. Payroll's "Human Resource" and its child "All Leave
-// Request" — clicking the group header really does land on that same real
-// legacy page, see payroll.nav.ts's own comment on why). Without this, both
-// rows independently satisfy `currentUrl === item.path` and light up at
-// once, which reads as "two things got selected" from one click even
-// though there's only one real current page. Only the more specific
-// descendant should carry the "you are here" indicator.
-function hasDescendantWithPath(item: { items: NavItem[] }, path: string | undefined): boolean {
-  if (!path) return false
-  return item.items.some((sub) => sub.path === path || (isGroupItem(sub) && hasDescendantWithPath(sub, path)))
-}
-
-function NavLeaf({ item, depth = 0, navigate, location, blueMetal, suppressCurrent = false }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location; blueMetal: boolean; suppressCurrent?: boolean }) {
+function NavLeaf({ item, depth = 0, navigate, location, blueMetal }: { item: NavLeafItem; depth?: number; navigate: NavigateFunction; location: Location; blueMetal: boolean }) {
   const isLink = Boolean(item.path)
   // Some real nav items (e.g. Agenda's 4 status/scope-filtered "List"/
   // "Calendar" links — see users.nav.ts) carry a query string as part of
@@ -177,7 +163,8 @@ function NavLeaf({ item, depth = 0, navigate, location, blueMetal, suppressCurre
   // real, legitimate backend menu shape: a category heading whose own click
   // target duplicates a more specific sibling below it), so only the later,
   // more specific row lights up instead of both at once.
-  const isCurrent = isLink && pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent
+  const current = useContext(CurrentNavItem)
+  const isCurrent = isLink && item === current
   const ItemIcon = getNavItemIcon(item.label)
   const [loading, setLoading] = useState(false)
 
@@ -193,6 +180,7 @@ function NavLeaf({ item, depth = 0, navigate, location, blueMetal, suppressCurre
         isLink
           ? () => {
               setLoading(true)
+              rememberNavClick(item)
               navigate(item.path!)
             }
           : undefined
@@ -232,7 +220,6 @@ function NavGroup({
   isOpen,
   onToggle,
   blueMetal,
-  suppressCurrent = false,
 }: {
   item: { label: string; path?: string; items: NavItem[] }
   depth: number
@@ -241,15 +228,15 @@ function NavGroup({
   isOpen: boolean
   onToggle: () => void
   blueMetal: boolean
-  suppressCurrent?: boolean
 }) {
   // A group can also be a real page (e.g. Payroll's "Human Resource" —
   // matches the legacy menu, where clicking that parent node lands on its
   // Holiday Management/All Leave Request page). Mirrors NavLeaf's own
   // currentUrl comment: search string included since a group's path can
   // carry one too.
-  const hasActiveDescendant = item.items.some((sub) => itemContainsCurrent(sub, location.pathname, location.search))
-  const isCurrent = pathMatchesLocation(item.path, location.pathname, location.search) && !suppressCurrent && !hasDescendantWithPath(item, item.path)
+  const current = useContext(CurrentNavItem)
+  const hasActiveDescendant = item.items.some((sub) => navContains(sub, current))
+  const isCurrent = item === current
   const isActive = isCurrent || hasActiveDescendant
   const ItemIcon = getNavItemIcon(item.label)
   return (
@@ -258,6 +245,7 @@ function NavGroup({
         type="button"
         onClick={() => {
           if (item.path) {
+            rememberNavClick(item)
             navigate(item.path)
             if (!isOpen) onToggle()
           } else {
@@ -306,32 +294,14 @@ function NavGroup({
 // of nesting, without touching ancestors or descendants (those belong to a
 // different NavItemList instance entirely).
 function NavItemList({ items, depth, navigate, location, blueMetal }: { items: NavItem[]; depth: number; navigate: NavigateFunction; location: Location; blueMetal: boolean }) {
-  const [openLabel, setOpenLabel] = useState<string | null>(() => items.find((it) => isGroupItem(it) && itemContainsCurrent(it, location.pathname, location.search))?.label ?? null)
+  const current = useContext(CurrentNavItem)
+  const holdsCurrent = (it: NavItem) => (current ? navContains(it, current) : itemContainsCurrent(it, location.pathname, location.search))
+  const [openLabel, setOpenLabel] = useState<string | null>(() => items.find((it) => isGroupItem(it) && holdsCurrent(it))?.label ?? null)
   useEffect(() => {
-    const currentGroup = items.find((item) => isGroupItem(item) && itemContainsCurrent(item, location.pathname, location.search))
+    const currentGroup = items.find((item) => isGroupItem(item) && holdsCurrent(item))
     if (currentGroup) setOpenLabel(currentGroup.label)
-  }, [items, location.pathname, location.search])
-  // A real backend menu can legitimately list the same real page twice at
-  // one level — a category heading whose own click target duplicates a
-  // more specific sibling below it (Payroll's flat "Human Resource"/
-  // "All Leave Request" pair is the confirmed live case: both resolve to
-  // the same path). Without this, every sibling sharing that path
-  // independently satisfies its own `currentUrl === item.path` check and
-  // all light up together on one click. Only the LAST item at a given path
-  // (the more specific one, listed after its heading) keeps the "you are
-  // here" indicator; earlier siblings at the same path are suppressed.
-  const suppressedIndices = useMemo(() => {
-    const lastIndexForPath = new Map<string, number>()
-    items.forEach((it, i) => {
-      if (it.path) lastIndexForPath.set(it.path, i)
-    })
-    const suppressed = new Set<number>()
-    items.forEach((it, i) => {
-      if (it.path && lastIndexForPath.get(it.path) !== i) suppressed.add(i)
-    })
-    return suppressed
-  }, [items])
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, current, location.pathname, location.search])
   return (
     <>
       {items.map((item, i) =>
@@ -350,10 +320,9 @@ function NavItemList({ items, depth, navigate, location, blueMetal }: { items: N
             isOpen={openLabel === item.label}
             onToggle={() => setOpenLabel((cur) => (cur === item.label ? null : item.label))}
             blueMetal={blueMetal}
-            suppressCurrent={suppressedIndices.has(i)}
           />
         ) : (
-          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} suppressCurrent={suppressedIndices.has(i)} />
+          <NavLeaf key={`${item.label}-${i}`} item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} />
         ),
       )}
     </>
@@ -420,7 +389,9 @@ function MenuList({ sections, navigate, location, blueMetal }: { sections: NavSe
             {isOpen && (
               <div className="mt-0.5 mb-1 space-y-0.5">
                 {section.items.length === 0 && <p className="text-xs italic text-white/30 pl-6 py-1">Nothing here yet.</p>}
-                <NavItemList items={section.items} depth={0} navigate={navigate} location={location} blueMetal={blueMetal} />
+                <CurrentNavItem.Provider value={pickCurrentItem(section.items, location)}>
+                  <NavItemList items={section.items} depth={0} navigate={navigate} location={location} blueMetal={blueMetal} />
+                </CurrentNavItem.Provider>
               </div>
             )}
           </div>
@@ -445,24 +416,25 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
   const { data: menu } = useAppMenu()
   // GET /api/menu/'s real backend response drives the section list itself;
   // PATH_SOURCE_SECTIONS only supplies each real label's already-verified
-  // React path (see buildNavSections) and covers the one frame before the
-  // request resolves.
+  // React path (see buildNavSections). Until the request answers, the sidebar
+  // shows no modules rather than the hard-coded list.
   const SECTIONS = useMemo(() => {
     const sections = menu ? buildNavSections(menu, PATH_SOURCE_SECTIONS, LayoutGrid) : []
-    return sections.length > 0 ? sections : PATH_SOURCE_SECTIONS
+    return sections.length > 0 ? sections : MENU_UNAVAILABLE_SECTIONS
   }, [menu])
+  const lightMode = theme === 'light'
   const [hovering, setHovering] = useState(false)
   const expanded = open || hovering
 
   return (
     <div
-      className={`relative h-full shrink-0 transition-[width] duration-300 ease-in-out ${open ? 'w-64' : 'w-16'}`}
+      className={`relative h-full shrink-0 transition-[width] duration-300 ease-in-out ${open ? 'w-[230px]' : 'w-[58px]'}`}
       onMouseEnter={() => !open && setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
       <aside
-        className={`h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
-          open ? 'relative w-64' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-64' : 'w-16'}`
+        className={`${lightMode ? 'modern-sb-light' : ''} h-full flex flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 ease-in-out ${
+          open ? 'relative w-[230px]' : `absolute left-0 top-0 z-30 shadow-2xl ${expanded ? 'w-[230px]' : 'w-[58px]'}`
         }`}
       >
         {/* Solid dark base — the glass tint (MODERN_GLASS_BG at 0.22 alpha) is
@@ -471,39 +443,31 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
             of the "always dark" panel the design calls for. This base layer makes
             the sidebar actually dark regardless of theme, while the glass tint and
             sheen layered on top still give the glossy-glass reading. */}
-        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : 'bg-gray-900'}`} />
+        <div className={`absolute inset-0 ${theme === 'blue-metal' ? 'bg-[#06111d]' : lightMode ? 'bg-slate-50' : 'bg-gray-900'}`} />
         {/* Flat translucent tint, no blur — plain glass rather than frosted glass. Kept on its own childless layer,
             separate from the content below, purely so the drop-shadow on the content layer never touches this tint. */}
-        <div
+        {!lightMode && <div
           className="absolute inset-0"
           style={{
             backgroundColor: theme === 'blue-metal' ? 'rgba(6, 17, 29, 0.42)' : MODERN_GLASS_BG,
             backgroundImage: theme === 'blue-metal' ? 'linear-gradient(135deg, rgba(66,200,255,0.2), rgba(22,139,255,0.05) 38%, transparent 68%)' : MODERN_GLASS_SHEEN,
           }}
-        />
+        />}
         {/* No top glass-highlight line here — this top edge sits directly against the navbar's bottom edge (not a real
             outer edge), so a highlight line here would just recreate the seam. Navbar keeps the one at its own true top. */}
 
         {/* Content sits on its own layer with a drop-shadow (covers icons too, unlike text-shadow) so it stays
             legible against a genuinely transparent glass panel regardless of what's behind it. */}
-        <div className="relative z-10 flex flex-col h-full" style={{ filter: MODERN_CONTENT_SHADOW }}>
+        <div className="relative z-10 flex flex-col h-full" style={lightMode || theme === 'blue-metal' ? undefined : { filter: MODERN_CONTENT_SHADOW }}>
           {expanded && (
-            <div className="flex items-center justify-center h-12 mx-2.5 mt-4 mb-2 rounded-lg bg-white/90 px-2 shrink-0">
-              <img src={logoFull} alt="ECUENTA" className="h-full w-auto object-contain" />
-            </div>
+            <h2 className="px-4 pb-3 pt-4 text-sm font-bold tracking-[0.18em] text-white/75">MENU</h2>
           )}
-          {!expanded && (
-            <div className="flex items-center justify-center w-10 h-10 mx-auto mt-4 mb-2 rounded-lg bg-white/90 p-1 shrink-0">
-              <img src={logoIcon} alt="ECUENTA" className="h-full w-full object-contain" />
-            </div>
-          )}
-          {expanded && <p className="px-4 pb-2 text-[11px] font-bold tracking-widest text-white/35">MENU</p>}
 
           <div className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-2.5 pb-2 ${expanded ? '' : 'pt-5'}`}>
             {expanded ? (
               <MenuList sections={SECTIONS} navigate={navigate} location={location} blueMetal={theme === 'blue-metal'} />
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-4">
                 {SECTIONS.map((section) => {
                   const Icon = PHOSPHOR_ICON[section.key] ?? section.icon
                   const isCurrent = sectionContainsCurrent(section, location)
@@ -516,7 +480,7 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                           if (!open && onOpen) onOpen()
                           if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
                         }}
-                        className={`w-full flex items-center justify-center h-10 rounded-xl transition-colors ${
+                        className={`relative w-full flex items-center justify-center h-11 rounded-xl transition-colors ${
                           theme === 'blue-metal'
                             ? isCurrent
                               ? 'bg-[#168bff]/20 text-white'
@@ -529,15 +493,15 @@ export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolea
                         <span
                           className={
                             theme === 'blue-metal'
-                              ? `flex h-8 w-8 items-center justify-center rounded-md border ${
+                              ? `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-lg border ${
                                   isCurrent
-                                    ? 'border-[#66caff] bg-[linear-gradient(145deg,#2aa9ff,#0754a5)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_12px_rgba(22,139,255,0.45)]'
-                                    : 'border-[#2b6e9f] bg-[linear-gradient(145deg,#173958,#091522)] text-[#6acfff] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_8px_rgba(22,139,255,0.18)]'
+                                    ? 'border-[#8fdcff] bg-[linear-gradient(145deg,#38b6ff,#0a63c0)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_14px_rgba(56,182,255,0.6)]'
+                                    : 'border-[#3f8fcc] bg-[linear-gradient(145deg,#1f4d78,#0b2238)] text-[#9ee3ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_8px_rgba(22,139,255,0.25)] group-hover/rail:border-[#7ad0ff] group-hover/rail:text-white'
                                 }`
                               : 'contents'
                           }
                         >
-                          <Icon size={20} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
+                          <Icon size={21} weight="duotone" className={`shrink-0 ${theme === 'blue-metal' || isCurrent ? 'text-current' : MODERN_ICON_REST_COLOR}`} />
                         </span>
                       </button>
                     </div>

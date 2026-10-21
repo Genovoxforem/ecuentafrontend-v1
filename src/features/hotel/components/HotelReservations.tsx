@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarCheck, LoaderCircle, Plus, Info } from 'lucide-react'
+import { CalendarCheck, LoaderCircle, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -74,14 +74,6 @@ export function HotelReservations() {
         {isLoading && <LegacyLoadingCard label="Loading bookings…" />}
         {isError && <LegacyErrorCard title="Couldn't load bookings" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
-        <Card className="!h-auto flex items-start gap-2 bg-info-bg/40">
-          <Info size={15} className="text-info-fg mt-0.5 shrink-0" />
-          <p className="text-xs text-info-fg">
-            Backend page: <code className="font-mono">booking/reservation/booking_list.php</code>. This is the real classic table the "+ Add" button lives
-            on, not the Hotel Suite SPA — Booking Date is shown exactly as the real page's own DataTable renders it (it's genuinely bound to a raw field
-            that isn't the formatted date, confirmed live).
-          </p>
-        </Card>
 
         {bookings && (
           <Card className="!p-0 overflow-hidden flex-1 min-h-0">

@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Flag, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
+import { ROUTES } from '../../../routes'
 import { useInvoiceTemplates, type InvoiceTemplateRow } from '../invoiceTemplates.queries'
 
 function fmtDate(v: string | null) {
@@ -68,9 +70,10 @@ function sortValue(r: InvoiceTemplateRow, key: SortKey): string | number {
   }
 }
 
-// Real GET /api/invoice-templates/ data (see invoiceTemplates.queries.ts),
+// Real recurring-invoice list data (see invoiceTemplates.queries.ts),
 // reading llx_facture_rec directly. Read-only, matching the legacy page's
-// own instructions for how templates get created.
+// supported list contract. Template-specific edit/delete/generate endpoints
+// are not present in the frontend's verified API contracts.
 export function TemplateInvoicesPage() {
   const { data, isLoading, isError, error } = useInvoiceTemplates()
   const [page, setPage] = useState(1)
@@ -117,12 +120,6 @@ export function TemplateInvoicesPage() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Flag size={20} className="text-brand" /> Template Invoices
-        </h2>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         <p className="text-sm text-text-muted">
           To create a template invoice, create a standard invoice, then, without validating it, click onto button "Convert into template invoice".
@@ -162,30 +159,31 @@ export function TemplateInvoicesPage() {
                       {col.label}
                     </Th>
                   ))}
+                  <th className="px-4 py-2.5 text-left text-xs font-medium text-text-faint uppercase tracking-wide">Actions</th>
                 </TheadRow>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
+                    <td colSpan={COLUMN_LABELS.length + 1} className="px-4 py-4 text-text-faint italic">
                       Loading…
                     </td>
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={COLUMN_LABELS.length} className="px-4 py-4">
+                    <td colSpan={COLUMN_LABELS.length + 1} className="px-4 py-4">
                       <span className="text-danger">{error instanceof Error ? error.message : 'Could not load template invoices.'}</span>
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
+                    <td colSpan={COLUMN_LABELS.length + 1} className="px-4 py-4 text-text-faint italic">
                       No Data Available In Table
                     </td>
                   </tr>
                 ) : filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={COLUMN_LABELS.length} className="px-4 py-4 text-text-faint italic">
+                    <td colSpan={COLUMN_LABELS.length + 1} className="px-4 py-4 text-text-faint italic">
                       No template invoices match "{search}".
                     </td>
                   </tr>
@@ -207,6 +205,11 @@ export function TemplateInvoicesPage() {
                         <td className="px-4 py-3">
                           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${r.statusLabel === 'Active' ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>{r.statusLabel}</span>
                         </td>
+                        <td className="px-4 py-3">
+                          <Link to={ROUTES.invoiceDetail.replace(':id', String(r.id))} className="text-xs font-medium text-brand hover:underline">
+                            Open invoice
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                     <tr className="font-semibold text-text!">
@@ -215,7 +218,7 @@ export function TemplateInvoicesPage() {
                       <td className="px-4 py-3 text-right tabular-nums">{formatMoney(totals.ht)}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{formatMoney(totals.vat)}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{formatMoney(totals.ttc)}</td>
-                      <td className="px-4 py-3" colSpan={6} />
+                      <td className="px-4 py-3" colSpan={8} />
                     </tr>
                   </>
                 )}

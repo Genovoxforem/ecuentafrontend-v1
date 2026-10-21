@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Utensils, Coffee, RefreshCw, Eye } from 'lucide-react'
+import { RefreshCw, Eye } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -89,7 +89,6 @@ function CompletedCell({ row }: { row: KitchenOrderRow }) {
 // real "Kitchen Order Management" screen (kitchen/ordermanagement.php),
 // which posts the same 7 real filters to the same endpoint.
 export function KitchenOrdersList({ kind }: { kind: 'kitchen' | 'beverage' }) {
-  const Icon = kind === 'beverage' ? Coffee : Utensils
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [draftFilters, setDraftFilters] = useState<KitchenOrdersFilters>(EMPTY_FILTERS)
@@ -138,12 +137,6 @@ export function KitchenOrdersList({ kind }: { kind: 'kitchen' | 'beverage' }) {
     // — keeps ListPagination pinned to the true bottom of the viewport instead of floating
     // right under the table with dead space below it on a short page.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
-      <div className="sticky -top-6 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-6 py-3 dark:bg-gray-950">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-          <Icon size={20} className="text-brand" /> {filterOptions?.title || (kind === 'beverage' ? 'Beverage Order Management' : 'Kitchen Order Management')}
-        </h2>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {/* Real filter row — every field posts straight through to order_ajax_list.php's own
             filterDate/filterToken/filterThirdParty/filterCity/filterPaymentType/
@@ -213,27 +206,26 @@ export function KitchenOrdersList({ kind }: { kind: 'kitchen' | 'beverage' }) {
           >
             <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} /> Refresh
           </button>
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value))
+                setPage(1)
+              }}
+              className={`${inputCls} w-20`}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <TableExportButtons title={kind === 'beverage' ? 'Beverage Orders' : 'Kitchen Orders'} getExportData={getExportData} />
+          </div>
         </div>
 
         {isError && <LegacyErrorCard title="Couldn't load orders" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <select
-            value={perPage}
-            onChange={(e) => {
-              setPerPage(Number(e.target.value))
-              setPage(1)
-            }}
-            className={inputCls}
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <TableExportButtons title={kind === 'beverage' ? 'Beverage Orders' : 'Kitchen Orders'} getExportData={getExportData} />
-        </div>
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex-1 min-h-0 overflow-auto">

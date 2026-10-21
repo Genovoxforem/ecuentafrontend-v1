@@ -17,18 +17,56 @@ import {
   FileEdit,
   CheckCircle2,
   RefreshCw,
+  PackageX,
+  TriangleAlert,
+  Banknote,
+  ShieldCheck,
+  Hourglass,
+  CircleHelp,
   PieChart as PieChartIcon,
   History,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { ROUTES } from '../../../routes'
-import { ActionGroupCard, Card, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
-import { useProductsSummary, useServicesSummary, useProductRows, useAllProductsRich } from '../products.queries'
+import { ActionGroupCard, Card, ICON_STYLES, SectionHeading, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
+import { useProductsSummary, useServicesSummary, useProductRows, useAllProductsRich, useProductAreaSummary } from '../products.queries'
 import { ProductAvatar } from './ProductAvatar'
-import type { RichProductRow } from '../productAjax'
+import type { RichProductRow } from '../productRich'
 
 const REPORTS = ['Profit Per Product', 'Best Selling Products', 'Products/Services by popularity', 'Profit per Service', 'Best selling services']
+function AreaTile({ label, value, caption, icon: Icon, color }: { label: string; value: string; caption: string; icon: typeof PackageX; color: IconColor }) {
+  return (
+    <Card className="!p-3 !h-auto !flex-row items-center justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
+        <p className="text-xl font-bold text-text! mt-1">{value}</p>
+        <p className="text-xs text-text-faint mt-0.5">{caption}</p>
+      </div>
+      <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES[color]}`}>
+        <Icon size={20} />
+      </span>
+    </Card>
+  )
+}
+
+// Stock, ZRA and category figures from product/fapi/summary.php.
+function AreaFigures() {
+  const { data } = useProductAreaSummary()
+  if (!data) return null
+  const money = `${data.currency} ${data.stock.stock_value_pmp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <AreaTile label="Out of stock" value={String(data.stock.out_of_stock)} caption={`of ${data.stock.tracked} stock-managed`} icon={PackageX} color="rose" />
+      <AreaTile label="Below alert" value={String(data.stock.below_alert)} caption="At or under the alert level" icon={TriangleAlert} color="amber" />
+      <AreaTile label="Stock value" value={money} caption="At weighted average cost" icon={Banknote} color="green" />
+      <AreaTile label="ZRA registered" value={String(data.zra.registered)} caption={data.zra.failed ? `${data.zra.failed} failed` : 'Registered with ZRA'} icon={ShieldCheck} color="blue" />
+      <AreaTile label="ZRA pending" value={String(data.zra.pending)} caption="Waiting to be registered" icon={Hourglass} color="violet" />
+      <AreaTile label="Unclassified" value={String(data.zra.unclassified)} caption={`${data.categories} tags/categories`} icon={CircleHelp} color="cyan" />
+    </div>
+  )
+}
+
 const DONUT_COLORS = ['var(--color-chart-1)', 'var(--color-chart-3)', 'var(--color-chart-4)', 'var(--color-chart-6)']
 
 function ReportsTab() {
@@ -79,6 +117,8 @@ function DashboardTab() {
   const latest = useMemoLatest(richProducts, richServices)
 
   return (
+    <div className="space-y-4">
+    <AreaFigures />
     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
       <Card>
         <SectionHeading icon={PieChartIcon}>Statistics</SectionHeading>
@@ -158,6 +198,7 @@ function DashboardTab() {
           </table>
         </div>
       </Card>
+    </div>
     </div>
   )
 }
