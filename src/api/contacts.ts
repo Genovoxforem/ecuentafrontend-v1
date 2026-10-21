@@ -37,6 +37,10 @@ export interface ContactRow {
 
 export interface ContactDetail extends ContactRow {
   entity: number
+  // Added to get/create/update on 15 Oct 2026. birthday_alert cannot be stored on this fork.
+  civility_code?: string | null
+  birthday?: string | null
+  socialnetworks?: Record<string, string> | null
   note_public: string | null
   note_private: string | null
   categories: Array<{ id: number; label: string; color: string }>
@@ -119,6 +123,9 @@ export interface CreateContactInput {
   priv?: number
   note_public?: string
   note_private?: string
+  civility_code?: string
+  birthday?: string
+  socialnetworks?: Record<string, string>
 }
 
 export async function createContact(input: CreateContactInput): Promise<{ id: number }> {
@@ -133,5 +140,16 @@ export async function updateContact(id: number, input: Partial<CreateContactInpu
 
 export async function deleteContact(id: number): Promise<{ id: number }> {
   const res = await fapi.delete<FapiSuccess<{ id: number }>>('/contact/fapi/delete.php', { params: { id } })
+  return res.data.data
+}
+
+// contact/fapi/meta.php: the option lists behind the personal-data fields.
+export interface ContactMeta {
+  civilities: Array<{ code: string; label: string }>
+  social_networks: Array<{ code: string; label: string }>
+}
+
+export async function fetchContactMeta(): Promise<ContactMeta> {
+  const res = await fapi.get<FapiSuccess<ContactMeta>>('/contact/fapi/meta.php')
   return res.data.data
 }

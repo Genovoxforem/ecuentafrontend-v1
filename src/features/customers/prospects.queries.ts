@@ -1,42 +1,52 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchThirdParties, fetchThirdPartySummary } from '../../api/customers'
-import { toThirdPartyRow } from './customers.queries'
+import { api } from '../../api/axios'
+import { toCustomerListRow, type CustomerListApiResponse } from './customers.queries'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
 
 export interface ProspectsSummary {
   totalCustomers: number
-  createdThisMonth: number
-  outstandingBalance: number
-  defaultCountryCustomers: number
-  otherCountryCustomers: number
+  createdThisMonth: number | null
+  outstandingBalance: number | null
+  defaultCountryCustomers: number | null
+  otherCountryCustomers: number | null
   customers: ThirdPartyRow[]
 }
+
+const PAGE_SIZE = 250
+
 /**
  * Prospects list + summary KPIs.
  *
- * Uses the bearer-token-authenticated fapi endpoints:
- *   GET /societe/fapi/list.php?type=prospect
- *   GET /societe/fapi/summary.php?type=prospect
- *
- * These wrap the existing Dolibarr Societe business class and replicate
- * /societe/list.php?type=p's server-side KPI computation.
+ * Reads /api/customers/?type=prospect — the same endpoint the Customers list
+ * uses. The Societe fapi list/summary routes (/societe/fapi/list.php,
+ * summary.php) are 404 on the active backend, which left this page empty.
+ * That endpoint has no KPI summary, so the KPIs derivable from the rows are
+ * computed here (only when every row was loaded) and the default-country
+ * split, which needs the company country, stays unavailable.
  */
 export function useProspectsSummary() {
   return useQuery({
     queryKey: ['customers', 'summary', 'prospects'],
     queryFn: async (): Promise<ProspectsSummary> => {
-      const [listData, summary] = await Promise.all([
-        fetchThirdParties({ type: 'prospect', limit: 100, sort: 'name', direction: 'asc' }),
-        fetchThirdPartySummary('prospect'),
-      ])
-      const rows: ThirdPartyRow[] = listData.items.map(toThirdPartyRow)
+      const { data } = await api.get<CustomerListApiResponse>('/customers/', {
+        params: { type: 'prospect', limit: PAGE_SIZE },
+      })
+      const items = data.customers ?? []
+      const rows: ThirdPartyRow[] = items.map((item) => ({
+        ...toCustomerListRow(item),
+        nature: item.type === 'customer_prospect' ? 'Customer, Prospect' : 'Prospect',
+      }))
+      const total = data.total_count ?? rows.length
+      const complete = rows.length >= total
+      const now = new Date()
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
       return {
-        totalCustomers: summary.total ?? rows.length,
-        createdThisMonth: summary.created_this_month ?? 0,
-        outstandingBalance: summary.outstanding_balance ?? 0,
-        defaultCountryCustomers: summary.default_country_parties ?? 0,
-        otherCountryCustomers: summary.other_country_parties ?? 0,
+        totalCustomers: total,
+        createdThisMonth: complete ? rows.filter((row) => row.creationDate.startsWith(month)).length : null,
+        outstandingBalance: complete ? rows.reduce((sum, row) => sum + row.outstandingBalance, 0) : null,
+        defaultCountryCustomers: null,
+        otherCountryCustomers: null,
         customers: rows,
       }
     },

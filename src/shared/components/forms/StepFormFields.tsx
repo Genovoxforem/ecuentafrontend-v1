@@ -47,7 +47,7 @@ export function Field({ field, value, onChange }: { field: FieldSpec; value: str
         {Icon && <Icon size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />}
         {field.type === 'select' ? (
           <>
-            <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClasses} ${Icon ? 'pl-9' : ''} appearance-none pr-9`}>
+            <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClasses} ${Icon ? '!pl-9' : ''} appearance-none pr-9`}>
               {!value && <option value="">{field.placeholder ?? `Select ${field.label.toLowerCase()}`}</option>}
               {field.options?.map((o) => (
                 <option key={o} value={o}>
@@ -62,10 +62,10 @@ export function Field({ field, value, onChange }: { field: FieldSpec; value: str
           <input
             type="file"
             disabled
-            className={`${inputClasses} ${Icon ? 'pl-9' : ''} file:mr-3 file:rounded-md file:border-0 file:bg-surface-hover file:px-2.5 file:py-1 file:text-xs`}
+            className={`${inputClasses} ${Icon ? '!pl-9' : ''} file:mr-3 file:rounded-md file:border-0 file:bg-surface-hover file:px-2.5 file:py-1 file:text-xs`}
           />
         ) : field.type === 'date' ? (
-          <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClasses} ${Icon ? 'pl-9' : ''}`} />
+          <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClasses} ${Icon ? '!pl-9' : ''}`} />
         ) : (
           <input
             type="text"
@@ -76,7 +76,7 @@ export function Field({ field, value, onChange }: { field: FieldSpec; value: str
               const raw = field.digitsOnly ? e.target.value.replace(/\D/g, '') : e.target.value
               onChange(field.maxLength ? raw.slice(0, field.maxLength) : raw)
             }}
-            className={`${inputClasses} ${Icon ? 'pl-9' : ''} ${error ? 'border-danger focus:border-danger focus:ring-danger/30' : ''}`}
+            className={`${inputClasses} ${Icon ? '!pl-9' : ''} ${error ? 'border-danger focus:border-danger focus:ring-danger/30' : ''}`}
           />
         )}
       </div>

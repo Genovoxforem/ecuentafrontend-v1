@@ -4,7 +4,9 @@ import { ChevronLeft, IdCard, User, Link2, StickyNote, Paperclip, CalendarClock,
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useContact, type ContactKind } from '../contacts.queries'
+import { useContact, useContactMeta, useUpdateContact, type ContactKind } from '../contacts.queries'
+import { ContractAgendaTab, ContractDocumentsTab, RecordNotesTab } from '../../contracts/components/ContractTabs'
+import { CONTACT_BASE } from '../../../api/contractTabs'
 import type { ContactDetail as ContactData } from '../../../api/contacts'
 
 const TABS = [
@@ -114,11 +116,11 @@ export function ContactDetail({ kind = 'customer' }: { kind?: ContactKind }) {
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
         {tab === 'contact' && <ContactAddressTab contact={contact} />}
-        {tab === 'personal' && <PersonalDataTab />}
+        {tab === 'personal' && <PersonalDataTab contact={contact} />}
         {tab === 'related' && <RelatedItemsTab />}
-        {tab === 'note' && <NoteTab />}
-        {tab === 'documents' && <LinkedFilesTab />}
-        {tab === 'agenda' && <EventsAgendaTab />}
+        {tab === 'note' && <RecordNotesTab id={id} base={CONTACT_BASE} />}
+        {tab === 'documents' && <ContractDocumentsTab id={id} base={CONTACT_BASE} />}
+        {tab === 'agenda' && <ContractAgendaTab id={id} base={CONTACT_BASE} eventElement="" subject="contact" />}
       </div>
     </div>
   )
@@ -159,27 +161,106 @@ function ContactAddressTab({ contact }: { contact: ContactData }) {
   )
 }
 
-function PersonalDataTab() {
+function PersonalDataTab({ contact }: { contact: ContactData }) {
+  const { data: meta } = useContactMeta()
+  const update = useUpdateContact(String(contact.id))
+  const canEdit = !!contact.actions?.can_edit
+  const [editing, setEditing] = useState(false)
+  const [civility, setCivility] = useState('')
+  const [birthday, setBirthday] = useState('')
+  const [networks, setNetworks] = useState<Record<string, string>>({})
+
+  const civilityLabel = meta?.civilities.find((c) => c.code === contact.civility_code)?.label ?? contact.civility_code ?? ''
+  const socials = Object.entries(contact.socialnetworks ?? {}).filter(([, handle]) => handle)
+
+  function startEdit() {
+    setCivility(contact.civility_code ?? '')
+    setBirthday(contact.birthday?.slice(0, 10) ?? '')
+    setNetworks({ ...(contact.socialnetworks ?? {}) })
+    setEditing(true)
+  }
+
+  function save() {
+    const handles = Object.fromEntries(Object.entries(networks).filter(([, v]) => v.trim()))
+    update.mutate(
+      { ...(civility ? { civility_code: civility } : {}), ...(birthday ? { birthday } : {}), socialnetworks: handles },
+      { onSuccess: () => setEditing(false) },
+    )
+  }
+
+  const fieldCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5'
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <TabTitle>Personal Data</TabTitle>
-        <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-          Modify
-        </button>
+        {editing ? (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setEditing(false)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-text">
+              Cancel
+            </button>
+            <button type="button" disabled={update.isPending} onClick={save} className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+              {update.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        ) : (
+          <button type="button" disabled={!canEdit} onClick={startEdit} title={canEdit ? 'Modify the personal data' : 'You do not have permission to edit this contact'} className="flex items-center gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-text-faint">
+            Modify
+          </button>
+        )}
       </div>
-      
+      {update.isError && <p role="alert" className="text-sm text-danger">{update.error instanceof Error ? update.error.message : 'Could not save the personal data.'}</p>}
       <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-text-faint text-xs">Title</p>
-            <p className="text-text-faint italic">—</p>
+        {editing ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <label className="flex flex-col gap-1">
+              <span className="text-text-faint text-xs">Title</span>
+              <select value={civility} onChange={(e) => setCivility(e.target.value)} className={fieldCls}>
+                <option value="" />
+                {(meta?.civilities ?? []).map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-text-faint text-xs">Date of birth</span>
+              <input type="date" value={birthday} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setBirthday(e.target.value)} className={fieldCls} />
+            </label>
+            {(meta?.social_networks ?? []).map((n) => (
+              <label key={n.code} className="flex flex-col gap-1">
+                <span className="text-text-faint text-xs">{n.label}</span>
+                <input value={networks[n.code] ?? ''} onChange={(e) => setNetworks((prev) => ({ ...prev, [n.code]: e.target.value }))} className={fieldCls} />
+              </label>
+            ))}
           </div>
-          <div>
-            <p className="text-text-faint text-xs">Date of birth</p>
-            <p className="text-text-faint italic">—</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-text-faint text-xs">Title</p>
+              <p className="text-text!">{civilityLabel || '—'}</p>
+            </div>
+            <div>
+              <p className="text-text-faint text-xs">Date of birth</p>
+              <p className="text-text!">{contact.birthday ? contact.birthday.slice(0, 10) : '—'}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-text-faint text-xs">Social networks</p>
+              {socials.length === 0 ? (
+                <p className="text-text-faint">—</p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {socials.map(([network, handle]) => (
+                    <li key={network} className="text-text!">
+                      <span className="text-text-muted capitalize">{network}:</span> {handle}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </Card>
     </div>
   )
@@ -201,73 +282,6 @@ function RelatedItemsTab() {
           <tbody>
             <tr>
               <td colSpan={2} className="px-4 py-6 text-center text-text-faint italic">
-                No data source available.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  )
-}
-
-function NoteTab() {
-  const [notePublic, setNotePublic] = useState('')
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <TabTitle>Note</TabTitle>
-        <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-          Save
-        </button>
-      </div>
-      
-      <Card className="!h-auto">
-        <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={4} className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
-      </Card>
-    </div>
-  )
-}
-
-function LinkedFilesTab() {
-  return (
-    <div className="space-y-3">
-      <TabTitle>Linked Files</TabTitle>
-      
-      <Card className="!h-auto">
-        <div className="flex flex-wrap items-center gap-3">
-          <input type="file" disabled className="text-sm text-text-faint file:mr-3 file:rounded-md file:border file:border-input-border file:bg-surface-hover file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-text-faint cursor-not-allowed" />
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-            Upload
-          </button>
-        </div>
-      </Card>
-      <Card className="!h-auto">
-        <p className="text-sm text-text-faint italic text-center py-4">No Documents Uploaded</p>
-      </Card>
-    </div>
-  )
-}
-
-function EventsAgendaTab() {
-  return (
-    <div className="space-y-3">
-      <TabTitle>Events/Agenda</TabTitle>
-      
-      <Card className="!h-auto !p-0 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium px-4 py-2.5">Ref.</th>
-              <th className="font-medium px-4 py-2.5">Date</th>
-              <th className="font-medium px-4 py-2.5">By</th>
-              <th className="font-medium px-4 py-2.5">Type</th>
-              <th className="font-medium px-4 py-2.5">Title</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={5} className="px-4 py-6 text-center text-text-faint italic">
                 No data source available.
               </td>
             </tr>

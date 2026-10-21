@@ -16,7 +16,7 @@ function ReceiptOptions({ receipt, onClose, onNewSale }) {
                 <button
                     type="button"
                     onClick={() => printReceipt(receipt)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#397db9] hover:bg-[#2c6291]"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4]"
                 >
                     <Printer size={16} />
                     Print Receipt

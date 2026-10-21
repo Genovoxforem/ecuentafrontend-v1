@@ -4,7 +4,7 @@ import { ROUTES } from '../../routes'
 
 function Illustration() {
   return (
-    <svg viewBox="0 0 320 210" className="w-full max-w-sm" role="img" aria-label="Page under construction">
+    <svg viewBox="0 0 320 210" className="w-full max-w-sm brightness-75" role="img" aria-label="Page under construction">
       <defs>
         <pattern id="pna-stripes" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="16" height="16" fill="#fbbf24" />

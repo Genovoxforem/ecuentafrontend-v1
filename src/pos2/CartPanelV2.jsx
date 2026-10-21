@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Receipt, Trash2, Lock, XCircle, Save, Pencil, GitBranch, Utensils, ShoppingBag, ChevronDown } from "lucide-react";
+import { Receipt, Trash2, Lock, XCircle, Save, Pencil, GitBranch, Utensils, ShoppingBag, ChevronDown, Minus, Plus, Image as ImageIcon } from "lucide-react";
 import CustomerPickerV2 from "./CustomerPickerV2";
+import { PRIMARY_BTN } from "./buttonStyles";
 import TableChooserV2 from "./TableChooserV2";
 import EditCartItemModal from "../pos/features/cart/Components/EditCartItemModal";
 import SplitPaymentV2 from "./SplitPaymentV2";
@@ -22,9 +23,10 @@ function Row({ label, value }) {
     );
 }
 
-export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = true }) {
+export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = true, imageById }) {
     const terminalNumber = useAuthStore((s) => s.terminalConfig?.terminalNumber) || 1;
     const updateCartItem = usePosStore((s) => s.updateCartItem);
+    const changeQty = usePosStore((s) => s.changeQty);
     const pendingInvoice = usePosStore((s) => s.pendingInvoice);
     const cancelPendingInvoice = usePosStore((s) => s.cancelPendingInvoice);
     const showToast = usePosStore((s) => s.showToast);
@@ -51,7 +53,10 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
     return (
         <div className="flex h-full w-[360px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
             <div className="flex items-center justify-between">
-                <p className="text-lg font-bold">Current order</p>
+                <p className="flex items-center gap-2 text-lg font-bold">
+                    Current order
+                    {itemCount > 0 && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold text-white">{itemCount}</span>}
+                </p>
                 <p className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     {ref}
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{status}</span>
@@ -116,42 +121,58 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
 
                     </div>
                 ) : (
-                    <ul className="space-y-2">
+                    <ul className="space-y-1.5">
                         {cart.map((item) => (
                             <li
                                 key={item.id}
-                                onClick={() => !item.locked && setEditingItem(item)}
-                                className={`rounded-xl border px-3 py-2 ${item.locked ? "border-amber-200 bg-amber-50 text-slate-900" : "cursor-pointer border-slate-200 hover:border-blue-500 dark:border-slate-700"}`}
+                                className={`flex gap-2 rounded-lg border p-1.5 ${item.locked ? "border-amber-200 bg-amber-50 text-slate-900" : "border-slate-200 dark:border-slate-700"}`}
                             >
-                                <div className="flex items-start justify-between gap-2">
-                                    <p className="min-w-0 truncate text-sm font-semibold" title={item.name}>
-                                        {item.name}
-                                    </p>
-                                    <p className="shrink-0 text-sm font-bold tabular-nums">ZMW {formatAmount(item.price * item.qty)}</p>
-                                </div>
-                                <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
-                                    <span className="flex items-center gap-1">
-                                        {formatCurrency(item.price)} × {item.qty}
-                                        {!item.locked && <Pencil size={10} />}
-                                        {item.locked && (
-                                            <span className="inline-flex items-center gap-0.5 text-amber-700">
-                                                <Lock size={10} /> Locked
-                                            </span>
-                                        )}
+                                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-white dark:border-slate-600">
+                                    <span className="absolute inset-0 grid place-items-center bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                                        <ImageIcon size={18} strokeWidth={1.5} />
                                     </span>
-                                    {!item.locked && (
-                                        <button
-                                            type="button"
-                                            aria-label="Remove item"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onRemove(item.id);
-                                            }}
-                                            className="text-red-500 hover:text-red-600"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                    {(item.image || imageById?.get(item.id)) && (
+                                        <img src={item.image || imageById.get(item.id)} alt="" loading="lazy" className="relative h-full w-full bg-white object-contain object-center p-1" onError={(e) => (e.currentTarget.style.display = "none")} />
                                     )}
+                                </div>
+                                <div className="flex min-w-0 flex-1 flex-col justify-between">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="min-w-0 truncate text-[12px] font-semibold leading-[16px]" title={`${item.name} — ${formatCurrency(item.price)} each`}>
+                                            {item.name}
+                                            {item.locked && (
+                                                <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700">
+                                                    <Lock size={10} /> Locked
+                                                </span>
+                                            )}
+                                        </p>
+                                        {!item.locked && (
+                                            <button type="button" aria-label="Remove item" onClick={() => onRemove(item.id)} className="shrink-0 rounded-md p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500">
+                                                <Trash2 size={13} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {item.locked ? (
+                                            <span className="text-xs font-semibold">× {item.qty}</span>
+                                        ) : (
+                                            <>
+                                                <span className="flex items-center rounded-full border border-slate-200 dark:border-slate-600">
+                                                    <button type="button" aria-label="Decrease quantity" onClick={() => changeQty(item.id, -1)} className="grid h-5 w-5 place-items-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700">
+                                                        <Minus size={11} />
+                                                    </button>
+                                                    <span className="min-w-[20px] text-center text-[12px] font-bold tabular-nums">{item.qty}</span>
+                                                    <button type="button" aria-label="Increase quantity" onClick={() => changeQty(item.id, 1)} className="grid h-5 w-5 place-items-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700">
+                                                        <Plus size={11} />
+                                                    </button>
+                                                </span>
+                                                <button type="button" aria-label="Edit price or discount" title="Edit price / discount" onClick={() => setEditingItem(item)} className="grid h-5 w-5 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-700">
+                                                    <Pencil size={11} />
+                                                </button>
+                                            </>
+                                        )}
+                                        <span className="ml-1 truncate text-[10px] text-slate-500 dark:text-slate-400">× {formatAmount(item.price)}</span>
+                                        <p className="ml-auto shrink-0 text-[13px] font-bold tabular-nums">ZMW {formatAmount(item.price * item.qty)}</p>
+                                    </div>
                                 </div>
                             </li>
                         ))}
@@ -198,7 +219,7 @@ export default function CartPanelV2({ cart, onRemove, total, cashSessionOpen = t
                     disabled={cart.length === 0 || !cashSessionOpen || !!checkoutBlockedReason}
                     onClick={() => setPaymentOpen(true)}
                     title={checkoutBlockedReason ? `Checkout unavailable: ${checkoutBlockedReason}` : undefined}
-                    className="flex-1 whitespace-nowrap rounded-lg bg-blue-600 py-3 text-[15px] font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-slate-800"
+                    className={`flex-1 whitespace-nowrap rounded-lg py-3 text-[15px] font-bold shadow-lg shadow-blue-600/30 ${PRIMARY_BTN} disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:bg-slate-200 dark:disabled:bg-slate-800 dark:disabled:hover:bg-slate-800`}
                 >
                     {pendingInvoice ? "Settle Invoice" : "Make Payment"}
                 </button>

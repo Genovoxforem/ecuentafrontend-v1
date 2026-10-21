@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react'
+import { useRememberedToggle } from '../useRememberedToggle'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   FileText,
@@ -143,27 +144,6 @@ function filtersFromUrl(params: URLSearchParams): LedgerFilters {
   }
 }
 
-// Whether the filter fields / Account Summary are shown — remembered per
-// browser so a user who hides them to see more of the table keeps that.
-function useRememberedToggle(key: string, initial: boolean) {
-  const [value, setValue] = useState(() => {
-    try {
-      const stored = localStorage.getItem(key)
-      return stored === null ? initial : stored === '1'
-    } catch {
-      return initial
-    }
-  })
-  const toggle = () =>
-    setValue((prev) => {
-      try {
-        localStorage.setItem(key, prev ? '0' : '1')
-      } catch {}
-      return !prev
-    })
-  return [value, toggle] as const
-}
-
 export function LedgerOverview() {
   const [searchParams] = useSearchParams()
   const [filters, setFilters] = useState<LedgerFilters>(() => filtersFromUrl(searchParams))
@@ -209,7 +189,19 @@ export function LedgerOverview() {
             />
           </InBanner>
         </div>
-        <LedgerToolbar active="account" />
+        <LedgerToolbar
+          active="account"
+          extra={
+            <>
+              <button type="button" onClick={toggleFilters} aria-pressed={showFilters} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text! whitespace-nowrap">
+                <SlidersHorizontal size={14} /> {showFilters ? 'Hide filters' : 'Show filters'}
+              </button>
+              <button type="button" onClick={toggleSummary} aria-pressed={showSummary} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text! whitespace-nowrap">
+                <Landmark size={14} /> {showSummary ? 'Hide summary' : 'Show summary'}
+              </button>
+            </>
+          }
+        />
         {showFilters && (
           <LedgerFilterBar
             singleLine
@@ -239,32 +231,15 @@ export function LedgerOverview() {
         {report && (
           <>
             <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-              {/* Always shown, so hidden filters can be brought back even when nothing matched. */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface">
+              {/* Only has something to show when there are groups. */}
+              <div className={`${report.groups.length > 0 ? 'flex' : 'hidden'} items-center justify-between px-3 py-2 border-b border-border bg-surface`}>
                 <p className="text-xs text-text-faint">
                   {report.groups.length > 0 &&
                     `${report.groups.length} account${report.groups.length === 1 ? '' : 's'} · click one to fold its transaction lines`}
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={toggleFilters}
-                    aria-pressed={showFilters}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
-                  >
-                    <SlidersHorizontal size={12} /> {showFilters ? 'Hide filters' : 'Show filters'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleSummary}
-                    aria-pressed={showSummary}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text"
-                  >
-                    <Landmark size={12} /> {showSummary ? 'Hide summary' : 'Show summary'}
-                  </button>
                   {report.groups.length > 0 && (
                     <>
-                      <span className="mx-1 h-4 w-px bg-border" />
                       <button
                         type="button"
                         onClick={() => setCollapsed(new Set())}

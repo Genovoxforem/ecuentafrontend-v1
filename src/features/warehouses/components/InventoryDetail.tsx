@@ -18,7 +18,6 @@ import {
   FileText,
   Clock,
   RefreshCw,
-  Mail,
   Package,
   ClipboardCheck,
   Tags,
@@ -28,10 +27,9 @@ import { useTheme } from '../../../context/ThemeContext'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useInventoryDetail, useDeleteInventoryReal, useSetInventoryToDraftReal } from '../warehouseExtras.queries'
+import { useInventoryDetail, useDeleteInventoryReal, useSetInventoryToDraftReal, useValidateInventory } from '../warehouseExtras.queries'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { AddEventModal } from '../../agenda/components/AddEventModal'
-import { SendInventoryEmailModal } from './SendInventoryEmailModal'
 import { InventoryCountLines } from './InventoryCountLines'
 
 // Native rebuild of product/inventory/card.php?id=X — see
@@ -78,9 +76,9 @@ export function InventoryDetail() {
   const { data, isLoading, isError, error, refetch } = useInventoryDetail(id)
   const [tab, setTab] = useState<'card' | 'inventory'>('card')
   const [showAddEvent, setShowAddEvent] = useState(false)
-  const [showSendEmail, setShowSendEmail] = useState(false)
   const deleteInventory = useDeleteInventoryReal()
   const setToDraft = useSetInventoryToDraftReal()
+  const validateInventory = useValidateInventory()
   const confirm = useConfirm()
 
   async function handleDelete() {
@@ -110,7 +108,7 @@ export function InventoryDetail() {
     )
   }
 
-  const hasBannerAction = !!(data.emailUrl || data.backToDraftUrl || data.deleteUrl)
+  const hasBannerAction = !!(data.backToDraftUrl || data.deleteUrl)
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
@@ -156,13 +154,20 @@ export function InventoryDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {data.emailUrl && (
-                  <button type="button" onClick={() => setShowSendEmail(true)} title="Send Email" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text">
-                    <Send size={16} />
-                  </button>
-                )}
                 <ActionIconLink href={data.modifyUrl} icon={Pencil} label="Modify" />
-                <ActionIconLink href={data.validateUrl} icon={CheckCircle2} label="Validate" />
+                {data.validateUrl === 'validate' ? (
+                  <button
+                    type="button"
+                    disabled={validateInventory.isPending}
+                    onClick={() => id && validateInventory.mutate(id)}
+                    title="Validate"
+                    className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-text disabled:opacity-50"
+                  >
+                    {validateInventory.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  </button>
+                ) : (
+                  <ActionIconLink href={data.validateUrl} icon={CheckCircle2} label="Validate" />
+                )}
                 {data.backToDraftUrl && (
                   <button
                     type="button"
@@ -192,9 +197,13 @@ export function InventoryDetail() {
               </div>
             </div>
 
-            {(setToDraft.isError || deleteInventory.isError) && (
+            {(setToDraft.isError || deleteInventory.isError || validateInventory.isError) && (
               <p className="px-4 pt-3 text-xs text-danger">
-                {setToDraft.isError
+                {validateInventory.isError
+                  ? validateInventory.error instanceof Error
+                    ? validateInventory.error.message
+                    : 'Could not validate this inventory.'
+                  : setToDraft.isError
                   ? setToDraft.error instanceof Error
                     ? setToDraft.error.message
                     : 'Could not set this inventory back to draft.'
@@ -233,7 +242,6 @@ export function InventoryDetail() {
             </div>
           </Card>
         </div>
-        {showSendEmail && <SendInventoryEmailModal id={id!} inventoryLabel={data.label || `Inventory #${data.id}`} onClose={() => setShowSendEmail(false)} />}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
@@ -245,15 +253,6 @@ export function InventoryDetail() {
           <Card className="!h-auto !p-0 overflow-hidden bg-gradient-to-r from-brand/5 to-transparent">
             <div className="flex flex-wrap items-center justify-between gap-6 p-5">
               <div className="flex flex-wrap items-center gap-3">
-                {data.emailUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSendEmail(true)}
-                    className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover"
-                  >
-                    <Mail size={16} /> Send Email
-                  </button>
-                )}
                 {data.backToDraftUrl && (
                   <button
                     type="button"

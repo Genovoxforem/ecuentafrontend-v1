@@ -197,9 +197,8 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
   }
 
   return (
-    <div className={embedded ? 'flex flex-col' : '-m-6 flex-1 flex flex-col min-h-0'}>
-      {embedded ? (
-        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border pb-3">
+    <div className={embedded ? 'flex flex-1 min-h-0 flex-col' : '-m-6 flex-1 flex flex-col min-h-0'}>
+      <InBanner>
         <select value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setPage(1) }} className={selectCls + ' w-56'}>
           <option value="">Select Warehouse</option>
           {warehouses.map((w) => (
@@ -208,21 +207,9 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
             </option>
           ))}
         </select>
-        </div>
-      ) : (
-        <InBanner>
-          <select value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setPage(1) }} className={selectCls + ' w-56'}>
-            <option value="">Select Warehouse</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.shortName || w.ref}
-              </option>
-            ))}
-          </select>
-          </InBanner>
-      )}
+      </InBanner>
 
-      <div className={embedded ? 'flex flex-col space-y-4 pt-4' : 'flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4'}>
+      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isError && (
           <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
             <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />
@@ -237,55 +224,8 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
           <StatTile label="Stock Correction" value={stats?.correctionCount ?? 0} today={stats?.correctionToday ?? 0} icon={RefreshCw} />
         </div>
 
-        <Card className="!h-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.5fr_1.2fr_1fr_1fr_auto] gap-3 items-end">
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Movement Date</label>
-              <div className="flex items-center gap-1.5">
-                <input type="date" value={dateFrom.toISOString().slice(0, 10)} onChange={(e) => setDateFrom(new Date(e.target.value))} className={inputCls + ' flex-1'} />
-                <span className="text-text-faint text-xs shrink-0">to</span>
-                <input type="date" value={dateTo.toISOString().slice(0, 10)} onChange={(e) => setDateTo(new Date(e.target.value))} className={inputCls + ' flex-1'} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Product</label>
-              <SearchableSelect value={productId} onChange={setProductId} options={productOptions} placeholder="Search a product" />
-            </div>
-            <div>
-              <label className="block text-xs text-text-faint mb-1">BatchNumberShort</label>
-              <select value={batch} onChange={(e) => setBatch(e.target.value)} className={selectCls + ' w-full'}>
-                <option value="">Select a Lot</option>
-                {(data?.batches ?? []).map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Inv./Mov. Code</label>
-              <select value={inventoryCode} onChange={(e) => setInventoryCode(e.target.value)} className={selectCls + ' w-full'}>
-                <option value="">Select a Inv/Code</option>
-                {(data?.inventoryCodes ?? []).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-            <button type="button" onClick={handleReset} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
-              <RotateCcw size={14} /> Reset
-            </button>
-            <button type="button" onClick={handleSearch} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
-              <Search size={14} /> Search
-            </button>
-            </div>
-          </div>
-        </Card>
-
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-          <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+          <div className="flex flex-wrap items-end gap-3 p-4 border-b border-border">
             <select value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1) }} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
               {PAGE_SIZE_OPTIONS.map((n) => (
                 <option key={n} value={n}>
@@ -303,13 +243,57 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
                 className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-1.5"
               />
             </div>
-            <TableExportButtons title="List Of Stock Movements" getExportData={getExportData} />
+            <div className="w-[270px]">
+              <label className="block text-xs text-text-faint mb-1">Movement Date</label>
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={dateFrom.toISOString().slice(0, 10)} onChange={(e) => setDateFrom(new Date(e.target.value))} className={inputCls + ' flex-1'} />
+                <span className="text-text-faint text-xs shrink-0">to</span>
+                <input type="date" value={dateTo.toISOString().slice(0, 10)} onChange={(e) => setDateTo(new Date(e.target.value))} className={inputCls + ' flex-1'} />
+              </div>
+            </div>
+            <div className="w-52">
+              <label className="block text-xs text-text-faint mb-1">Product</label>
+              <SearchableSelect value={productId} onChange={setProductId} options={productOptions} placeholder="Search a product" />
+            </div>
+            <div className="w-40">
+              <label className="block text-xs text-text-faint mb-1">BatchNumberShort</label>
+              <select value={batch} onChange={(e) => setBatch(e.target.value)} className={selectCls + ' w-full'}>
+                <option value="">Select a Lot</option>
+                {(data?.batches ?? []).map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-40">
+              <label className="block text-xs text-text-faint mb-1">Inv./Mov. Code</label>
+              <select value={inventoryCode} onChange={(e) => setInventoryCode(e.target.value)} className={selectCls + ' w-full'}>
+                <option value="">Select a Inv/Code</option>
+                {(data?.inventoryCodes ?? []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleReset} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-hover">
+                <RotateCcw size={14} /> Reset
+              </button>
+              <button type="button" onClick={handleSearch} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
+                <Search size={14} /> Search
+              </button>
+            </div>
+            <div className="ml-auto">
+              <TableExportButtons title="List Of Stock Movements" getExportData={getExportData} />
+            </div>
             {selected.size > 0 && (
               <button
                 type="button"
                 disabled={bulkZra.isPending}
                 onClick={handleBulkZra}
-                className="ml-auto flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
               >
                 {bulkZra.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <CloudUpload size={14} />} Update {selected.size} to ZRA
               </button>

@@ -386,6 +386,7 @@ const LinkedFilesAreaModule = lazy(() => import('./modules/usersDashboard/Linked
 const LinkedFilesManualTreeModule = lazy(() => import('./modules/usersDashboard/LinkedFilesAreaModule').then((m) => ({ default: m.LinkedFilesManualTreeModule })))
 const LinkedFilesAutomaticTreeModule = lazy(() => import('./modules/usersDashboard/LinkedFilesAreaModule').then((m) => ({ default: m.LinkedFilesAutomaticTreeModule })))
 const CustomersListModule = lazy(() => import('./modules/customers/CustomersListModule').then((m) => ({ default: m.CustomersListModule })))
+const CustomerEditModule = lazy(() => import('./modules/customers/CustomerEditModule').then((m) => ({ default: m.CustomerEditModule })))
 const CustomerCreateModule = lazy(() => import('./modules/customers/CustomerCreateModule').then((m) => ({ default: m.CustomerCreateModule })))
 const CustomerDetailModule = lazy(() => import('./modules/customers/CustomerDetailModule').then((m) => ({ default: m.CustomerDetailModule })))
 const ProspectsListModule = lazy(() => import('./modules/customers/ProspectsListModule').then((m) => ({ default: m.ProspectsListModule })))
@@ -469,11 +470,13 @@ const AbandonedInvoicesModule = lazy(() => import('./modules/invoices/AbandonedI
 const TemplateInvoicesModule = lazy(() => import('./modules/invoices/TemplateInvoicesModule').then((m) => ({ default: m.TemplateInvoicesModule })))
 const PaymentsListModule = lazy(() => import('./modules/invoices/PaymentsListModule').then((m) => ({ default: m.PaymentsListModule })))
 const PaymentsReportModule = lazy(() => import('./modules/invoices/PaymentsReportModule').then((m) => ({ default: m.PaymentsReportModule })))
+const DuePaymentsModule = lazy(() => import('./modules/invoices/DuePaymentsModule').then((m) => ({ default: m.DuePaymentsModule })))
 const InvoiceStatisticsModule = lazy(() => import('./modules/invoices/InvoiceStatisticsModule').then((m) => ({ default: m.InvoiceStatisticsModule })))
 const AdvancePaymentListModule = lazy(() => import('./modules/invoices/AdvancePaymentListModule').then((m) => ({ default: m.AdvancePaymentListModule })))
 const PurchaseOrdersListModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrdersListModule').then((m) => ({ default: m.PurchaseOrdersListModule })))
 const PurchaseOrderCreateModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrderCreateModule').then((m) => ({ default: m.PurchaseOrderCreateModule })))
 const PurchaseOrderDetailModule = lazy(() => import('./modules/purchaseOrders/PurchaseOrderDetailModule').then((m) => ({ default: m.PurchaseOrderDetailModule })))
+const SupplierProposalDetailModule = lazy(() => import('./modules/supplierProposals/SupplierProposalDetailModule').then((m) => ({ default: m.SupplierProposalDetailModule })))
 const SupplierProposalsListModule = lazy(() => import('./modules/supplierProposals/SupplierProposalsListModule').then((m) => ({ default: m.SupplierProposalsListModule })))
 const SupplierProposalCreateModule = lazy(() => import('./modules/supplierProposals/SupplierProposalCreateModule').then((m) => ({ default: m.SupplierProposalCreateModule })))
 const ProductsListModule = lazy(() => import('./modules/products/ProductsListModule').then((m) => ({ default: m.ProductsListModule })))
@@ -491,6 +494,9 @@ const LotsSerialsModule = lazy(() => import('./modules/products/ProductStubModul
 const VariantAttributesModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.VariantAttributesModule })))
 const ProductPriceListModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductPriceListModule })))
 const ProductTagsModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductTagsModule })))
+const ProductTagDetailModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductTagDetailModule })))
+const ProductPriceUpdateModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductPriceUpdateModule })))
+const ProductBulkPriceModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductBulkPriceModule })))
 const ProductImportModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductImportModule })))
 const ProductVatUpdateModule = lazy(() => import('./modules/products/ProductStubModules').then((m) => ({ default: m.ProductVatUpdateModule })))
 const AgendaModule = lazy(() => import('./modules/agenda/AgendaModule').then((m) => ({ default: m.AgendaModule })))
@@ -3192,6 +3198,14 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.customerEdit}
+                          element={
+                            <RouteBoundary>
+                              <CustomerEditModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.customerDetail}
                           element={
                             <RouteBoundary>
@@ -3367,6 +3381,7 @@ function App() {
                             </RouteBoundary>
                           }
                         />
+                        <Route path="/sales-orders" element={<Navigate to={ROUTES.orderList} replace />} />
                         <Route
                           path={ROUTES.orderList}
                           element={
@@ -3544,6 +3559,14 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.paymentsDue}
+                          element={
+                            <RouteBoundary>
+                              <DuePaymentsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.invoiceStats}
                           element={
                             <RouteBoundary>
@@ -3652,6 +3675,14 @@ function App() {
                           element={
                             <RouteBoundary>
                               <SupplierProposalsListModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.supplierProposalDetail}
+                          element={
+                            <RouteBoundary>
+                              <SupplierProposalDetailModule />
                             </RouteBoundary>
                           }
                         />
@@ -4148,6 +4179,30 @@ function App() {
                           element={
                             <RouteBoundary>
                               <ProductTagsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productTagDetail}
+                          element={
+                            <RouteBoundary>
+                              <ProductTagDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productPriceUpdate}
+                          element={
+                            <RouteBoundary>
+                              <ProductPriceUpdateModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.productBulkPrice}
+                          element={
+                            <RouteBoundary>
+                              <ProductBulkPriceModule />
                             </RouteBoundary>
                           }
                         />

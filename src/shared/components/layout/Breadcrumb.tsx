@@ -50,16 +50,23 @@ const PATH_ALIASES: Record<string, string> = {
   [ROUTES.payrollV2Settings]: ROUTES.payrollV2Dashboard,
   [ROUTES.payrollV2Employees]: ROUTES.payrollV2Dashboard,
   [ROUTES.payrollV2Advances]: ROUTES.payrollV2Dashboard,
+  // The product price pages hang under the "Bulk Price Update" menu entry.
+  [ROUTES.productPriceUpdate]: ROUTES.productPriceList,
+  [ROUTES.productBulkPrice]: ROUTES.productPriceList,
 }
 
 // The page's own name, added after an aliased trail so the last crumb (and the
 // banner title read off it) names the page instead of the menu entry it sits under.
 const ALIAS_PAGE_TITLES: Record<string, string> = {
+  // The Subledger view is a variant of the Ledger page, so its banner names the view itself.
+  [ROUTES.ledgerSubledger]: 'Operations - View By Subledger Account',
   [ROUTES.payrollV2Templates]: 'Templates',
   [ROUTES.payrollV2Shifts]: 'Shifts',
   [ROUTES.payrollV2Settings]: 'Settings',
   [ROUTES.payrollV2Employees]: 'Employees',
   [ROUTES.payrollV2Advances]: 'Advances/Loans',
+  [ROUTES.productPriceUpdate]: 'Product Price Update',
+  [ROUTES.productBulkPrice]: 'Bulk Price Change',
 }
 
 const DETAIL_ROUTES = Object.entries(ROUTES)

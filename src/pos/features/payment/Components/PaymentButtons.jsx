@@ -15,7 +15,7 @@ function PaymentButtons({ onCancel, onComplete, submitting }) {
                 type="button"
                 disabled={submitting}
                 onClick={onComplete}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#397db9] hover:bg-[#2c6291] disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4] disabled:opacity-50"
             >
                 <CheckCircle2 size={16} />
                 {submitting ? "Processing..." : "Complete Payment"}

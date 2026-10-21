@@ -99,14 +99,14 @@ function MetricCard({
   )
 }
 
-function LegacyStatsWarning({ message }: { message: string }) {
+function StatsLoadWarning({ message }: { message: string }) {
   return (
     <Card className="!bg-warning-bg border-warning/40 flex items-start gap-3">
       <AlertOctagon size={18} className="text-warning-fg shrink-0 mt-0.5" />
       <div>
-        <p className="text-sm font-semibold text-warning-fg">Some stats couldn't load from the live backend</p>
+        <p className="text-sm font-semibold text-warning-fg">The warehouse figures couldn't be loaded</p>
         <p className="text-xs text-warning-fg/80 mt-0.5">
-          Inventories, Shipments, Receptions, Reservations and Movements Today are showing 0 as a fallback. {message}
+          The tiles below show 0 until the dashboard loads. {message}
         </p>
       </div>
     </Card>
@@ -247,7 +247,7 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
   return (
     <div className="space-y-3">
 
-      {summary.legacyStatsError && <LegacyStatsWarning message={summary.legacyStatsError} />}
+      {summary.loadError && <StatsLoadWarning message={summary.loadError} />}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Total Products In Stock" value={summary.totalProductsInStock} icon={Package} color="blue" hero />

@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, legacyMissingContentError, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from '../generalLedger/bindLines.queries'
+import axios from 'axios'
+import { fapi } from '../../api/axios'
+import { fetchInvoiceDocumentModels, fetchInvoiceFormSettings, fetchInvoiceIncoterms } from '../../api/invoices'
+import { requireJson } from '../salesOrders/orderApi'
 
 export interface NewInvoiceLine {
   productId?: string
@@ -31,6 +34,7 @@ export interface NewInvoiceInput {
   currency?: string
   currencyRate?: number
   shippingCharges?: number
+  shippingVatRate?: number
   paymentAmount?: number
   useAdvance?: boolean
   // Shipment details
@@ -51,139 +55,97 @@ export interface NewInvoiceInput {
   lines: NewInvoiceLine[]
 }
 
-interface UnifiedResponse {
-  success: boolean
-  message?: string
-  invoice_id?: number
-  invoice?: { id?: number; ref?: string; status?: number }
-  lines_saved?: number
-  lines_failed?: number
-  errors?: string[]
+// compta/facture/fapi/create.php (15 Oct 2026): header, lines, optional validation and optional cash payment in ONE
+// JSON call and one transaction, for standard, Lpo (6) and Export (7) invoices alike; a failing line rolls the whole
+// invoice back (422 with a per-line list), so there is no half-created draft. Since 16 Oct 2026 (_extras.php) it also
+// takes notes, a project, the shipment block, freight, flat per-line discounts and advance use, and a foreign currency
+// as multicurrency_code + multicurrency_tx (the line prices are in that currency, the totals are converted).
+function fapiCreateError(e: unknown): Error {
+  if (axios.isAxiosError(e)) {
+    const body = e.response?.data as { message?: string; errors?: unknown } | undefined
+    const detail = Array.isArray(body?.errors) ? body.errors.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('; ') : ''
+    if (body?.message) return new Error([body.message, detail].filter(Boolean).join(' — '))
+    return new Error(`The backend refused this invoice (HTTP ${e.response?.status ?? 'no response'}).`)
+  }
+  return e instanceof Error ? e : new Error('The backend refused this invoice.')
 }
 
-// The classic invoice screens (compta/facture/invoice.php "Create Quick
-// Invoice" and card.php "Create Detailed Invoice") save through ONE JSON
-// endpoint, compta/facture/api/unified_invoice_api.php — confirmed by reading
-// that page's own save scripts and the endpoint's PHP. One POST does it all:
-// the invoice header as form fields (socid, reday/remonth/reyear, ref_client,
-// mode_reglement_id, fk_account, cond_reglement_id, warehouse_id, …) plus the
-// lines as a `cached_lines` JSON string; `action=draft` keeps the invoice a
-// draft, `action=validate_cash` validates it (and records the payment when
-// payment_amount is given). Everything runs in one database transaction, so a
-// refusal (bad date, missing stock, …) creates nothing. This replaces POST
-// /api/invoices/list/, which does not exist on the backend (404) — and the old
-// "validate, else silently fall back to a draft" logic, which hid failures.
-const UNIFIED_PATH = '/compta/facture/api/unified_invoice_api.php'
-
-function lineJson(l: NewInvoiceLine) {
-  const type = l.discountType === 2 ? 2 : 1
-  return {
-    product_id: Number(l.productId) || 0,
-    description: l.label,
-    qty: l.qty,
-    subprice: l.unitPriceHt,
-    tva_tx: l.vatRate,
-    vat_src_code: l.vatCode ?? '',
-    product_type: l.productType ?? 0,
-    remise_type: type,
-    discount_percent: type === 1 ? (l.discountPercent ?? 0) : 0,
-    discount_fixed: type === 2 ? (l.discountFixed ?? 0) : 0,
+async function createViaFapi(input: NewInvoiceInput & { type?: number; incotermId?: string; incotermLocation?: string; model?: string }, validate: boolean): Promise<{ id: number; ref: string }> {
+  // The form carries the payment mode's code ("01"); the endpoint wants its id.
+  const settings = await fetchInvoiceFormSettings()
+  const modeId = settings.mode_options.find((m) => m.code === input.paymentModeCode)?.id ?? (Number(input.paymentModeCode) || undefined)
+  const body: Record<string, unknown> = {
+    socid: Number(input.customerId),
+    type: input.type ?? 0,
+    date: input.date,
+    ref_client: input.refClient || undefined,
+    cond_reglement_id: Number(input.paymentTermId) || undefined,
+    mode_reglement_id: modeId,
+    fk_account: Number(input.bankAccountId) || undefined,
+    warehouse_id: Number(input.warehouseId) || undefined,
+    note_public: input.notePublic || undefined,
+    note_private: input.notePrivate ?? input.note ?? undefined,
+    project_id: Number(input.projectId) || undefined,
+    incoterm_id: Number(input.incotermId) || undefined,
+    location_incoterms: input.incotermLocation || undefined,
+    model: input.model || undefined,
+    ...(input.currency && input.currencyRate && input.currencyRate !== 1 ? { multicurrency_code: input.currency, multicurrency_tx: input.currencyRate } : {}),
+    lines: input.lines
+      .filter((l) => l.label.trim() && l.qty > 0)
+      .map((l) => ({
+        ...(Number(l.productId) ? { product_id: Number(l.productId) } : {}),
+        description: l.label,
+        label: l.label,
+        qty: l.qty,
+        pu_ht: l.unitPriceHt,
+        tva_tx: l.vatRate,
+        // A flat amount goes as remise_absolute (stored with remise_type 2); a percentage as remise_percent.
+        ...(l.discountType === 2 && l.discountFixed ? { remise_absolute: l.discountFixed } : { remise_percent: l.discountPercent ?? 0 }),
+        product_type: l.productType ?? 0,
+      })),
+    validate,
   }
-}
-
-// yyyy-MM-dd -> the day/month/year fields the classic date picker posts.
-function dateFields(iso: string): Record<string, string> {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? { reyear: m[1], remonth: m[2], reday: m[3] } : {}
-}
-
-export function buildUnifiedBody(input: NewInvoiceInput, validate: boolean): URLSearchParams {
-  const body = new URLSearchParams({ socid: input.customerId, ...dateFields(input.date), cached_lines: JSON.stringify(input.lines.map(lineJson)) })
-  const set = (k: string, v: string | number | undefined | null) => {
-    if (v !== undefined && v !== null && String(v) !== '') body.set(k, String(v))
+  const sh = input.shipment
+  if (sh) {
+    const shipment = {
+      gdn_no: sh.gdnNo,
+      grn_no: sh.grnNo,
+      shipping_via: sh.shippingVia,
+      shipping_date: sh.shippingDate,
+      tracking_id: sh.trackingId,
+      transporter: sh.transporter,
+      truck_details: sh.truckDetails,
+      shipping_address: sh.shippingAddress,
+    }
+    if (Object.values(shipment).some(Boolean)) body.shipment = shipment
   }
-  set('ref_client', input.refClient)
-  set('note_public', input.notePublic)
-  set('note_private', input.notePrivate ?? input.note)
-  set('mode_reglement_id', input.paymentModeCode)
-  set('cond_reglement_id', input.paymentTermId)
-  set('fk_account', input.bankAccountId)
-  set('projectid', input.projectId)
-  set('warehouse_id', input.warehouseId)
-  set('type', input.type)
-  set('refno', input.refNo)
-  set('lpono', input.lpoNo)
-  // A foreign currency needs its rate; the invoice's own currency is left alone.
-  if (input.currency && input.currencyRate && input.currencyRate !== 1) {
-    set('multicurrency_code', input.currency)
-    set('multicurrency_tx', input.currencyRate)
+  if (input.shippingCharges && input.shippingCharges > 0) {
+    body.shipping_amount_ttc = input.shippingCharges
+    if (input.shippingVatRate !== undefined) body.shipping_vat_rate = input.shippingVatRate
   }
-  const s = input.shipment
-  if (s) {
-    set('gdnno', s.gdnNo)
-    set('grnno', s.grnNo)
-    set('shipment_month', s.month)
-    set('shipmentvia', s.shippingVia)
-    set('shipmentdate', s.shippingDate)
-    set('trackingid', s.trackingId)
-    set('transporter', s.transporter)
-    set('truck_details', s.truckDetails)
-    set('shipmentaddress', s.shippingAddress)
+  if (validate && input.useAdvance) body.use_advance = true
+  if (input.type === 6 || input.type === 7) {
+    body.lpono = input.lpoNo?.trim() || undefined
+    body.refno = input.refNo?.trim() || undefined
+    body.incoterm_id = Number(input.incotermId) || undefined
+    body.location_incoterms = input.incotermLocation || undefined
+    body.model = input.model || undefined
   }
-  if (validate) {
-    set('shipping_amount_ttc', input.shippingCharges)
-    set('payment_amount', input.paymentAmount)
-    body.set('pay_code', 'cash')
-    if (input.useAdvance) body.set('use_advance', '1')
+  if (validate && input.paymentAmount && input.paymentAmount > 0 && modeId) {
+    body.payment = { amount: input.paymentAmount, mode_id: modeId }
   }
-  return body
-}
-
-// An invoice that exists on the backend although saving did not finish (some
-// of its lines were refused). Carries the id so the form can point the user at it.
-export class PartialInvoiceError extends Error {
-  invoiceId: number
-  invoiceRef: string
-  constructor(invoiceId: number, invoiceRef: string, message: string) {
-    super(message)
-    this.name = 'PartialInvoiceError'
-    this.invoiceId = invoiceId
-    this.invoiceRef = invoiceRef
-  }
-}
-
-// One POST to the unified endpoint, answered as JSON. `invoiceId` 0 creates the
-// invoice; an existing draft's id adds the lines to it.
-async function postUnified(action: string, invoiceId: number, body: URLSearchParams): Promise<{ id: number; ref: string }> {
-  const res = await fetch(`${UNIFIED_PATH}?action=${action}&invoice_id=${invoiceId}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-  const text = await res.text()
-  if (looksLikeLegacyLoginPageText(text)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-  let data: UnifiedResponse
   try {
-    data = JSON.parse(text) as UnifiedResponse
-  } catch {
-    throw new Error(`The backend did not return a valid answer (HTTP ${res.status}).`)
+    const res = requireJson(await fapi.post<{ success: boolean; message?: string; data?: { invoice_id?: number; invoice?: { id?: number; ref?: string } } }>('/compta/facture/fapi/create.php', body))
+    if (!res.data.success) throw new Error(res.data.message || 'The backend refused this invoice.')
+    const d = res.data.data
+    return { id: d?.invoice?.id ?? d?.invoice_id ?? 0, ref: d?.invoice?.ref ?? '' }
+  } catch (e) {
+    throw fapiCreateError(e)
   }
-  const details = (data.errors ?? []).filter(Boolean).join('; ')
-  if (!data.success) throw new Error([data.message, details].filter(Boolean).join(' — ') || 'The backend refused this invoice.')
-  const id = data.invoice?.id ?? data.invoice_id ?? invoiceId
-  // The backend commits the invoice even when some lines were rejected, and
-  // the classic page reports that as an error — so do the same, but say which
-  // invoice was created so it isn't lost.
-  if ((data.lines_failed ?? 0) > 0 || (data.errors?.length ?? 0) > 0) {
-    const ref = data.invoice?.ref ?? `#${id}`
-    throw new PartialInvoiceError(id, ref, `Invoice ${ref} was created, but ${data.lines_failed ?? 0} line(s) failed to save${details ? `: ${details}` : '.'}`)
-  }
-  return { id, ref: data.invoice?.ref ?? '' }
 }
 
 async function saveInvoice(input: NewInvoiceInput, validate: boolean): Promise<{ id: number; ref: string }> {
-  return postUnified(validate ? 'validate_cash' : 'draft', 0, buildUnifiedBody(input, validate))
+  return createViaFapi(input, validate)
 }
 
 // Save as Draft — the classic page's createdraft().
@@ -205,62 +167,53 @@ export function useCreateAndValidateInvoice() {
   })
 }
 
-// ── Lpo and Export invoices ──────────────────────────────────────────────────
-// The unified endpoint above always creates a standard invoice and ignores
-// `type`, so an Lpo (6) or Export (7) invoice is created the way the classic
-// "Create Detailed Invoice" page does it: its own form POST to
-// compta/facture/card.php (action=add), which saves the header with the type,
-// the Ref No / LPO No and the incoterms, and answers with a redirect to the new
-// invoice (…?facid=N). The lines are then added to that draft through the
-// unified endpoint. The classic page only offers Lpo and Export when the ZRA
-// module is on, so the radios it prints decide which types are offered here.
-const CLASSIC_CARD = '/compta/facture/card.php'
-
 export interface InvoiceCreateOption {
   value: string
   label: string
 }
 
 export interface InvoiceCreateContext {
-  token: string
   hasLpo: boolean
   hasExport: boolean
-  incoterms: InvoiceCreateOption[]
-  models: InvoiceCreateOption[]
-  defaultModel: string
 }
 
-const optionList = (select: Element | null | undefined): InvoiceCreateOption[] =>
-  Array.from(select?.querySelectorAll('option') ?? []).map((o) => ({ value: o.getAttribute('value') ?? '', label: (o.textContent ?? '').replace(/\s+/g, ' ').trim() }))
-
-// Reads the classic new-invoice form: its CSRF token, whether it offers the Lpo
-// and Export types, and the incoterm / document template choices. The form's
-// controls are looked up on the document, not inside the <form> — the page's
-// HTML is malformed, so they often are not its descendants.
-export async function fetchInvoiceCreateContext(): Promise<InvoiceCreateContext> {
-  const doc = await fetchLegacyDocument(CLASSIC_CARD, new URLSearchParams({ action: 'create' }))
-  const addAction = doc.querySelector('input[name="action"][value="add"]')
-  if (!addAction) throw legacyMissingContentError(doc, 'The new-invoice form on this backend page was not recognised.')
-  const token =
-    addAction.closest('form')?.querySelector<HTMLInputElement>('input[name="token"]')?.value ??
-    doc.querySelector<HTMLMetaElement>('meta[name="anti-csrf-currenttoken"]')?.content ??
-    doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ??
-    ''
-  if (!token) throw new Error('Could not read the backend session token — sign out and back in, then retry.')
-  const models = optionList(doc.querySelector('select[name="model"]'))
-  const selectedModel = doc.querySelector<HTMLOptionElement>('select[name="model"] option[selected]')?.value
-  return {
-    token,
-    hasLpo: !!doc.querySelector('input[name="type"][value="6"]'),
-    hasExport: !!doc.querySelector('input[name="type"][value="7"]'),
-    incoterms: optionList(doc.querySelector('select[name="incoterm_id"]')).filter((o) => o.value && o.value !== '0'),
-    models,
-    defaultModel: selectedModel ?? models[0]?.value ?? '',
-  }
-}
-
+// compta/facture/fapi/document_models.php reports the offered invoice types (`invoice_types`): the classic form only
+// offered Lpo and Export when the ZRA module is on, and so does this list.
 export function useInvoiceCreateContext() {
-  return useQuery({ queryKey: ['invoices', 'createContext'], queryFn: fetchInvoiceCreateContext, staleTime: 5 * 60_000 })
+  return useQuery({
+    queryKey: ['invoices', 'createContext'],
+    queryFn: async (): Promise<InvoiceCreateContext> => {
+      const models = await fetchInvoiceDocumentModels()
+      const types = models.invoice_types ?? []
+      return { hasLpo: types.some((t) => t.value === 6), hasExport: types.some((t) => t.value === 7) }
+    },
+    staleTime: 5 * 60_000,
+  })
+}
+
+// compta/facture/fapi/incoterms.php — `enabled` is false when the incoterm
+// module is off, in which case the form hides the control.
+export function useInvoiceIncoterms() {
+  return useQuery({
+    queryKey: ['invoices', 'incoterms'],
+    queryFn: () => fetchInvoiceIncoterms(),
+    staleTime: 10 * 60_000,
+    select: (d): { enabled: boolean; options: InvoiceCreateOption[] } => ({ enabled: d.enabled, options: d.incoterms.map((i) => ({ value: i.value, label: i.label })) }),
+  })
+}
+
+// compta/facture/fapi/document_models.php — the templates for this entity and
+// the one the classic form pre-selects.
+export function useInvoiceDocumentModels() {
+  return useQuery({
+    queryKey: ['invoices', 'documentModels'],
+    queryFn: () => fetchInvoiceDocumentModels(),
+    staleTime: 10 * 60_000,
+    select: (d): { options: InvoiceCreateOption[]; defaultModel: string } => ({
+      options: d.models.map((m) => ({ value: m.value, label: m.label })),
+      defaultModel: d.default_model || d.models[0]?.value || '',
+    }),
+  })
 }
 
 export interface NewTypedInvoiceInput extends NewInvoiceInput {
@@ -269,42 +222,6 @@ export interface NewTypedInvoiceInput extends NewInvoiceInput {
   incotermLocation?: string
   model?: string
   baseCurrency?: string
-}
-
-// The classic form's own POST — see the section comment above. It requires a
-// Ref No and an LPO No for every type, so a non-Lpo invoice carries the literal
-// NULL its own form pre-fills.
-function buildClassicBody(input: NewTypedInvoiceInput, token: string, defaultModel: string): URLSearchParams {
-  const m = input.date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  const body = new URLSearchParams({
-    token,
-    action: 'add',
-    ref: 'provisoire',
-    socid: input.customerId,
-    type: String(input.type),
-    refno: input.refNo?.trim() || 'NULL',
-    lpono: input.lpoNo?.trim() || 'NULL',
-    ref_client: input.refClient ?? '',
-    re: m ? `${m[2]}/${m[3]}/${m[1]}` : '',
-    reday: m?.[3] ?? '',
-    remonth: m?.[2] ?? '',
-    reyear: m?.[1] ?? '',
-    cond_reglement_id: input.paymentTermId ?? '',
-    mode_reglement_id: input.paymentModeCode ?? '',
-    fk_account: input.bankAccountId || '-1',
-    projectid: input.projectId || '0',
-    incoterm_id: input.incotermId || '0',
-    location_incoterms: input.incotermLocation ?? '',
-    model: input.model || defaultModel,
-    note_public: input.notePublic ?? '',
-    note_private: input.notePrivate ?? input.note ?? '',
-  })
-  // A foreign currency carries its rate, like the classic form's own picker.
-  if (input.currency && input.baseCurrency && input.currency !== input.baseCurrency) {
-    body.set('multicurrency_code', input.currency)
-    body.set('originmulticurrency_tx', String(input.currencyRate ?? 1))
-  }
-  return body
 }
 
 // The classic page's own messages (setEventMessages) are printed at the end of
@@ -319,35 +236,7 @@ export function classicFormRefusals(html: string): string[] {
 }
 
 export async function createTypedInvoice(input: NewTypedInvoiceInput): Promise<{ id: number; ref: string }> {
-  // A fresh form read: the token must be current when the POST is sent.
-  const context = await fetchInvoiceCreateContext()
-  const res = await fetch(CLASSIC_CARD, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: buildClassicBody(input, context.token, context.defaultModel),
-  })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const html = await res.text()
-  if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-  // A saved invoice redirects to its own page (…card.php?facid=N); a refusal
-  // re-renders the form with its message as a showToast(…, "error").
-  const id = Number(/[?&](?:facid|id)=(\d+)/.exec(res.url)?.[1] ?? 0)
-  if (!res.redirected || !id) {
-    const refusal = classicFormRefusals(html)[0]
-    throw new Error(refusal ?? 'The backend did not create this invoice.')
-  }
-  const lines = input.lines.filter((l) => l.label.trim() && l.qty > 0)
-  if (lines.length === 0) return { id, ref: '' }
-  const lineBody = new URLSearchParams({ socid: input.customerId, cached_lines: JSON.stringify(lines.map(lineJson)) })
-  if (input.warehouseId) lineBody.set('warehouse_id', input.warehouseId)
-  try {
-    return await postUnified('draft', id, lineBody)
-  } catch (e) {
-    if (e instanceof PartialInvoiceError) throw e
-    // The header exists even though its lines did not save — say so rather than hide the invoice.
-    throw new PartialInvoiceError(id, `#${id}`, `The invoice was created (#${id}) but its lines were not saved: ${e instanceof Error ? e.message : 'unknown error'}`)
-  }
+  return createViaFapi(input, false)
 }
 
 export function useCreateTypedInvoice() {

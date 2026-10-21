@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fapiGet } from '../../api/fapiEnvelope'
 
 export interface LatestProposal {
   id: number
@@ -14,21 +15,19 @@ export interface SupplierProposalAreaSummary {
   total: number
 }
 
-interface WebEnvelope<T> {
-  success: boolean
-  data: T
-}
-
-// GET /api/supplier-proposals/summary/ (api/supplier-proposals/summary/index.php)
-// — real, reads llx_supplier_proposal directly (status counts using
-// SupplierProposal's own real status constants, confirmed against the
-// class source — see that endpoint's header comment).
+// supplier_proposal/fapi/list.php: the summary (counts by status, total) and the five most recent proposals in
+// one call.
 export function useSupplierProposalAreaSummary() {
   return useQuery({
     queryKey: ['supplier-proposals', 'summary'],
     queryFn: async (): Promise<SupplierProposalAreaSummary> => {
-      const { data } = await api.get<WebEnvelope<SupplierProposalAreaSummary>>('/supplier-proposals/summary/')
-      return data.data
+      const d = await fapiGet<any>('/supplier_proposal/fapi/list.php', { limit: 5, sort: 'date', direction: 'desc' })
+      const sm = d.summary ?? {}
+      return {
+        statusCounts: { draft: Number(sm.draft) || 0, validated: Number(sm.validated) || 0, signed: Number(sm.signed) || 0, notSigned: Number(sm.not_signed) || 0, closed: Number(sm.closed) || 0 },
+        latest: (d.items ?? []).map((p: any) => ({ id: Number(p.id), ref: p.ref ?? '', thirdParty: p.supplier?.name ?? null, lastModified: String(p.date_valid ?? p.date_creation ?? p.date ?? '') })),
+        total: Number(sm.total) || 0,
+      }
     },
   })
 }

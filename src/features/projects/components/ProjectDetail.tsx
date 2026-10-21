@@ -554,8 +554,8 @@ function EventsAgendaCard() {
 // Visual match for projet/info.php — a fuller, separate page from
 // card.php's own embedded "Latest linked events" mini-widget (see
 // EventsAgendaCard above, still shown on the Project tab — same split
-// Sales Orders already has between its mini-widget and commande/agenda.php,
-// see orderAgendaParser.ts's header comment). Confirmed no JSON API here
+// Sales Orders already has between its mini-widget and commande/agenda.php).
+// Confirmed no JSON API here
 // either (no json_encode anywhere in info.php). This app's Sales Orders
 // equivalent makes its version of this page real by scraping that classic
 // page's HTML — the exact technique the standing no-scraping rule says not

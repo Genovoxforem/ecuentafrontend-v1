@@ -67,6 +67,7 @@ export function StickyFormShell({
   headerClassName = 'py-3',
   footerLeft,
   footerRight,
+  footerBar,
   scrollsInternally = false,
   wizard: wizardProp,
   children,
@@ -80,6 +81,8 @@ export function StickyFormShell({
   // Right side of the footer bar — the secondary/primary action button(s), grouped together.
   // A page with neither side (a read-only or save-as-you-go page) gets no footer bar at all.
   footerRight?: ReactNode
+  // A ready-made full-width bar (e.g. <ListPagination />) drawn as the last row, pinned to the page bottom like the footer.
+  footerBar?: ReactNode
   // Leave false (the default) for any page whose content may be taller than the viewport —
   // every create/edit form. The wrapper's min-height then stays content-based: it still grows
   // to fill the viewport when content is short (no gap under the footer), but never shrinks
@@ -131,8 +134,9 @@ export function StickyFormShell({
           intrinsic size when a child card handles its own internal scrolling (needed for that
           child's overflow-auto to engage at all, per the usual nested-flexbox-scroll gotcha). */}
       <div className={`blue-density-form-content flex-1 flex flex-col ${scrollsInternally ? 'min-h-0' : ''} ${compact ? 'space-y-3 px-[16px] py-3' : 'space-y-4 px-[16px] py-4'}`}>{children}</div>
+      {footerBar}
       {hasFooter && (
-        <div className={`blue-density-footer sticky -bottom-6 z-10 flex items-center justify-between border-t border-border bg-white px-[16px] dark:bg-gray-950 ${compact ? 'gap-2 py-1.5' : 'gap-3 py-2.5'}`}>
+        <div className={`blue-density-footer sticky -bottom-6 z-10 flex items-center justify-between border-t border-border bg-white px-0 pb-0 pt-[3px] dark:bg-gray-950 ${compact ? 'gap-2' : 'gap-3'}`}>
           <div className={`flex min-w-0 items-center ${compact ? 'gap-2' : 'gap-3'}`}>{footerLeft}</div>
           <div className={`flex items-center ${compact ? 'gap-2' : 'gap-3'}`}>{footerRightNode}</div>
         </div>

@@ -227,16 +227,25 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) sp
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 42%), 0 4px 12px rgb(64 103 232 / 32%);
 }
 
+/* THE page spacing value. Side padding, top/bottom padding and the gap between cards on every page, the
+   header/footer side gutters and the list wrappers all read this one token - change it here and the whole
+   app's padding follows. */
+:root {
+  --page-gap: 0.5rem;
+  /* Left/right padding. */
+  --page-gap-x: 5px;
+}
+
 #root {
   height: 100%;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .app-card:not([class~='!p-0']) {
-  padding: 10px !important;
+  padding: 4px !important;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .app-card.blue-compact-card {
-  padding: 6px !important;
+  padding: 4px !important;
 }
 
 /* Excludes `overflow-auto`: a table's own scroll wrapper also happens to
@@ -363,7 +372,7 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) a[
   background-color: #256b92 !important;
   background-image: none !important;
   color: #f4f8fb !important;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 18%);
+  box-shadow: none;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) button[class~='bg-brand']:not([role='switch']):hover,
@@ -736,8 +745,8 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .b
    have their own header treatment above).
    ========================================================================== */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) {
-  --page-gutter: 16px;
-  --page-top-gap: 0.75rem;
+  --page-gutter: var(--page-gap-x);
+  --page-top-gap: 4px;
   --page-control-height: 2.25rem;
   /* 40% shorter than the 5.5rem these cards used to be; the type and icon
      below are scaled to match so nothing is clipped. */
@@ -746,7 +755,9 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 
 /* Pages that pad themselves (no -m-6) start one gap below the banner. */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) > :first-child:not([class~='-m-6']) {
-  margin-top: calc(var(--page-top-gap) - 1.5rem);
+  margin-top: calc(var(--page-gap) - 18.144px);
+  margin-left: var(--page-gap-x);
+  margin-right: var(--page-gap-x);
 }
 
 /* The sticky page header/footer bars of the shared list and form layouts were
@@ -755,7 +766,7 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) .blue-density-header {
   border-bottom-width: 0;
   background-color: var(--color-surface) !important;
-  padding: var(--page-top-gap) var(--page-gutter) 0;
+  padding: var(--page-gap) var(--page-gap-x) 0;
   margin-left: 0;
   margin-right: 0;
 }
@@ -765,12 +776,29 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-list-content, .blue-density-form-content) {
-  padding: var(--page-top-gap) var(--page-gutter);
+  padding: var(--page-gap) var(--page-gap-x);
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-footer, .blue-density-pagination) {
   background-color: var(--color-surface) !important;
   padding: 0.5rem var(--page-gutter);
+}
+
+/* One spacing for every page's content area (everything except the sticky header and footer bars):
+   the side gutter, the top/bottom padding and the gap between stacked cards are all --page-gap, so
+   the cards of any list, form or dashboard sit the same distance from the edges and from each other.
+   Page wrappers written as `px-6 py-4` (or `px-6 pt-4` when a footer follows) are normalised here
+   instead of per page. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']):not(.blue-density-footer):not(.blue-density-pagination) {
+  padding: var(--page-gap) var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6'][class~='pt-4'] {
+  padding: var(--page-gap) var(--page-gap-x) 0 !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is([class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']), [class~='px-6'][class~='pt-4']):is([class*='space-y-']) > :not(:first-child) {
+  margin-top: var(--page-gap) !important;
 }
 
 /* One size for the headline numbers at the top of a page: a card with an icon,
@@ -854,8 +882,8 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .b
    (their `-mx-6` made them wider than the page, so the body started flush against the sidebar and
    the header was cut off on the right). */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true'] {
-  --page-gutter: 16px;
-  --page-top-gap: 0.75rem;
+  --page-gutter: var(--page-gap-x);
+  --page-top-gap: 4px;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-detail-page='true'] > [class~='-m-6'] > div[class~='-mx-6'] {
@@ -884,7 +912,7 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner {
   --blue-banner-bg: #10283a;
   border-bottom: 1px solid rgba(148, 197, 255, 0.14);
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues {
@@ -921,7 +949,11 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 
 /* The page's first content block then starts one gap below that line. */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues + * {
-  margin-top: var(--page-top-gap, 0.75rem) !important;
+  margin-top: var(--page-gap) !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-banner-continues + [class~='px-6'] {
+  /* these wrappers already pad themselves by --page-gap */
+  margin-top: 0 !important;
 }
 
 /* Route transitions: the new page fades in rather than the old one being
@@ -1123,10 +1155,10 @@ button[role='switch'] > span {
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']) {
   padding: 0.5rem 1.25rem !important;
   min-height: 2.25rem;
-  filter: brightness(1.18) saturate(1.05);
+  filter: none;
 }
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']):hover {
-  filter: brightness(1.3) saturate(1.05);
+  filter: none;
 }
 
 /* Compact switch: 36x20 track, 16px knob, position driven by aria-checked so every component agrees. */
@@ -1211,11 +1243,12 @@ button[role='switch'] > span {
    grids of cards) on every page, instead of each page picking space-y-4/6 or
    gap-4/6 on its own. */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-3, .space-y-4, .space-y-5, .space-y-6, .space-y-8) > :not([hidden]):not(:first-child) {
-  margin-top: 0.625rem !important;
+  margin-top: var(--page-gap) !important;
+  margin-bottom: 0 !important;
 }
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .grid:is(.gap-3, .gap-4, .gap-5, .gap-6),
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .flex-col:is(.gap-3, .gap-4, .gap-5, .gap-6) {
-  gap: 0.625rem !important;
+  gap: var(--page-gap) !important;
 }
 
 /* Every button in the page banner: identical padding on all four sides, same height, content aligned to the left edge. */
@@ -1589,15 +1622,13 @@ html[data-theme='dark'] #route-page-content table tbody tr:hover {
    header, banner, content and footer share the same side boundary.
    ========================================================================== */
 html[data-theme='dark'] {
-  --layout-pad-x: 24px;
-  --layout-pad-top: 20px;
-  --layout-pad-bottom: 24px;
+  --layout-pad-x: 16px;
+  --layout-pad-top: 12px;
+  --layout-pad-bottom: 16px;
   --layout-header-h: 60px;
   --layout-header-px: 20px;
-  --layout-footer-py: 12px;
+  --layout-footer-py: 3px;
 }
-@media (max-width: 1535px) { html[data-theme='dark'] { --layout-pad-x: 20px; } }
-@media (max-width: 1023px) { html[data-theme='dark'] { --layout-pad-x: 16px; --layout-pad-top: 16px; --layout-pad-bottom: 16px; } }
 @media (max-width: 639px) { html[data-theme='dark'] { --layout-pad-x: 12px; --layout-pad-top: 12px; --layout-pad-bottom: 12px; } }
 
 html[data-theme='dark'] nav.h-\[67px\] {
@@ -1631,16 +1662,6 @@ html[data-theme='dark'] #route-page-content .blue-density-footer {
 }
 html[data-theme='dark'] #route-page-content .blue-density-pagination {
   padding: var(--layout-footer-py) var(--layout-pad-x);
-}
-html[data-theme='dark'] #route-page-content .app-card:not([class~='!p-0']) {
-  padding: 20px !important;
-}
-html[data-theme='dark'] #route-page-content :is(.space-y-3, .space-y-4, .space-y-5, .space-y-6, .space-y-8) > :not([hidden]):not(:first-child) {
-  margin-top: 16px !important;
-}
-html[data-theme='dark'] #route-page-content .grid:is(.gap-3, .gap-4, .gap-5, .gap-6),
-html[data-theme='dark'] #route-page-content .flex-col:is(.gap-3, .gap-4, .gap-5, .gap-6) {
-  gap: 16px !important;
 }
 html[data-theme='dark'] #route-page-content table :is(th, td) {
   padding: 10px 12px;
@@ -1857,4 +1878,275 @@ html[data-theme='light'] span:not(.pos-app *):is(.rounded-lg, .rounded-xl):is([c
   color: #1769e0 !important;
   border-color: #dbe6f5;
   background-color: #eef4fc !important;
+}
+
+
+/* ==========================================================================
+   Shared compact spacing scale (all themes): 10px between blocks, 12px for
+   larger row gaps, 16px between form columns. Applies to every page through
+   #route-page-content, so pages do not need their own gap/margin overrides.
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content {
+  --gap-block: 4px;
+  --gap-row: 4px;
+  --gap-col: 4px;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.flex, .inline-flex):is(.gap-5, .gap-6, .gap-8, .gap-10) {
+  gap: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .grid:is(.gap-8, .gap-10) {
+  gap: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.gap-x-5, .gap-x-6, .gap-x-8, .gap-x-10) {
+  column-gap: var(--gap-col);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.gap-y-4, .gap-y-5, .gap-y-6, .gap-y-8) {
+  row-gap: var(--gap-block);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.mb-5, .mb-6, .mb-8, .mb-10) {
+  margin-bottom: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.mt-5, .mt-6, .mt-8, .mt-10) {
+  margin-top: var(--gap-row);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-2, .space-y-2\.5) > :not([hidden]):not(:first-child) {
+  margin-top: 0.5rem !important;
+}
+
+/* One primary-button colour on every page and theme. The per-theme rules above each force their own
+   (teal / brand blue) with !important, so this repeats [data-theme] to out-rank them. Disabled buttons
+   keep their own styling. Matches PRIMARY_BTN in src/pos2/buttonStyles.js. */
+html[data-theme][data-theme][data-theme] :is(button, a):is([class~='bg-brand'], [class~='bg-blue-600'], [class~='bg-cyan-600'], [class*='bg-gradient-to-r'], .blue-theme-primary):not([role='switch'], :disabled, [aria-disabled='true']) {
+  background-color: #3b82f6 !important;
+  background-image: none !important;
+  border-color: #3b82f6 !important;
+  color: #fff !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+html[data-theme][data-theme][data-theme] :is(button, a):is([class~='bg-brand'], [class~='bg-blue-600'], [class~='bg-cyan-600'], [class*='bg-gradient-to-r'], .blue-theme-primary):not([role='switch'], :disabled, [aria-disabled='true']):hover {
+  background-color: #2f6fe4 !important;
+  border-color: #2f6fe4 !important;
+}
+html[data-theme][data-theme][data-theme] :is(button, a):is([class~='bg-brand'], [class~='bg-blue-600'], [class~='bg-cyan-600'], [class*='bg-gradient-to-r'], .blue-theme-primary):not([role='switch'], :disabled, [aria-disabled='true']):active {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+/* One footer size on every page: the bottom bar of a form (Cancel / Next / Save) and of a list
+   (pagination) both get 3px at the top and nothing on the other three sides, and so does the pager
+   the auto-paginate helper adds under a table. Earlier theme rules set 6px, 8px, 12px, 0.6rem and
+   the page gutter, so this wins with !important. */
+html[data-theme] :is(.blue-density-footer, .blue-density-pagination, .auto-pager) {
+  padding: 3px 0 0 !important;
+}
+
+/* No left/right padding on pages: the content runs the full width of the area beside the sidebar.
+   The gutter variables feed the page, banner, header and footer bars; the -m-6 / -mx-6 bars that bleed
+   out to the edges are told not to bleed sideways (they would otherwise overshoot by the old gutter).
+   Top and bottom spacing is unchanged. */
+html[data-theme] {
+  --layout-pad-x: 0px;
+}
+html[data-theme] #route-page-content,
+html[data-theme] #route-page-content[data-page-banner='true'] {
+  --page-gutter: 0px;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+html[data-theme] #route-page-content :is(.-m-6, .-mx-6) {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* List footers: the "Showing 1 to N of N entries" text stays at the left and the pager sits at the right
+   corner, each 12px in from its edge so neither touches the bar's end. */
+html[data-theme] :is(.blue-density-pagination, .auto-pager) {
+  justify-content: space-between !important;
+}
+html[data-theme] :is(.blue-density-pagination, .auto-pager) > :first-child {
+  padding-left: 12px;
+}
+html[data-theme] :is(.blue-density-pagination, .auto-pager) > :last-child:not(:first-child) {
+  margin-left: auto;
+  padding-right: 12px;
+}
+
+/* The banner keeps one even 12px of side padding in every theme, so the breadcrumb, title and buttons inside it line up. */
+html[data-theme] .blue-theme-banner {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+/* Form footers (Cancel / Back / Next / Save): the buttons sit together at the right corner of the bar. */
+html[data-theme] .blue-density-footer {
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+/* Switches: the "on" track uses the same blue as every primary button, in all themes (it was a different blue per theme). */
+html[data-theme] button[role='switch'][aria-checked='true'] {
+  background-color: #3b82f6 !important;
+}
+
+/* ==========================================================================
+   Compact density: ONE tighter scale for every page, in Light, Dark and Blue
+   Metal alike (these three themes used to drift apart: Dark had taller table
+   cells and different page padding). Last in the file on purpose, so it wins
+   over the earlier per-theme rules of equal weight. Sizes:
+     header bar 52px, page banner 60px, headline cards 44px, controls 32px,
+     table header ~28px / rows ~30px, list footer ~30px, page gaps 8px.
+   ========================================================================== */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) {
+  --layout-header-h: 52px;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) {
+  --page-kpi-height: 2.75rem;
+  --page-control-height: 2rem;
+}
+
+/* Header bar */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) nav.h-\[67px\] {
+  height: var(--layout-header-h);
+}
+
+/* Page banner: the markup fixes it at 76px (58px on third-party lists). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner[class~='h-[76px]'] {
+  height: 60px;
+  min-height: 60px;
+  max-height: 60px;
+  padding-top: 2px;
+  padding-bottom: 4px;
+  gap: 2px;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner[class~='min-h-[58px]'] {
+  min-height: 46px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* Banner controls: 32px, so the breadcrumb row and the title row both fit the 60px banner. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a):is([class~='bg-brand'], .blue-theme-primary):not([role='switch']) {
+  min-height: 2rem;
+  max-height: 2rem;
+  padding: 0.25rem 1rem !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(button, a[role='button'], a.inline-flex):not([role='switch']):not(:has(> svg:only-child)) {
+  max-height: 2rem;
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner :is(input:not([type='checkbox'], [type='radio']), select) {
+  height: 2rem;
+  min-height: 2rem;
+}
+
+/* Cards that carry their own padding rule */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.blue-compact-card, .invoice-summary-card) {
+  padding: 4px 8px !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(div, section, article)[class~='bg-surface-alt'][class~='border-border'][class~='rounded-xl']:not([class~='!p-0']):not([class~='overflow-auto']) {
+  padding: 8px !important;
+}
+
+/* Tables: header row ~28px, data rows ~30px, the same in every theme */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table th {
+  padding: 0.35rem 0.6rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table td {
+  padding: 0.25rem 0.6rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table tbody > tr {
+  height: 1.9rem;
+}
+
+/* List footer / pager */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) :is(.blue-density-pagination, .auto-pager) button {
+  min-height: 1.5rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination {
+  line-height: 1.1rem;
+}
+
+/* Page wrappers (the common "space-y-* px-6 py-4" root of list and form pages) and stacked blocks */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='space-y-4'][class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']) {
+  padding: var(--page-gap) var(--page-gap-x);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-4, .space-y-5, .space-y-6) > :not(:last-child) {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .space-y-3 > :not(:last-child) {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.grid, .flex, .inline-flex):is(.gap-4) {
+  gap: 0.5rem;
+}
+
+/* Number fields inside item tables (VAT %, Qty, Unit price, Disc. %): the browser spinner and the
+   form's wide side padding left no room for the value ("0" was clipped to a "C" in narrow columns).
+   No spinner, tighter side padding and a floor width so the value always shows. */
+#route-page-content table input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  min-width: 4.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+#route-page-content table input[type='number']::-webkit-outer-spin-button,
+#route-page-content table input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Left/right edges: the page banner, the list footer and the cards all start and end at the same x,
+   one --page-gap in from the page edge. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-theme-banner {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-pagination > span:first-child {
+  padding-left: 0 !important;
+}
+
+/* A sticky page header whose only content is the page title (already shown in the banner) takes no space, so the
+   gap under the banner is the same --page-gap as on every other page. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-density-header:not(:has(> :not(.blue-duplicate-page-title))) {
+  display: none;
+}
+
+/* Page wrappers that write their padding as an arbitrary value (px-[16px] py-[12px]) follow the same tokens as
+   the px-6 ones, so the banner and every page's content share one left/right and top/bottom padding. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='min-h-0'][class*='px-['] {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='min-h-0'][class*='px-['][class*='py-['] {
+  padding-top: var(--page-gap) !important;
+  padding-bottom: var(--page-gap) !important;
+}
+
+/* Page roots padded with a plain p-4 / p-5 / p-6 follow the same page padding. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='-m-6']:is([class~='p-4'], [class~='p-5'], [class~='p-6']) {
+  padding: var(--page-gap) var(--page-gap-x) !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='space-y-'][class*='px-['] {
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+
+/* A bar that continues the banner inside a full-bleed (-m-6) page root already spans the page width, so it must
+   not bleed out by the gutter a second time; its own padding then puts its content under the banner content. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='-m-6'] > .blue-banner-continues {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }

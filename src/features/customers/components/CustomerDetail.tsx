@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AddContactModal } from './AddContactModal'
+import { CustomerDiscountsModal } from './CustomerDiscountsModal'
 import { ActivityFormModal } from './ActivityFormModal'
 import { ActivityDetailModal } from './ActivityDetailModal'
 import { ScheduleActivityModal } from './ScheduleActivityModal'
+import { QuickEventModal } from './QuickEventModal'
+import { AddEventModal } from '../../agenda/components/AddEventModal'
 import {
   ChevronLeft,
   ChevronRight,
@@ -45,9 +49,16 @@ import {
   LoaderCircle,
   ChevronDown,
   Filter,
+  Trash2,
+  Globe,
+  Lock,
+  Download,
+  Zap,
 } from 'lucide-react'
 import { Card, DetailMetricRow, DetailMetricTile, ICON_STYLES, InfoChip, StatusPill, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { deleteThirdParty } from '../../../api/customers'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ROUTES } from '../../../routes'
 import { useTheme } from '../../../context/ThemeContext'
@@ -55,14 +66,17 @@ import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
   useCustomerDetail,
-  useUpdateCustomer,
+  useQuickUpdateCustomer,
+  useThirdPartyExtra,
   useSaveCustomerNotes,
   useUploadCustomerDocument,
   useAddCustomerNotification,
   useCreatePaymentMode,
   type CustomerProfile,
   type CustomerEditableFields,
+  type QuickEditSelects,
 } from '../customerDetail.queries'
+import { useThirdPartyFormOptions } from '../thirdPartyOptions.queries'
 import {
   useCustomerLedger,
   useCustomerActivities,
@@ -143,10 +157,13 @@ function TabTitle({ children, className = '' }: { children: React.ReactNode; cla
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+function InfoRow({ label, value, locked = false }: { label: string; value: React.ReactNode; locked?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-border last:border-0">
-      <span className="text-xs text-text-faint shrink-0">{label}</span>
+    <div className={`flex items-baseline justify-between gap-4 py-1.5 border-b border-border last:border-0 ${locked ? 'opacity-60' : ''}`} title={locked ? 'Not editable here — use the full edit form' : undefined}>
+      <span className="flex items-center gap-1 text-xs text-text-faint shrink-0">
+        {locked && <Lock size={10} className="shrink-0" />}
+        {label}
+      </span>
       <span className="text-sm text-text! text-right">{value || <span className="text-text-faint">—</span>}</span>
     </div>
   )
@@ -159,14 +176,214 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 function EditableRow({ label, value, editing, onChange }: { label: string; value: string; editing: boolean; onChange: (v: string) => void }) {
   if (!editing) return <InfoRow label={label} value={value} />
   return (
-    <div className="flex items-center justify-between gap-4 py-1 border-b border-border last:border-0">
-      <span className="text-xs text-text-faint shrink-0">{label}</span>
+    <div className="-mx-2 flex items-center justify-between gap-4 rounded-md border-b border-border bg-brand/5 px-2 py-1 last:border-0">
+      <span className="flex items-center gap-1 text-xs font-medium text-brand shrink-0">
+        <Pencil size={10} className="shrink-0" />
+        {label}
+      </span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="text-sm text-text! text-right bg-input-bg border border-input-border rounded-md px-2 py-1 w-full max-w-[220px] focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+        aria-label={label}
+        className="text-sm text-text! text-right bg-input-bg border border-brand/40 rounded-md px-2 py-1 w-full max-w-[220px] shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
       />
+    </div>
+  )
+}
+
+// The first seven tabs as pills and the rest under "More… (n)", like the legacy tab bar. The menu button lights up
+// (and names the tab) when one of its tabs is open.
+const PRIMARY_TABS = 7
+
+function TabBar({ tabs, active, onSelect }: { tabs: { key: TabKey; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; badge: number }[]; active: TabKey; onSelect: (k: TabKey) => void }) {
+  const primary = tabs.slice(0, PRIMARY_TABS)
+  const more = tabs.slice(PRIMARY_TABS)
+  const activeMore = more.find((t) => t.key === active)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+  const pill = (on: boolean) => `flex items-center gap-1.5 shrink-0 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${on ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:text-text hover:bg-surface-hover'}`
+  return (
+    <div className="border-t border-border px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1 bg-surface rounded-2xl p-0.5">
+        {primary.map(({ key, label, icon: Icon, badge }) => (
+          <button key={key} type="button" onClick={() => onSelect(key)} className={pill(active === key)}>
+            <Icon size={12} className="shrink-0" /> {label}
+            {badge > 0 && <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badge}</span>}
+          </button>
+        ))}
+        {more.length > 0 && (
+          <div ref={ref} className="relative">
+            <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open} className={pill(!!activeMore)}>
+              {activeMore ? activeMore.label : 'More…'} <span className="opacity-70">({more.length})</span> <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+              <div role="menu" className="absolute left-0 top-full z-30 mt-1 max-h-80 w-60 overflow-auto rounded-lg border border-border bg-surface p-1 shadow-lg">
+                {more.map(({ key, label, icon: Icon, badge }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onSelect(key)
+                      setOpen(false)
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs ${active === key ? 'bg-brand/10 font-semibold text-brand' : 'text-text-muted hover:bg-surface-hover hover:text-text'}`}
+                  >
+                    <Icon size={12} className="shrink-0" /> {label}
+                    {badge > 0 && <span className="ml-auto rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white">{badge}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Quick edit's dropdown choices (kept as the dropdowns' own string values).
+interface QuickSelectValues {
+  prospectCustomer: 'prospect' | 'customer' | 'none'
+  vendor: 'yes' | 'no'
+  forme: string
+  effectif: string
+  country: string
+  custcats: number[]
+  suppcats: number[]
+}
+const EMPTY_SELECTS: QuickSelectValues = { prospectCustomer: 'customer', vendor: 'no', forme: '', effectif: '', country: '', custcats: [], suppcats: [] }
+
+// A dropdown row that is highlighted like EditableRow while quick-editing.
+function EditableSelectRow({ label, value, options, onChange, placeholder = '—' }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div className="-mx-2 flex items-center justify-between gap-4 rounded-md border-b border-border bg-brand/5 px-2 py-1 last:border-0">
+      <span className="flex items-center gap-1 text-xs font-medium text-brand shrink-0">
+        <Pencil size={10} className="shrink-0" />
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        className="text-sm text-text! bg-input-bg border border-brand/40 rounded-md px-2 py-1 w-full max-w-[220px] shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+// Tags as removable chips plus a picker for the next one (a record can carry several).
+function TagPickerRow({ label, options, selected, onChange }: { label: string; options: { value: string; label: string }[]; selected: number[]; onChange: (ids: number[]) => void }) {
+  const left = options.filter((o) => !selected.includes(Number(o.value)))
+  return (
+    <div className="-mx-2 flex items-start justify-between gap-4 rounded-md border-b border-border bg-brand/5 px-2 py-1.5 last:border-0">
+      <span className="flex items-center gap-1 pt-1 text-xs font-medium text-brand shrink-0">
+        <Pencil size={10} className="shrink-0" />
+        {label}
+      </span>
+      <div className="flex max-w-[260px] flex-1 flex-wrap items-center justify-end gap-1">
+        {selected.map((id) => (
+          <span key={id} className="inline-flex items-center gap-1 rounded-md bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+            {options.find((o) => Number(o.value) === id)?.label ?? `#${id}`}
+            <button type="button" onClick={() => onChange(selected.filter((x) => x !== id))} aria-label="Remove tag" className="hover:text-danger">
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        <select
+          value=""
+          onChange={(e) => e.target.value && onChange([...selected, Number(e.target.value)])}
+          aria-label={`Add ${label}`}
+          className="rounded-md border border-brand/40 bg-input-bg px-1.5 py-0.5 text-xs text-text"
+        >
+          <option value="">{left.length === 0 ? '—' : 'Add…'}</option>
+          {left.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
+
+// The dropdown rows of the Identification card while quick-editing. A component of its own so the option lists are only
+// fetched when editing starts.
+function QuickSelectRows({ data, selectValues, setSelectValues }: { data: CustomerProfile; selectValues: QuickSelectValues; setSelectValues: (v: QuickSelectValues) => void }) {
+  const { data: options } = useThirdPartyFormOptions()
+  const set = (patch: Partial<QuickSelectValues>) => setSelectValues({ ...selectValues, ...patch })
+  return (
+    <>
+      <EditableSelectRow
+        label="Prospect / Customer"
+        value={selectValues.prospectCustomer}
+        onChange={(v) => set({ prospectCustomer: v as QuickSelectValues['prospectCustomer'] })}
+        placeholder="Neither"
+        options={[
+          { value: 'customer', label: 'Customer' },
+          { value: 'prospect', label: 'Prospect' },
+          { value: 'none', label: 'Not prospect, Not customer' },
+        ]}
+      />
+      <EditableSelectRow
+        label="Vendor"
+        value={selectValues.vendor}
+        onChange={(v) => set({ vendor: v as QuickSelectValues['vendor'] })}
+        options={[
+          { value: 'no', label: 'No' },
+          { value: 'yes', label: 'Yes' },
+        ]}
+      />
+      <InfoRow label="Customer Code" locked value={data.codeClient} />
+      <InfoRow label="Supplier Code" locked value={data.codeFournisseur} />
+      <EditableSelectRow label="Business Entity Type" value={selectValues.forme} onChange={(v) => set({ forme: v })} options={options?.businessEntityTypes ?? []} />
+      <EditableSelectRow label="Workforce" value={selectValues.effectif} onChange={(v) => set({ effectif: v })} options={options?.workforce ?? []} />
+      <EditableSelectRow label="Country" value={selectValues.country} onChange={(v) => set({ country: v })} options={options?.countries ?? []} />
+      <TagPickerRow label="Cust./Prosp. Tags" options={options?.custCategories ?? []} selected={selectValues.custcats} onChange={(ids) => set({ custcats: ids })} />
+      <TagPickerRow label="Supplier Tags" options={options?.vendorCategories ?? []} selected={selectValues.suppcats} onChange={(ids) => set({ suppcats: ids })} />
+    </>
+  )
+}
+
+// One-click contact actions in the card header, like a CRM record: call, email, website. Shown only for what exists.
+function QuickContactLinks({ data }: { data: CustomerProfile }) {
+  const chip = 'inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs text-text-muted transition-colors hover:border-brand/50 hover:bg-brand/5 hover:text-brand'
+  const web = data.web ? (/^https?:\/\//i.test(data.web) ? data.web : `https://${data.web}`) : ''
+  if (!data.phone && !data.email && !web) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {data.phone && (
+        <a href={`tel:${data.phone.replace(/\s+/g, '')}`} className={chip} title={`Call ${data.phone}`}>
+          <Phone size={11} /> {data.phone}
+        </a>
+      )}
+      {data.email && (
+        <a href={`mailto:${data.email}`} className={chip} title={`Email ${data.email}`}>
+          <Mail size={11} /> {data.email}
+        </a>
+      )}
+      {web && (
+        <a href={web} target="_blank" rel="noreferrer" className={chip} title={web}>
+          <Globe size={11} /> {data.web}
+        </a>
+      )}
     </div>
   )
 }
@@ -250,39 +467,19 @@ export function CustomerDetail() {
   const [tab, setTab] = useState<TabKey>(requestedTab && TAB_KEYS.has(requestedTab as TabKey) ? (requestedTab as TabKey) : 'societe')
   const [isEditing, setIsEditing] = useState(false)
   const [formValues, setFormValues] = useState<CustomerEditableFields>({})
-  const updateCustomer = useUpdateCustomer(Number(id))
-
-  // Drives the tab strip's scroll-arrow visibility — this list runs to 17
-  // entries (societe/assets/js/app.js's own tab bar has the same "more than
-  // fits" problem the legacy page solves with native scroll only; this one
-  // adds explicit prev/next controls on top of it).
-  const tabsScrollRef = useRef<HTMLDivElement>(null)
-  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false)
-  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false)
-  const updateTabScrollState = useCallback(() => {
-    const el = tabsScrollRef.current
-    if (!el) return
-    setCanScrollTabsLeft(el.scrollLeft > 1)
-    setCanScrollTabsRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
-  }, [])
-  useEffect(() => {
-    updateTabScrollState()
-    const el = tabsScrollRef.current
-    // No node yet on the render where `data` first arrives and this loading
-    // gate's early `return` stops firing — re-runs on the next render once
-    // the tab strip is actually in the DOM (data flips undefined -> object
-    // exactly once, so this only re-subscribes, never loops).
-    if (!el) return
-    el.addEventListener('scroll', updateTabScrollState, { passive: true })
-    window.addEventListener('resize', updateTabScrollState)
-    return () => {
-      el.removeEventListener('scroll', updateTabScrollState)
-      window.removeEventListener('resize', updateTabScrollState)
-    }
-  }, [updateTabScrollState, data])
-  function scrollTabs(direction: 1 | -1) {
-    tabsScrollRef.current?.scrollBy({ left: direction * 220, behavior: 'smooth' })
-  }
+  const updateCustomer = useQuickUpdateCustomer(Number(id))
+  const { data: extra } = useThirdPartyExtra(id)
+  const [selectValues, setSelectValues] = useState<QuickSelectValues>(EMPTY_SELECTS)
+  const confirm = useConfirm()
+  const queryClient = useQueryClient()
+  // societe/fapi/delete.php refuses a third party that still has documents, and says so.
+  const removeCustomer = useMutation({
+    mutationFn: () => deleteThirdParty(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      navigate(ROUTES.customerList)
+    },
+  })
 
   if (isLoading) {
     return (
@@ -325,7 +522,45 @@ export function CustomerDetail() {
       capital: data!.capital,
       barcode: data!.barcode,
     })
+    setSelectValues({
+      prospectCustomer: data!.client === 2 ? 'prospect' : data!.isCustomer ? 'customer' : 'none',
+      vendor: data!.isVendor ? 'yes' : 'no',
+      forme: String(data!.formeJuridiqueCode || ''),
+      effectif: String(data!.effectifId || ''),
+      country: String(data!.countryId || ''),
+      custcats: extra?.extended.custcats ?? [],
+      suppcats: extra?.extended.suppcats ?? [],
+    })
     setIsEditing(true)
+  }
+  // Only what differs from the saved record is sent: the changed text fields and the changed dropdowns / tags.
+  function saveQuickEdit() {
+    const record = data as unknown as Record<string, string>
+    const text = Object.fromEntries(Object.entries(formValues).filter(([k, v]) => (v ?? '') !== (record[k] ?? ''))) as CustomerEditableFields
+    const was = extra?.extended
+    const selects: QuickEditSelects = {}
+    const initialType = data!.client === 2 ? 'prospect' : data!.isCustomer ? 'customer' : 'none'
+    if (selectValues.prospectCustomer !== initialType || selectValues.vendor !== (data!.isVendor ? 'yes' : 'no')) {
+      selects.type = selectValues.vendor === 'yes' ? 'vendor' : selectValues.prospectCustomer === 'prospect' ? 'prospect' : selectValues.prospectCustomer === 'customer' ? 'customer' : 'all'
+      if (selects.type === 'vendor' && !data!.codeFournisseur) selects.supplierCode = 'auto'
+    }
+    if (selectValues.forme && selectValues.forme !== String(data!.formeJuridiqueCode || '')) selects.formeJuridiqueCode = Number(selectValues.forme)
+    if (selectValues.effectif && selectValues.effectif !== String(data!.effectifId || '')) selects.effectifId = Number(selectValues.effectif)
+    if (selectValues.country && selectValues.country !== String(data!.countryId || '')) selects.countryId = Number(selectValues.country)
+    const sameIds = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x))
+    if (was && !sameIds(selectValues.custcats, was.custcats)) selects.custcats = selectValues.custcats
+    if (was && !sameIds(selectValues.suppcats, was.suppcats)) selects.suppcats = selectValues.suppcats
+    updateCustomer.mutate({ text, selects }, { onSuccess: () => setIsEditing(false) })
+  }
+  async function handleDelete() {
+    removeCustomer.reset()
+    const ok = await confirm({
+      title: 'Delete third party?',
+      message: `Delete "${displayName}" (#${data!.id})?`,
+      warningTitle: 'This cannot be undone.',
+      warningMessage: 'A third party that still has invoices, orders or other documents cannot be deleted.',
+    })
+    if (ok) removeCustomer.mutate()
   }
   function cancelEditing() {
     setIsEditing(false)
@@ -346,27 +581,17 @@ export function CustomerDetail() {
         </Link>
       </div>
 
-      <div
-        className={`sticky top-0 z-10 -mx-6 overflow-hidden px-6 pt-4 pb-3 ${isBlueMetal ? 'rounded-xl border border-[#2879ad]' : 'bg-white dark:bg-gray-950'}`}
-      >
+      <div className={`sticky top-0 z-10 -mx-6 overflow-hidden ${isBlueMetal ? 'rounded-xl border border-[#2879ad]' : 'bg-white dark:bg-gray-950'}`}>
         <div className="relative z-10">
-          <h1 className={`blue-integrated-page-title mb-3 flex items-center gap-2 text-xl font-bold ${isBlueMetal ? 'text-white' : 'text-text!'}`}>
-            <Users2 size={22} className={isBlueMetal ? 'text-cyan-300' : 'text-brand'} />
-            Customer Details
-          </h1>
-          <Card className={`!h-auto ${isBlueMetal ? '!border-white/20 !bg-transparent !shadow-none' : ''}`}>
-            {/* pt-[0.6rem] pb-[0.45rem] match the padding the shared blue-metal
-                sticky-header CSS gives every other detail page (index.css
-                ~L83); this page's Card-wrapped header falls outside that rule
-                (its own padding gets zeroed, see ~L752), so it's matched here
-                explicitly instead of drifting to its own values. px-[16px]
-                matches the banner's own left/right padding. */}
-            <div className={`flex flex-wrap items-center justify-between gap-2.5 pt-[0.6rem] px-8 pb-[0.45rem] border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
-              <div className="flex items-center gap-2.5 min-w-[240px] flex-1">
+          {/* One card for hero + metrics + tabs, like the product detail header: no separate page title row
+              (the banner already names the page) and no outer padding. */}
+          <Card className="!h-auto !p-0 overflow-hidden !border-0 !rounded-none">
+            <div className={`flex flex-wrap items-start justify-between gap-4 p-3 border-b ${isBlueMetal ? 'border-white/20' : 'border-border'}`}>
+              <div className="flex items-start gap-4 min-w-[240px] flex-1">
                 {/* logoUrl is a generic placeholder company icon on this
                     backend (not a real uploaded photo), so always fall back
                     to the initials badge rather than pass it through. */}
-                <Avatar name={data.name} size={32} rounded={isBlueMetal ? 'full' : 'lg'} color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'} />
+                <Avatar name={data.name} size={52} rounded={isBlueMetal ? 'full' : 'lg'} color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'} />
                 <div className={isBlueMetal ? 'flex flex-wrap items-center gap-x-4 gap-y-1' : 'space-y-1 pt-0.5'}>
                   <div className="flex flex-wrap items-center gap-2">
                     {isEditing ? (
@@ -376,18 +601,18 @@ export function CustomerDetail() {
                           value={formValues.name ?? ''}
                           onChange={(e) => setField('name')(e.target.value)}
                           placeholder="First name"
-                          className="text-lg font-bold text-text! bg-input-bg border border-input-border rounded-md px-2 py-0.5 w-32 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                          className="text-lg font-bold text-text! bg-brand/5 border border-brand/40 rounded-md px-2 py-0.5 w-44 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                         />
                         <input
                           type="text"
                           value={formValues.lastname ?? ''}
                           onChange={(e) => setField('lastname')(e.target.value)}
                           placeholder="Last name"
-                          className="text-lg font-bold text-text! bg-input-bg border border-input-border rounded-md px-2 py-0.5 w-32 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                          className="text-lg font-bold text-text! bg-brand/5 border border-brand/40 rounded-md px-2 py-0.5 w-44 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
                         />
                       </div>
                     ) : (
-                      <h2 className="text-lg font-bold text-text!">{displayName}</h2>
+                      <h2 className="text-base font-bold text-text!">{displayName}</h2>
                     )}
                     {isBlueMetal ? (
                       <>
@@ -413,6 +638,7 @@ export function CustomerDetail() {
                       </>
                     )}
                   </div>
+                  <QuickContactLinks data={data} />
                   {isBlueMetal ? (
                     <>
                       <p className="text-xs text-text-faint shrink-0">
@@ -449,52 +675,37 @@ export function CustomerDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {isEditing ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={updateCustomer.isPending}
-                      onClick={() => updateCustomer.mutate(formValues, { onSuccess: () => setIsEditing(false) })}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
-                    >
-                      <Check size={14} /> {updateCustomer.isPending ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelEditing}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={startEditing}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                        isBlueMetal
-                          ? 'border-sky-300/40 bg-brand text-white shadow-sm hover:bg-brand-hover'
-                          : 'border-border text-text-muted font-medium hover:bg-surface-hover hover:text-text'
-                      }`}
-                    >
-                      <Pencil size={14} /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate(ROUTES.customerList)}
-                      className={`rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                        isBlueMetal
-                          ? 'border border-white/50 bg-slate-950/70 text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] hover:border-cyan-200 hover:bg-blue-800/90'
-                          : 'text-text-faint hover:bg-surface-hover hover:text-text'
-                      }`}
-                      title="Close"
-                      aria-label="Close customer details"
-                    >
-                      <X size={18} />
-                    </button>
-                  </>
-                )}
+                {/* Same three actions as the legacy card's top-right: delete, the full edit form (create.php?edit=1) and close. */}
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={removeCustomer.isPending}
+                  title="Delete this third party"
+                  aria-label="Delete third party"
+                  className="rounded-md border border-danger/50 p-1.5 text-danger transition-colors hover:bg-danger-bg disabled:opacity-60"
+                >
+                  {removeCustomer.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(ROUTES.customerEdit.replace(':id', String(data.id)))}
+                  title="Edit in the full form"
+                  aria-label="Edit in the full form"
+                  className="rounded-md border border-border p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(ROUTES.customerList)}
+                  className={`rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                    isBlueMetal ? 'border border-white/50 bg-slate-950/70 text-white hover:border-cyan-200 hover:bg-blue-800/90' : 'border border-border text-text-faint hover:bg-surface-hover hover:text-text'
+                  }`}
+                  title="Close"
+                  aria-label="Close customer details"
+                >
+                  <X size={16} />
+                </button>
               </div>
             </div>
 
@@ -509,6 +720,12 @@ export function CustomerDetail() {
                 without that blanket claim, since a future failure here is
                 more likely a specific field rejection than the action itself
                 being unsupported. */}
+            {removeCustomer.isError && (
+              <div className="flex items-start gap-2 px-4 py-2.5 border-b border-border bg-danger-bg text-danger-fg text-xs">
+                <TriangleAlert size={14} className="shrink-0 mt-0.5" />
+                <span>Couldn't delete: {removeCustomer.error instanceof Error ? removeCustomer.error.message : 'Unknown error.'}</span>
+              </div>
+            )}
             {updateCustomer.isError && (
               <div className="flex items-start gap-2 px-4 py-2.5 border-b border-border bg-danger-bg text-danger-fg text-xs">
                 <TriangleAlert size={14} className="shrink-0 mt-0.5" />
@@ -516,7 +733,7 @@ export function CustomerDetail() {
               </div>
             )}
 
-            <DetailMetricRow className="px-[16px] py-3 border-b border-border">
+            <DetailMetricRow className="px-2 py-2 border-b border-border">
               <DetailMetricTile label="Quotations" value={<>{formatMoney(data.kpiQuotation)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiQuotationCount}</span></>} icon={FileText} color="violet" />
               <DetailMetricTile label="Orders" value={<>{formatMoney(data.kpiOrder)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiOrderCount}</span></>} icon={ShoppingCart} color="green" />
               <DetailMetricTile label="Invoices" value={<>{formatMoney(data.kpiInvoice)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiInvoiceCount}</span></>} icon={Receipt} color="blue" />
@@ -524,58 +741,23 @@ export function CustomerDetail() {
               <DetailMetricTile label="Advance" value={<>{formatMoney(data.advance)} <span className="text-xs font-normal text-text-faint ml-1.5">{data.kpiAdvanceCount}</span></>} icon={Wallet} color="rose" />
             </DetailMetricRow>
 
-            <div className="border-t border-border px-[16px] py-1.5">
-              <div className="flex items-center gap-1.5">
-                {canScrollTabsLeft && (
-                  <button
-                    type="button"
-                    onClick={() => scrollTabs(-1)}
-                    aria-label="Scroll tabs left"
-                    className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
-                  >
-                    <ChevronLeft size={12} />
-                  </button>
-                )}
-                <div ref={tabsScrollRef} className="flex items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar bg-surface rounded-full p-0.5 flex-1 min-w-0">
-                  {TABS.filter((t) => (t.key !== 'customer' || customerTabLabel(data)) && (t.key !== 'vendor' || data.isVendor)).map(({ key, label, icon: Icon }) => {
-                    const displayLabel = key === 'customer' ? customerTabLabel(data) : label
-                    // Real count from the same profile fetch (task_count +
-                    // call_count + meeting_count) — confirmed live against the
-                    // reference page's own "2" badge on this exact tab.
-                    const badgeCount = key === 'agenda' ? data.taskCount + data.callCount + data.meetingCount : 0
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setTab(key)}
-                        className={`flex items-center gap-1.5 shrink-0 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                          tab === key ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:text-text hover:bg-surface-hover'
-                        }`}
-                      >
-                        <Icon size={12} className="shrink-0" /> {displayLabel}
-                        {badgeCount > 0 && <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badgeCount}</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-                {canScrollTabsRight && (
-                  <button
-                    type="button"
-                    onClick={() => scrollTabs(1)}
-                    aria-label="Scroll tabs right"
-                    className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full border border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
-                  >
-                    <ChevronRight size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
+            <TabBar
+              active={tab}
+              onSelect={setTab}
+              tabs={TABS.filter((t) => (t.key !== 'customer' || customerTabLabel(data)) && (t.key !== 'vendor' || data.isVendor)).map(({ key, label, icon }) => ({
+                key,
+                icon,
+                label: key === 'customer' ? customerTabLabel(data) : label,
+                // Real count from the same profile fetch (task_count + call_count + meeting_count).
+                badge: key === 'agenda' ? data.taskCount + data.callCount + data.meetingCount : 0,
+              }))}
+            />
           </Card>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-[16px] py-3 space-y-4 no-scrollbar">
-        {tab === 'societe' && <ThirdPartyTab data={data} isEditing={isEditing} formValues={formValues} setField={setField} onEdit={startEditing} />}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 p-0 space-y-1 no-scrollbar">
+        {tab === 'societe' && <ThirdPartyTab data={data} extra={extra} selectValues={selectValues} setSelectValues={setSelectValues} isEditing={isEditing} formValues={formValues} setField={setField} onEdit={startEditing} onSave={saveQuickEdit} onCancel={cancelEditing} saving={updateCustomer.isPending} />}
         {tab === 'notes' && <NotesTab data={data} socid={id} />}
         {tab === 'transactions' && <TransactionsTab socid={id} />}
         {tab === 'activities' && <ActivitiesTab socid={id} />}
@@ -583,7 +765,7 @@ export function CustomerDetail() {
         {tab === 'contracts' && <ContractsTab socid={id} />}
         {tab === 'customer' && <CustomerTab socid={id} profile={data} />}
         {tab === 'vendor' && <VendorTab socid={id} />}
-        {tab === 'agenda' && <AgendaTab socid={id} />}
+        {tab === 'agenda' && <AgendaTab socid={id} name={displayName} />}
         {tab === 'pricing_groups' && <PricingGroupsTab socid={id} />}
         {tab === 'documents' && <DocumentsTab socid={id} />}
         {tab === 'notify' && <NotificationsTab socid={id} />}
@@ -624,16 +806,28 @@ export function CustomerDetail() {
 
 function ThirdPartyTab({
   data,
+  extra,
+  selectValues,
+  setSelectValues,
   isEditing,
   formValues,
   setField,
   onEdit,
+  onSave,
+  onCancel,
+  saving,
 }: {
   data: CustomerProfile
+  extra: { categories: { id: number; label: string; type: number }[] } | undefined
+  selectValues: QuickSelectValues
+  setSelectValues: (v: QuickSelectValues) => void
   isEditing: boolean
   formValues: CustomerEditableFields
   setField: (key: keyof CustomerEditableFields) => (value: string) => void
   onEdit: () => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
 }) {
   return (
     <div className="space-y-4">
@@ -651,7 +845,7 @@ function ThirdPartyTab({
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${data.status === 1 ? 'bg-success-bg text-success-fg' : 'bg-surface-hover text-text-muted'}`}>
               {data.status === 1 ? 'Active' : 'Closed'}
             </span>
-            {!isEditing && (
+            {!isEditing ? (
               <button
                 type="button"
                 onClick={onEdit}
@@ -659,24 +853,72 @@ function ThirdPartyTab({
               >
                 <Pencil size={14} /> Edit
               </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={onSave}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-hover disabled:opacity-60"
+                >
+                  <Check size={14} /> {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
+                >
+                  Cancel
+                </button>
+              </>
             )}
           </div>
         </div>
       </Card>
+
+      {isEditing && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-xs text-text-muted">
+          <span className="flex items-center gap-1.5">
+            <Pencil size={12} className="text-brand" /> Quick edit — change the <strong className="text-brand">highlighted</strong> fields and press Save. Fields marked <Lock size={10} className="inline" /> are in the full edit form.
+          </span>
+          <Link to={ROUTES.customerEdit.replace(':id', String(data.id))} className="font-medium text-brand hover:underline">
+            Open the full edit form
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       <Card className="!h-auto">
         <SectionHeader icon={Info} color="blue">
           Identification
         </SectionHeader>
-        <InfoRow label="Prospect / Customer" value={data.clientLabel || (data.client === 2 ? 'Prospect' : data.client === 1 ? 'Customer' : 'Neither')} />
-        <InfoRow label="Vendor" value={data.isVendor ? 'Yes' : 'No'} />
-        <InfoRow label="Customer Code" value={data.codeClient} />
-        <InfoRow label="Supplier Code" value={data.codeFournisseur} />
+        {isEditing ? (
+          <QuickSelectRows data={data} selectValues={selectValues} setSelectValues={setSelectValues} />
+        ) : (
+          <>
+            <InfoRow label="Prospect / Customer" value={data.clientLabel || (data.client === 2 ? 'Prospect' : data.client === 1 ? 'Customer' : 'Neither')} />
+            <InfoRow label="Vendor" value={data.isVendor ? 'Yes' : 'No'} />
+            <InfoRow label="Customer Code" value={data.codeClient} />
+            <InfoRow label="Supplier Code" value={data.codeFournisseur} />
+          </>
+        )}
         <EditableRow label="Barcode" value={formValues.barcode ?? data.barcode} editing={isEditing} onChange={setField('barcode')} />
-        <InfoRow label="Business Entity Type" value={data.formeJuridique} />
+        {!isEditing && (
+          <>
+            <InfoRow label="Business Entity Type" value={data.formeJuridique} />
+            <InfoRow label="Cust./Prosp. Tags/Categories" value={(extra?.categories ?? []).filter((c) => c.type === 2).map((c) => c.label).join(', ')} />
+            <InfoRow label="Supplier Tags/Categories" value={(extra?.categories ?? []).filter((c) => c.type === 1).map((c) => c.label).join(', ')} />
+          </>
+        )}
         <EditableRow label="Capital" value={formValues.capital ?? data.capital} editing={isEditing} onChange={setField('capital')} />
-        <InfoRow label="Workforce" value={data.effectif} />
+        {!isEditing && (
+          <div className="flex justify-end pb-1">
+            <Link to={ROUTES.ledgerCreate} className="text-xs font-medium text-brand hover:underline" title="Open the new accounting transaction form">
+              Capital payment
+            </Link>
+          </div>
+        )}
+        {!isEditing && <InfoRow label="Workforce" value={data.effectif} />}
         <InfoRow label="Default Language" value={data.defaultLang} />
       </Card>
 
@@ -691,7 +933,7 @@ function ThirdPartyTab({
         <EditableRow label="Address" value={formValues.address ?? data.address} editing={isEditing} onChange={setField('address')} />
         <EditableRow label="Zip" value={formValues.zip ?? data.zip} editing={isEditing} onChange={setField('zip')} />
         <EditableRow label="Town" value={formValues.town ?? data.town} editing={isEditing} onChange={setField('town')} />
-        <InfoRow label="Country" value={data.countryLabel} />
+        {!isEditing && <InfoRow label="Country" value={data.countryLabel} />}
       </Card>
 
       <Card className="!h-auto">
@@ -720,8 +962,8 @@ function ThirdPartyTab({
         <InfoRow label="Relative Discount %" value={data.relativeDiscountPercent ? `${data.relativeDiscountPercent}%` : ''} />
         <InfoRow label="Global Discount" value={data.globalDiscount ? formatMoney(data.globalDiscount) : ''} />
         <InfoRow label="Max Outstanding" value={data.maxOutstanding ? formatMoney(data.maxOutstanding) : ''} />
-        <InfoRow label="Currency" value={data.currencyCode} />
-        <InfoRow label="Incoterms" value={data.incotermsLabel} />
+        <InfoRow label="Currency" locked={isEditing} value={data.currencyCode} />
+        <InfoRow label="Incoterms" locked={isEditing} value={data.incotermsLabel} />
       </Card>
 
       <Card className="!h-auto">
@@ -1747,6 +1989,7 @@ function CustomerActionButton({ button, socid }: { button: CustomerTabButton; so
 
 function CustomerTab({ socid, profile }: { socid: string | undefined; profile: CustomerProfile }) {
   const { data, isLoading, isError, error, refetch } = useCustomerTab(socid)
+  const [showDiscounts, setShowDiscounts] = useState(false)
   if (isLoading) return <LegacyLoadingCard label="Loading customer info…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load customer info" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
@@ -1786,9 +2029,10 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
           <p className="text-xs text-text-faint uppercase tracking-wide">Customer Credit / Advance</p>
           <p className="text-lg font-bold text-text! mt-0.5">{formatMoney(data.advance)}</p>
           <p className="text-xs text-text-faint">Discount: {data.remise_percent}%</p>
-          <span title="No in-app page exists yet for this action." className="text-xs font-medium text-text-faint cursor-not-allowed">
+          <button type="button" onClick={() => setShowDiscounts(true)} className="self-start text-xs font-medium text-brand hover:underline">
             Manage discounts
-          </span>
+          </button>
+          {showDiscounts && socid && <CustomerDiscountsModal socid={socid} relativePercent={data.remise_percent} onClose={() => setShowDiscounts(false)} />}
         </Card>
       </div>
 
@@ -1830,7 +2074,7 @@ function CustomerTab({ socid, profile }: { socid: string | undefined; profile: C
           div, which has py-4) — -mb-4 cancels that bottom padding the same way
           the page header above cancels -m-6's p-6, so bottom-0 clamps flush
           against the true bottom of the scroll viewport instead of leaving a gap. */}
-      <div className="sticky bottom-0 z-10 -mx-6 -mb-4 border-t border-border bg-white px-6 py-3 dark:bg-gray-950">
+      <div className="sticky bottom-0 z-10 -mx-6 -mb-4 border-t border-border bg-white px-0 pb-0 pt-[3px] dark:bg-gray-950">
         <div className="flex flex-wrap gap-2">
           {data.buttons
             .filter((b) => b.visible)
@@ -1999,54 +2243,157 @@ function AgendaTimelineList({ days }: { days: AgendaDay[] }) {
   )
 }
 
-function AgendaTab({ socid }: { socid: string | undefined }) {
+// ISO day of a timeline group: the API's own date when it is YYYY-MM-DD, else parsed from the printed label.
+function agendaDayIso(day: AgendaDay): string {
+  if (/^\d{4}-\d{2}-\d{2}/.test(day.date)) return day.date.slice(0, 10)
+  const parsed = new Date(day.date_label || day.date)
+  return Number.isNaN(parsed.getTime()) ? '' : `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
+}
+
+// The visible events as a CSV the user can open in Excel (the legacy tab's "Export").
+function downloadAgendaCsv(days: AgendaDay[], name: string) {
+  const cell = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const rows = [['Date', 'Time', 'Type', 'Label', 'Status', 'User', 'Note']]
+  for (const day of days) for (const ev of day.events) rows.push([agendaDayIso(day) || day.date_label, ev.time, ev.type_label, ev.label, ev.status_label + (ev.late ? ' (late)' : ''), ev.user, ev.note])
+  const blob = new Blob(['\uFEFF' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `agenda_${name.replace(/[^a-z0-9]+/gi, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function AgendaTab({ socid, name = 'events' }: { socid: string | undefined; name?: string }) {
   const [type, setType] = useState('')
   const [status, setStatus] = useState('')
   const [user, setUser] = useState('')
   const [search, setSearch] = useState('')
-  const { data, isLoading, isError, error, refetch } = useCustomerAgenda(socid, { type, status, user, search })
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [modal, setModal] = useState<'create' | 'quick' | null>(null)
+  const { data, isLoading, isError, error, refetch } = useCustomerAgenda(socid, { type, status, user, search, from, to })
 
   if (isLoading) return <LegacyLoadingCard label="Loading agenda…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load agenda" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
+  // Every filter, the date range included, is answered by the API (datefilter), so the timeline is shown as returned.
+  const days = data.timeline
+  const total = days.reduce((n, d) => n + d.events.length, 0)
+  const filtered = !!(type || status || user || search || from || to)
+  const clear = () => {
+    setType('')
+    setStatus('')
+    setUser('')
+    setSearch('')
+    setFrom('')
+    setTo('')
+  }
+  const field = 'text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5'
+
   return (
     <div className="space-y-3">
-      <TabTitle>Agenda</TabTitle>
-      <Card className="!h-auto">
-        <div className="flex flex-wrap items-center gap-3">
-          <select value={type} onChange={(e) => setType(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            {data.filters.types.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            {data.filters.statuses.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <select value={user} onChange={(e) => setUser(e.target.value)} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-            {data.filters.users.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search label"
-            className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 flex-1 min-w-[160px]"
-          />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <TabTitle>Agenda</TabTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => downloadAgendaCsv(days, name)}
+            disabled={total === 0}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover hover:text-text disabled:opacity-50"
+          >
+            <Download size={14} /> Export
+          </button>
+          <button type="button" onClick={() => setModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
+            <Plus size={14} /> Create event
+          </button>
+          <button type="button" onClick={() => setModal('quick')} className="inline-flex items-center gap-1.5 rounded-md border border-brand px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand/10">
+            <Zap size={14} /> Quick event
+          </button>
         </div>
+      </div>
+      <Card className="!h-auto">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-faint">From</span>
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className={field} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-faint">To</span>
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={field} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-faint">Type</span>
+            <select value={type} onChange={(e) => setType(e.target.value)} className={field}>
+              {data.filters.types.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-faint">Status</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className={field}>
+              {data.filters.statuses.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-faint">User</span>
+            <select value={user} onChange={(e) => setUser(e.target.value)} className={field}>
+              {data.filters.users.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[160px] flex-1 flex-col gap-1">
+            <span className="text-xs font-medium text-text-faint">Search</span>
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Label" className={field} />
+          </label>
+          <button
+            type="button"
+            onClick={clear}
+            disabled={!filtered}
+            title="Clear filters"
+            aria-label="Clear filters"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover hover:text-text disabled:opacity-50"
+          >
+            <X size={14} /> Clear
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-text-faint">
+          {total} event{total === 1 ? '' : 's'}
+          {filtered ? ' match these filters' : ''}
+        </p>
       </Card>
       <Card className="!h-auto">
-        <AgendaTimelineList days={data.timeline} />
+        <AgendaTimelineList days={days} />
       </Card>
+      {modal === 'create' && (
+        <AddEventModal
+          socid={Number(socid)}
+          onClose={() => setModal(null)}
+          onCreated={() => {
+            void refetch()
+          }}
+        />
+      )}
+      {modal === 'quick' && (
+        <QuickEventModal
+          socid={Number(socid)}
+          onClose={() => setModal(null)}
+          onCreated={() => {
+            setModal(null)
+            void refetch()
+          }}
+        />
+      )}
     </div>
   )
 }

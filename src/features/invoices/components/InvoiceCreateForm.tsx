@@ -10,7 +10,7 @@ import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
-import { PartialInvoiceError, useCreateInvoiceReturningId, useCreateInvoice, useCreateTypedInvoice, useInvoiceCreateContext, type NewInvoiceInput, type NewInvoiceLine } from '../invoiceCreate.queries'
+import { useCreateInvoiceReturningId, useCreateInvoice, useCreateTypedInvoice, useInvoiceCreateContext, useInvoiceDocumentModels, useInvoiceIncoterms, type NewInvoiceInput, type NewInvoiceLine } from '../invoiceCreate.queries'
 import { CREDIT_NOTE_REASONS, useCreateCreditNote } from '../salesInvoiceActions.queries'
 import { convertToRecurringInvoice } from '../salesInvoiceTabs.queries'
 import { useInvoicesSummary } from '../invoices.queries'
@@ -142,6 +142,8 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
   const createTyped = useCreateTypedInvoice()
   const createDraftForTemplate = useCreateInvoiceReturningId()
   const { data: createContext, isLoading: contextLoading, isError: contextError, error: contextErr } = useInvoiceCreateContext()
+  const { data: incotermData } = useInvoiceIncoterms()
+  const { data: modelData } = useInvoiceDocumentModels()
   const { data: warehouses = [] } = useWarehousePickerOptions()
   // Like the classic page, the first open warehouse is the default.
   const warehouseId = String(warehouses.find((w) => w.open)?.id ?? warehouses[0]?.id ?? '')
@@ -238,7 +240,6 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
   const submitLabel = kind === 'credit' ? 'Create credit note' : kind === 'template' ? 'Create template' : 'Create draft'
 
   function showFailure(err: unknown, fallback: string) {
-    if (err instanceof PartialInvoiceError) setCreatedInvoice({ id: err.invoiceId, ref: err.invoiceRef })
     setFormError(err instanceof Error ? err.message : fallback)
   }
 
@@ -542,29 +543,32 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
                 </select>
               </Field>
 
-              <Field label="Incoterms">
-                {classicSaved ? (
-                  <div className="flex gap-2">
-                    <select value={incotermId} onChange={(e) => setIncotermId(e.target.value)} className={inputClasses}>
-                      <option value="">Select a incoterms</option>
-                      {(createContext?.incoterms ?? []).map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
+              {/* Hidden when the backend's incoterm module is off (the classic form omits the field too). */}
+              {incotermData?.enabled !== false && (
+                <Field label="Incoterms">
+                  {classicSaved ? (
+                    <div className="flex gap-2">
+                      <select value={incotermId} onChange={(e) => setIncotermId(e.target.value)} className={inputClasses}>
+                        <option value="">Select a incoterms</option>
+                        {(incotermData?.options ?? []).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      {incotermId && <input type="text" value={incotermLocation} onChange={(e) => setIncotermLocation(e.target.value)} placeholder="Location" className={`${inputClasses} w-32 shrink-0`} />}
+                    </div>
+                  ) : (
+                    <select disabled title="Incoterms are saved only for Lpo and Export invoices — the single-call invoice API does not take them." className={`${inputClasses} disabled:opacity-60`}>
+                      <option>Select a incoterms</option>
                     </select>
-                    {incotermId && <input type="text" value={incotermLocation} onChange={(e) => setIncotermLocation(e.target.value)} placeholder="Location" className={`${inputClasses} w-32 shrink-0`} />}
-                  </div>
-                ) : (
-                  <select disabled title="Incoterms are saved only for Lpo and Export invoices — the single-call invoice API does not take them." className={`${inputClasses} disabled:opacity-60`}>
-                    <option>Select a incoterms</option>
-                  </select>
-                )}
-              </Field>
+                  )}
+                </Field>
+              )}
               <Field label="Doc template">
                 {classicSaved ? (
-                  <select value={model || createContext?.defaultModel || ''} onChange={(e) => setModel(e.target.value)} className={inputClasses}>
-                    {(createContext?.models ?? []).map((o) => (
+                  <select value={model || modelData?.defaultModel || ''} onChange={(e) => setModel(e.target.value)} className={inputClasses}>
+                    {(modelData?.options ?? []).map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>
@@ -572,7 +576,7 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
                   </select>
                 ) : (
                   <select disabled title="The template can be chosen for Lpo and Export invoices — the single-call invoice API always uses the default one." className={`${inputClasses} disabled:opacity-60`}>
-                    <option>{createContext?.defaultModel || 'crabe'}</option>
+                    <option>{modelData?.defaultModel || 'crabe'}</option>
                   </select>
                 )}
               </Field>

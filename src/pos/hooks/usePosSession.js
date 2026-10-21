@@ -22,6 +22,7 @@ export function usePosSession() {
           admin: res.user.is_admin,
           entity: res.settings?.entity,
         });
+        useAuthStore.getState().setCompanyName(res.settings?.app_name);
         const tc = res.settings?.terminal_config;
         if (tc) {
           useAuthStore.getState().setTerminalConfig({

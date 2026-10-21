@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { CloudOff } from 'lucide-react'
 import { Card } from './dashboard/DashboardKit'
+import { NoDataToast } from './NoDataToast'
 
 // The frontend was built and tested all session against one backend
 // (ecnta10). The team switched to a different, currently-active backend
@@ -51,18 +52,45 @@ export function isLegacySessionExpired(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith(LEGACY_SESSION_EXPIRED_PREFIX)
 }
 
-// Card-shaped empty state for a whole page/section whose data source is
-// gone on this backend — same visual language as LegacyErrorCard
-// (features/products/components/LegacyReportStates.tsx) but deliberately
-// distinct from a transient error: this isn't something a Retry button can
-// fix, so there isn't one.
+// API availability is independent of whether the page UI is implemented.
+// This keeps the page area visible while data loads or when its API is missing.
+export function BackendUnavailableSkeleton({ feature }: { feature: string }) {
+  return (
+    <section aria-label={`${feature} page skeleton`} aria-busy="true" className="space-y-4">
+      <div aria-hidden="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((item) => (
+          <Card key={item} className="!bg-neutral-bg space-y-3">
+            <span className="block h-3 w-2/5 animate-pulse rounded bg-surface-hover" />
+            <span className="block h-7 w-1/3 animate-pulse rounded bg-surface-hover" />
+            <span className="block h-3 w-3/5 animate-pulse rounded bg-surface-hover" />
+          </Card>
+        ))}
+      </div>
+      <Card aria-hidden="true" className="!bg-neutral-bg space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <span className="h-5 w-1/4 animate-pulse rounded bg-surface-hover" />
+          <span className="h-8 w-28 animate-pulse rounded bg-surface-hover" />
+        </div>
+        <div className="space-y-3">
+          {[0, 1, 2, 3, 4].map((row) => (
+            <div key={row} className="flex gap-4">
+              {[0, 1, 2, 3].map((column) => (
+                <span key={column} className="h-4 flex-1 animate-pulse rounded bg-surface-hover" />
+              ))}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </section>
+  )
+}
+
 export function BackendUnavailableCard({ feature }: { feature: string }) {
   return (
-    <Card className="!bg-neutral-bg border-border items-center text-center gap-2 py-10">
-      <CloudOff size={22} className="text-text-faint" />
-      <p className="text-sm font-semibold text-text!">{feature} isn't available on this backend yet</p>
-      <p className="text-xs text-text-faint max-w-sm">The API this depends on isn't present on the current server. This isn't a bug in the page — the data simply has nowhere to load from right now.</p>
-    </Card>
+    <>
+      <NoDataToast message={`${feature} data is not available on this backend yet.`} />
+      <BackendUnavailableSkeleton feature={feature} />
+    </>
   )
 }
 

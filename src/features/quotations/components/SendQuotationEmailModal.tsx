@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Mail, X, LoaderCircle, Check } from 'lucide-react'
 import { useQuotationEmailDefaults, useSendQuotationEmail } from '../quotationEmail.queries'
+import { emailAddress } from '../quotationEmail'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -23,7 +24,9 @@ export function SendQuotationEmailModal({ id, quotationRef, onClose }: { id: str
 
   useEffect(() => {
     if (!data) return
-    setFromtype(data.senderOptions.find((o) => o.value === 'company')?.value ?? data.senderOptions[0]?.value ?? '')
+    setFromtype(data.defaultFromType || data.senderOptions[0]?.value || '')
+    const defaultRecipient = data.recipients.find((recipient) => recipient.value === 'thirdparty') ?? data.recipients[0]
+    setSendto(emailAddress(defaultRecipient))
     setSubject(data.defaultSubject)
     setMessage(data.defaultMessage)
   }, [data])
@@ -39,7 +42,7 @@ export function SendQuotationEmailModal({ id, quotationRef, onClose }: { id: str
       return
     }
     if (!data) return
-    sendEmail.mutate({ id, token: data.token, returnUrl: data.returnUrl, fromtype, sendto, sendtocc, subject, message, attachments })
+    sendEmail.mutate({ id, fromtype, sendto, sendtocc, subject, message, attachments })
   }
 
   return (

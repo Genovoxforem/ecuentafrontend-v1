@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Layers, ArrowLeftRight, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useProductStocksByLotReport } from '../products.queries'
+import { useStockByLotRows } from '../productTools.queries'
 import { LegacyLoadingCard, LegacyErrorCard, SaleStatusBadge } from './LegacyReportStates'
 import { ProductAvatar } from './ProductAvatar'
-import { extractQueryParam, type StockByLotRow } from '../productLegacyParsers'
+import type { StockByLotRow } from '../productTypes'
 import { ROUTES } from '../../../routes'
 
 const COLUMNS = ['Ref', 'Warehouse', 'Lot/Serial', 'Eat-by Date', 'Sell-by Date', 'Physical Stock', 'For Sale', 'For Purchase', '']
@@ -16,10 +16,11 @@ function matchesSearch(row: StockByLotRow, query: string) {
   return [row.ref, row.label, row.warehouse, row.lotSerial].some((field) => field.toLowerCase().includes(q))
 }
 
-// Real data scraped from product/reassortlot.php (no REST equivalent) — see
-// productLegacyParsers.ts / useProductStocksByLotReport.
+// Stock by lot/serial — product/stock/fapi/reassort_lot.php, one row per product +
+// warehouse + lot (an older backend falls back to scraping product/reassortlot.php).
+// See useStockByLotRows.
 export function ProductStocksByLotPage() {
-  const { data: rows, isLoading, isError, error, refetch } = useProductStocksByLotReport()
+  const { data: rows, isLoading, isError, error, refetch } = useStockByLotRows()
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => (rows ?? []).filter((r) => matchesSearch(r, search)), [rows, search])
@@ -31,7 +32,7 @@ export function ProductStocksByLotPage() {
       </h2>
 
       {isError && <LegacyErrorCard title="Couldn't load lot/serial stock" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-      {isLoading && <LegacyLoadingCard label="Loading real lot/serial stock from the legacy backend…" />}
+      {isLoading && <LegacyLoadingCard label="Loading lot/serial stock…" />}
 
       {rows && (
         <Card className="!p-0 !h-auto overflow-hidden">
@@ -78,8 +79,8 @@ export function ProductStocksByLotPage() {
                         <span className="flex items-center gap-2">
                           <ProductAvatar bg={row.avatarBg} color={row.avatarColor} />
                           <span>
-                            {extractQueryParam(row.cardUrl, 'id') ? (
-                              <Link to={ROUTES.productDetail.replace(':id', extractQueryParam(row.cardUrl, 'id')!)} className="text-brand hover:underline font-medium">
+                            {row.productId ? (
+                              <Link to={ROUTES.productDetail.replace(':id', row.productId)} className="text-brand hover:underline font-medium">
                                 {row.label}
                               </Link>
                             ) : (
@@ -101,9 +102,9 @@ export function ProductStocksByLotPage() {
                         <SaleStatusBadge value={row.forPurchase} />
                       </td>
                       <td className="px-3 py-2.5">
-                        {extractQueryParam(row.movementsUrl, 'idproduct') && (
+                        {row.productId && (
                           <Link
-                            to={`${ROUTES.stockMovements}?idproduct=${extractQueryParam(row.movementsUrl, 'idproduct')}`}
+                            to={`${ROUTES.stockMovements}?idproduct=${row.productId}`}
                             className="flex items-center gap-1 text-brand hover:underline whitespace-nowrap"
                           >
                             <ArrowLeftRight size={12} /> Movements

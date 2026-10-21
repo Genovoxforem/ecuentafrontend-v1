@@ -99,7 +99,7 @@ export const exportReportExcel = async ({ entries, totals, startIso, endIso, ter
 // ── PDF (print) ──────────────────────────────────────────────────────────────
 const PDF_STYLES = `
     body { font-family: Arial, sans-serif; margin: 0; padding: 24px; color: #1f2937; }
-    .header { background: #2c6291; color: white; padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; }
+    .header { background: #2f6fe4; color: white; padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; }
     .header h1 { margin: 0; font-size: 18px; }
     .header .period { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     h2 { font-size: 13px; margin: 18px 0 8px; }

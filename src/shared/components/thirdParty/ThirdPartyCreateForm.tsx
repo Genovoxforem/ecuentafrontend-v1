@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -46,7 +46,9 @@ import { StickyFormShell } from '../layout/StickyFormShell'
 import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
 import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
 import axios from 'axios'
-import { useThirdPartyFormOptions, useStatesByCountry, fetchSocieteFormContext } from '../../../features/customers/thirdPartyOptions.queries'
+import { createThirdParty, updateThirdParty } from '../../../api/customers'
+import type { CustomerProfile, ThirdPartyExtra } from '../../../features/customers/customerDetail.queries'
+import { useThirdPartyFormOptions, useStatesByCountry } from '../../../features/customers/thirdPartyOptions.queries'
 import { ROUTES } from '../../../routes'
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Miss']
@@ -276,7 +278,7 @@ function NameField({
         <select
           value={values.nameTitle}
           onChange={(e) => setValues((prev) => ({ ...prev, nameTitle: e.target.value }))}
-          className="shrink-0 w-11 appearance-none border-r border-input-border bg-transparent pl-1 pr-1 text-sm text-text focus:outline-none"
+          className="shrink-0 w-14 appearance-none border-r border-input-border bg-transparent pl-1 pr-1 text-sm text-text focus:outline-none"
         >
           {TITLE_OPTIONS.map((o) => (
             <option key={o} value={o}>
@@ -315,7 +317,9 @@ interface CreateThirdPartyResponse {
   message?: string
 }
 
-export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant; cancelPath: string }) {
+// `profile` turns the wizard into the Edit page: the same steps, prefilled from the saved third party, and only the
+// fields the user changed are sent to societe/fapi/update.php (so a field this form cannot show never gets blanked).
+export function ThirdPartyCreateForm({ variant, cancelPath, profile, extra }: { variant: Variant; cancelPath: string; profile?: CustomerProfile; extra?: ThirdPartyExtra }) {
   // Fetch form options
   const { data: formOptions, isLoading: formOptionsLoading } = useThirdPartyFormOptions()
 
@@ -340,7 +344,8 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   // live-preview code once it arrives, same as legacy's own next-code
   // preview, but only if the user hasn't already typed something over it.
   useEffect(() => {
-    if (!formOptions) return
+    // Editing a saved record: its own codes are shown, never a freshly previewed next code.
+    if (!formOptions || profile) return
     setValues((prev) => ({
       ...prev,
       customerCode: prev.customerCode || formOptions.nextCustomerCode,
@@ -365,7 +370,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   // the first country in the list only if that constant is somehow unset.
   // Never overwrites an actual user selection.
   useEffect(() => {
-    if (!formOptions?.countries?.length) return
+    if (!formOptions?.countries?.length || profile) return
     const isRealCountry = formOptions.countries.some((c) => c.label === values.country)
     if (isRealCountry) return
     const home = formOptions.countries.find((c) => c.value === String(formOptions.defaultCountryId))
@@ -381,7 +386,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   // "Afghanistan Afghani". Snap to the real Zambian Kwacha entry once real
   // data loads, same "never overwrite an actual user selection" guard.
   useEffect(() => {
-    if (!formOptions?.currencies?.length) return
+    if (!formOptions?.currencies?.length || profile) return
     const isRealCurrency = formOptions.currencies.some((c) => c.label === values.currency)
     if (isRealCurrency) return
     const zmw = formOptions.currencies.find((c) => /zambia/i.test(c.label))
@@ -406,6 +411,81 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
   const selectedCustCategoryId = formOptions?.custCategories?.find((c) => c.label === values.custProspTags)?.value
   const selectedVendorCategoryId = formOptions?.vendorCategories?.find((c) => c.label === values.vendorTags)?.value
 
+  // ── Edit mode: prefill once the dropdown options are in, remember what was loaded so only changes are saved ──
+  const [prefilled, setPrefilled] = useState(!profile)
+  // `extra` arrives with the profile (the edit module waits for both), so one prefill covers everything.
+  const initialRef = useRef<Record<string, string>>({})
+  const stateDone = useRef(false)
+  useEffect(() => {
+    if (!profile || prefilled || !formOptions) return
+    const labelOf = (list: { value: string; label: string }[] | undefined, id: string | number | null | undefined) =>
+      id === null || id === undefined || id === '' || id === 0 || id === '0' ? '' : (list?.find((o) => String(o.value) === String(id))?.label ?? '')
+    const loaded: Record<string, string> = {
+      nameTitle: TITLE_OPTIONS.includes(profile.nameTitle) ? profile.nameTitle : 'Mr',
+      firstName: profile.name,
+      lastName: profile.lastname,
+      name: `${profile.name} ${profile.lastname}`.trim(),
+      prospectCustomer: profile.client === 2 ? 'Prospect' : profile.isCustomer ? 'Customer' : 'Not prospect, Not customer',
+      vendor: profile.isVendor ? 'Yes' : 'No',
+      tpin: profile.tpin,
+      trackingId: profile.trackingId,
+      aliasName: profile.nameAlias,
+      customerGroup: labelOf(formOptions.customerGroups, profile.groupId),
+      phone: profile.phone,
+      customerCode: profile.codeClient,
+      vendorCode: profile.codeFournisseur,
+      email: profile.email,
+      branchCode: profile.branchCode,
+      country: labelOf(formOptions.countries, profile.countryId),
+      address: profile.address,
+      currency: labelOf(formOptions.currencies, profile.currencyCode),
+      thirdPartyType: labelOf(formOptions.thirdPartyTypes, profile.typentId),
+      status: profile.status === 0 ? 'Closed' : 'Open',
+      supervisorDetails: profile.supervisorDetails,
+      employerName: profile.employerName,
+      employeeNumber: profile.employeeNum,
+      zipCode: profile.zip,
+      city: profile.town,
+      fax: profile.fax,
+      businessEntityType: labelOf(formOptions.businessEntityTypes, profile.formeJuridiqueCode),
+      nrc: labelOf(formOptions.nrcTypes, profile.nrcId),
+      nrcNumber: profile.nrcNum,
+      vatId: profile.vatId,
+      workforce: labelOf(formOptions.workforce, profile.effectifId),
+      capital: profile.capital,
+      barcode: profile.barcode,
+      web: profile.web,
+    }
+    // The rest comes from societe/fapi/get.php's `extended` block: sales rep, tags, incoterm, VAT, mode, social links.
+    if (extra) {
+      const e = extra.extended
+      loaded.salesRep = labelOf(formOptions.salesReps, e.sales_reps?.[0])
+      loaded.custProspTags = labelOf(formOptions.custCategories, e.custcats?.[0])
+      loaded.vendorTags = labelOf(formOptions.vendorCategories, e.suppcats?.[0])
+      loaded.incoterms = labelOf(formOptions.incoterms, e.incoterm_id)
+      loaded.incotermLocation = e.location_incoterms ?? ''
+      loaded.salesTaxUsed = e.assujtva_value === 0 ? 'No' : 'Yes'
+      loaded.thirdPartyMode = e.usermode === 0 ? 'privileged' : 'unprivileged'
+      for (const sf of SOCIAL_LINK_FIELDS) loaded[sf.key] = e.social_networks?.[sf.key.toLowerCase()] ?? ''
+    }
+    setValues((prev) => {
+      const merged = { ...prev, ...Object.fromEntries(Object.entries(loaded).filter(([k, v]) => v !== '' || prev[k] === undefined)) }
+      // A saved value with no matching option (or an empty one) must not keep a create-time default.
+      for (const [k, v] of Object.entries(loaded)) if (v === '') merged[k] = ''
+      initialRef.current = { ...merged }
+      return merged
+    })
+    setPrefilled(true)
+  }, [profile, extra, prefilled, formOptions])
+  // State/Province options depend on the country, so it is matched once they arrive.
+  useEffect(() => {
+    if (!profile || !prefilled || stateDone.current || !stateOptionsData) return
+    stateDone.current = true
+    const label = stateOptionsData.find((o) => String(o.value) === String(profile.stateId))?.label ?? ''
+    initialRef.current = { ...initialRef.current, stateProvince: label }
+    setValues((prev) => ({ ...prev, stateProvince: label }))
+  }, [profile, prefilled, stateOptionsData])
+
   // Build steps with dynamic form options — cheap pure functions, no need to
   // memoize across every field-level state update this component makes.
   const allFields = [...buildStep1(variant, formOptions), ...buildStep2(formOptions, stateOptions)]
@@ -425,102 +505,64 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
 
   const setField = (key: string) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }))
 
-  // POST societe/api/societes.php — the REAL endpoint the legacy "New Third
-  // Party" wizard itself submits to (captured live: opening
-  // societe/list.php?type=c|p|f and completing the actual wizard fires this
-  // exact request, not /api/customer/). Confirmed live across all three
-  // variants which fields distinguish them:
-  //   Customer: client=1, fournisseur=0      Prospect: client=2, fournisseur=0
-  //   Vendor:   client=0, fournisseur=1, supplier_code set instead of customer_code
-  // This is a mutation, so — unlike societe/api/list.php's read-only calls
-  // elsewhere in this app — it enforces Dolibarr's own CSRF check, hence the
-  // token fetch (see fetchSocieteToken). Response shape confirmed live:
-  // {ok, message, id, societe, redirect} on success.
+  // POST societe/fapi/create.php (key-authenticated, no CSRF token): customer = client 1, prospect = client 2, vendor = fournisseur 1.
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<CreateThirdPartyResponse> => {
       const isVendorNow = values.vendor === 'Yes'
-      const client = isVendorNow ? 0 : values.prospectCustomer === 'Prospect' ? 2 : values.prospectCustomer === 'Not prospect, Not customer' ? 0 : 1
-      const type = isVendorNow ? 'f' : values.prospectCustomer === 'Prospect' ? 'p' : 'c'
-      const { token } = await fetchSocieteFormContext()
       const selectedNrcValue = formOptions?.nrcTypes?.find((n) => n.label === values.nrc)?.value
-      const payload = {
-        name_title: values.nameTitle,
-        name: values.firstName.trim(),
-        lastname: values.lastName.trim(),
-        client,
-        fournisseur: isVendorNow ? 1 : 0,
-        idprof1: values.tpin.trim(),
-        idprof2: values.trackingId || '',
-        name_alias: values.aliasName || '',
-        group_id: selectedCustomerGroupId || '',
-        phone: values.phone || '',
-        customer_code: values.customerCode || 'auto',
-        email: values.email || '',
-        // formOptions.countries' value is already the real numeric
-        // llx_c_country.rowid (see thirdPartyOptions.queries.ts's
-        // useCustomerLookups — sourced directly from societe/api/meta.php's
-        // wizard_options, which returns that id, not an ISO code), so this
-        // needs no further lookup/conversion before submitting.
-        country_id: selectedCountryId || '',
-        supplier_code: values.vendorCode || (isVendorNow ? 'auto' : ''),
-        branch_code: values.branchCode || '',
-        address: values.address || '',
-        multicurrency_code: selectedCurrencyCode || '',
-        typent_id: selectedThirdPartyTypeId || '',
-        status: values.status === 'Closed' ? 0 : 1,
-        supervisor_det: values.supervisorDetails || '',
-        employer_name: values.employerName || '',
-        employee_num: values.employeeNumber || '',
-        // societe/api/meta.php's own usermode_options confirms the real
-        // values: 1=unprivileged, 0=privileged (not 2 — the previous mapping
-        // here submitted an invalid value for "privileged").
-        usermode: values.thirdPartyMode === 'privileged' ? '0' : '1',
-        zipcode: values.zipCode || '',
-        town: values.city || '',
-        state_id: selectedStateId || '',
-        fax: values.fax || '',
-        forme_juridique_code: selectedBusinessEntityId || '',
-        nrc_id: selectedNrcValue || '',
-        nrc_num: values.nrcNumber || '',
-        document: {},
-        assujtva_value: values.salesTaxUsed === 'No' ? 0 : 1,
-        tva_intra: values.vatId || '',
-        effectif_id: selectedWorkforceId || '',
-        capital: values.capital || '',
-        fk_incoterms: selectedIncotermId || '',
-        location_incoterms: values.incotermLocation || '',
-        barcode: values.barcode || '',
-        url: values.web || '',
-        facebook: values.facebook || '',
-        skype: values.skype || '',
-        twitter: values.twitter || '',
-        linkedin: values.linkedin || '',
-        instagram: values.instagram || '',
-        snapchat: values.snapchat || '',
-        googleplus: values.googlePlus || '',
-        youtube: values.youtube || '',
-        whatsapp: values.whatsapp || '',
-        diaspora: values.diaspora || '',
-        viber: values.viber || '',
-        github: values.github || '',
-        type,
-        commercial: selectedSalesRepId ? [selectedSalesRepId] : [],
-        custcats: selectedCustCategoryId ? [selectedCustCategoryId] : [],
-        suppcats: selectedVendorCategoryId ? [selectedVendorCategoryId] : [],
-        action: 'create',
-        token,
+
+      // societe/fapi/create.php takes the main fields and, since 16 Oct 2026, the 29 extended ones the wizard collects
+      // (last name, group, sales rep, tags, legal form, workforce, incoterms, state, barcode, social links ...). Empty
+      // values are left out; the response lists anything the class could not apply under `notes`.
+      try {
+        const social = Object.fromEntries(SOCIAL_LINK_FIELDS.map((sf) => [sf.key.toLowerCase(), values[sf.key]?.trim() ?? '']).filter(([, v]) => v))
+        const num = (v: string | undefined) => (v ? Number(v) : undefined)
+        const created = await createThirdParty({
+          name: values.firstName.trim() || values.name.trim(),
+          type: isVendorNow ? 'vendor' : values.prospectCustomer === 'Prospect' ? 'prospect' : 'customer',
+          name_alias: values.aliasName || undefined,
+          email: values.email || undefined,
+          phone: values.phone || undefined,
+          fax: values.fax || undefined,
+          url: values.web || undefined,
+          address: values.address || undefined,
+          zip: values.zipCode || undefined,
+          town: values.city || undefined,
+          country_id: selectedCountryId ? Number(selectedCountryId) : undefined,
+          tpin: values.tpin.trim(),
+          tracking: values.trackingId || undefined,
+          vat_number: values.vatId || undefined,
+          currency: selectedCurrencyCode || undefined,
+          status: values.status === 'Closed' ? 0 : 1,
+          lastname: values.lastName.trim() || undefined,
+          name_title: values.nameTitle || undefined,
+          group_id: num(selectedCustomerGroupId),
+          typent_id: num(selectedThirdPartyTypeId),
+          effectif_id: num(selectedWorkforceId),
+          forme_juridique_code: num(selectedBusinessEntityId),
+          state_id: num(selectedStateId),
+          incoterm_id: num(selectedIncotermId),
+          location_incoterms: values.incotermLocation || undefined,
+          capital: num(values.capital),
+          branch_code: values.branchCode || undefined,
+          barcode: values.barcode || undefined,
+          nrc_id: selectedNrcValue || undefined,
+          nrc_num: values.nrcNumber || undefined,
+          supervisor_det: values.supervisorDetails || undefined,
+          employer_name: values.employerName || undefined,
+          employee_num: values.employeeNumber || undefined,
+          usermode: values.thirdPartyMode === 'privileged' ? 0 : 1,
+          assujtva_value: values.salesTaxUsed === 'No' ? 0 : 1,
+          commercial: selectedSalesRepId ? [Number(selectedSalesRepId)] : undefined,
+          custcats: selectedCustCategoryId ? [Number(selectedCustCategoryId)] : undefined,
+          suppcats: selectedVendorCategoryId ? [Number(selectedVendorCategoryId)] : undefined,
+          ...social,
+        })
+        return { ok: true, id: created.id }
+      } catch (err) {
+        if (axios.isAxiosError(err) && typeof err.response?.data?.message === 'string') throw new Error(err.response.data.message)
+        throw err
       }
-      // validateStatus lets a real 400/403 validation rejection (e.g.
-      // "Please enter a valid branch code. Must be exactly 3 characters")
-      // reach the `data.ok` check below instead of axios throwing its own
-      // generic "Request failed with status code 400" first and discarding
-      // the real reason in the response body.
-      const { data } = await axios.post<CreateThirdPartyResponse>('/societe/api/societes.php', payload, {
-        headers: { 'Content-Type': 'application/json' },
-        validateStatus: () => true,
-      })
-      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to create third party')
-      return data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [variant === 'vendor' ? 'vendors' : 'customers', 'summary'] })
@@ -534,6 +576,81 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
     onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to create third party'),
   })
 
+  // POST societe/fapi/update.php?id= with only the fields that differ from what was loaded.
+  const updateMutation = useMutation({
+    mutationFn: async (): Promise<number> => {
+      const initial = initialRef.current
+      const changed = (k: string) => (values[k] ?? '') !== (initial[k] ?? '')
+      const body: Record<string, string | number | number[]> = {}
+      const text: [string, string][] = [
+        ['aliasName', 'name_alias'],
+        ['email', 'email'],
+        ['phone', 'phone'],
+        ['fax', 'fax'],
+        ['web', 'url'],
+        ['address', 'address'],
+        ['zipCode', 'zip'],
+        ['city', 'town'],
+        ['tpin', 'tpin'],
+        ['trackingId', 'tracking'],
+        ['vatId', 'vat_number'],
+        ['lastName', 'lastname'],
+        ['nameTitle', 'name_title'],
+        ['branchCode', 'branch_code'],
+        ['barcode', 'barcode'],
+        ['nrcNumber', 'nrc_num'],
+        ['supervisorDetails', 'supervisor_det'],
+        ['employerName', 'employer_name'],
+        ['employeeNumber', 'employee_num'],
+        ['incotermLocation', 'location_incoterms'],
+        ['customerCode', 'code_client'],
+        ['vendorCode', 'code_fournisseur'],
+        ['capital', 'capital'],
+        ...SOCIAL_LINK_FIELDS.map((sf): [string, string] => [sf.key, sf.key.toLowerCase()]),
+      ]
+      for (const [formKey, apiKey] of text) if (changed(formKey)) body[apiKey] = (values[formKey] ?? '').trim()
+      if (changed('firstName')) body.name = values.firstName.trim()
+      if (changed('status')) body.status = values.status === 'Closed' ? 0 : 1
+      if (changed('prospectCustomer') || changed('vendor')) {
+        body.type = values.vendor === 'Yes' ? 'vendor' : values.prospectCustomer === 'Prospect' ? 'prospect' : values.prospectCustomer === 'Not prospect, Not customer' ? 'all' : 'customer'
+        // A new vendor needs a supplier code; 'auto' asks the backend to number it.
+        if (body.type === 'vendor' && !values.vendorCode.trim() && !changed('vendorCode')) body.code_fournisseur = 'auto'
+      }
+      if (changed('thirdPartyMode')) body.usermode = values.thirdPartyMode === 'privileged' ? 0 : 1
+      if (changed('salesTaxUsed')) body.assujtva_value = values.salesTaxUsed === 'No' ? 0 : 1
+      const ids: [string, string | undefined, string][] = [
+        ['country', selectedCountryId, 'country_id'],
+        ['currency', selectedCurrencyCode, 'currency'],
+        ['customerGroup', selectedCustomerGroupId, 'group_id'],
+        ['thirdPartyType', selectedThirdPartyTypeId, 'typent_id'],
+        ['workforce', selectedWorkforceId, 'effectif_id'],
+        ['businessEntityType', selectedBusinessEntityId, 'forme_juridique_code'],
+        ['stateProvince', selectedStateId, 'state_id'],
+        ['incoterms', selectedIncotermId, 'incoterm_id'],
+        ['nrc', formOptions?.nrcTypes?.find((n) => n.label === values.nrc)?.value, 'nrc_id'],
+      ]
+      for (const [formKey, id, apiKey] of ids) if (changed(formKey) && id) body[apiKey] = apiKey === 'currency' || apiKey === 'nrc_id' ? id : Number(id)
+      if (changed('salesRep') && selectedSalesRepId) body.commercial = [Number(selectedSalesRepId)]
+      if (changed('custProspTags') && selectedCustCategoryId) body.custcats = [Number(selectedCustCategoryId)]
+      if (changed('vendorTags') && selectedVendorCategoryId) body.suppcats = [Number(selectedVendorCategoryId)]
+      if (Object.keys(body).length > 0) {
+        try {
+          await updateThirdParty({ id: profile!.id, ...body })
+        } catch (err) {
+          if (axios.isAxiosError(err) && typeof err.response?.data?.message === 'string') throw new Error(err.response.data.message)
+          throw err
+        }
+      }
+      return profile!.id
+    },
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      navigate(ROUTES.customerDetail.replace(':id', String(id)))
+    },
+    onError: (err: unknown) => setFormError(err instanceof Error ? err.message : 'Failed to save the third party'),
+  })
+  const submitting = createMutation.isPending || updateMutation.isPending
+
   function handleSubmit() {
     setFormError('')
     if (!values.name.trim()) {
@@ -541,12 +658,13 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
       setStep(0)
       return
     }
-    if (!values.tpin.trim()) {
+    // An older record may have no TPIN: only insist on it when creating or when it is being changed.
+    if (!values.tpin.trim() && (!profile || values.tpin !== (initialRef.current.tpin ?? ''))) {
       setFormError('Tpin is required.')
       setStep(0)
       return
     }
-    if (!TPIN_PATTERN.test(values.tpin.trim())) {
+    if (values.tpin.trim() && !TPIN_PATTERN.test(values.tpin.trim())) {
       setFormError('Tpin must be exactly 10 digits.')
       setStep(0)
       return
@@ -566,13 +684,14 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
       setStep(0)
       return
     }
-    createMutation.mutate()
+    if (profile) updateMutation.mutate()
+    else createMutation.mutate()
   }
 
   const isLastStep = step === steps.length - 1
 
   // Show loading state only while data is actively loading (not just when null)
-  if (formOptionsLoading && !formOptions) {
+  if ((formOptionsLoading && !formOptions) || !prefilled) {
     return (
       <StickyFormShell
         header={
@@ -667,12 +786,12 @@ export function ThirdPartyCreateForm({ variant, cancelPath }: { variant: Variant
           {isLastStep ? (
             <button
               type="button"
-              disabled={createMutation.isPending}
+              disabled={submitting}
               onClick={handleSubmit}
               className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60 transition-colors"
             >
-              {createMutation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
-              {createMutation.isPending ? 'Creating…' : 'Create third party'}
+              {submitting ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
+              {submitting ? (profile ? 'Saving…' : 'Creating…') : profile ? 'Save changes' : 'Create third party'}
             </button>
           ) : (
             <button

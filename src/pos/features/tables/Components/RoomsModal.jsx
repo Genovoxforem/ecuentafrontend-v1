@@ -101,7 +101,7 @@ function RoomsModal({ open, onClose }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl">
-                <div className="shrink-0 flex items-center justify-between px-6 py-2.5 bg-[#2c6291] text-white">
+                <div className="shrink-0 flex items-center justify-between px-6 py-2.5 bg-[#2f6fe4] text-white">
                     <div className="flex items-center gap-2.5 text-lg font-semibold">
                         {selectedRoom ? (
                             <button type="button" onClick={backToRoomList} className="p-1 rounded hover:bg-white/20 -ml-1">
@@ -148,7 +148,7 @@ function RoomsModal({ open, onClose }) {
                                     onClick={() => handleFloorChange(f)}
                                     className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
                                         floor === f
-                                            ? "bg-[#2c6291] text-white shadow-sm"
+                                            ? "bg-[#2f6fe4] text-white shadow-sm"
                                             : "bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-600"
                                     }`}
                                 >
@@ -208,7 +208,7 @@ function RoomsModal({ open, onClose }) {
                                                 onClick={() => handleTileClick(table)}
                                                 className={`relative flex flex-col items-center justify-center gap-1.5 aspect-square rounded-2xl bg-white dark:bg-slate-800 border-[3px] shadow-md transition-all ${meta.border} ${
                                                     isSelected
-                                                        ? "ring-2 ring-[#2c6291] ring-offset-2 ring-offset-blue-50 dark:ring-offset-slate-900"
+                                                        ? "ring-2 ring-[#2f6fe4] ring-offset-2 ring-offset-blue-50 dark:ring-offset-slate-900"
                                                         : isDirty
                                                         ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-blue-50 dark:ring-offset-slate-900"
                                                         : ""
@@ -224,7 +224,7 @@ function RoomsModal({ open, onClose }) {
                                                     <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white dark:border-slate-800" />
                                                 )}
                                                 {isSelected ? (
-                                                    <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#2c6291] text-white">
+                                                    <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#2f6fe4] text-white">
                                                         <Check size={13} />
                                                     </span>
                                                 ) : StatusIcon ? (
@@ -255,9 +255,9 @@ function RoomsModal({ open, onClose }) {
                                     key={room.id}
                                     type="button"
                                     onClick={() => setSelectedRoom(room)}
-                                    className="group flex flex-col items-center justify-center gap-2 h-28 rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-100 cursor-pointer transition-all hover:-translate-y-1 hover:border-[#2c6291] hover:shadow-lg"
+                                    className="group flex flex-col items-center justify-center gap-2 h-28 rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-100 cursor-pointer transition-all hover:-translate-y-1 hover:border-[#2f6fe4] hover:shadow-lg"
                                 >
-                                    <div className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-100 text-[#2c6291] dark:bg-blue-500/10 dark:text-blue-300 group-hover:bg-[#2c6291] group-hover:text-white transition-colors">
+                                    <div className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-100 text-[#2f6fe4] dark:bg-blue-500/10 dark:text-blue-300 group-hover:bg-[#2f6fe4] group-hover:text-white transition-colors">
                                         <Building2 size={18} />
                                     </div>
                                     <span className="font-semibold">{room.label}</span>

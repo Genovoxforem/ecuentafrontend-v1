@@ -5,7 +5,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
-import { usePurchasePayments, type PurchasePaymentRow } from '../vendorPayments.queries'
+import { exportPurchasePaymentsReport, usePurchasePaymentsReport, type PurchasePaymentRow } from '../vendorPayments.queries'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -43,38 +43,28 @@ function sortValue(r: PurchasePaymentRow, key: SortKey): string | number {
   }
 }
 
-// Real GET /api/purchase-payments/ data (see vendorPayments.queries.ts),
-// grouped client-side by month/year — mirrors the customer-side
-// PaymentsReportPage.tsx exactly (see that file's own comment): this
-// backend has no per-period report endpoint of its own (the legacy page's
-// "Create" button actually generates a PDF via pdf_paiement_fourn.class.php,
-// which has no REST equivalent), so the same real rows the Vendor Payments
-// list already fetches are grouped here instead.
+// fourn/facture/fapi/payments_report.php: the rows of the chosen month and the totals by payment mode, built
+// by the server (one row per payment, not per allocation). There is no monthly PDF in the backend, so the
+// period exports to CSV with exactly the figures on screen.
 export function VendorPaymentsReportPage() {
-  const { data, isLoading } = usePurchasePayments()
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year, setYear] = useState(now.getFullYear())
   const [applied, setApplied] = useState({ month: now.getMonth(), year: now.getFullYear() })
+  const { data: report, isLoading } = usePurchasePaymentsReport(applied.year, applied.month)
+  const [exportNote, setExportNote] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
 
-  const rows = useMemo(() => data?.items ?? [], [data])
+  const rows = useMemo(() => report?.rows ?? [], [report])
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i)
 
-  const periodFiltered = useMemo(
-    () =>
-      rows.filter((r) => {
-        const d = new Date(r.paymentDate)
-        return !Number.isNaN(d.getTime()) && d.getMonth() === applied.month && d.getFullYear() === applied.year
-      }),
-    [rows, applied],
-  )
+  const periodFiltered = rows
   const filtered = useMemo(() => periodFiltered.filter((r) => matchesSearch(r, search)), [periodFiltered, search])
   const { sorted, sort, toggleSort } = useSortableRows<PurchasePaymentRow, SortKey>(filtered, sortValue)
   const pageRows = sorted.slice((page - 1) * perPage, page * perPage)
-  const total = sorted.reduce((sum, r) => sum + r.amount, 0)
+  const total = report?.grandTotal ?? sorted.reduce((sum, r) => sum + r.amount, 0)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -127,6 +117,31 @@ export function VendorPaymentsReportPage() {
             Total paid in {MONTHS[applied.month]} {applied.year}
           </span>
           <span className="text-lg font-bold text-text!">{formatMoney(total)} ZMW</span>
+        </div>
+        {report && report.byMode.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-xs text-text-muted">
+            {report.byMode.map((m) => (
+              <span key={m.label} className="rounded-md border border-border bg-surface-alt px-2.5 py-1">
+                {m.label}: <span className="font-semibold text-text!">{formatMoney(m.total)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-3 text-xs text-text-muted">
+          <button
+            type="button"
+            onClick={() => {
+              setExportNote('')
+              exportPurchasePaymentsReport(applied.year, applied.month).then(
+                (r) => setExportNote(r.url ? `CSV ready: ${r.url}` : r.file ? `CSV written: ${r.file}` : 'The CSV was written on the server.'),
+                (e) => setExportNote(e instanceof Error ? e.message : 'Could not export the report.'),
+              )
+            }}
+            className="rounded-md border border-border px-3 py-1.5 font-medium text-text hover:bg-surface-hover"
+          >
+            Export CSV
+          </button>
+          {exportNote && <span>{exportNote}</span>}
         </div>
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">

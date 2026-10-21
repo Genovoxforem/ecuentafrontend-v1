@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyText, parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
 import { htmlToText } from '../../shared/htmlToText'
-import { type InvoiceNotes, type StandingOrderRow, type InvoiceLineRow } from './invoiceCardParser'
-import { parseOrderContactsHtml, parseContactFormOptions, type ContactRow, type ContactFormOptions } from '../salesOrders/orderExtraTabsParser'
-import { parseInvoiceAgendaPage, type InvoiceAgendaPageData } from './invoiceAgendaParser'
+import type { InvoiceNotes } from './invoiceTypes'
+import type { ContactRow, ContactFormOptions } from '../salesOrders/orderExtraTabTypes'
+import { fetchInvoiceAgenda, type InvoiceAgendaEvent } from '../../api/invoices'
+import { fapi } from '../../api/axios'
+import { requireJson } from '../salesOrders/orderApi'
 
 // The invoice page's tabs. The page itself and most tabs read the JSON module
 // compta/sales/api/*.php (see salesInvoice.queries.ts / salesInvoiceTabs.queries.ts);
 // Notes, Contacts, Direct Debit Orders and the Agenda badge do too, below. The
-// Events/Agenda tab still reads compta/facture/agenda.php: it is the only
-// source of that tab's "Created by / Validated by / Creation date" block.
+// Events/Agenda tab reads compta/facture/fapi/agenda.php, which also carries
+// that tab's "Created by / Validated by / Creation date" block.
 
 // --- Notes -------------------------------------------------------------
 // compta/sales/api/notes.php: GET returns both notes, action=save writes both
@@ -54,109 +56,104 @@ export function useUpdateInvoiceNote(id: string | undefined) {
 }
 
 // --- Contacts/Addresses --------------------------------------------------
-// compta/sales/api/contacts.php: the bare GET lists the invoice's contacts;
-// getcontacttypes / getinternalusers / getcompanies / getexternalcontacts feed
-// the add-contact rows; addcontact adds one. Its list formatter builds a
-// Societe inside a closure that never imports $db (seen in the backend source),
-// so the list can fatal once an invoice has a third-party contact — when the
-// answer isn't JSON, the tab falls back to the classic contact.php page.
 
 export interface InvoiceContactsData {
   rows: ContactRow[]
   formOptions: ContactFormOptions
 }
 
-const CONTACTS_API = '/compta/sales/api/contacts.php'
-
-interface ApiContact {
+// compta/facture/fapi/contacts.php?facid= (15 Oct 2026; replaces compta/sales/api/contacts.php, whose list formatter
+// fataled for a third-party contact). One GET carries the rows and every
+// option list the add form needs. Role values are codes (e.g. SALESREPFOLL).
+interface FapiContactRow {
+  rowid?: number
   name: string
-  role: string
-  socname?: string
-  status?: number | string
+  thirdparty?: string
+  nature_label?: string
+  type_label?: string
+  status_label?: string
+}
+interface FapiOption {
+  value?: string | number
+  id?: string | number
+  label?: string
+  name?: string
+  poste?: string
+  email?: string
 }
 
-async function contactsGet<T>(params: Record<string, string>): Promise<T> {
-  const res = await fetch(`${CONTACTS_API}?${new URLSearchParams(params)}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const json = await parseLegacyJson<T & { success: boolean; error?: string }>(res)
-  if (!json.success) throw new Error(json.error || 'Could not load the contacts.')
-  return json
-}
-
-// Dolibarr's element_contact status: 4 = active, 5 = inactive.
-const contactStatus = (status: ApiContact['status']) => (Number(status) === 5 ? 'Inactive' : Number(status) === 4 ? 'Active' : '')
-
-async function invoiceContactsFromApi(id: string, newcompany: string | undefined): Promise<InvoiceContactsData> {
-  const [list, types, users, companies] = await Promise.all([
-    contactsGet<{ internal: ApiContact[]; external: ApiContact[] }>({ facid: id }),
-    contactsGet<{ types: { internal: Array<{ id: string; label: string }>; external: Array<{ id: string; label: string }> } }>({ action: 'getcontacttypes', facid: id }),
-    contactsGet<{ users: Array<{ id: string; name: string }> }>({ action: 'getinternalusers' }),
-    contactsGet<{ companies: Array<{ id: string; name: string }> }>({ action: 'getcompanies' }),
-  ])
-  const socid = newcompany ?? (await invoiceSocid(id))
-  const external = socid ? await contactsGet<{ contacts: Array<{ id: string; name: string }> }>({ action: 'getexternalcontacts', socid }) : { contacts: [] }
-  const toRow = (c: ApiContact, nature: string): ContactRow => ({ nature, thirdParty: c.socname ?? '', contact: c.name, contactType: c.role, status: contactStatus(c.status) })
-  const opts = <T extends { id: string }>(rows: T[], label: (r: T) => string) => rows.map((r) => ({ value: String(r.id), label: label(r) }))
-  // Role and contact lists start with an empty choice, like the classic form's,
-  // so picking the first real one registers as a change.
+async function invoiceContactsFromFapi(id: string, newcompany: string | undefined): Promise<InvoiceContactsData> {
+  const res = requireJson(await fapi.get(`/compta/facture/fapi/contacts.php`, { params: { facid: id, ...(newcompany ? { newcompany } : {}) } }))
+  const body = res.data as { success?: boolean; message?: string; data?: any }
+  if (!body.success) throw new Error(body.message || 'Could not load the contacts.')
+  const d = body.data ?? {}
+  const o = d.options ?? {}
+  const opts = (list: FapiOption[] | undefined) =>
+    (list ?? []).map((x) => ({ value: String(x.value ?? x.id ?? ''), label: x.label ?? [x.name, x.poste, x.email].filter(Boolean).join(' - ') }))
+  const toRow = (c: FapiContactRow, fallbackNature: string): ContactRow => ({
+    nature: c.nature_label || fallbackNature,
+    thirdParty: c.thirdparty ?? '',
+    contact: c.name,
+    contactType: c.type_label ?? '',
+    status: c.status_label ?? '',
+    rowid: c.rowid,
+  })
   const blank = { value: '', label: '' }
+  const external = opts(o.company_contacts)
   return {
-    rows: [...list.internal.map((c) => toRow(c, 'User')), ...list.external.map((c) => toRow(c, 'Third-party contact'))],
+    rows: [...(d.rows?.internal ?? []).map((c: FapiContactRow) => toRow(c, 'User')), ...(d.rows?.external ?? []).map((c: FapiContactRow) => toRow(c, 'Third-party contact'))],
     formOptions: {
-      issuerCompanyName: list.internal[0]?.socname ?? '',
-      internalUserOptions: opts(users.users, (u) => u.name),
-      internalTypeOptions: [blank, ...opts(types.types.internal, (t) => t.label)],
-      companyOptions: opts(companies.companies, (c) => c.name),
-      selectedCompanyId: socid ?? '',
-      externalContactOptions: [blank, ...opts(external.contacts, (c) => c.name)],
-      hasRealExternalContact: external.contacts.length > 0,
-      externalTypeOptions: [blank, ...opts(types.types.external, (t) => t.label)],
+      issuerCompanyName: o.issuer_company ?? '',
+      internalUserOptions: opts(o.users),
+      internalTypeOptions: [blank, ...opts(o.internal_types)],
+      companyOptions: opts(o.companies),
+      selectedCompanyId: String(o.selected_company ?? ''),
+      externalContactOptions: [blank, ...external],
+      hasRealExternalContact: external.length > 0,
+      externalTypeOptions: [blank, ...opts(o.external_types)],
     },
   }
-}
-
-// The invoice's customer, for the third-party contacts row (compta/sales/api/invoice.php).
-async function invoiceSocid(id: string): Promise<string | undefined> {
-  const res = await fetch(`/compta/sales/api/invoice.php?facid=${id}`, { credentials: 'same-origin' })
-  if (!res.ok) return undefined
-  const json = await parseLegacyJson<{ success: boolean; invoice?: { socid?: string } }>(res)
-  return json.invoice?.socid ? String(json.invoice.socid) : undefined
 }
 
 export function useInvoiceContacts(id: string | undefined, newcompany?: string) {
   return useQuery<InvoiceContactsData>({
     queryKey: ['invoices', 'detail', id, 'contacts', newcompany ?? ''],
-    queryFn: async () => {
-      try {
-        return await invoiceContactsFromApi(id ?? '', newcompany)
-      } catch (err) {
-        if (!(err instanceof SyntaxError)) throw err
-        const html = await fetchLegacyText(`/compta/facture/contact.php?facid=${id}${newcompany ? `&newcompany=${newcompany}` : ''}`)
-        return { rows: parseOrderContactsHtml(html), formOptions: parseContactFormOptions(html) }
-      }
-    },
+    queryFn: () => invoiceContactsFromFapi(id ?? '', newcompany),
     enabled: !!id,
   })
 }
 
-// contacts.php action=addcontact: `contactid` (or `userid` for a user) plus
-// `typecontact`, the role id from getcontacttypes.
+// contacts.php?action=add: `fk_user` or `fk_socpeople` plus `type_contact`, the role code.
 export function useAddInvoiceContact(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { source: 'internal' | 'external'; userid?: string; type?: string; contactid?: string; typecontact?: string }) => {
-      const body = new URLSearchParams({ action: 'addcontact', facid: id ?? '', source: input.source })
-      if (input.source === 'internal') {
-        body.set('userid', input.userid ?? '')
-        body.set('typecontact', input.type ?? '')
-      } else {
-        body.set('contactid', input.contactid ?? '')
-        body.set('typecontact', input.typecontact ?? '')
+      const internal = input.source === 'internal'
+      const payload = {
+        facid: Number(id),
+        source: input.source,
+        ...(internal ? { fk_user: Number(input.userid) } : { fk_socpeople: Number(input.contactid) }),
+        type_contact: (internal ? input.type : input.typecontact) ?? '',
       }
-      const res = await fetch(CONTACTS_API, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await parseLegacyJson<{ success: boolean; error?: string }>(res)
-      if (!json.success) throw new Error(json.error || 'Could not add this contact.')
+      const res = requireJson(await fapi.post('/compta/facture/fapi/contacts.php', { action: 'add', ...payload }, { params: { action: 'add' } }))
+      const body = res.data as { success?: boolean; message?: string }
+      if (!body.success) throw new Error(body.message || 'Could not add this contact.')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', id, 'contacts'] })
+    },
+  })
+}
+
+// compta/facture/fapi/contacts.php?action=delete | swap {facid, rowid}: remove a contact link, or
+// switch it between active and inactive. Only the JSON endpoint offers these.
+export function useChangeInvoiceContact(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { action: 'delete' | 'swap'; rowid: number }) => {
+      const res = requireJson(await fapi.post('/compta/facture/fapi/contacts.php', { action: input.action, facid: Number(id), rowid: input.rowid }, { params: { action: input.action }, validateStatus: () => true }))
+      const body = res.data as { success?: boolean; message?: string }
+      if (!body.success) throw new Error(body.message || 'Could not change this contact.')
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', id, 'contacts'] })
@@ -188,177 +185,18 @@ export function useSyncZraInvoice(id: string | undefined) {
   })
 }
 
-// --- Draft line editing (product add, validate) ---------------------------
-// Real contract read directly from the backend's own
-// compta/facture/api/invoice_lines_api.php (local source at
-// C:\wamp64\www\ecnta10\htdocs\compta\facture\api\invoice_lines_api.php,
-// confirmed reachable live via the existing `^/compta(/|$)` proxy rule).
-// `action=addLine` is the endpoint's own single-line, immediate-save path —
-// simpler and independent of the real page's own client-side
-// localStorage-cache-then-batch flow (`action=saveCachedLines`, used by its
-// modern_invoice_manager.js), which this app deliberately doesn't replicate.
-// Requires the invoice to still be Facture::STATUS_DRAFT server-side (same
-// gate this app applies via data.statusBadgeNumber === 0).
-
-// A draft's own real lines are NEVER present in card.php's server-rendered
-// HTML — confirmed live: `tr[data-element="facturedet"]` has zero matches
-// on a draft with 3 real, already-committed lines. The classic table body
-// is replaced wholesale by `<tbody id="lines-tbody-modern">`, populated
-// client-side by modern_invoice_manager.js calling this same API's own
-// `action=getLines` on page load. So this app reads that action directly
-// instead of trying to scrape rows that don't exist server-side for drafts.
-function mapApiLineToRow(line: Record<string, unknown>): InvoiceLineRow {
-  const qty = Number(line.qty) || 0
-  const totalTtc = Number(line.total_ttc) || 0
-  const vatRate = Number(line.vat_rate ?? line.tva_tx) || 0
-  const productId = Number(line.product_id) > 0 ? String(line.product_id) : null
-  return {
-    rowid: String(line.rowid ?? ''),
-    productId,
-    productUrl: productId ? `/product/card.php?id=${productId}` : '',
-    label: String(line.product_label || line.description || line.desc || ''),
-    lotBatch: String(line.lot_number || ''),
-    vatRatePercent: `${vatRate}%`,
-    unitPriceExcl: (Number(line.price_ht ?? line.subprice) || 0).toFixed(2),
-    unitPriceIncl: (qty > 0 ? totalTtc / qty : 0).toFixed(2),
-    qty: String(line.qty ?? ''),
-    discountPercent: Number(line.discount_percent) > 0 ? `${line.discount_percent}%` : '',
-    totalIncl: totalTtc.toFixed(2),
-  }
-}
-
-export function useInvoiceDraftLines(id: string | undefined, enabled: boolean) {
-  return useQuery<InvoiceLineRow[]>({
-    queryKey: ['invoices', 'detail', id, 'draftLines'],
-    queryFn: async () => {
-      const body = new URLSearchParams()
-      body.set('action', 'getLines')
-      body.set('invoice_id', id ?? '')
-      const res = await fetch('/compta/facture/api/invoice_lines_api.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await res.json()
-      const rawLines: Record<string, unknown>[] = json?.data?.lines ?? []
-      return rawLines.map(mapApiLineToRow)
-    },
-    enabled: enabled && !!id,
-  })
-}
-
-export interface AddInvoiceLineInput {
-  token: string
-  productId: string
-  qty: number
-  priceHt: number
-  priceTtc: number
-  vatRateStr: string
-}
-
-export function useAddInvoiceLine(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: AddInvoiceLineInput) => {
-      const body = new URLSearchParams()
-      body.set('action', 'addLine')
-      body.set('token', input.token)
-      body.set('invoice_id', id ?? '')
-      body.set('product_id', input.productId)
-      body.set('qty', String(input.qty))
-      body.set('price_ht', String(input.priceHt))
-      body.set('price_ttc', String(input.priceTtc))
-      body.set('vat_rate', input.vatRateStr)
-      body.set('dis_type', '1')
-      body.set('discount_percent', '0')
-      const res = await fetch('/compta/facture/api/invoice_lines_api.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const text = await res.text()
-      let json: { success?: boolean; message?: string }
-      try {
-        json = JSON.parse(text)
-      } catch {
-        // Confirmed live: handleAddLine() commits the new line to the DB
-        // *before* calling $invoice->generateDocument() to refresh the PDF —
-        // and that PDF step can fatal (a real, pre-existing backend bug,
-        // DivisionByZeroError in core/modules/facture/doc/pdf_crabe.modules.php
-        // line 1919, not something this frontend repo can fix), which
-        // corrupts the JSON response despite the line already being saved.
-        // Distinguishable message so callers resync from the real invoice
-        // instead of treating this the same as a genuine rejection.
-        throw new Error('AMBIGUOUS: The backend hit an error regenerating the PDF, but the line may already be saved — refreshing the item table to check.')
-      }
-      if (!json.success) throw new Error(json.message || 'Could not add this line.')
-      return json
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', id], exact: true })
-      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', id, 'draftLines'], exact: true })
-    },
-  })
-}
-
-// Real "Select Warehouse" modal's own form (id="warehouse-form") — classic
-// POST straight to card.php, same convention as every other real mutation
-// in this file. `zravalid` is left blank, matching the real form's own
-// default (never populated by anything on this page's own JS either).
-export interface ValidateInvoiceDraftInput {
-  token: string
-  idwarehouse: string
-}
-
-export function useValidateInvoiceDraft(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: ValidateInvoiceDraftInput) => {
-      const body = new URLSearchParams()
-      body.set('token', input.token)
-      body.set('action', 'confirm_valid')
-      body.set('confirm', 'yes')
-      body.set('zravalid', '')
-      body.set('idwarehouse', input.idwarehouse)
-      const res = await fetch(`/compta/facture/card.php?facid=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
-      if (errorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = errorMatch[1]
-        throw new Error((div.textContent ?? 'The legacy backend rejected this validation.').trim())
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', id], exact: true })
-    },
-  })
-}
-
-// Read-only real product lookup (`/product/ajax/products.php`) used to
-// prefill price/VAT once a product is picked from the draft add-line row —
-// confirmed live: returns price_ht/price_ttc/tva_tx/default_vat_code for a
-// real product id.
-export interface ProductPricing {
-  priceHt: number
-  priceTtc: number
-  vatRate: number
-  vatCode: string
-}
-
-export async function fetchProductPricing(productId: string): Promise<ProductPricing> {
-  const res = await fetch(`/product/ajax/products.php?action=fetch&id=${productId}&outjson=1`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const json = await res.json()
-  return {
-    priceHt: Number(json.price_ht) || 0,
-    priceTtc: Number(json.price_ttc) || 0,
-    vatRate: Number(json.tva_tx) || 0,
-    vatCode: json.default_vat_code || '',
-  }
-}
-
-// --- Direct Debit Orders (standing orders) --------------------------------
-
 // compta/sales/api/standingorders.php (JSON) instead of the 1.25 MB
 // compta/facture/prelevement.php page. `orders` is every request on the
 // invoice (pending and processed); `history` repeats the processed ones with
 // the direct debit order's ref, which the table's "Direct Debit Order" column shows.
+export interface StandingOrderRow {
+  requestDate: string
+  user: string
+  amount: string
+  ref: string
+  processDate: string
+}
+
 interface RawStandingOrder {
   rowid: string | number
   date: string
@@ -393,8 +231,8 @@ export function useInvoiceStandingOrders(id: string | undefined) {
 // --- Events/Agenda (read-only) -------------------------------------------
 
 // The Events/Agenda tab's badge: how many events the invoice has, from
-// compta/sales/api/agenda.php (a few hundred bytes). The tab itself still
-// reads agenda.php below, because only that page has its "Created by /
+// compta/sales/api/agenda.php (a few hundred bytes). The tab itself reads
+// compta/facture/fapi/agenda.php below, which also has its "Created by /
 // Validated by / Creation date" block.
 export function useInvoiceAgendaCount(id: string | undefined) {
   return useQuery<number>({
@@ -410,10 +248,56 @@ export function useInvoiceAgendaCount(id: string | undefined) {
   })
 }
 
+export interface AgendaEventRow {
+  ref: string
+  url: string
+  date: string
+  owner: string
+  label: string
+  relatedObjectRef: string
+  relatedObjectUrl: string
+  statusLabel: string
+}
+
+export interface InvoiceAgendaPageData {
+  createdBy: string
+  creationDate: string
+  latestModificationDate: string
+  validatedBy: string
+  validationDate: string
+  closingDate: string
+  zraMessage: string
+  timezone: string
+  events: AgendaEventRow[]
+}
+
 export function useInvoiceAgenda(id: string | undefined) {
   return useQuery<InvoiceAgendaPageData>({
     queryKey: ['invoices', 'detail', id, 'agenda'],
-    queryFn: async () => parseInvoiceAgendaPage(await fetchLegacyText(`/compta/facture/agenda.php?id=${id}`)),
+    queryFn: async () => {
+      const agenda = await fetchInvoiceAgenda(Number(id))
+      const mapEvent = (event: InvoiceAgendaEvent): AgendaEventRow => ({
+        ref: event.ref,
+        url: event.url,
+        date: event.date,
+        owner: event.owner,
+        label: event.label,
+        relatedObjectRef: event.related_object_ref,
+        relatedObjectUrl: event.related_object_url,
+        statusLabel: event.status_label,
+      })
+      return {
+        createdBy: agenda.created_by,
+        creationDate: agenda.creation_date,
+        latestModificationDate: agenda.latest_modification_date,
+        validatedBy: agenda.validated_by,
+        validationDate: agenda.validation_date,
+        closingDate: agenda.closing_date ?? '',
+        zraMessage: '',
+        timezone: '',
+        events: agenda.events.map(mapEvent),
+      }
+    },
     enabled: !!id,
   })
 }

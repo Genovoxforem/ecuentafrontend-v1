@@ -59,8 +59,8 @@ function sortValue(r: PaymentRow, key: SortKey): string | number {
   }
 }
 
-// The classic "Report Area" (compta/paiement/list.php — see
-// paymentsListParser.ts): every payment received in the chosen period, with
+// The classic "Report Area" (compta/paiement/list.php), read through
+// compta/paiement/fapi/list.php (see payments.queries.ts): every payment received in the chosen period, with
 // the bank entry and account each one was booked to. The period is a real
 // backend filter; search, sorting and paging run on the returned rows.
 export function PaymentsListPage() {

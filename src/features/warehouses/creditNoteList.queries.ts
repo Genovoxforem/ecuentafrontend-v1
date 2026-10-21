@@ -1,43 +1,37 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchAllPages, pickNum, pickStr, usDate } from '../../api/fapiRow'
 
-// Real reference page: retunorder/card.php?action=list ("Return List").
-// SELECT * FROM llx_facture WHERE type=2 AND fk_statut>0 — real Dolibarr
-// credit notes (invoice type 2), read directly from source. No JSON exists
-// (confirmed: retunorder/ has no ajax file besides save_ajax.php, which only
-// handles the create-return form, not this list), but the whole table is
-// classic HTML in one page load — a single real fetch.
-//
-// "Order Status" is genuinely hardcoded to "Refund" in this build — the
-// PHP source's own Exchange/Not-Updated branches are commented out, so
-// every real row shows "Refund" regardless of any actual status field. Not
-// a parsing gap; reproduced faithfully because it's what the real page does.
-// "Sl.No" in the reference is a loop counter that's never incremented
-// (prints "1" for every row, confirmed live) — that's a real backend bug
-// with no data meaning at all, so this uses a proper 1-based row index
-// instead rather than faithfully reproducing a counter that's just broken.
+// compta/facture/fapi/credit_notes.php (16 Oct 2026): the returns view - credit notes (invoice type 2, drafts to
+// abandoned) with the positive credited amounts (credited_ht / credited_ttc; the stored ones are negative), a
+// by_status count and the most-returned products. It replaces the retunorder/card.php?action=list scrape, whose
+// "Order Status" column was a hardcoded "Refund" and whose Sl.No never incremented. Row fields are read
+// defensively: newecuenta holds no credit notes yet.
 export interface CreditNoteRow {
   ref: string
   invoiceId: number
   createdDate: string
-}
-
-function parseCreditNoteList(html: string): CreditNoteRow[] {
-  const rows: CreditNoteRow[] = []
-  const rowRe = /<a href ="\/compta\/sales\/card\.php\?facid=(\d+)&action=view">([^<]*)<\/a><\/td><td>[\s\S]*?<\/span><\/td><td>([^<]*)<\/td>/g
-  let m: RegExpExecArray | null
-  while ((m = rowRe.exec(html))) {
-    rows.push({ invoiceId: Number(m[1]), ref: m[2].trim(), createdDate: m[3].trim() })
-  }
-  return rows
+  customerName: string
+  creditedTtc: number
+  statusLabel: string
 }
 
 export function useCreditNoteList() {
   return useQuery({
     queryKey: ['warehouses', 'creditNoteList'],
     queryFn: async (): Promise<CreditNoteRow[]> => {
-      const res = await fetch('/retunorder/card.php?id=&action=list', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return parseCreditNoteList(await res.text())
+      const items = await fetchAllPages((page) => fapiGet<any>('/compta/facture/fapi/credit_notes.php', { page, limit: 100 }))
+      return items.map(
+        (c): CreditNoteRow => ({
+          invoiceId: pickNum(c, 'id', 'invoice_id'),
+          ref: pickStr(c, 'ref'),
+          createdDate: usDate(c.date_creation ?? c.date ?? c.datef),
+          customerName: pickStr(c, 'customer.name', 'thirdparty.name', 'third_party_name', 'company'),
+          creditedTtc: pickNum(c, 'credited_ttc'),
+          statusLabel: pickStr(c, 'status_label'),
+        }),
+      )
     },
     staleTime: 1000 * 30,
   })

@@ -1,5 +1,5 @@
-import { LotSerialDetailReplica } from '../../features/products/components/LotSerialDetailReplica'
+import { LotSerialDetailPage } from '../../features/products/components/LotSerialDetailPage'
 
 export function LotSerialDetailModule() {
-  return <LotSerialDetailReplica />
+  return <LotSerialDetailPage />
 }

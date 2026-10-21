@@ -1,89 +1,46 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import axios from 'axios'
-import { ShoppingCart, Check, X, Plus, Pencil, Trash2, LoaderCircle, Save, CheckCircle2, ExternalLink } from 'lucide-react'
+import { ShoppingCart, Check, X, Plus, Pencil, Trash2, LoaderCircle, Save, CheckCircle2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
-import { fetchLegacyDocument } from '../../../shared/legacyHtmlFetch'
 import { api } from '../../../api/axios'
+import { fapiGet, fapiPost } from '../../../api/fapiEnvelope'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useVendorOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
-import { parseOrderDictionaries, looksLikeLegacyLoginPage } from '../../salesOrders/orderFormOptionsParser'
+import { PO_BASE, usePurchaseOrderFormOptions } from '../purchaseOrderFapi'
 
-// This entire form talks to a real, complete JSON API —
-// commande/purchaseorder/api/purchase_handler.php — read directly from its
-// PHP source (not guessed). Unlike most of this app's other legacy
-// integrations, no HTML scraping is needed for the create flow itself;
-// scraping is only used below for the Payment Terms dictionary, which has
-// no REST route of its own (see useSupplierPaymentTerms).
-const API_URL = '/commande/purchaseorder/api/purchase_handler.php'
+// Purchase order create form on fourn/commande/fapi: form_options.php (dropdowns and the defaults resolved for the chosen
+// supplier), product_info.php (the supplier's price for a product) and create.php (header, lines and validation in one
+// transaction).
 
-interface ApiEnvelope<T> {
-  success: boolean
-  error?: string
-  details?: Record<string, string>
-  data?: T
-}
-
-async function callApi<T>(params: Record<string, string | number>): Promise<T> {
-  const { data } = await axios.get<ApiEnvelope<T>>(API_URL, { params, validateStatus: () => true })
-  if (!data.success) throw new Error(data.error ?? 'Legacy backend rejected the request.')
-  return data.data as T
-}
-
-// GET ?action=get_supplier&id=X — confirmed real (handleGetSupplier() in
-// purchase_handler.php). The real page's own onSupplierChange() handler
-// calls this exact action and auto-fills Payment Terms/Payment Mode/
-// Currency/Rate from its response (read directly from purchaseorder.js,
-// lines ~369-382) — replicated below the same way OrderCreateForm.tsx's
-// useCustomerDefaults mirrors the Sales Order equivalent.
-interface SupplierDefaults {
-  condReglementId: string
-  modeReglementId: string
-  multicurrencyCode: string
-  multicurrencyTx: number
-  outstandingBalance: number
-}
+// The defaults the form applies when a supplier is chosen: its payment terms and mode and its currency.
 function useSupplierDefaults(vendorId: string) {
-  return useQuery({
-    queryKey: ['purchaseOrders', 'supplierDefaults', vendorId],
-    queryFn: async (): Promise<SupplierDefaults> => {
-      const d = await callApi<{
-        cond_reglement_supplier_id: number | string | null
-        mode_reglement_supplier_id: number | string | null
-        multicurrency_code: string | null
-        multicurrency_tx: number | null
-        outstanding_balance: number | null
-      }>({ action: 'get_supplier', id: vendorId })
-      return {
-        condReglementId: d.cond_reglement_supplier_id ? String(d.cond_reglement_supplier_id) : '',
-        modeReglementId: d.mode_reglement_supplier_id ? String(d.mode_reglement_supplier_id) : '',
-        multicurrencyCode: d.multicurrency_code ?? '',
-        multicurrencyTx: d.multicurrency_tx || 1,
-        outstandingBalance: d.outstanding_balance ?? 0,
-      }
-    },
-    enabled: vendorId !== '',
-    staleTime: 1000 * 30,
-  })
+  const q = usePurchaseOrderFormOptions(vendorId || undefined)
+  const d = q.data?.defaults
+  return {
+    data:
+      vendorId && d
+        ? {
+            condReglementId: d.payment_term_id ? String(d.payment_term_id) : '',
+            modeReglementId: d.payment_mode_id ? String(d.payment_mode_id) : '',
+            multicurrencyCode: d.currency_code ?? '',
+            multicurrencyTx: 1,
+          }
+        : undefined,
+  }
 }
 
-// GET ?action=get_product&id=X&soc_id=Y — confirmed real (handleGetProduct()
-// in purchase_handler.php). This is what actually backs the real page's
-// per-supplier "buying price" auto-fill on the Unit Price column — it reads
-// llx_product_fournisseur_price for that exact (product, supplier) pair.
-// Falls back to the product's own catalog sale price when no supplier-
-// specific price is on file (that field comes back 0/'' from the real
-// endpoint itself in that case), so the field is never left at 0 for no
-// reason.
+// What the supplier quotes for a product (best price for the quantity, its reference and VAT), falling back to the last
+// price paid and then the product's own price, so the field is never left at 0 for no reason.
 interface SupplierProductInfo {
   buyingPrice: number
   supplierRef: string
@@ -94,18 +51,13 @@ function useSupplierProductInfo(vendorId: string, productId: string) {
   return useQuery({
     queryKey: ['purchaseOrders', 'supplierProduct', vendorId, productId],
     queryFn: async (): Promise<SupplierProductInfo> => {
-      const d = await callApi<{
-        price: number
-        tva_tx: number
-        default_vat_code: string
-        buying_price: number
-        supplier_ref: string
-      }>({ action: 'get_product', id: productId, soc_id: vendorId })
+      const d = await fapiGet<any>(`${PO_BASE}/product_info.php`, { product_id: productId, socid: vendorId })
+      const sp = d.supplier_price
       return {
-        buyingPrice: Number(d.buying_price) || Number(d.price) || 0,
-        supplierRef: d.supplier_ref || '',
-        vatRate: Number(d.tva_tx) || 0,
-        vatCode: d.default_vat_code || '',
+        buyingPrice: Number(sp?.price ?? sp?.unitprice ?? sp?.buying_price) || Number(d.last_price?.price ?? d.last_price?.unit_price) || Number(d.product?.sell_price) || 0,
+        supplierRef: sp?.ref_supplier ?? sp?.ref ?? '',
+        vatRate: Number(sp?.tva_tx ?? d.product?.tva_tx) || 0,
+        vatCode: d.product?.vat_code ?? '',
       }
     },
     enabled: vendorId !== '' && productId !== '',
@@ -158,21 +110,12 @@ function useProjectOptions() {
   })
 }
 
-// Payment Terms (llx_c_payment_term) has no REST route on this backend —
-// same gap OrderCreateForm.tsx's useOrderDictionaries hit for Sales Orders.
-// The dictionary table is shared platform-wide (not order-type-specific), so
-// this scrapes the Purchase Order page's own real markup instead of
-// duplicating a whole new page just to read the same <select
-// name="cond_reglement_id">, reusing the already-exported, generic
-// parseOrderDictionaries() rather than copying its logic.
+// Payment Terms (llx_c_payment_term) from form_options.php.
 function usePurchasePaymentTerms() {
   return useQuery({
     queryKey: ['purchaseOrders', 'paymentTerms'],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const doc = await fetchLegacyDocument('/commande/purchaseorder/index_v2.php')
-      if (looksLikeLegacyLoginPage(doc)) return []
-      return parseOrderDictionaries(doc).paymentTerms
-    },
+    queryFn: async (): Promise<DictionaryOption[]> =>
+      (await fapiGet<{ payment_terms: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_terms.map((t) => ({ id: String(t.value), text: t.label })),
     staleTime: 1000 * 60 * 10,
   })
 }
@@ -212,15 +155,6 @@ function discountToRemisePercent(qty: number, unitPrice: number, discount: numbe
   return subtotal > 0 ? (discount / subtotal) * 100 : 0
 }
 
-// The real page's own createOrder() (purchaseorder.js) sends a Unix
-// timestamp for both `date` and `date_livraison` — built via
-// Date.UTC(year, month-1, day)/1000 (convertEcuentaDate()), not a "YYYY-MM-DD"
-// string. Matched exactly here rather than letting the backend guess at a
-// plain date string.
-function toUtcTimestamp(isoDate: string): number {
-  const [y, m, d] = isoDate.split('-').map(Number)
-  return Math.floor(Date.UTC(y, m - 1, d) / 1000)
-}
 
 let lineKeySeq = 0
 
@@ -295,12 +229,21 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
   const { data: paymentTerms } = usePurchasePaymentTerms()
   const { data: projects } = useProjectOptions()
   const { data: supplierDefaults } = useSupplierDefaults(vendorId)
+  // form_options.php?socid resolves the default chain the page applies (supplier's own terms, then the install default).
+  const { data: formOptions } = usePurchaseOrderFormOptions(vendorId || undefined)
   const { data: supplierProductInfo } = useSupplierProductInfo(vendorId, draftProductId)
 
   // Mirrors the real page's onSupplierChange() → auto-fill exactly (see
   // useSupplierDefaults' header comment) — only into fields still at their
   // initial blank value, so it never clobbers something the user already
   // picked.
+  useEffect(() => {
+    if (!vendorId || !formOptions?.defaults) return
+    const d = formOptions.defaults
+    setCondReglementId((prev) => prev || (d.payment_term_id ? String(d.payment_term_id) : ''))
+    setModeReglementId((prev) => prev || (d.payment_mode_id ? String(d.payment_mode_id) : ''))
+  }, [vendorId, formOptions])
+
   useEffect(() => {
     if (!supplierDefaults) return
     setCondReglementId((prev) => prev || supplierDefaults.condReglementId)
@@ -398,50 +341,38 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
   const totalTax = lines.reduce((sum, l) => sum + lineExclAfterDiscount(l.qty, l.unitPrice, l.discountPct, l.discountType) * (l.vatRate / 100), 0)
   const totalQty = lines.reduce((sum, l) => sum + l.qty, 0)
 
-  // POST ?action=create — full real contract, read directly from
-  // handleCreateOrder() in purchase_handler.php. product_type is hardcoded
-  // to 0 for every line on purpose: that's exactly what the real page's own
-  // createOrder() sends too (purchaseorder.js), regardless of the actual
-  // product's type. multicurrency is intentionally simplified to the same
-  // degree OrderCreateForm.tsx's Sales Order equivalent is — only the
-  // top-level code/rate are sent, not a separate per-line foreign-currency
-  // price.
   const createMutation = useMutation({
-    mutationFn: async (validate: boolean) => {
-      const body = {
-        action: 'create',
-        socid: Number(vendorId),
-        date: toUtcTimestamp(date),
-        supplier_ref: refVendor || undefined,
-        note_public: notePublic || undefined,
-        note_private: notePrivate || undefined,
-        fk_project: projectId ? Number(projectId) : undefined,
-        date_livraison: deliveryDate ? toUtcTimestamp(deliveryDate) : undefined,
-        cond_reglement_id: condReglementId ? Number(condReglementId) : undefined,
-        mode_reglement_id: modeReglementId ? Number(modeReglementId) : undefined,
-        fk_incoterms: incotermId ? Number(incotermId) : undefined,
-        location_incoterms: incotermLocation || undefined,
-        multicurrency_code: currencyCode || undefined,
-        multicurrency_tx: currencyCode ? Number(exchangeRate) || 1 : undefined,
-        validate,
-        lines: lines.map((l) => ({
-          fk_product: l.productId ? Number(l.productId) : null,
-          desc: l.description,
-          qty: l.qty,
-          subprice: l.unitPrice,
-          supplier_ref: l.supplierRef || '',
-          tva_tx: l.vatRate,
-          default_vat_code: l.vatCode,
-          remise_percent: discountToRemisePercent(l.qty, l.unitPrice, l.discountPct, l.discountType),
-          product_type: 0,
-        })),
+    mutationFn: async (validate: boolean): Promise<CreatedOrder> => {
+      // fourn/commande/fapi/create.php: header, every line and the optional validation in one transaction.
+      const viaFapi = async (): Promise<CreatedOrder> => {
+        const d = await fapiPost<{ id: number; ref: string; totals: { total_ht: number; total_tva: number; total_ttc: number } }>(`${PO_BASE}/create.php`, {
+          socid: Number(vendorId),
+          ref_supplier: refVendor || undefined,
+          order_date: date || undefined,
+          delivery_date: deliveryDate || undefined,
+          payment_term_id: condReglementId ? Number(condReglementId) : undefined,
+          payment_mode_id: modeReglementId ? Number(modeReglementId) : undefined,
+          project_id: projectId ? Number(projectId) : undefined,
+          currency_code: currencyCode || undefined,
+          incoterm_id: incotermId ? Number(incotermId) : undefined,
+          location_incoterms: incotermLocation || undefined,
+          note_public: notePublic || undefined,
+          note_private: notePrivate || undefined,
+          warehouse_id: validate ? formOptions?.defaults.warehouse_id || undefined : undefined,
+          validate,
+          lines: lines.map((l) => ({
+            ...(l.productId ? { product_id: Number(l.productId) } : {}),
+            description: l.description,
+            qty: l.qty,
+            pu_ht: l.unitPrice,
+            tva_tx: l.vatRate,
+            remise_percent: discountToRemisePercent(l.qty, l.unitPrice, l.discountPct, l.discountType),
+            ref_supplier: l.supplierRef || undefined,
+          })),
+        })
+        return { id: d.id, ref: d.ref, total_ht: d.totals.total_ht, total_tva: d.totals.total_tva, total_ttc: d.totals.total_ttc }
       }
-      const { data } = await axios.post<ApiEnvelope<CreatedOrder>>(`${API_URL}?action=create`, body, { validateStatus: () => true })
-      if (!data.success) {
-        const detail = data.details ? Object.values(data.details).join(' ') : undefined
-        throw new Error(detail ?? data.error ?? 'Failed to create purchase order')
-      }
-      return data.data as CreatedOrder
+      return viaFapi()
     },
     onSuccess: (order) => {
       setCreatedOrder(order)
@@ -543,18 +474,6 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
           {formError && (
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium text-danger">{formError}</p>
-              {/* purchase_handler.php's addline() step is confirmed broken on the backend
-                  (silently fails with a blank error, no matter the line data) — verified
-                  2026-08-28. Not fixable from the frontend, so on any create failure we
-                  offer the real, working multi-step legacy form as a fallback instead. */}
-              <a
-                href={`/fourn/commande/card.php?action=create${vendorId ? `&socid=${vendorId}` : ''}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-              >
-                Create in legacy system instead <ExternalLink size={13} />
-              </a>
             </div>
           )}
         </div>

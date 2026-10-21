@@ -81,7 +81,7 @@ export function parseVendorInvoiceListRow(raw: RawVendorInvoiceListRow): VendorI
   const thirdSmall = thirdDoc.querySelector('small')
   // The anchor's own avatar-circle <div> (initials, e.g. "AL") sits before
   // the name text node — strip it before reading textContent or the
-  // initials get prepended to the name (same fix as societeListParser.ts).
+  // initials get prepended to the name.
   thirdAnchor?.querySelector('.avatar-circle')?.remove()
 
   const amountText = cellText(raw.amount)

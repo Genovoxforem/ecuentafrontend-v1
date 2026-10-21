@@ -150,7 +150,7 @@ function ProductDetailsModal({ product, onClose }) {
                 className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-[#2c6291] to-[#397db9] text-white">
+                <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-[#2f6fe4] to-[#3b82f6] text-white">
                     <div className="flex items-center gap-2 text-base font-semibold">
                         <Info size={18} />
                         Product Details
@@ -194,9 +194,9 @@ function ProductDetailsModal({ product, onClose }) {
                         ))}
                     </div>
 
-                    <div className="rounded-xl bg-gradient-to-r from-[#2c6291]/10 to-[#397db9]/10 dark:from-[#2c6291]/20 dark:to-[#397db9]/20 border border-[#2c6291]/20 dark:border-[#7fb0d8]/20 px-4 py-3">
+                    <div className="rounded-xl bg-gradient-to-r from-[#2f6fe4]/10 to-[#3b82f6]/10 dark:from-[#2f6fe4]/20 dark:to-[#3b82f6]/20 border border-[#2f6fe4]/20 dark:border-[#7fb0d8]/20 px-4 py-3">
                         <div className="text-xs text-gray-500 dark:text-slate-400">Price</div>
-                        <div className="text-2xl font-bold text-[#2c6291] dark:text-[#7fb0d8]">
+                        <div className="text-2xl font-bold text-[#2f6fe4] dark:text-[#7fb0d8]">
                             {formatCurrency(product.price)}
                         </div>
                     </div>

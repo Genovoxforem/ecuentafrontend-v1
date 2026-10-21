@@ -17,11 +17,16 @@ import {
   Trash2,
   FileCheck2,
   ReceiptText,
-  ExternalLink,
   Upload,
   Link2,
   Eye,
   CalendarPlus,
+  CircleCheck,
+  ShoppingCart,
+  Ban,
+  Pencil,
+  Check,
+  Plus,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -44,7 +49,13 @@ import {
   usePurchaseOrderDocuments,
   useUploadPurchaseOrderDocument,
   useLinkPurchaseOrderDocument,
+  usePurchaseOrderLifecycle,
+  usePurchaseOrderLines,
+  type PurchaseOrderLifecycleAction,
 } from '../purchaseOrderDetail.queries'
+import { PO_BASE } from '../purchaseOrderFapi'
+import { ReceiveGoodsForm } from './ReceiveGoodsForm'
+import { RecordNotesTab } from '../../contracts/components/ContractTabs'
 
 const selectCls = 'text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 w-full'
 
@@ -83,14 +94,45 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
   const { data } = usePurchaseOrderCard(id)
   const actions = data?.actions
   const [showSendEmail, setShowSendEmail] = useState(false)
+  const lifecycle = usePurchaseOrderLifecycle()
+  const [lifecycleError, setLifecycleError] = useState('')
 
   if (!actions) return null
+
+  // The server's own answer on what is possible now (available_actions): an action that is not allowed
+  // right now is shown disabled with the reason as its tooltip rather than hidden.
+  const states = data?.actionStates ?? []
+  const step = (action: PurchaseOrderLifecycleAction, label: string, icon: React.ReactNode, confirmText?: string) => {
+    const state = states.find((s) => s.action === action)
+    if (!state) return null
+    return (
+      <button
+        key={action}
+        type="button"
+        disabled={!state.allowed || lifecycle.isPending}
+        title={state.allowed ? undefined : state.reason}
+        onClick={async () => {
+          if (confirmText && !(await confirm({ title: `${label}?`, message: confirmText, variant: 'default', confirmLabel: label }))) return
+          setLifecycleError('')
+          lifecycle.mutate({ id, action }, { onError: (e) => setLifecycleError(e instanceof Error ? e.message : 'The action failed.') })
+        }}
+        className={btnCls}
+      >
+        {lifecycle.isPending && lifecycle.variables?.action === action ? <LoaderCircle size={14} className="animate-spin" /> : icon} {label}
+      </button>
+    )
+  }
 
   const btnCls = 'flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-text hover:bg-surface-hover disabled:opacity-60'
   const dangerCls = 'flex items-center gap-1.5 rounded-lg border border-danger/40 px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-60'
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {lifecycleError && <p role="alert" className="basis-full text-sm text-danger">{lifecycleError}</p>}
+      {step('validate', 'Validate', <CircleCheck size={14} />)}
+      {step('approve', 'Approve', <CircleCheck size={14} />)}
+      {step('make_order', 'Make Order', <ShoppingCart size={14} />)}
+      {step('cancel', 'Cancel', <Ban size={14} />, 'Cancel this purchase order?')}
       {actions.canSendMail && (
         <button type="button" onClick={() => setShowSendEmail(true)} className={btnCls}>
           <Mail size={14} /> Send Email
@@ -122,6 +164,7 @@ function ActionButtons({ id, socid }: { id: string; socid: number | null }) {
           {classifyBilled.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <FileCheck2 size={14} />} Classify Billed
         </button>
       )}
+      {states.some((s) => s.action === 'classify_unbilled' && s.allowed) && step('classify_unbilled', 'Classify Unbilled', <FileCheck2 size={14} />)}
       {actions.canClone && (
         <button
           type="button"
@@ -164,6 +207,8 @@ function LinkedFilesSection({ id }: { id: string }) {
   const [langId, setLangId] = useState('')
   if (!data) return null
   const { docGen, linkedFiles } = data
+  // fapi/get.php has no document templates to offer: the Linked Files tab lists the files instead.
+  if (docGen.modelOptions.length === 0 && linkedFiles.length === 0) return null
   const selectedModel = model || docGen.modelOptions[0]?.value || ''
   const selectedLang = langId || docGen.defaultLang
 
@@ -211,33 +256,25 @@ function LinkedFilesSection({ id }: { id: string }) {
   )
 }
 
-function StubTab({ id, label, page }: { id: string; label: string; page: string }) {
-  return (
-    <Card className="!h-auto shrink-0 items-center text-center gap-2 !py-10">
-      <p className="text-sm text-text-muted">The {label} tab isn't natively built yet — it's a much larger sub-page in the real backend (item-by-item reception/contact management/timeline).</p>
-      <a href={`/fourn/commande/${page}?id=${id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
-        Open on the real legacy page <ExternalLink size={13} />
-      </a>
-    </Card>
-  )
-}
-
-// Real per-tab page hrefs — read directly from core/lib/fourn.lib.php's
-// ordersupplier_prepare_head(), the function that builds this exact tab bar
-// on the real page. Only 'notes' is still stubbed — the note.php page
-// itself hasn't been read/built yet.
-const STUB_PAGES: Record<'notes', string> = {
-  notes: 'note.php',
-}
-
 // Mirrors Sales Order Detail's own ContactsTab (fourn/commande/contact.php
 // renders the exact same generic core/tpl/contacts.tpl.php template — see
 // purchaseOrderDetail.queries.ts's header comment) — same 2 add-rows
 // (Users / Third-Party Contacts) plus the assigned-contacts table.
-function ContactsTab({ id }: { id: string }) {
+// `useContacts` / `useAdd` let the vendor proposal tab reuse this table with its own endpoints.
+export function ContactsTab({
+  id,
+  useContacts = usePurchaseOrderContacts,
+  useAdd = useAddPurchaseOrderContact,
+  subject = 'order',
+}: {
+  id: string
+  useContacts?: typeof usePurchaseOrderContacts
+  useAdd?: typeof useAddPurchaseOrderContact
+  subject?: string
+}) {
   const [company, setCompany] = useState<string | undefined>(undefined)
-  const { data, isLoading, isError } = usePurchaseOrderContacts(id, company)
-  const addContact = useAddPurchaseOrderContact(id)
+  const { data, isLoading, isError } = useContacts(id, company)
+  const addContact = useAdd(id)
 
   const [userid, setUserid] = useState('')
   const [type, setType] = useState('')
@@ -382,7 +419,7 @@ function ContactsTab({ id }: { id: string }) {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-6 text-center text-sm text-text-faint italic">
-                  No contacts have been assigned to this order yet.
+                  No contacts have been assigned to this {subject} yet.
                 </td>
               </tr>
             ) : (
@@ -424,6 +461,8 @@ function ReceiptsTab({ id }: { id: string }) {
           </tbody>
         </table>
       </Card>
+
+      <ReceiveGoodsForm id={id} />
 
       <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -732,6 +771,114 @@ function AgendaTab({ id, socid }: { id: string; socid?: number }) {
   )
 }
 
+const poInput = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30'
+
+// Edit / delete a line of a draft order (lines.php).
+function PoLineButtons({ orderId, line }: { orderId: string; line: { id: number; description: string; productLabel: string; qty: number; unitPriceExcl: number; vatRate: number; discountPercent: number } }) {
+  const lines = usePurchaseOrderLines(orderId)
+  const confirm = useConfirm()
+  const [editing, setEditing] = useState(false)
+  const [qty, setQty] = useState(String(line.qty))
+  const [price, setPrice] = useState(String(line.unitPriceExcl))
+  const [error, setError] = useState('')
+  if (!editing) {
+    return (
+      <>
+        <button type="button" title="Edit line" onClick={() => setEditing(true)} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand">
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          title="Delete line"
+          disabled={lines.remove.isPending}
+          onClick={async () => {
+            if (await confirm({ title: 'Delete this line?', message: 'The line is removed from the draft order.', confirmLabel: 'Delete' })) lines.remove.mutate(line.id)
+          }}
+          className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger"
+        >
+          <Trash2 size={14} />
+        </button>
+      </>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1">
+      <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} className={poInput + ' !w-16'} title="Quantity" />
+      <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className={poInput + ' !w-24'} title="Unit price (excl.)" />
+      <button
+        type="button"
+        disabled={lines.update.isPending}
+        onClick={() =>
+          lines.update.mutate(
+            { lineId: line.id, description: line.description || line.productLabel, qty: Number(qty), unitPriceHt: Number(price), vatRate: line.vatRate, discountPercent: line.discountPercent },
+            { onSuccess: () => setEditing(false), onError: (e) => setError(e instanceof Error ? e.message : 'The line was refused.') },
+          )
+        }
+        className="p-1.5 rounded-md text-success hover:bg-surface-hover"
+        title="Save line"
+      >
+        <Check size={14} />
+      </button>
+      <button type="button" onClick={() => setEditing(false)} className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover" title="Cancel">
+        <X size={14} />
+      </button>
+      {error && <span className="text-xs text-danger">{error}</span>}
+    </div>
+  )
+}
+
+function PoAddLineRow({ orderId }: { orderId: string }) {
+  const lines = usePurchaseOrderLines(orderId)
+  const [description, setDescription] = useState('')
+  const [qty, setQty] = useState('1')
+  const [price, setPrice] = useState('')
+  const [vat, setVat] = useState('0')
+  const [error, setError] = useState('')
+  return (
+    <>
+      <tr className="bg-surface-alt/50">
+        <td colSpan={2} className="px-4 py-2">
+          <input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className={poInput} />
+        </td>
+        <td className="px-2 py-2">
+          <input type="number" placeholder="VAT %" value={vat} onChange={(e) => setVat(e.target.value)} className={poInput} />
+        </td>
+        <td className="px-2 py-2">
+          <input type="number" step="0.01" placeholder="Unit price" value={price} onChange={(e) => setPrice(e.target.value)} className={poInput} />
+        </td>
+        <td />
+        <td className="px-2 py-2">
+          <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} className={poInput} />
+        </td>
+        <td />
+        <td />
+        <td className="px-2 py-2 text-center">
+          <button
+            type="button"
+            disabled={lines.add.isPending || !description.trim() || !(Number(qty) > 0)}
+            onClick={() =>
+              lines.add.mutate(
+                { description: description.trim(), qty: Number(qty), unitPriceHt: Number(price) || 0, vatRate: Number(vat) || 0 },
+                { onSuccess: () => { setDescription(''); setPrice(''); setQty('1'); setError('') }, onError: (e) => setError(e instanceof Error ? e.message : 'The line was refused.') },
+              )
+            }
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-surface-hover disabled:opacity-50"
+          >
+            <Plus size={13} /> Add
+          </button>
+        </td>
+      </tr>
+      {error && (
+        <tr>
+          <td colSpan={9} className="px-4 pb-2 text-sm text-danger">
+            {error}
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 export function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
@@ -845,12 +992,13 @@ export function PurchaseOrderDetail() {
                     <th className="font-medium px-4 py-2.5 text-center">Qty</th>
                     <th className="font-medium px-4 py-2.5 text-center">Disc.</th>
                     <th className="font-medium px-4 py-2.5 text-right">Total (Incl.)</th>
+                    {data.statusCode === 0 && <th className="w-24" />}
                   </tr>
                 </thead>
                 <tbody>
                   {data.lines.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-4 text-text-faint italic">
+                      <td colSpan={9} className="px-4 py-4 text-text-faint italic">
                         No lines on this order.
                       </td>
                     </tr>
@@ -867,9 +1015,15 @@ export function PurchaseOrderDetail() {
                         <td className="px-4 py-2.5 text-center tabular-nums text-text-muted">{formatNumber(l.qty)}</td>
                         <td className="px-4 py-2.5 text-center tabular-nums text-text-muted">{l.discountPercent || 0}%</td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-text!">{formatMoney(l.totalTtc)}</td>
+                        {data.statusCode === 0 && (
+                          <td className="px-2 py-2 text-center whitespace-nowrap">
+                            <PoLineButtons orderId={id!} line={l} />
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
+                  {data.statusCode === 0 && <PoAddLineRow orderId={id!} />}
                 </tbody>
               </table>
             </div>
@@ -888,7 +1042,7 @@ export function PurchaseOrderDetail() {
       {tab === 'files' && <DocumentsTab id={id!} />}
       {tab === 'agenda' && <AgendaTab id={id!} socid={data.socid ?? undefined} />}
 
-      {tab === 'notes' && <StubTab id={id!} label="Notes" page={STUB_PAGES.notes} />}
+      {tab === 'notes' && <RecordNotesTab id={id} base={PO_BASE} />}
     </div>
   )
 }

@@ -9,12 +9,15 @@ import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
 import { api, fapi } from '../../../api/axios'
+import { requireJson } from '../orderApi'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
-import { useProductOptions, callProductInfoFile } from '../../products/products.queries'
-import { useWarehouseOptions } from '../orderDetail.queries'
+import { useProductOptions } from '../../products/products.queries'
+import { getProductSuppliers } from '../../../api/products'
+import { useWarehousePickerOptions } from '../../warehouses/warehouseExtras.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
+import { legacyJsonBody } from '../../../shared/legacyHtmlFetch'
 import { QuickCustomerCreateModal } from './QuickCustomerCreateModal'
 import { QuickProductCreateModal } from './QuickProductCreateModal'
 
@@ -37,8 +40,10 @@ function useProjectOptions() {
   return useQuery({
     queryKey: ['projects', 'open'],
     queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
-      return data.results ?? []
+      const { data } = await api.get<unknown>('/projects.php')
+      const body = legacyJsonBody<{ success: boolean; results: ProjectOption[] }>(data, 'Projects API')
+      if (!body.success || !Array.isArray(body.results)) throw new Error('Projects API did not return project options.')
+      return body.results
     },
     staleTime: 1000 * 60,
   })
@@ -64,8 +69,10 @@ function useDictionary(path: string) {
   return useQuery({
     queryKey: ['dictionary', path],
     queryFn: async (): Promise<DictionaryOption[]> => {
-      const { data } = await api.get<DictionaryResponse>(path)
-      return data.success ? data.results.map((r) => ({ id: String(r.id), text: r.text })) : []
+      const { data } = await api.get<unknown>(path)
+      const body = legacyJsonBody<DictionaryResponse>(data, path)
+      if (!body.success || !Array.isArray(body.results)) throw new Error(`${path} did not return dictionary options.`)
+      return body.results.map((r) => ({ id: String(r.id), text: r.text }))
     },
     staleTime: 1000 * 60 * 10,
   })
@@ -84,11 +91,13 @@ function useOrderDictionaries() {
   return useQuery({
     queryKey: ['salesorder', 'dictionaries'],
     queryFn: async (): Promise<OrderDictionaries> => {
-      const { data } = await fapi.get<{ success: boolean; data: {
+      type Meta = { success: boolean; data: {
         availability?: { value: string; label: string }[]
         shipping_methods?: { value: string; label: string }[]
         payment_terms?: { value: string; label: string }[]
-      } }>('/commande/fapi/meta.php')
+      } }
+      const { data } = requireJson(await fapi.get<Meta>('/commande/fapi/meta.php'))
+      if (!data.success || !data.data) throw new Error('Order form options API did not return dictionary options.')
       const d = data.data
       const map = (l: { value: string; label: string }[] | undefined) => (l ?? []).map((o) => ({ id: o.value, text: o.label }))
       return { availabilityDelays: map(d.availability), shippingMethods: map(d.shipping_methods), paymentTerms: map(d.payment_terms) }
@@ -161,18 +170,12 @@ function useCustomerDefaults(socid: string) {
 // ends up showing "NaN" when a product is picked (parseFloat(undefined) with
 // no fallback, read directly in commande/salesorder/js/salesorder.js). The
 // one real, working source for a product's actual cost price is the Product
-// Detail page's own Supplier Prices tab data (productinfo/api/supplier_api.php,
-// already confirmed real elsewhere in this app) — fetched here per selected
-// product instead of repeating the reference layout's own broken result.
+// Detail page's own Supplier Prices tab data (product/fapi/suppliers.php) — fetched here per
+// selected product instead of repeating the reference layout's own broken result.
 function useProductCostPrice(productId: string) {
   return useQuery({
     queryKey: ['productinfo', 'supplier-cost-price', productId],
-    queryFn: async (): Promise<number> => {
-      const body = await callProductInfoFile('supplier_api.php', 'view', { id: productId })
-      if (!body.success) return 0
-      const data = body.data as { cost_price?: string | number } | undefined
-      return Number(data?.cost_price ?? 0) || 0
-    },
+    queryFn: async (): Promise<number> => Number((await getProductSuppliers(productId)).cost_price ?? 0) || 0,
     enabled: productId !== '',
     staleTime: 1000 * 60,
   })
@@ -242,6 +245,8 @@ interface CreateOrderResponse {
   error?: string
   message?: string
   details?: Record<string, string>
+  // commande/fapi/create.php: field -> list of messages
+  errors?: Record<string, string[] | string> | unknown[]
 }
 
 const WIZARD_STEPS = [
@@ -298,7 +303,8 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
   const [notePrivate, setNotePrivate] = useState('')
 
   const listLink = backTo ?? ROUTES.orderList
-  const { data: customers, isLoading: customersLoading } = useCustomerOptions()
+  const customerOptionsQuery = useCustomerOptions()
+  const { data: customers, isLoading: customersLoading } = customerOptionsQuery
   const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
   // Rich picker for the Customer field — matches the reference layout's own customer search
   // dropdown (Form::select_thirdparty_list()), which shows ref/Tpin/Country per result
@@ -319,7 +325,8 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
       })),
     [customers],
   )
-  const { data: products } = useProductOptions()
+  const productOptionsQuery = useProductOptions()
+  const { data: products } = productOptionsQuery
   // Rich picker for the entry row's Product/Service field — matches the reference layout's
   // own product search dropdown (Form::select_produits()), which shows Ref/Classification/
   // Price/Stock per result rather than a plain label. Built client-side from the same
@@ -342,23 +349,30 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
       })),
     [products],
   )
-  const { data: projects } = useProjectOptions()
-  // Warehouses: real (product/stock/list.php scrape — /api/zra/product-form-options/
-  // this form used before is a genuine 404 on this backend, checked live —
-  // see warehouseExtras.queries.ts's useWarehouses(), already built and
-  // verified for the Warehouses feature earlier this session). Currency/
-  // Incoterms: real (customers/lookups/, llx_multicurrency / llx_c_incoterms).
+  const projectOptionsQuery = useProjectOptions()
+  const { data: projects } = projectOptionsQuery
+  // Warehouses: product/stock/fapi/warehouses.php (JSON — see
+  // useWarehousePickerOptions), the same list the quick invoice form uses.
+  // Currency/Incoterms: real (customers/lookups/, llx_multicurrency / llx_c_incoterms).
   // Bank account/Payment Type: real dictionaries (see useDictionary above).
   // Availability delay/Shipping method/Payment Terms: also real, but from
   // commande/salesorder/index_v2.php's own rendered <select>s rather than a
   // REST route — see useOrderDictionaries above.
-  const warehouseList = useWarehouseOptions().data ?? []
-  const { data: lookups } = useCustomerLookups()
+  const warehouseQuery = useWarehousePickerOptions()
+  const warehouseList = (warehouseQuery.data ?? []).map((w) => ({
+    id: w.id,
+    ref: w.label && w.label !== w.ref ? `${w.ref} — ${w.label}` : w.ref,
+  }))
+  const customerLookupsQuery = useCustomerLookups()
+  const { data: lookups } = customerLookupsQuery
   const { data: customerDefaults } = useCustomerDefaults(customerId)
   const { data: draftProductCostPrice } = useProductCostPrice(draftProductId)
-  const { data: bankAccounts } = useDictionary('/bank_accounts.php')
-  const { data: paymentTypes } = useDictionary('/payment_types.php')
-  const { data: orderDictionaries } = useOrderDictionaries()
+  const bankAccountsQuery = useDictionary('/bank_accounts.php')
+  const { data: bankAccounts } = bankAccountsQuery
+  const paymentTypesQuery = useDictionary('/payment_types.php')
+  const { data: paymentTypes } = paymentTypesQuery
+  const orderDictionariesQuery = useOrderDictionaries()
+  const { data: orderDictionaries } = orderDictionariesQuery
   const availabilityDelays = orderDictionaries?.availabilityDelays
   const shippingMethods = orderDictionaries?.shippingMethods
   const paymentTerms = orderDictionaries?.paymentTerms
@@ -530,10 +544,25 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
             remise_percent: discountToRemisePercent(l.qty, l.unitPrice, l.discountPct, l.discountType),
           })),
       }
-      const { data } = await api.post<CreateOrderResponse>('/salesorder/?action=create', body)
+      // commande/fapi/create.php (15 Oct 2026). It answers success even when the order's lines were refused (for example
+      // "Stock is not enough for product ..." with stock-checked sales), leaving an order with no lines, so the lines
+      // are counted back before the order is reported as created.
+      const data = requireJson(await fapi.post<CreateOrderResponse>('/commande/fapi/create.php', body, { validateStatus: () => true })).data
       if (!data.success) {
-        const detail = data.details ? Object.values(data.details).join(' ') : undefined
+        const fieldErrors = data.errors && !Array.isArray(data.errors) ? Object.values(data.errors).flat().join(' ') : ''
+        const detail = data.details ? Object.values(data.details).join(' ') : fieldErrors || undefined
         throw new Error(detail ?? data.error ?? data.message ?? 'Failed to create order')
+      }
+      const sent = body.lines.length
+      const created = (data as { data?: { id?: number; ref?: string } }).data
+      if (created?.id && sent > 0) {
+        const saved = await fapi
+          .get<{ data?: { lines?: unknown[] } }>('/commande/fapi/order.php', { params: { id: created.id } })
+          .then((r) => r.data?.data?.lines?.length ?? sent)
+          .catch(() => sent)
+        if (saved < sent) {
+          throw new Error(`Order ${created.ref ?? `#${created.id}`} was created, but only ${saved} of ${sent} line(s) were saved. The backend gave no reason for the missing lines (a product without enough stock is the usual cause), so check the order before using it.`)
+        }
       }
       return data
     },
@@ -606,6 +635,18 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
   const selectedBankAccountName = bankAccounts?.find((b) => b.id === bankAccountId)?.text ?? ''
   const selectedShippingMethodName = shippingMethods?.find((s) => s.id === shippingMethodId)?.text ?? ''
   const selectedAvailabilityName = availabilityDelays?.find((a) => a.id === availabilityId)?.text ?? ''
+  const dropdownErrors = [
+    { label: 'Customers', isError: customerOptionsQuery.isError, error: customerOptionsQuery.error },
+    { label: 'Products', isError: productOptionsQuery.isError, error: productOptionsQuery.error },
+    { label: 'Projects', isError: projectOptionsQuery.isError, error: projectOptionsQuery.error },
+    { label: 'Warehouses', isError: warehouseQuery.isError, error: warehouseQuery.error },
+    { label: 'Customer lookups', isError: customerLookupsQuery.isError, error: customerLookupsQuery.error },
+    { label: 'Bank accounts', isError: bankAccountsQuery.isError, error: bankAccountsQuery.error },
+    { label: 'Payment types', isError: paymentTypesQuery.isError, error: paymentTypesQuery.error },
+    { label: 'Order form options', isError: orderDictionariesQuery.isError, error: orderDictionariesQuery.error },
+  ]
+    .filter((query) => query.isError)
+    .map(({ label, error }) => `${label}: ${error instanceof Error ? error.message : 'Request failed.'}`)
 
   return (
     <>
@@ -677,6 +718,14 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
             <Card className="shrink-0">
               <h3 className="font-semibold text-text!">Order Details</h3>
               <p className="text-sm text-text-faint mb-4">Enter basic information for the sales order</p>
+              {dropdownErrors.length > 0 && (
+                <div role="alert" className="mb-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+                  Some order-form options could not be loaded. Sign out and back in if your backend session has expired.
+                  <ul className="mt-1 list-inside list-disc">
+                    {dropdownErrors.map((message) => <li key={message}>{message}</li>)}
+                  </ul>
+                </div>
+              )}
 
               {/* Customer gets its own full-width highlighted box above the field grid,
                   matching the reference layout (commande/salesorder/index_v2.php). */}

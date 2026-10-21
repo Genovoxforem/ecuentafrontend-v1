@@ -1,5 +1,5 @@
-import { StockAtDateReplica } from '../../features/products/components/StockAtDateReplica'
+import { StockAtDatePage } from '../../features/products/components/StockAtDatePage'
 
 export function StockAtDateModule() {
-  return <StockAtDateReplica />
+  return <StockAtDatePage />
 }

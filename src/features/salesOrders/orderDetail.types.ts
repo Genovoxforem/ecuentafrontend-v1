@@ -1,8 +1,6 @@
 // Type definitions for the Sales Order detail surface — the same shapes the
-// legacy HTML parsers produced (orderCardParser/orderExtraTabsParser/
-// orderAgendaParser/orderEmail), now fed by commande/fapi/*.php JSON
-// endpoints instead of scraped markup. Kept separate from the query file so
-// components share one import site.
+// legacy HTML parsers produced, now fed by the sales-order JSON APIs.
+// Kept separate from the query file so components share one import site.
 
 export interface OrderLineDetail {
   id: number
@@ -226,10 +224,18 @@ export interface SenderOption {
   label: string
 }
 
+export interface OrderEmailRecipientOption {
+  value: string
+  label: string
+  email: string
+}
+
 export interface OrderEmailDefaults {
   senderOptions: SenderOption[]
+  recipients: OrderEmailRecipientOption[]
   defaultFromType: string
   defaultSubject: string
   defaultMessage: string
   attachedFileName: string
+  attachedFileSize: number | null
 }

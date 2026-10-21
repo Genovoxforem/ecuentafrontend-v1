@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { createProductCategory, isMissingEndpoint, searchZraClassification } from '../../api/products'
 import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 
 // The "Add Products" flow of the ZRA module, wired to what the backend itself
@@ -8,8 +9,10 @@ import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAG
 //     (countries, units, packaging, tax categories, warehouses, barcode types,
 //     accounts, tags/categories);
 //   - ASYCUDA prefill:   POST /quicklinks_ajax.php  type=get_importproduct;
-//   - classification search: GET /custom/zra/productclassification.php?term=;
-//   - new tag/category:  POST /product/ajax/products.php  action=save_categories;
+//   - classification search: GET /product/fapi/zra_classification.php?q= (JSON; the
+//     older custom/zra/productclassification.php answers when that is not deployed);
+//   - new tag/category:  POST /product/fapi/categories.php?action=create (JSON, returns
+//     the new id; the older product/ajax/products.php answers when that is not deployed);
 //   - create product:    POST /custom/zra/ajax_products.php  type=addproducts
 //     (inserts the product AND registers it with the ZRA gateway in one request).
 // The old /api/zra/* and /api/products/create-full/ routes this used to call are
@@ -204,6 +207,13 @@ export function useProductClassificationSearch(term: string) {
   return useQuery({
     queryKey: ['zra', 'product-classifications', term],
     queryFn: async (): Promise<ProductClassification[]> => {
+      try {
+        // The dictionary holds ~150,000 rows, so the endpoint wants two characters or more.
+        const found = await searchZraClassification(term.trim())
+        return found.items.map((r) => ({ id: r.code, code: r.code, label: collapse(r.label) }))
+      } catch (error) {
+        if (!isMissingEndpoint(error)) throw error
+      }
       const res = await fetch(`/custom/zra/productclassification.php?term=${encodeURIComponent(term.trim())}`, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const text = (await res.text()).trim()
@@ -216,7 +226,7 @@ export function useProductClassificationSearch(term: string) {
         return { id: String(r.id ?? code), code, label: shown.startsWith(`${code}_`) ? shown.slice(code.length + 1) : shown }
       })
     },
-    enabled: term.trim().length >= 1,
+    enabled: term.trim().length >= 2,
     staleTime: 1000 * 30,
   })
 }
@@ -233,14 +243,24 @@ export interface CreateCategoryInput {
   selected?: string[]
 }
 
-// POST /product/ajax/products.php  action=save_categories replies
-// [{ a: 1 }] when the name already exists and [{ a: 2 }] once it is created.
-// Its "b" HTML feeds a select that this page does not have, so the new
+// POST /product/fapi/categories.php?action=create returns the new category's id
+// straight away (a duplicate name at the same level is a 409 with its own
+// message). A backend without that endpoint falls back to product/ajax/products.php
+// action=save_categories, which replies [{ a: 1 }] when the name already exists and
+// [{ a: 2 }] once it is created, without saying which category it made — so the new
 // category is found by re-reading the form's own tag list afterwards.
 export function useCreateCategory() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: CreateCategoryInput): Promise<{ categoryId: string; label: string }> => {
+      try {
+        const created = await createProductCategory({ label: input.label, parent: input.parentId ? Number(input.parentId) : 0 })
+        // The form's own tag list must show it too.
+        await queryClient.fetchQuery({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchFormOptions, staleTime: 0 })
+        return { categoryId: String(created.id), label: created.label }
+      } catch (error) {
+        if (!isMissingEndpoint(error)) throw error
+      }
       const before = await queryClient.ensureQueryData({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchFormOptions, staleTime: 1000 * 60 * 10 })
       const res = await fetch('/product/ajax/products.php', {
         method: 'POST',

@@ -249,18 +249,8 @@ export function MinMaxStockPage() {
             <button type="button" onClick={handleClear} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover">
               <RotateCcw size={14} /> Clear
             </button>
-            <div className="ml-auto flex items-center gap-2">
-              <TableExportButtons title="Min-Max Stock Levels" getExportData={getExportData} />
-              <button
-                type="button"
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-info-bg text-info-fg hover:brightness-95"
-              >
-                <Upload size={14} /> Import CSV
-              </button>
-            </div>
+            <span className="text-xs text-text-faint">Showing {rows.length} products</span>
           </div>
-          <p className="text-xs text-text-faint mt-2">Showing {rows.length} products</p>
         </Card>
 
         {pendingEdits.size > 0 && (
@@ -291,6 +281,16 @@ export function MinMaxStockPage() {
                 </option>
               ))}
             </select>
+            <div className="ml-auto flex items-center gap-2">
+              <TableExportButtons title="Min-Max Stock Levels" getExportData={getExportData} />
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-info-bg text-info-fg hover:brightness-95"
+              >
+                <Upload size={14} /> Import CSV
+              </button>
+            </div>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">

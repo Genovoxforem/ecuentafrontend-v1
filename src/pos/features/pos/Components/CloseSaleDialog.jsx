@@ -50,7 +50,7 @@ function CloseSaleDialog({ sale, itemCount, pendingInvoice, draftInvoice, onCanc
                 className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between px-5 py-2.5 bg-[#2c6291] text-white">
+                <div className="flex items-center justify-between px-5 py-2.5 bg-[#2f6fe4] text-white">
                     <h3 className="font-semibold">Confirm</h3>
                     <button type="button" onClick={onCancel} className="p-1 rounded hover:bg-white/20">
                         <X size={18} />

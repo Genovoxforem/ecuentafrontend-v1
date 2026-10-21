@@ -1,10 +1,9 @@
 import { lazy, Suspense, useDeferredValue, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Loader2, PackageSearch, Ruler, Search } from 'lucide-react'
+import { ArrowLeft, Loader2, PackageSearch, Ruler, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import { useBoxBreakProducts } from '../boxBreak.queries'
-import { useUomManagerAccess } from '../uomManager.queries'
 
 // The per-product editor is the same UOM Settings tab the product card shows —
 // both are product/stock/uom/uom_manager.php's job on the backend, and both
@@ -71,33 +70,9 @@ function ProductPicker({ onPick }: { onPick: (id: number) => void }) {
 export function UomManagerPage() {
   const [params, setParams] = useSearchParams()
   const productId = params.get('id') ?? ''
-  const access = useUomManagerAccess()
   // Only used to show the chosen product's ref/label above its editor.
   const { data: products } = useBoxBreakProducts('')
   const chosen = products?.find((p) => String(p.id) === productId)
-
-  if (access.isLoading) return <LegacyLoadingCard label="Loading UOM Manager…" />
-
-  // The backend refuses to open the manager (and redirects home) when UOM
-  // management is switched off in Stock Settings — say the same thing rather
-  // than show an editor that cannot work.
-  if (access.data && access.data.blockedBy.length > 0) {
-    return (
-      <div className="space-y-4">
-        <Title />
-        <Card className="!h-auto">
-          <div className="flex items-start gap-2 text-sm text-warning-fg">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              {access.data.blockedBy.map((m) => (
-                <p key={m}>{m}</p>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-4">

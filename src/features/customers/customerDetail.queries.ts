@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
+import { fapi } from '../../api/axios'
+import { updateThirdParty } from '../../api/customers'
 import { fetchSocieteFormContext } from './thirdPartyOptions.queries'
 
 // GET societe/api/societe.php?id=X — a real, working endpoint discovered by
@@ -307,59 +309,12 @@ export type CustomerEditableFields = Partial<
   >
 >
 
-// societe/api/societes.php?action=update — confirmed working live (2026-09-11
-// re-test against customer id 1990): returns {"ok":true,"message":"Third
-// party updated",...}. An earlier session's audit found every action verb
-// (update/edit/save/update_extra/modify/patch/set) rejected with
-// {"ok":false,"error":"Unknown action or method"} and left this comment
-// documenting that as a known gap — the backend has since gained real
-// support for this action, so that note no longer applies. Kept using the
-// same "attempt the real action, surface the real error" pattern (rather
-// than a hardcoded success) regardless, since validateStatus below still
-// needs to read a genuine {ok:false,error} rejection body if this ever
-// regresses or a specific field update is rejected server-side.
-export function useUpdateCustomer(id: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (fields: CustomerEditableFields) => {
-      const { token } = await fetchSocieteFormContext()
-      // validateStatus accepts every status here — this endpoint's own
-      // error responses (confirmed live: 400 with a real {ok:false,error}
-      // body) are still meaningful JSON, not the exception case; letting
-      // axios throw its own generic "Request failed with status code 400"
-      // on those would bury the real backend message this banner needs to
-      // show instead.
-      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
-        '/societe/api/societes.php',
-        { action: 'update', id, token, ...fields },
-        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
-      )
-      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to save changes')
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers', 'detail', String(id)] })
-    },
-  })
-}
-
-// societe/api/notes.php — real, editable Public/Private notes, confirmed by
-// reading that file directly (Societe::update_note() under the hood).
-// Replaces the earlier read-only NotesTab, which only displayed
-// CustomerProfile.notePublic/notePrivate from the main profile fetch.
+// societe/fapi/update.php {note_public, note_private} (Societe::update_note under the hood), the same call the quick edit
+// uses; replaces societe/api/notes.php and its CSRF-token form post.
 export function useSaveCustomerNotes(socid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (fields: { note_public?: string; note_private?: string }) => {
-      const { token } = await fetchSocieteFormContext()
-      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
-        `/societe/api/notes.php?socid=${socid}`,
-        { token, ...fields },
-        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
-      )
-      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to save notes')
-      return data
-    },
+    mutationFn: async (fields: { note_public?: string; note_private?: string }) => updateThirdParty({ id: Number(socid), ...fields }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid] })
     },
@@ -434,6 +389,100 @@ export function useCreatePaymentMode(socid: string | undefined) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'paymentmodes'] })
+    },
+  })
+}
+
+// societe/fapi/get.php: the record's `extended` block (sales reps, tag ids, incoterm, VAT, mode, social links, ...) and its
+// tags with their type (2 = customer/prospect tag, 1 = supplier tag). societe/api/societe.php (the profile above) has neither.
+export interface ThirdPartyExtended {
+  sales_reps: number[]
+  custcats: number[]
+  suppcats: number[]
+  incoterm_id: number
+  location_incoterms: string
+  assujtva_value: number
+  usermode: number
+  state_id: number
+  social_networks: Record<string, string | null>
+}
+export interface ThirdPartyExtra {
+  extended: ThirdPartyExtended
+  categories: { id: number; label: string; type: number }[]
+}
+
+export function useThirdPartyExtra(id: string | undefined) {
+  return useQuery({
+    queryKey: ['customers', 'extra', id],
+    queryFn: async (): Promise<ThirdPartyExtra> => {
+      const res = await fapi.get<{ data: { extended: ThirdPartyExtended; categories: ThirdPartyExtra['categories'] } }>('/societe/fapi/get.php', { params: { id } })
+      return { extended: res.data.data.extended, categories: res.data.data.categories ?? [] }
+    },
+    enabled: !!id,
+    staleTime: 1000 * 30,
+    retry: false,
+  })
+}
+
+// Quick edit's choices that are not plain text. Ids are the dropdowns' own values.
+export interface QuickEditSelects {
+  type?: 'customer' | 'prospect' | 'vendor' | 'all'
+  formeJuridiqueCode?: number
+  effectifId?: number
+  countryId?: number
+  custcats?: number[]
+  suppcats?: number[]
+  /** Sent when a record becomes a vendor without a supplier code ('auto' lets the backend number it). */
+  supplierCode?: string
+}
+
+const QUICK_TEXT_KEYS: Record<keyof CustomerEditableFields, string> = {
+  name: 'name',
+  lastname: 'lastname',
+  phone: 'phone',
+  email: 'email',
+  fax: 'fax',
+  web: 'url',
+  address: 'address',
+  zip: 'zip',
+  town: 'town',
+  tpin: 'tpin',
+  trackingId: 'tracking',
+  vatId: 'vat_number',
+  employerName: 'employer_name',
+  employeeNum: 'employee_num',
+  supervisorDetails: 'supervisor_det',
+  branchCode: 'branch_code',
+  nrcNum: 'nrc_num',
+  capital: 'capital',
+  barcode: 'barcode',
+}
+
+// Saves the quick-edit card through societe/fapi/update.php with only what changed.
+export function useQuickUpdateCustomer(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ text, selects }: { text: CustomerEditableFields; selects: QuickEditSelects }) => {
+      const body: Record<string, string | number | number[]> = {}
+      for (const [k, v] of Object.entries(text)) body[QUICK_TEXT_KEYS[k as keyof CustomerEditableFields]] = v ?? ''
+      if (selects.type) body.type = selects.type
+      if (selects.formeJuridiqueCode !== undefined) body.forme_juridique_code = selects.formeJuridiqueCode
+      if (selects.effectifId !== undefined) body.effectif_id = selects.effectifId
+      if (selects.countryId !== undefined) body.country_id = selects.countryId
+      if (selects.custcats) body.custcats = selects.custcats
+      if (selects.suppcats) body.suppcats = selects.suppcats
+      if (selects.supplierCode) body.code_fournisseur = selects.supplierCode
+      if (Object.keys(body).length === 0) return { id }
+      try {
+        return await updateThirdParty({ id, ...body })
+      } catch (err) {
+        const message = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        if (typeof message === 'string') throw new Error(message)
+        throw err
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
     },
   })
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapi } from '../../api/axios'
 import axios from 'axios'
+import { isMissingRoute, preferNewApi, requireJson, NEW_ORDER_ACTIONS } from './orderApi'
 import type {
   OrderDetail,
   OrderNotes,
@@ -32,7 +33,7 @@ interface FapiEnvelope<T> {
 }
 
 async function fapiGet<T>(path: string): Promise<T> {
-  const res = await fapi.get<FapiEnvelope<T>>(path)
+  const res = requireJson(await fapi.get<FapiEnvelope<T>>(path))
   const body = res.data
   if (body && body.success === false) throw new Error(body.message || 'Request failed.')
   return body.data
@@ -40,11 +41,12 @@ async function fapiGet<T>(path: string): Promise<T> {
 
 async function fapiPost<T>(path: string, payload: unknown): Promise<T> {
   try {
-    const res = await fapi.post<FapiEnvelope<T>>(path, payload)
+    const res = requireJson(await fapi.post<FapiEnvelope<T>>(path, payload))
     const body = res.data
     if (body && body.success === false) throw new Error(body.message || 'Request failed.')
     return body.data
   } catch (e) {
+    if (isMissingRoute(e)) throw e
     if (axios.isAxiosError(e)) {
       const msg = e.response?.data?.message
       throw new Error(typeof msg === 'string' ? msg : `Backend returned ${e.response?.status ?? 'no response'}.`)
@@ -56,11 +58,12 @@ async function fapiPost<T>(path: string, payload: unknown): Promise<T> {
 // For multipart bodies (file upload, email attachments).
 async function fapiPostForm<T>(path: string, body: FormData): Promise<T> {
   try {
-    const res = await fapi.post<FapiEnvelope<T>>(path, body)
+    const res = requireJson(await fapi.post<FapiEnvelope<T>>(path, body))
     const payload = res.data
     if (payload && payload.success === false) throw new Error(payload.message || 'Request failed.')
     return payload.data
   } catch (e) {
+    if (isMissingRoute(e)) throw e
     if (axios.isAxiosError(e)) {
       const msg = e.response?.data?.message
       throw new Error(typeof msg === 'string' ? msg : `Backend returned ${e.response?.status ?? 'no response'}.`)
@@ -87,33 +90,52 @@ function invalidateOrderDetail(queryClient: ReturnType<typeof useQueryClient>, i
   queryClient.invalidateQueries({ queryKey: ['salesOrders', 'summary'] })
 }
 
+// commande/api/order.php?action=... has an action for each of these; link removal (dellink) only exists on commande/fapi.
+// Stock-managed validate/cancel/restore-to-draft answer 400 until idwarehouse is sent, so retry once with the default warehouse.
+async function postNewOrderAction(id: string, action: string, extra: Record<string, unknown>) {
+  const newAction = NEW_ORDER_ACTIONS[action]
+  const body = { id: Number(id), ...(action === 'builddoc' ? { model: extra.model, lang_id: extra.lang_id } : extra) }
+  try {
+    return await fapiPost<{ id: number }>(`/commande/fapi/order.php?action=${newAction}`, body)
+  } catch (err) {
+    if (!(err instanceof Error) || !/idwarehouse/i.test(err.message)) throw err
+    const options = await fapiGet<{ warehouses?: Array<{ value: string }>; }>(`/commande/fapi/meta.php`)
+    const idwarehouse = Number(options.warehouses?.[0]?.value)
+    if (!idwarehouse) throw err
+    return fapiPost<{ id: number }>(`/commande/fapi/order.php?action=${newAction}`, { ...body, idwarehouse })
+  }
+}
+
 async function postOrderAction(id: string | undefined, action: string, extra: Record<string, unknown> = {}) {
   if (!id) throw new Error('Missing order id.')
-  return fapiPost<{ id: number }>(`/commande/fapi/actions.php`, { id, action, ...extra })
+  const legacy = () => fapiPost<{ id: number }>(`/commande/fapi/actions.php`, { id, action, ...extra })
+  if (!NEW_ORDER_ACTIONS[action]) return legacy()
+  return preferNewApi('order-actions', () => postNewOrderAction(id, action, extra), legacy)
 }
 
 // ------------------------------------------------------------- detail ------
-// Maps get.php's native JSON to the OrderDetail shape the components render.
+// Maps order.php's native JSON to the OrderDetail shape the components render.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapOrderDetail(d: any, id: number): OrderDetail {
   const legacyCard = `/commande/card.php?id=${id}`
+  const thirdPartySocid = d.third_party_socid ?? d.thirdparty?.id ?? d.fk_soc ?? null
   return {
-    id,
+    id: Number(d.id) || id,
     ref: d.ref ?? '',
     refCustomer: d.ref_customer ?? d.ref_client ?? '',
     statusLabel: d.status_label ?? '',
-    statusBadgeNumber: typeof d.status_badge === 'number' ? d.status_badge : null,
+    statusBadgeNumber: Number(d.status_badge ?? d.fk_statut) || null,
     thirdPartyName: d.third_party_name ?? d.thirdparty?.name ?? '',
-    thirdPartySocid: d.third_party_socid ?? d.thirdparty?.id ?? null,
+    thirdPartySocid,
     projectRef: d.project?.ref ?? '',
     projectLabel: d.project?.label ?? '',
-    projectId: d.project?.id ?? null,
+    projectId: d.project?.id ?? d.project_id ?? null,
     orderDate: d.order_date ?? '',
     plannedDelivery: d.planned_delivery ?? '',
     shippingMethod: d.shipping_method ?? '',
     paymentTerms: d.payment_terms ?? '',
     paymentType: d.payment_type ?? '',
-    currencyLabel: d.currency_label ?? '',
+    currencyLabel: d.currency_label ?? d.multicurrency_code ?? '',
     availabilityDelay: d.availability ?? '',
     channel: d.channel ?? '',
     incoterms: d.incoterms ?? '',
@@ -122,14 +144,14 @@ function mapOrderDetail(d: any, id: number): OrderDetail {
     stockReserveEnabled: d.stock_reserve ? Boolean(d.stock_reserve.enabled) : null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lines: (d.lines ?? []).map((l: any) => ({
-      id: Number(l.id) || 0,
+      id: Number(l.id ?? l.line_id) || 0,
       productId: Number(l.fk_product ?? l.product_id) || 0,
-      productRef: l.product_ref ?? '',
-      productLabel: l.product_label ?? '',
+      productRef: l.product_ref ?? l.ref ?? '',
+      productLabel: l.product_label ?? l.label ?? '',
       description: l.description ?? '',
       qty: Number(l.qty) || 0,
-      unitPriceExcl: Number(l.price_ht) || 0,
-      unitPriceIncl: Number(l.price_ttc) || 0,
+      unitPriceExcl: Number(l.price_ht ?? l.subprice) || 0,
+      unitPriceIncl: Number(l.price_ttc ?? (Number(l.qty) ? Number(l.total_ttc) / Number(l.qty) : 0)) || 0,
       vatRate: Number(l.tva_tx ?? l.vat_rate) || 0,
       vatCode: l.vat_code ?? '',
       discountPercent: Number(l.remise_percent) || 0,
@@ -146,9 +168,13 @@ function mapOrderDetail(d: any, id: number): OrderDetail {
     refEditUrl: `${legacyCard}&action=editref`,
     refCustomerEditUrl: `${legacyCard}&action=editref_client`,
     projectEditUrl: `${legacyCard}&action=classify`,
-    otherOrdersUrl: d.third_party_socid ? `/commande/list.php?socid=${d.third_party_socid}` : '',
+    otherOrdersUrl: thirdPartySocid ? `/commande/list.php?socid=${thirdPartySocid}` : '',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actions: (d.actions ?? []).map((a: any) => ({ label: a.label ?? '', url: a.url ?? '', enabled: a.enabled !== false })),
+    actions: (d.actions ?? []).map((a: any) => ({
+      label: a.label ?? '',
+      url: a.url ?? '',
+      enabled: a.enabled ?? (a.action && d.can?.[a.action] !== undefined ? Boolean(d.can[a.action]) : true),
+    })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     relatedObjects: (d.related_objects ?? []).map((o: any) => ({
       type: o.type ?? '',
@@ -190,7 +216,7 @@ function mapOrderDetail(d: any, id: number): OrderDetail {
 export function useOrderDetail(id: string | undefined) {
   return useQuery<OrderDetail>({
     queryKey: ['salesOrders', 'detail', id],
-    queryFn: async () => mapOrderDetail(await fapiGet(`/commande/fapi/get.php?id=${id}`), Number(id)),
+    queryFn: async () => mapOrderDetail(await fapiGet(`/commande/fapi/order.php?id=${encodeURIComponent(id!)}`), Number(id)),
     enabled: !!id,
   })
 }
@@ -200,7 +226,7 @@ export function useOrderNotes(id: string | undefined) {
   return useQuery<Pick<OrderNotes, 'notePublic' | 'notePrivate'>>({
     queryKey: ['salesOrders', 'detail', id, 'notes'],
     queryFn: async () => {
-      const d = await fapiGet<{ note_public: string; note_private: string }>(`/commande/fapi/notes.php?id=${id}`)
+      const d = await fapiGet<{ note_public: string; note_private: string }>(`/commande/fapi/notes.php?id=${encodeURIComponent(id!)}`)
       return {
         notePublic: d.note_public ?? '',
         notePrivate: d.note_private ?? '',
@@ -219,7 +245,9 @@ export function useSetOrderNote(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { field: 'note_public' | 'note_private'; value: string }) => {
-      await fapiPost(`/commande/fapi/notes.php`, { id: Number(id), [input.field]: input.value })
+      if (!id) throw new Error('Missing order id.')
+      const body = { id: Number(id), [input.field]: input.value }
+      await fapiPost(`/commande/fapi/notes.php`, body)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'notes'] }),
   })
@@ -231,21 +259,30 @@ interface DocListResponse {
   files: any[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   links: any[]
-  meta: { attached_count: number; total_size: string; saving_doc_mask: string; can_upload: boolean }
+  // commande/fapi sends attached_count / total_size / saving_doc_mask / can_upload; commande/api sends only can_edit.
+  meta: { attached_count?: number; total_size?: string; saving_doc_mask?: string; can_upload?: boolean; can_edit?: boolean }
+}
+
+function fetchOrderDocuments(id: string | undefined) {
+  return preferNewApi(
+    'documents',
+    () => fapiGet<DocListResponse>(`/commande/fapi/documents.php?id=${id}`),
+    () => fapiGet<DocListResponse>(`/commande/fapi/documents.php?id=${id}`),
+  )
 }
 
 export function useOrderDocuments(id: string | undefined) {
   return useQuery<OrderDocumentRow[]>({
     queryKey: ['salesOrders', 'detail', id, 'documents'],
     queryFn: async () => {
-      const d = await fapiGet<DocListResponse>(`/commande/fapi/documents.php?id=${id}`)
+      const d = await fetchOrderDocuments(id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (d.files ?? []).map((f: any) => ({
         name: f.name ?? '',
         url: f.url ?? '',
         size: f.size ?? '',
         date: f.date ?? '',
-        deletable: Boolean(d.meta?.can_upload),
+        deletable: Boolean(d.meta?.can_upload ?? d.meta?.can_edit),
       }))
     },
     enabled: !!id,
@@ -256,9 +293,9 @@ export function useOrderDocumentsPageMeta(id: string | undefined) {
   return useQuery<DocumentsPageMeta>({
     queryKey: ['salesOrders', 'detail', id, 'documentsMeta'],
     queryFn: async () => {
-      const d = await fapiGet<DocListResponse>(`/commande/fapi/documents.php?id=${id}`)
+      const d = await fetchOrderDocuments(id)
       return {
-        attachedCount: d.meta?.attached_count ?? 0,
+        attachedCount: d.meta?.attached_count ?? (d.files ?? []).length,
         totalSize: d.meta?.total_size ?? '',
         savingDocMask: d.meta?.saving_doc_mask ?? '',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -278,7 +315,11 @@ export function useUploadOrderDocument(id: string | undefined) {
       body.set('id', id ?? '')
       body.append('userfile[]', input.file)
       if (input.useMask) body.set('savingdocmask', input.savingDocMask)
-      await fapiPostForm(`/commande/fapi/documents.php`, body)
+      await preferNewApi(
+        'documents',
+        () => fapiPostForm(`/commande/fapi/documents.php?action=upload`, body),
+        () => fapiPostForm(`/commande/fapi/documents.php`, body),
+      )
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documentsPage'] })
@@ -290,7 +331,8 @@ export function useLinkOrderDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { link: string; label: string }) => {
-      await fapiPost(`/commande/fapi/documents.php`, { action: 'link', id, link: input.link, label: input.label })
+      const body = { action: 'link', id, link: input.link, label: input.label }
+      await preferNewApi('documents', () => fapiPost(`/commande/fapi/documents.php?action=link`, body), () => fapiPost(`/commande/fapi/documents.php`, body))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'documentsPage'] })
@@ -309,7 +351,12 @@ export function useOrderContacts(id: string | undefined, newcompany?: string) {
     queryKey: ['salesOrders', 'detail', id, 'contacts', newcompany ?? ''],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = await fapiGet<any>(`/commande/fapi/contacts.php?id=${id}${newcompany ? `&newcompany=${newcompany}` : ''}`)
+      const query = `id=${id}${newcompany ? `&newcompany=${newcompany}` : ''}`
+      const d = await preferNewApi(
+        'contacts',
+        () => fapiGet<any>(`/commande/fapi/contacts.php?${query}`),
+        () => fapiGet<any>(`/commande/fapi/contacts.php?${query}`),
+      )
       const opts = d.options ?? {}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mapRows = (list: any[]): ContactRow[] =>
@@ -349,7 +396,16 @@ export function useAddOrderContact(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { source: 'internal' | 'external'; userid?: string; type?: string; contactid?: string; typecontact?: string }) => {
-      await fapiPost(`/commande/fapi/contacts.php`, {
+      // commande/api names: fk_user / fk_socpeople / type_contact. commande/fapi names: userid / contactid / type / typecontact.
+      const internal = input.source === 'internal'
+      const newBody = {
+        action: 'add',
+        id,
+        source: input.source,
+        ...(internal ? { fk_user: Number(input.userid) } : { fk_socpeople: Number(input.contactid) }),
+        type_contact: Number((internal ? input.type : input.typecontact) || 0),
+      }
+      const oldBody = {
         action: 'add',
         id,
         source: input.source,
@@ -357,7 +413,8 @@ export function useAddOrderContact(id: string | undefined) {
         type: input.type ? Number(input.type) : undefined,
         contactid: input.contactid ? Number(input.contactid) : undefined,
         typecontact: input.typecontact ? Number(input.typecontact) : undefined,
-      })
+      }
+      await preferNewApi('contacts', () => fapiPost(`/commande/fapi/contacts.php?action=add`, newBody), () => fapiPost(`/commande/fapi/contacts.php`, oldBody))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'contacts'] })
@@ -376,7 +433,11 @@ export function useOrderShipmentStock(id: string | undefined) {
     queryKey: ['salesOrders', 'detail', id, 'shipmentStock'],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = await fapiGet<any>(`/commande/fapi/shipments.php?id=${id}`)
+      const d = await preferNewApi(
+        'shipment',
+        () => fapiGet<any>(`/expedition/fapi/shipment.php?id=${id}`),
+        () => fapiGet<any>(`/commande/fapi/shipments.php?id=${id}`),
+      )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const warehouses = (d.warehouses ?? []).map((w: any) => ({ value: String(w.id), label: w.lieu ? `${w.ref} — ${w.lieu}` : w.ref }))
       return {
@@ -409,7 +470,11 @@ export function useOrderConsumption(id: string | undefined) {
     queryKey: ['salesOrders', 'detail', id, 'consumption'],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = await fapiGet<any>(`/commande/fapi/consumption.php?id=${id}`)
+      const d = await preferNewApi(
+        'consumption',
+        () => fapiGet<any>(`/custom/consumption/fapi/history.php?id=${id}&type=commande`),
+        () => fapiGet<any>(`/commande/fapi/consumption.php?id=${id}`),
+      )
       const opts = d.options ?? {}
       return {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -441,7 +506,7 @@ export function useDeclareConsumption(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { product: string; id_entrepot: string; nbpiece: string; batch_number: string; label: string; eatby: string; sellby: string }) => {
-      await fapiPost(`/commande/fapi/consumption.php`, {
+      const body = {
         id,
         product: Number(input.product),
         id_entrepot: Number(input.id_entrepot),
@@ -450,7 +515,12 @@ export function useDeclareConsumption(id: string | undefined) {
         label: input.label,
         eatby: input.eatby,
         sellby: input.sellby,
-      })
+      }
+      await preferNewApi(
+        'consumption',
+        () => fapiPost(`/custom/consumption/fapi/history.php?action=declare`, { ...body, type: 'commande' }),
+        () => fapiPost(`/commande/fapi/consumption.php`, body),
+      )
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salesOrders', 'detail', id, 'consumption'] })
@@ -464,7 +534,11 @@ export function useOrderAgendaPage(id: string | undefined) {
     queryKey: ['salesOrders', 'detail', id, 'agendaPage'],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = await fapiGet<any>(`/commande/fapi/agenda.php?id=${id}`)
+      const d = await preferNewApi(
+        'agenda',
+        () => fapiGet<any>(`/commande/fapi/agenda.php?id=${id}`),
+        () => fapiGet<any>(`/commande/fapi/agenda.php?id=${id}`),
+      )
       return {
         createdBy: d.created_by ?? '',
         creationDate: d.creation_date ?? '',
@@ -566,18 +640,24 @@ export function useRemoveOrderLink(id: string | undefined) {
   })
 }
 
-// POST /commande/fapi/shipments.php — Expedition::create via the same
-// per-line {line_id, qty} contract as the legacy idl<i>/qtyl<i> fields.
+// POST expedition/fapi/shipment.php — Expedition::create via the order line
+// ids and quantities shown in the shipment tab.
 export function useCreateShipmentFromOrder(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { warehouseId: string; lines: Array<{ lineId: number; qty: number }> }) => {
+    mutationFn: async (input: { warehouseId: string; lines: Array<{ lineId: number; qty: number }>; notePrivate?: string }) => {
       if (!id) throw new Error('Missing order id.')
-      const d = await fapiPost<{ id: number; ref: string }>(`/commande/fapi/shipments.php`, {
-        id,
+      const body = {
+        id: Number(id),
         warehouse_id: Number(input.warehouseId),
         lines: input.lines.map((l) => ({ line_id: l.lineId, qty: l.qty })),
-      })
+        note_private: input.notePrivate ?? '',
+      }
+      const d = await preferNewApi(
+        'shipment',
+        () => fapiPost<{ id: number; ref: string }>(`/expedition/fapi/shipment.php?action=create`, body),
+        () => fapiPost<{ id: number; ref: string }>(`/commande/fapi/shipments.php`, body),
+      )
       return d?.id ? String(d.id) : null
     },
     onSuccess: () => {
@@ -600,8 +680,8 @@ export function useGenerateOrderDoc(id: string | undefined) {
   })
 }
 
-// POST /commande/fapi/agenda.php — ActionComm::create linked via
-// fk_element/elementtype='order', same link the legacy form writes.
+// POST comm/fapi/event.php — ActionComm::create linked to the order, with the
+// caller assigned by default. The old fapi endpoint remains a route fallback.
 export interface NewOrderEventInput {
   label: string
   note: string
@@ -617,8 +697,8 @@ export function useCreateOrderEvent(id: string | undefined, socid: number | null
   return useMutation({
     mutationFn: async (input: NewOrderEventInput) => {
       if (!id) throw new Error('Missing order id.')
-      await fapiPost(`/commande/fapi/agenda.php`, {
-        id,
+      const body = {
+        id: Number(id),
         label: input.label,
         note: input.note,
         location: input.location,
@@ -626,8 +706,14 @@ export function useCreateOrderEvent(id: string | undefined, socid: number | null
         start: input.startDate,
         end: input.endDate || undefined,
         complete: input.complete,
+        type_id: 50,
         socid: socid ?? undefined,
-      })
+      }
+      await preferNewApi(
+        'create-order-event',
+        () => fapiPost(`/comm/fapi/event.php?action=create`, body),
+        () => fapiPost(`/commande/fapi/agenda.php`, body),
+      )
     },
     onSuccess: () => {
       invalidateOrderDetail(queryClient, id)

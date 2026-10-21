@@ -19,10 +19,10 @@ export function NoDataToast({ message, durationMs = 6000 }: { message: string; d
   return (
     <div
       role="status"
-      className="fixed top-4 right-4 z-[60] flex items-start gap-2.5 max-w-sm px-4 py-3 rounded-xl bg-info-bg text-info-fg shadow-lg border border-info-fg/20 animate-[toast-in_0.2s_ease-out_forwards]"
+      className="fixed bottom-4 right-4 z-[60] flex w-[min(24rem,calc(100vw-2rem))] items-start gap-2.5 rounded-xl border border-info-fg/20 bg-info-bg px-4 py-3 text-info-fg shadow-lg animate-[toast-in_0.2s_ease-out_forwards]"
     >
       <Info size={16} className="shrink-0 mt-0.5" />
-      <p className="text-sm leading-snug">{message}</p>
+      <p className="min-w-0 flex-1 break-words text-sm leading-snug">{message}</p>
       <button type="button" onClick={() => setVisible(false)} aria-label="Dismiss" className="shrink-0 p-0.5 rounded-md hover:bg-info-fg/10">
         <X size={14} />
       </button>

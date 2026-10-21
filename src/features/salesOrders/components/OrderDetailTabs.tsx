@@ -232,6 +232,7 @@ function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailD
   const { data: shipmentData, isLoading, isError, error, refetch } = useOrderShipmentStock(id)
   const createShipment = useCreateShipmentFromOrder(id)
   const [warehouse, setWarehouse] = useState('')
+  const [notePrivate, setNotePrivate] = useState('')
   // Keyed by the ORDER line's real rowid (data.lines[i].id) so it survives
   // shipmentData refetching between renders — seeded from each row's own
   // real "Remain to ship" figure, same default the legacy create form uses.
@@ -245,20 +246,17 @@ function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailD
     if (!shipmentData || !id) return
     const chosenWarehouse = warehouse || shipmentData.createForm.defaultWarehouseId
     if (!chosenWarehouse) return
-    // expedition/card.php?action=add needs idl<i>/qtyl<i> for every one of
-    // the ORDER's own lines, in the exact index order data.lines already
-    // holds them (both this tab's Stock Details rows and the main order
-    // query's lines come from the same fetch_lines() call on this same
-    // order - see orderDetail.queries.ts's useCreateShipmentFromOrder
-    // comment). Lines left at 0 are skipped server-side, not rejected.
+    // Shipment line ids are the ORDER's own line ids. Lines left at 0 are
+    // skipped server-side; the endpoint rejects requests with nothing to ship.
     const lines = data.lines.map((line, i) => ({ lineId: line.id, qty: qtyFor(line.id, shipmentData.stockRows[i]?.remainToShip ?? 0) }))
     if (!lines.some((l) => l.qty > 0)) return
     // No shipment-detail route exists in this app (only this order's own
     // Shipments tab shows shipment data) - staying put and letting the
     // mutation's own query invalidation refresh Stock Details in place is
     // the honest landing point, not a fabricated destination.
-    await createShipment.mutateAsync({ warehouseId: chosenWarehouse, lines })
+    await createShipment.mutateAsync({ warehouseId: chosenWarehouse, lines, notePrivate })
     setQtyByLineId({})
+    setNotePrivate('')
   }
 
   return (
@@ -337,9 +335,8 @@ function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailD
         )}
       </Card>
 
-      {/* Real POST expedition/card.php?action=add — see
-          orderDetail.queries.ts's useCreateShipmentFromOrder comment for
-          the exact confirmed field contract. */}
+      {/* Real POST expedition/api/shipment.php — see
+          orderDetail.queries.ts's useCreateShipmentFromOrder for its contract. */}
       {shipmentData && shipmentData.createForm.warehouseOptions.length > 0 && id && (
         <Card className="!h-auto">
           <h3 className="font-semibold text-text! mb-3 flex items-center gap-2">
@@ -359,6 +356,14 @@ function ShipmentsTab({ id, data }: { id: string | undefined; data: OrderDetailD
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="flex min-w-64 flex-1 flex-col gap-1">
+              <span className="text-xs text-text-faint">Private note</span>
+              <input
+                value={notePrivate}
+                onChange={(e) => setNotePrivate(e.target.value)}
+                className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+              />
             </label>
             <button
               type="button"

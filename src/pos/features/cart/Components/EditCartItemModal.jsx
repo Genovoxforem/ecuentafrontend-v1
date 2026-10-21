@@ -176,7 +176,7 @@ function EditCartItemModal({ item, onClose, onSave, onRemove }) {
     return (
         <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="edit-cart-item-scroll w-full max-w-md max-h-[90vh] overflow-y-auto soft-scrollbar rounded-2xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xl">
-                <div className="flex items-center justify-between px-5 py-2 bg-[#2c6291] rounded-t-2xl text-white">
+                <div className="flex items-center justify-between px-5 py-2 bg-[#2f6fe4] rounded-t-2xl text-white">
                     <div className="flex items-center gap-2 text-base font-semibold">
                         <Pencil size={18} />
                         Edit Cart Item
@@ -238,7 +238,7 @@ function EditCartItemModal({ item, onClose, onSave, onRemove }) {
                                 title="Reduce stock when saving"
                                 className={`w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border transition-colors ${
                                     reduceStock
-                                        ? "bg-[#2c6291] border-[#2c6291] text-white"
+                                        ? "bg-[#2f6fe4] border-[#2f6fe4] text-white"
                                         : "border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-300"
                                 }`}
                             >
@@ -319,7 +319,7 @@ function EditCartItemModal({ item, onClose, onSave, onRemove }) {
                                         type="button"
                                         onClick={handleVerifyPasscode}
                                         disabled={verifyingPasscode}
-                                        className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold text-white bg-[#397db9] hover:bg-[#2c6291] disabled:opacity-60"
+                                        className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4] disabled:opacity-60"
                                     >
                                         <Lock size={12} />
                                         {verifyingPasscode ? "Checking..." : "Unlock"}
@@ -395,7 +395,7 @@ function EditCartItemModal({ item, onClose, onSave, onRemove }) {
                     <button
                         type="button"
                         onClick={handleSave}
-                        className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-white bg-[#397db9] hover:bg-[#2c6291]"
+                        className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-white bg-[#3b82f6] hover:bg-[#2f6fe4]"
                     >
                         <Save size={12} />
                         Save Changes

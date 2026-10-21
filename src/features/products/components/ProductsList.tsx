@@ -162,24 +162,24 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
         </Link>
       </InBanner>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+      <div className="flex-1 flex flex-col min-h-0 space-y-2 px-6 py-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Card className="!p-2 !flex-row items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Products</p>
-              <p className="text-xl font-bold text-text! mt-1">{summary.totalProducts}</p>
+              <p className="text-base font-bold text-text! leading-tight">{summary.totalProducts}</p>
             </div>
-            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
-              <Package size={20} />
+            <span className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
+              <Package size={16} />
             </span>
           </Card>
-          <Card className="!p-3 !flex-row items-center justify-between gap-3">
+          <Card className="!p-2 !flex-row items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Services</p>
-              <p className="text-xl font-bold text-text! mt-1">{summary.totalServices}</p>
+              <p className="text-base font-bold text-text! leading-tight">{summary.totalServices}</p>
             </div>
-            <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
-              <Wrench size={20} />
+            <span className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
+              <Wrench size={16} />
             </span>
           </Card>
         </div>

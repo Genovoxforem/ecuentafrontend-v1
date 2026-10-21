@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { api, fapi } from '../../api/axios'
 import { customerLookupsQuery, type CustomerLookups } from '../customers/thirdPartyOptions.queries'
 
 // ── Dictionary options (same pattern as OrderCreateForm's useDictionary) ──
@@ -82,9 +82,25 @@ export function useCustomerInvoiceDefaults(socid: string) {
           multicurrency_tx: number
           note_public: string | null
           note_private: string | null
+          outstanding_balance?: string | number | null
         }
       }>('/salesorder/?action=get_customer', { params: { id: socid } })
       const d = data.data
+      // What the customer still owes (get_customer returns it) and the advance payments they have left
+      // (compta/facture/fapi/advances.php totals); the classic page shows both on its customer card.
+      const advance = await fapi
+        .get<{ data?: { totals?: { remaining_amount?: number } } }>('/compta/facture/fapi/advances.php', { params: { socid, limit: 1 } })
+        .then((r) => Number(r.data?.data?.totals?.remaining_amount) || 0)
+        .catch(() => 0)
+      // societe/fapi/get.php reports the figure from Societe::getOutstandingBills() (62.00 on newecuenta);
+      // get_customer's own figure ignores payments (84.00), so it is only the fallback.
+      const outstanding = await fapi
+        .get<{ data?: { outstanding?: { opened?: number }; outstanding_balance?: number } }>('/societe/fapi/get.php', { params: { id: socid } })
+        .then((r) => {
+          const v = r.data?.data
+          return v?.outstanding?.opened ?? (typeof v?.outstanding_balance === 'number' && v.outstanding_balance !== 1 ? v.outstanding_balance : undefined)
+        })
+        .catch(() => undefined)
       return {
         fkAccount: d.fk_account ? String(d.fk_account) : null,
         bankAccountName: d.bank_account ?? '',
@@ -92,8 +108,8 @@ export function useCustomerInvoiceDefaults(socid: string) {
         multicurrencyTx: d.multicurrency_tx || 1,
         notePublic: d.note_public,
         notePrivate: d.note_private,
-        outstandingBalance: 0,
-        advanceAmount: 0,
+        outstandingBalance: outstanding ?? (Number(d.outstanding_balance) || 0),
+        advanceAmount: advance,
         tpin: null,
         branch: null,
       }

@@ -20,6 +20,8 @@ import {
   Landmark,
   CheckCircle2,
   Circle,
+  BarChart2,
+  ShieldCheck,
 } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -31,10 +33,12 @@ import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
 import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
+import { ProductZraRegisterModal } from './ProductZraRegisterModal'
 import {
   useProductDetail,
   useProductDocuments,
   useProductDashboard,
+  useProductSalesWindow,
   useDeleteProduct,
   useDuplicateProduct,
 } from '../products.queries'
@@ -127,6 +131,7 @@ export function ProductDetail() {
   const duplicateProduct = useDuplicateProduct()
   const confirm = useConfirm()
   const [actionError, setActionError] = useState('')
+  const [showZra, setShowZra] = useState(false)
   const [tab, setTab] = useState<Tab>('Product Card')
   // Fetched here (not just inside LinkedFilesTab) so its real file count can
   // badge the "Documents" tab button, matching legacy's own file-count badge
@@ -202,7 +207,7 @@ export function ProductDetail() {
     })
     if (!confirmed) return
     setActionError('')
-    duplicateProduct.mutate(id!, {
+    duplicateProduct.mutate({ id: id!, ref: product!.ref }, {
       onSuccess: (result) => navigate(ROUTES.productDetail.replace(':id', String(result.id))),
       onError: (err) => setActionError(err instanceof Error ? err.message : 'Duplicate failed.'),
     })
@@ -210,6 +215,7 @@ export function ProductDetail() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
+      {showZra && <ProductZraRegisterModal productId={id!} onClose={() => setShowZra(false)} />}
       <div className="sticky -top-6 z-10 flex items-center justify-between gap-3 border-b border-border bg-white p-2.5 dark:bg-gray-950">
         <Link to={ROUTES.productList} className="flex items-center gap-1.5 text-sm text-text-faint hover:text-text" title="Back to list">
           <ChevronLeft size={18} /> Products
@@ -227,50 +233,53 @@ export function ProductDetail() {
               content (which already assumed edge-to-edge placement) aren't
               double-padded; the hero section gets its own p-4 wrapper instead. */}
           <Card className="!h-auto !p-0 overflow-hidden !border-0 !rounded-none">
-          <div className="flex flex-wrap items-start justify-between gap-4 p-4 pl-8 pr-8 border-b border-border">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-3 border-b border-border">
           <div className="flex items-start gap-4 min-w-[240px] flex-1">
             <Avatar
               photo={product.hasImage ? resolveBackendAsset(product.imageUrl) : undefined}
               name={product.label}
-              size={84}
+              size={52}
               rounded={isBlueMetal ? 'full' : 'lg'}
               color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'}
             />
             <div className="space-y-2 pt-0.5">
-              <div className="flex items-start gap-2">
-                <h2 className="text-lg font-bold text-text!">{product.label}</h2>
+              {/* Name, status, the type / country / created line and the price and stock
+                  chips share one wrapping row, so they sit beside the "For sale" badge. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <h2 className="text-base font-bold text-text!">{product.label}</h2>
                 <StatusPill active={product.forSale} activeLabel="For sale" inactiveLabel="Not for sale" tone="success" />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint">
+                  <span className="flex items-center gap-1">
+                    <Package size={12} /> {product.type === 'service' ? 'Service' : 'Product'}
+                  </span>
+                  {originLabel && (
+                    <span className="flex items-center gap-1">
+                      <MapPin size={12} /> {product.originCountryCode ? `${product.originCountryCode} - ${originLabel}` : originLabel}
+                    </span>
+                  )}
+                  {product.manufacturer && (
+                    <span className="flex items-center gap-1">
+                      <Factory size={12} /> {product.manufacturer}
+                    </span>
+                  )}
+                  {product.createdAt && (
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12} /> Created {formatDateTimeAmPm(product.createdAt)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatChip label="Price Inc." value={formatMoney(product.priceInclTax)} />
+                  <StatChip label="Stock" value={formatNumber(product.stock)} />
+                </div>
               </div>
-              <span className="inline-block rounded-md border border-border bg-surface px-2 py-0.5 text-xs text-text-muted">
-                SKU <span className="font-medium text-text!">{product.ref}</span>
-              </span>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-faint">
-                <span className="flex items-center gap-1">
-                  <Package size={12} /> {product.type === 'service' ? 'Service' : 'Product'}
+              <div className="flex flex-wrap items-end gap-3">
+                <span className="inline-block rounded-md border border-border bg-surface px-2 py-0.5 text-xs text-text-muted">
+                  SKU <span className="font-medium text-text!">{product.ref}</span>
                 </span>
-                {originLabel && (
-                  <span className="flex items-center gap-1">
-                    <MapPin size={12} /> {product.originCountryCode ? `${product.originCountryCode} - ${originLabel}` : originLabel}
-                  </span>
-                )}
-                {product.manufacturer && (
-                  <span className="flex items-center gap-1">
-                    <Factory size={12} /> {product.manufacturer}
-                  </span>
-                )}
-                {product.createdAt && (
-                  <span className="flex items-center gap-1">
-                    <Calendar size={12} /> Created {formatDateTimeAmPm(product.createdAt)}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <StatChip label="Price Inc." value={formatMoney(product.priceInclTax)} />
-                <StatChip label="Stock" value={formatNumber(product.stock)} />
                 {product.barcode && (
-                  <div className="flex flex-col items-center gap-0.5 shrink-0 ml-3">
+                  <div className="flex flex-col items-center gap-0.5 shrink-0">
                     <ProductBarcodeGraphic value={product.barcode} height={30} width={1.0} />
-                    {/* <span className="text-[9px] text-text-faint whitespace-nowrap">{product.barcode}</span> */}
                   </div>
                 )}
               </div>
@@ -296,6 +305,16 @@ export function ProductDetail() {
               >
                 <Pencil size={14} /> Edit
               </Link>
+              {product.type !== 'service' && (
+                <button
+                  type="button"
+                  onClick={() => setShowZra(true)}
+                  title="Register with ZRA"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
+                >
+                  <ShieldCheck size={14} /> ZRA
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleDuplicate}
@@ -526,6 +545,7 @@ function ProductTab({
           (Teams) fell short of the left column's bottom (Overview) instead
           of lining up with it. */}
       <div className="flex flex-col gap-4">
+        <ProductSalesWindow id={id} />
         <Card className="!h-auto !p-0 !bg-surface">
           <ActivityTimeline id={id} onViewAll={onViewAllActivity} />
         </Card>
@@ -599,12 +619,12 @@ function ActivityTimeline({ id, onViewAll }: { id: string | undefined; onViewAll
               </li>
             ))}
           </ul>
-          {/* Matches legacy's own "Xâ€“Y of Z" pager exactly (product/card.php's inline JS,
+          {/* Matches legacy's own "X–Y of Z" pager exactly (product/card.php's inline JS,
               loadTimeline()) - only rendered when there's more than one page, same as there. */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
               <span className="text-xs text-text-faint">
-                {rangeStart}â€“{rangeEnd} of {data.timelineTotal}
+                {rangeStart}–{rangeEnd} of {data.timelineTotal}
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -638,6 +658,52 @@ function ActivityTimeline({ id, onViewAll }: { id: string | undefined; onViewAll
         </>
       )}
     </div>
+  )
+}
+
+// Sales, purchases and open documents for the last 12 months, from
+// product/fapi/dashboard.php. Nothing renders while loading or when the backend
+// does not have the endpoint, so the older panels below stand on their own.
+function ProductSalesWindow({ id }: { id: string | undefined }) {
+  const { data } = useProductSalesWindow(id)
+  if (!data) return null
+  const money = (n: number) => `${data.currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const figures: [string, string][] = [
+    ['Sold', `${data.sales.qty} units`],
+    ['Sales', money(data.sales.amount)],
+    ['Invoices', String(data.sales.invoice_count)],
+    ['Bought', `${data.purchases.qty} units`],
+    ['Purchases', money(data.purchases.amount)],
+    ['Open orders / quotes / invoices', `${data.open_documents.orders} / ${data.open_documents.proposals} / ${data.open_documents.invoices}`],
+  ]
+  return (
+    <Card className="!h-auto !p-0 !bg-surface">
+      <div className="p-4">
+        <SectionHeader icon={BarChart2} color="green">
+          Last {data.window.months} months
+        </SectionHeader>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {figures.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-[11px] text-text-faint">{label}</dt>
+              <dd className="text-sm font-medium text-text! tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {data.sales.by_month.length > 0 && (
+          <ul className="mt-3 pt-2 border-t border-border space-y-1 max-h-[110px] overflow-auto">
+            {data.sales.by_month.map((m) => (
+              <li key={m.month} className="flex items-center justify-between text-xs text-text-muted">
+                <span>{m.month}</span>
+                <span className="tabular-nums">
+                  {m.qty} units · {money(m.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   )
 }
 

@@ -45,7 +45,7 @@ import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAllProductsRich } from '../../products/products.queries'
 import { useWarehouseDetail, useWarehouseMovements, useWarehouseEvents, useGenerateWarehouseDoc, useDeleteWarehouse, type WarehouseMovementFilters } from '../warehouseExtras.queries'
-import type { WarehouseProductRow } from '../warehouseHtmlParser'
+import type { WarehouseProductRow } from '../warehouseTypes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
@@ -531,7 +531,7 @@ function WarehouseProductsTable({ products, emptyMessage, warehouseId, leading }
       </div>
 
       {total > 0 && (
-        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border bg-surface text-sm text-text-faint">
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 px-0 pb-0 pt-[3px] border-t border-border bg-surface text-sm text-text-faint">
           <span>
             Showing {rangeStart} to {rangeEnd} of {total} entries
           </span>

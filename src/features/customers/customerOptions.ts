@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
+import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
 
 // Confirmed against api/customers/index.php's buildCustomerRow() — see
 // customers.queries.ts for the full notes.
@@ -27,8 +28,10 @@ export function useCustomerOptions(enabled = true) {
   return useQuery({
     queryKey: ['customers', 'options', 'customer'],
     queryFn: async () => {
-      const { data } = await api.get<CustomersResponse>('/customers/', { params: { type: 'customer', limit: 250 } })
-      return (data.customers ?? []).map((c) => ({
+      const { data } = await api.get<unknown>('/customers/', { params: { type: 'customer', limit: 250 } })
+      const body = legacyJsonBody<CustomersResponse>(data, 'Customer options API')
+      if (!Array.isArray(body.customers)) throw new Error('Customer options API did not return customer records.')
+      return body.customers.map((c) => ({
         id: String(c.id),
         name: c.name || '(unnamed)',
         ref: c.code_client ?? '',
@@ -48,8 +51,10 @@ export function useVendorOptions(enabled = true) {
   return useQuery({
     queryKey: ['customers', 'options', 'supplier'],
     queryFn: async () => {
-      const { data } = await api.get<CustomersResponse>('/customers/', { params: { type: 'all', limit: 250 } })
-      return (data.customers ?? []).filter((c) => c.is_supplier === 1).map((c) => ({ id: String(c.id), name: c.name || '(unnamed)' }))
+      const { data } = await api.get<unknown>('/customers/', { params: { type: 'all', limit: 250 } })
+      const body = legacyJsonBody<CustomersResponse>(data, 'Supplier options API')
+      if (!Array.isArray(body.customers)) throw new Error('Supplier options API did not return third-party records.')
+      return body.customers.filter((c) => c.is_supplier === 1).map((c) => ({ id: String(c.id), name: c.name || '(unnamed)' }))
     },
     staleTime: 1000 * 60,
     enabled,

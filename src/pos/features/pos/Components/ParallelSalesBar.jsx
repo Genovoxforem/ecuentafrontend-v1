@@ -35,7 +35,7 @@ function ParallelSalesBar() {
                             onClick={() => switchSale(sale.place)}
                             title={`Sale started at ${sale.time}${itemCount > 0 ? ` - ${itemCount} item${itemCount === 1 ? "" : "s"}` : ""}`}
                             className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium shadow cursor-pointer ${
-                                isActive ? "bg-[#2c6291] text-white font-semibold" : "bg-slate-700 text-white hover:bg-slate-600"
+                                isActive ? "bg-[#2f6fe4] text-white font-semibold" : "bg-slate-700 text-white hover:bg-slate-600"
                             }`}
                         >
                             <ShoppingCart size={14} className="text-white" />

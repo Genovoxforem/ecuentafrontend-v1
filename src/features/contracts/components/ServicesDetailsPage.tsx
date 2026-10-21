@@ -7,8 +7,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
-import type { ContractServiceRow } from '../contractPagesParser'
-import { useContractServices } from '../contracts.queries'
+import { useContractServices, type ContractServiceRow } from '../contracts.queries'
 
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 

@@ -1,10 +1,23 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
-import { fetchContract } from '../../api/contracts'
-import { parseContractListRow, type RawContractListRow, type ContractListRow } from './contractListParser'
-import { parseContractListStats, type ContractServiceRow } from './contractPagesParser'
+import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { fetchContract, fetchContractStats, fetchContracts, type ContractListItem } from '../../api/contracts'
 
-export type ContractRow = ContractListRow
+export interface ContractRow {
+  id: number | null
+  ref: string
+  refCustomer: string
+  refVendor: string
+  thirdParty: string
+  thirdPartySubtitle: string
+  thirdPartyId: string | null
+  salesRep: string
+  contractDate: string
+  endDateOfServices: string
+  notRunning: number
+  inProgress: number
+  expired: number
+  closed: number
+}
 
 export interface ContractsSummary {
   totalContracts: number
@@ -18,16 +31,10 @@ export interface ContractsSummary {
   contracts: ContractRow[]
 }
 
-interface ContractListAjaxResponse {
-  recordsTotal: number
-  data: RawContractListRow[]
-}
-
 // contrat/list_ajax.php — real, confirmed by reading that file directly
 // (Contrat/Societe getNomUrl() HTML cells, real per-contract status-badge
-// counts). The eight stat-card values come from contrat/list.php's own
-// server-rendered cards (see contractPagesParser.ts) — the row list alone can't
-// say what started, expired or was followed up this month.
+// counts). The stat-card values come from contrat/fapi/stats.php — the row
+// list alone can't say what started, expired or was followed up this month.
 //
 // columns[0][data]=ref is required on every request — see
 // contractListParser.ts's header comment for the real backend bug this
@@ -35,24 +42,47 @@ interface ContractListAjaxResponse {
 // SQL alias that doesn't exist in this query, silently emptying every
 // result otherwise).
 //
-// The rows and the stat cards are separate queries: the detail page and the
-// Contract Report only need the rows (7 KB of JSON), so only the Contracts
-// list pays for the 1.25 MB contrat/list.php page the cards are scraped from.
+// The rows and summary stats are separate requests; only the Contracts list
+// and Contract Report need the row list.
+// MM/DD/YYYY, the format every other Sales list shows (the API sends UTC epoch seconds).
+function epochToDate(value: number | null): string {
+  if (!value) return ''
+  const d = new Date(value * 1000)
+  return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}`
+}
+
+function toContractRow(item: ContractListItem): ContractRow {
+  return {
+    id: item.id,
+    ref: item.ref,
+    refCustomer: item.ref_customer ?? '',
+    refVendor: item.ref_supplier ?? '',
+    thirdParty: item.third_party_name ?? '',
+    thirdPartySubtitle: '',
+    thirdPartyId: item.fk_soc ? String(item.fk_soc) : null,
+    salesRep: (item.sales_reps ?? []).map((rep) => rep.name).join(', '),
+    contractDate: epochToDate(item.date_contrat),
+    endDateOfServices: epochToDate(item.date_end),
+    notRunning: item.nb_initial,
+    inProgress: item.nb_running,
+    // "late" services run past their end date; the legacy list counts them as expired too.
+    expired: item.nb_expired + item.nb_late,
+    closed: item.nb_closed,
+  }
+}
+
+const LIST_PAGE_SIZE = 100
+
+// contrat/fapi/list.php (a 500 until 15 Oct 2026: it selected totals and a
+// validation date that this fork's llx_contrat does not have). The service
+// counters use the same expressions contrat/list_ajax.php did.
 const contractsListQuery = queryOptions({
   queryKey: ['contracts', 'list'],
   queryFn: async (): Promise<ContractRow[]> => {
-    const body = new URLSearchParams({
-      draw: '1',
-      start: '0',
-      length: '-1',
-      'columns[0][data]': 'ref',
-      'order[0][column]': '0',
-      'order[0][dir]': 'desc',
-    })
-    const res = await fetch('/contrat/list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
-    if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    const json: ContractListAjaxResponse = await res.json()
-    return json.data.map(parseContractListRow)
+    const params = { limit: LIST_PAGE_SIZE, sort: 'date_contrat', direction: 'desc' } as const
+    const first = await fetchContracts({ page: 1, ...params })
+    const rest = await Promise.all(Array.from({ length: Math.max(0, first.pagination.pages - 1) }, (_, i) => fetchContracts({ page: i + 2, ...params })))
+    return [first, ...rest].flatMap((page) => page.items).map(toContractRow)
   },
   staleTime: 1000 * 30,
 })
@@ -66,7 +96,27 @@ export function useContractsSummary() {
   const list = useQuery(contractsListQuery)
   const stats = useQuery({
     queryKey: ['contracts', 'stats'],
-    queryFn: async () => parseContractListStats(await fetchLegacyDocument('/contrat/list.php')),
+    queryFn: async () => {
+      // Older contrat/fapi/stats.php builds die with "Call to undefined
+      // function dol_get_first_day()" whenever `year` is sent (fixed on
+      // newecuenta 2026-10-15: every fapi bootstrap now loads date.lib.php).
+      // Without it the endpoint answers (year 0 = all time), so fall back to
+      // that rather than leave the Contracts page and the Sales dashboard
+      // stuck on "Loading…".
+      const result = await fetchContractStats({ year: new Date().getFullYear() }).catch(() => fetchContractStats())
+      const now = new Date()
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      return {
+        totalContracts: result.summary.total,
+        createdThisMonth: result.by_month.find((entry) => entry.month === currentMonth)?.count ?? 0,
+        runningTotal: result.summary.running,
+        startedThisMonth: 0,
+        expiredCount: result.summary.expired,
+        expiredThisMonth: 0,
+        closedCount: result.summary.closed,
+        followupsThisMonth: 0,
+      }
+    },
     staleTime: 1000 * 30,
   })
   const data: ContractsSummary | undefined = list.data && stats.data ? { ...stats.data, contracts: list.data } : undefined
@@ -85,7 +135,16 @@ export interface NewContractLineInput {
   qty: number
   unitPriceHt: number
   vatRate: number
+  // The VAT category code (A, B, ...) kept with the rate, sent as "16 (A)" like the
+  // classic page does.
+  vatCode?: string
+  unitPriceTtc?: number
   discountPct?: number
+  // 'percent' (default) or 'fixed' — a fixed discount is an amount taken off the line.
+  discountType?: 'percent' | 'fixed'
+  // yyyy-mm-dd service period of the line
+  dateStart?: string
+  dateEnd?: string
 }
 
 export interface NewContractInput {
@@ -140,14 +199,26 @@ export function useCreateContract() {
     body.set(
       'lines',
       JSON.stringify(
-        input.lines.map((l) => ({
-          fk_product: l.productId ? Number(l.productId) : 0,
-          description: l.description,
-          qty: l.qty,
-          price_ht: l.unitPriceHt,
-          tva_tx: String(l.vatRate),
-          remise_percent: l.discountPct ?? 0,
-        })),
+        input.lines.map((l) => {
+          const fixed = l.discountType === 'fixed'
+          const discount = l.discountPct ?? 0
+          return {
+            fk_product: l.productId ? Number(l.productId) : 0,
+            description: l.description,
+            qty: l.qty,
+            price_ht: l.unitPriceHt,
+            price_ttc: l.unitPriceTtc ?? 0,
+            tva_tx: l.vatCode ? `${l.vatRate} (${l.vatCode})` : String(l.vatRate),
+            vat_src_code: l.vatCode ?? '',
+            remise_percent: fixed ? 0 : discount,
+            discount_percent: fixed ? 0 : discount,
+            discount_fixed: fixed ? discount : 0,
+            remise_type: fixed ? 2 : 1,
+            // Left out when empty: the handler runs strtotime() on whatever is present.
+            ...(l.dateStart ? { date_start: l.dateStart } : {}),
+            ...(l.dateEnd ? { date_end: l.dateEnd } : {}),
+          }
+        }),
       ),
     )
 
@@ -178,7 +249,22 @@ export interface RawServiceLine {
   statusLabel: string
 }
 
-const usDate = (value: string): Date | null => {
+// One row of the Services Details list, as the legacy page's columns show it.
+export interface ContractServiceRow {
+  contractId: number | null
+  contractRef: string
+  serviceRef: string
+  service: string
+  vendorOrCustomerId: number | null
+  thirdParty: string
+  plannedStart: string
+  realStart: string
+  plannedEnd: string
+  realEnd: string
+  status: string
+}
+
+const usDate =(value: string): Date | null => {
   const m = value.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
   return m ? new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2])) : null
 }

@@ -3,7 +3,8 @@
 // added under the table. Tables that already show a "Showing … of … entries" footer, nested tables and
 // tables marked data-no-autopage are left alone.
 const PAGE_SIZES = [10, 25, 50, 100]
-const SHOWING = /Showing\s+\d[\d,]*\s+to\s+\d|\bof\s+\d[\d,]*\s+(entries|movements|products|items)|Page\s+\d+\s+of\s+\d+/i
+// Also the "Showing 1–25" range wording and a Previous / Next pair, which pages draw for their own server-side paging.
+const SHOWING =/Showing\s+\d[\d,]*\s+to\s+\d|Showing\s+\d[\d,]*\s*[–—-]\s*\d|\bof\s+\d[\d,]*\s+(entries|movements|products|items)|Page\s+\d+\s+of\s+\d+|Previous\s*Next/i
 
 interface PagerState {
   page: number

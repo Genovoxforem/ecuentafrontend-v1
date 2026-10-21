@@ -1,34 +1,66 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
-import { parseAdvanceListRow, type AdvanceListRow, type RawAdvanceListRow } from './advanceListParser'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchAllPages, pickNum, pickNumOrNull, pickStr, usDate } from '../../api/fapiRow'
 
-// compta/facture/advancelist_ajax.php — real DataTables server-side JSON
-// endpoint behind the real advance_list.php page (read directly:
-// `echo json_encode(['draw','iTotalRecords','iTotalDisplayRecords','aaData'])`).
-// Same "length=-1 fetches everything" convention already used for
-// Quotations' own list (see quotations.queries.ts).
-//
-// One real, confirmed gap: the page's own two top-right totals ("Total Used
-// Advance"/"Total Remaining Advance") are computed by advance_list.php
-// itself via a *separate* direct SQL query — never put into this JSON
-// response at all (used_amt/remaining_amt are selected into $obj server-side
-// but commented out of both the row-mapping and the JS column list in the
-// real source). Only "Total Advance Amount" is honestly derivable here, by
-// summing the real per-row totals this endpoint does return.
+// compta/facture/fapi/advances.php?socid= (15 Oct 2026): the advance payments of a customer (llx_paiement_advance, the
+// same columns advancelist_ajax.php read) with totals of the amount, the amount used and the amount remaining over the
+// whole filtered set - the two used / remaining figures the classic JSON never carried. The receipt PDF links of the
+// classic list are not part of the endpoint (a backend request), so the rows carry no View / Download link.
+export interface AdvanceListRow {
+  ref: string
+  date: string
+  thirdPartyName: string
+  paymentType: string
+  totalAdvance: number
+  usedAmount: number
+  remainingAmount: number
+  author: string
+  authorId: number | null
+  viewUrl: string | null
+  downloadUrl: string | null
+}
+
 export interface AdvanceListResponse {
   rows: AdvanceListRow[]
   totalAdvanceAmount: number
+  totalUsedAmount: number
+  totalRemainingAmount: number
+}
+
+export function advanceRowFromApi(r: any): AdvanceListRow {
+  return {
+    ref: pickStr(r, 'ref', 'label'),
+    date: usDate(r.date ?? r.datec ?? r.date_creation),
+    thirdPartyName: pickStr(r, 'third_party_name', 'thirdparty.name', 'customer.name', 'company'),
+    paymentType: pickStr(r, 'payment_mode', 'payment_mode_label', 'mode_label', 'payment_type'),
+    totalAdvance: pickNum(r, 'amount', 'total'),
+    usedAmount: pickNum(r, 'used_amount', 'used_amt'),
+    remainingAmount: pickNum(r, 'remaining_amount', 'remaining_amt'),
+    author: pickStr(r, 'author.name', 'author', 'author_name', 'user_name'),
+    authorId: pickNumOrNull(r, 'author.id', 'author_id', 'fk_user'),
+    viewUrl: null,
+    downloadUrl: null,
+  }
 }
 
 export function useCustomerAdvancePayments(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'advanceList', socid],
     queryFn: async (): Promise<AdvanceListResponse> => {
-      const body = new URLSearchParams({ draw: '1', start: '0', length: '-1', socid: socid ?? '' })
-      const { data } = await axios.post<{ aaData: RawAdvanceListRow[] }>(`/compta/facture/advancelist_ajax.php?socid=${socid}`, body)
-      const rows = (data.aaData ?? []).map(parseAdvanceListRow)
-      const totalAdvanceAmount = rows.reduce((sum, r) => sum + r.totalAdvance, 0)
-      return { rows, totalAdvanceAmount }
+      let totals: any = {}
+      const items = await fetchAllPages(async (page) => {
+        const d = await fapiGet<any>('/compta/facture/fapi/advances.php', { socid, page, limit: 100, sort: 'date' })
+        totals = d.totals ?? totals
+        return d
+      })
+      const rows = items.map(advanceRowFromApi)
+      return {
+        rows,
+        totalAdvanceAmount: Number(totals.amount) || rows.reduce((sum, r) => sum + r.totalAdvance, 0),
+        totalUsedAmount: Number(totals.used_amount) || 0,
+        totalRemainingAmount: Number(totals.remaining_amount) || 0,
+      }
     },
     enabled: !!socid,
     staleTime: 1000 * 30,

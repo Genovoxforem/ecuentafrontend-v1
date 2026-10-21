@@ -1,15 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
-import { api } from '../../api/axios'
-import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
-import { parseVendorInvoiceListRow, type RawVendorInvoiceListRow } from './vendorInvoiceListParser'
+import { createVendorInvoice } from './vendorInvoiceFapi'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchThirdPartySummary } from '../../api/customers'
 
-// The classic Purchase Invoices page's own views: the toolbar's All / Manual
-// Purchases / Automatic Purchases / Marked As Expense / Imports(ASYCUDA)
-// buttons and the ⋮ menu's status filters. Every one is filtered server-side
-// by facture_ajax_list.php, exactly as the classic page asks for it
-// (VENDOR_INVOICE_VIEW_QUERY) — the Expense view depends on f.internal_exp,
-// which the list doesn't return, so it can't be filtered here.
+// The Purchase Invoices views (All / Manual / Automatic / Expense / Imports) and the status filters of its menu,
+// each applied by the server (fourn/facture/fapi/list.php). The Expense view needs llx_facture_fourn.internal_exp,
+// which the list does not return.
 export type VendorInvoiceStatus =
   | 'all'
   | 'manual'
@@ -23,24 +19,6 @@ export type VendorInvoiceStatus =
   | 'paid'
   | 'unpaid'
   | 'abandoned'
-
-// importlist.php?type=02&code=M|A|IE and ?type=01 (the toolbar buttons), and
-// list.php?search_status=N (the ⋮ menu): 6/7 = ZRA upload (not) succeeded,
-// 8/9 = paid / not paid (f.paye), 0/1/3 = draft / validated / abandoned.
-export const VENDOR_INVOICE_VIEW_QUERY: Record<VendorInvoiceStatus, string> = {
-  all: 'socid=0&search_status=',
-  manual: 'type=02&code=M',
-  automatic: 'type=02&code=A',
-  expense: 'type=02&code=IE',
-  imports: 'type=01&code=',
-  draft: 'socid=0&search_status=0',
-  validated: 'socid=0&search_status=1',
-  succeeded: 'socid=0&search_status=6',
-  notSucceeded: 'socid=0&search_status=7',
-  paid: 'socid=0&search_status=8',
-  unpaid: 'socid=0&search_status=9',
-  abandoned: 'socid=0&search_status=3',
-}
 
 export interface VendorInvoiceRow {
   id: number | null
@@ -84,154 +62,126 @@ export function vendorInvoiceStatusLabel(row: VendorInvoiceRow) {
   return row.statusLabel || STATUS_LABELS[row.statusCode] || 'Unknown'
 }
 
-interface FactureAjaxListResponse {
-  iTotalRecords: number
-  aaData: RawVendorInvoiceListRow[]
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// fourn/facture/fapi/list.php: the five views (all, manual, automatic, expense, imports) and the status
+// filters are applied by the server, so each tab is its own call.
+const FAPI_VIEW: Partial<Record<VendorInvoiceStatus, string>> = { all: 'all', manual: 'manual', automatic: 'automatic', expense: 'expense', imports: 'imports' }
+const FAPI_STATUS: Partial<Record<VendorInvoiceStatus, string>> = { draft: 'draft', validated: 'validated', succeeded: 'zra_ok', notSucceeded: 'zra_failed', paid: 'paid', unpaid: 'unpaid', abandoned: 'abandoned' }
+
+function usDate(value: unknown): string {
+  const m = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})-(\d{2})/) : null
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : typeof value === 'string' ? value : ''
 }
 
-// The /api/purchase-invoices/ this hook used to call (api/purchase-invoices/
-// index.php) does not exist on the active backend — confirmed live (404),
-// same situation as Contacts' old /api/contacts/. Real source found by
-// reading the backend directly: fourn/facture/facture_ajax_list.php, a
-// genuine, rich DataTables endpoint over llx_facture_fourn (confirmed live
-// — real Sale Type Code/Registration Type Code/ZRA status matching the
-// actual "Purchase Invoices" legacy page). length=-1 fetches every row in
-// one call; Suppliers/Invoices/Automatic/Manual stat cards are computed the
-// same way the rest of this app does it:
-//  - Invoices: iTotalRecords from this same response.
-//  - Suppliers: real societe/api/societes.php?action=stats ("suppliers"
-//    field), confirmed live to match the legacy page's own count exactly.
-//  - Automatic/Manual: summed client-side from rows whose Registration Type
-//    Code (f.regTyCd) is 'A' or 'M' — the real column backing that exact
-//    toolbar distinction on the legacy page (most rows are '-', neither).
-function statusCodeFromLabel(label: string, paye: boolean): number {
-  const l = label.toLowerCase()
-  if (l.includes('abandon')) return 3
-  if (l.includes('draft')) return 0
-  if (paye || l === 'paid') return 2
-  return 1
+function rowFromFapi(o: any): VendorInvoiceRow {
+  const paid = Boolean(Number(o.paid ?? o.paye))
+  const code = o.status == null ? (paid ? 2 : 1) : Number(o.status)
+  return {
+    id: Number(o.id) || null,
+    ref: o.ref ?? '',
+    refSupplier: o.ref_supplier ?? null,
+    invoiceDate: usDate(o.date ?? o.date_invoice) || null,
+    dueDate: usDate(o.date_due ?? o.date_lim_reglement),
+    thirdPartyId: o.supplier?.id != null ? Number(o.supplier.id) : o.socid != null ? Number(o.socid) : null,
+    thirdPartyName: o.supplier?.name ?? o.supplier_name ?? null,
+    thirdPartySubtitle: [o.supplier?.code, o.supplier?.town].filter(Boolean).join(' · '),
+    paymentTypeLabel: o.payment_mode_label ?? o.payment_type ?? null,
+    amountHt: Number(o.total_ht) || 0,
+    amountVat: Number(o.total_tva) || 0,
+    amountTtc: Number(o.total_ttc) || 0,
+    saleTypeCode: o.sale_type_code ?? o.sar_ty_cd ?? null,
+    registrationTypeCode: o.registration_type_code ?? o.reg_ty_cd ?? null,
+    statusCode: code,
+    statusLabel: o.status_label ?? STATUS_LABELS[code] ?? '',
+    statusBadge: null,
+    currency: o.currency ?? '',
+    paye: paid || code === 2,
+    zraStatus: o.zra_status ?? null,
+  }
 }
 
-// `dateRange` is the classic page's date-range picker ("YYYY-MM-DD - YYYY-MM-DD"
-// in its datefilter field).
+async function fetchViaFapi(status: VendorInvoiceStatus, search: string, dateRange?: { from: string; to: string }): Promise<VendorInvoicesPayload> {
+  const base: Record<string, string | number | undefined> = {
+    view: FAPI_VIEW[status] ?? 'all',
+    status: FAPI_STATUS[status],
+    search: search || undefined,
+    date_from: dateRange?.from || undefined,
+    date_to: dateRange?.to || undefined,
+    sort: 'date',
+    direction: 'desc',
+  }
+  const items: any[] = []
+  let summary: any = null
+  let pages = 1
+  for (let page = 1; page <= pages && page <= 50; page += 1) {
+    const d = await fapiGet<any>('/fourn/facture/fapi/list.php', { ...base, page, limit: 100 })
+    summary ??= d.summary
+    pages = d.pages ?? 1
+    items.push(...(d.items ?? []))
+  }
+  // The classic cards: how many vendors, how many invoices and the automatic / manual totals (the "all" view's own).
+  const [vendors, automatic, manual] = await Promise.all([
+    fetchThirdPartySummary('vendor').catch(() => null),
+    status === 'all' ? fapiGet<any>('/fourn/facture/fapi/list.php', { view: 'automatic', limit: 1 }).catch(() => null) : null,
+    status === 'all' ? fapiGet<any>('/fourn/facture/fapi/list.php', { view: 'manual', limit: 1 }).catch(() => null) : null,
+  ])
+  const rows = items.map(rowFromFapi)
+  return {
+    items: rows,
+    total: Number(summary?.count ?? rows.length) || rows.length,
+    summary: {
+      suppliers: Number((vendors as any)?.total_vendors ?? (vendors as any)?.total) || 0,
+      invoices: Number(summary?.count) || rows.length,
+      automaticAmount: Number(automatic?.summary?.total_amount) || rows.filter((r) => r.registrationTypeCode === 'A').reduce((sum, r) => sum + r.amountTtc, 0),
+      manualAmount: Number(manual?.summary?.total_amount) || rows.filter((r) => r.registrationTypeCode === 'M').reduce((sum, r) => sum + r.amountTtc, 0),
+    },
+  }
+}
+
 export function useVendorInvoices(status: VendorInvoiceStatus, search = '', dateRange?: { from: string; to: string }) {
   const datefilter = dateRange?.from && dateRange.to ? `${dateRange.from} - ${dateRange.to}` : ''
   return useQuery({
     queryKey: ['vendor-invoices', status, search, datefilter],
-    queryFn: async (): Promise<VendorInvoicesPayload> => {
-      const body = new URLSearchParams({
-        draw: '1',
-        start: '0',
-        length: '-1',
-        'columns[0][data]': 'ref',
-        'order[0][column]': '0',
-        'order[0][dir]': 'desc',
-      })
-      if (search) body.set('search[value]', search)
-      if (datefilter) body.set('datefilter', datefilter)
-      const [{ data: rawList }, { data: statsData }] = await Promise.all([
-        axios.post<unknown>(`/fourn/facture/facture_ajax_list.php?${VENDOR_INVOICE_VIEW_QUERY[status]}`, body),
-        axios.get<{ ok: boolean; stats: { suppliers: number } }>('/societe/api/societes.php', { params: { action: 'stats' } }),
-      ])
-      const listData = legacyJsonBody<FactureAjaxListResponse>(rawList, 'The vendor invoice list')
-
-      const parsed = (listData.aaData ?? []).map(parseVendorInvoiceListRow)
-      const rows: VendorInvoiceRow[] = parsed.map((r) => ({
-        id: r.id,
-        ref: r.ref,
-        refSupplier: r.refSupplier,
-        invoiceDate: r.invoiceDate,
-        dueDate: r.dueDate,
-        thirdPartySubtitle: r.thirdPartySubtitle,
-        statusLabel: r.statusLabel,
-        statusBadge: r.statusBadge,
-        currency: r.currency,
-        // r.thirdPartyUrl is the real Societe::getNomUrl(option='supplier')
-        // href (fourn/card.php?socid=N) already parsed out by
-        // vendorInvoiceListParser.ts — extracting the id from it here (same
-        // technique already used for Purchase Orders/Quotations) rather than
-        // leaving this always null, so a vendor's own Related Items tab can
-        // filter this list to just their invoices.
-        thirdPartyId: r.thirdPartyUrl ? Number(r.thirdPartyUrl.match(/socid=(\d+)/)?.[1]) || null : null,
-        thirdPartyName: r.thirdPartyName,
-        paymentTypeLabel: r.paymentTypeLabel,
-        amountHt: r.amountHt,
-        amountVat: r.amountVat,
-        amountTtc: r.amountTtc,
-        saleTypeCode: r.saleTypeCode,
-        registrationTypeCode: r.registrationTypeCode,
-        statusCode: statusCodeFromLabel(r.statusLabel, r.paye),
-        paye: r.paye,
-        zraStatus: r.zraStatus,
-      }))
-
-      // The classic cards: registration type A / M summed over the rows (only
-      // meaningful for the unfiltered "all" view, where they match the cards
-      // of list.php: 473,889.98 / 524,425.35 on 172.16.5.10).
-      const automaticAmount = rows.filter((r) => r.registrationTypeCode === 'A').reduce((sum, r) => sum + r.amountTtc, 0)
-      const manualAmount = rows.filter((r) => r.registrationTypeCode === 'M').reduce((sum, r) => sum + r.amountTtc, 0)
-
-      return {
-        items: rows,
-        total: rows.length,
-        summary: {
-          suppliers: statsData.stats?.suppliers ?? 0,
-          invoices: listData.iTotalRecords ?? rows.length,
-          automaticAmount,
-          manualAmount,
-        },
-      }
-    },
+    queryFn: (): Promise<VendorInvoicesPayload> => fetchViaFapi(status, search, dateRange),
     placeholderData: (prev) => prev,
   })
 }
 
-// fourn/facture/purchase.php renders Warehouse as a real <select
-// name="warehouse_id"> via formproduct->selectWarehouses() straight off
-// llx_entrepot (8 real warehouses on this DB, confirmed via direct query) —
-// scraped the same way Quotations' Availability/Reason/Payment Terms
-// dictionaries come off comm/propal/index_v2.php's own real <select>s. This
-// one isn't just a display dictionary: supplier_invoice_lines_api.php's
-// validateInvoice actually passes warehouse_id into
-// FactureFournisseur::validate($user, '', $warehouse), which drives real
-// stock dispatch for product-type lines — confirmed by reading that file.
+// The warehouse a validated purchase invoice dispatches its product lines into (it drives the stock movement), from
+// fourn/commande/fapi/form_options.php (the entity's warehouses).
 export interface WarehouseOption {
   id: string
   label: string
 }
+
 export function useWarehouseOptionsForPurchaseInvoice() {
   return useQuery({
     queryKey: ['vendor-invoices', 'warehouseOptions'],
-    queryFn: async (): Promise<WarehouseOption[]> => {
-      const res = await fetch('/fourn/facture/purchase.php', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const doc = new DOMParser().parseFromString(await res.text(), 'text/html')
-      const select = doc.querySelector('select[name="warehouse_id"]')
-      if (!select) return []
-      return Array.from(select.querySelectorAll('option'))
-        .map((o) => ({ id: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
-        .filter((o) => o.id && o.id !== '0' && o.id !== '-1')
-    },
+    queryFn: async (): Promise<WarehouseOption[]> =>
+      (await fapiGet<{ warehouses: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).warehouses.map((w) => ({ id: String(w.value), label: w.label })),
     staleTime: 1000 * 60 * 10,
   })
 }
 
-// GET /api/bank_accounts.php — real, session-cookie authenticated dictionary
-// (llx_bank_account WHERE clos = 0) — same pattern as payment_types.php:
-// the file itself only checks main.inc.php's session (no X-API-Key check
-// at all), but going through the `api` instance is harmless since every
-// request stays same-origin anyway (its X-API-Key header is simply unread).
+// Bank accounts for the payment, from the same form_options.php.
 export interface BankAccountOption {
   id: string
   label: string
 }
 export function useBankAccountOptions() {
   return useQuery({
-    queryKey: ['dictionary', '/bank_accounts.php'],
-    queryFn: async (): Promise<BankAccountOption[]> => {
-      const { data } = await api.get<{ success: boolean; results: Array<{ id: string; text: string }> }>('/bank_accounts.php')
-      return data.success ? data.results.map((r) => ({ id: String(r.id), label: r.text })) : []
-    },
+    queryKey: ['vendor-invoices', 'bankAccountOptions'],
+    queryFn: async (): Promise<BankAccountOption[]> =>
+      (await fapiGet<{ bank_accounts: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).bank_accounts.map((b) => ({ id: String(b.value), label: b.label })),
+    staleTime: 1000 * 60 * 10,
+  })
+}
+
+export function usePaymentModeOptions() {
+  return useQuery({
+    queryKey: ['vendor-invoices', 'paymentModeOptions'],
+    queryFn: async (): Promise<BankAccountOption[]> =>
+      (await fapiGet<{ payment_modes: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_modes.map((m) => ({ id: String(m.value), label: m.label })),
     staleTime: 1000 * 60 * 10,
   })
 }
@@ -249,98 +199,54 @@ export interface NewVendorInvoiceLine {
 
 export interface NewVendorInvoiceInput {
   vendorId: string
-  refSupplier?: string
+  refSupplier: string
+  // yyyy-mm-dd; blank = the server's own default (today / terms-based due date).
+  date?: string
+  dueDate?: string
+  paymentTermId?: string
+  incotermId?: string
+  incotermLocation?: string
   fkAccount: string
   modeReglementId: string
   warehouseId: string
   lines: NewVendorInvoiceLine[]
-  // Real grndetails JSON fields — see validateInvoice's handling below.
-  shipment?: {
-    shipmentvia?: string
-    shipmentdate?: string
-    shipmentaddress?: string
-    trackingid?: string
-    gdnno?: string
-    grnno?: string
-    transporter?: string
-    truck_details?: string
-  }
+  // Save as Invoice validates the draft inside the same transaction; Save as Draft leaves it a draft.
+  validate: boolean
 }
 
-interface VendorInvoiceApiResponse {
-  success: boolean
-  message?: string
-  data?: { id: number; ref: string }
-}
-
-// fourn/facture/api/supplier_invoice_lines_api.php?action=validateInvoice —
-// CONFIRMED BROKEN for a genuinely new invoice, live-tested end-to-end on
-// 2026-08-29 (not just read from source): POSTing action=validateInvoice
-// with invoice_id=0 really does create a draft FactureFournisseur header
-// (verified directly in llx_facture_fourn — a real row appeared), but the
-// very next step inside that same request — handing off to
-// handleSaveCachedLines() to save the lines — fails with {"success":false,
-// "message":"Invoice not found"} even though the invoice unquestionably
-// exists. It isn't a stale-invoice-id artifact either: a completely fresh
-// follow-up call (action=getLines, or action=validateInvoice again) using
-// that invoice's own real, confirmed rowid still returns the identical
-// "Invoice not found" — so FactureFournisseur::fetch() itself is refusing
-// to load this record through this API file, for a reason not pinned down
-// further than that. Net effect: every real "Save as Invoice" attempt
-// leaves behind an orphaned, lineless Draft invoice and never completes.
-// (The stray (PROV153) row this produced during testing was deleted
-// directly from the DB afterward — a clean, zero-line, zero-amount
-// artifact, not a real business record.)
-//
-// "Save as Draft" for a brand-new invoice was already known broken (the
-// legacy page's own JS calls action=saveCachedLines directly with
-// invoice_id=0, which 400s before ever creating one — confirmed live,
-// {"success":false,"message":"Invalid parameters"}, no side effects). With
-// this finding, there is now no real working path at all to create a
-// vendor invoice from a blank slate through this API — see
-// DetailedPurchaseCreateForm.tsx / QuickPurchaseCreateForm.tsx for how the
-// UI offers the real, working legacy page instead of pretending either
-// button works.
+// POST fourn/facture/fapi/create.php: the header, every line and the optional validation in one
+// transaction (the old supplier_invoice_lines_api.php committed the header first and left an orphan
+// draft when the lines failed). A duplicate ref_supplier for the same supplier is a 409 naming the
+// existing invoice; a vendor that is not flagged as a supplier, or a missing socid, is a 422.
 export function useCreateVendorInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewVendorInvoiceInput) => {
-      const body = new URLSearchParams()
-      body.set('action', 'validateInvoice')
-      body.set('invoice_id', '0')
-      body.set('socid', input.vendorId)
-      body.set('ref_supplier', input.refSupplier ?? '')
-      body.set('fk_account', input.fkAccount)
-      body.set('mode_reglement_id', input.modeReglementId)
-      body.set('warehouse_id', input.warehouseId)
-      body.set(
-        'lines',
-        JSON.stringify(
-          input.lines.map((l) => ({
-            is_cached: true,
-            product_id: l.productId ? Number(l.productId) : 0,
-            product_type: l.productType ?? 0,
-            desc: l.label,
-            qty: l.qty,
-            price_ht: l.unitPriceHt,
-            vat_rate: String(l.vatRate),
-            discount_percent: l.discPercent ?? 0,
-            dis_type: 1,
-            fourn_ref: l.supplierRef ?? '',
-          })),
-        ),
-      )
-      if (input.shipment) {
-        for (const [key, value] of Object.entries(input.shipment)) {
-          if (value) body.set(key, value)
-        }
-      }
-
-      const res = await fetch('/fourn/facture/api/supplier_invoice_lines_api.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: VendorInvoiceApiResponse = await res.json()
-      if (!data.success) throw new Error(data.message || 'Failed to create purchase invoice')
-      return data.data
+      const num = (v: string) => (v ? Number(v) : undefined)
+      return createVendorInvoice({
+        socid: Number(input.vendorId),
+        ref_supplier: input.refSupplier,
+        type: 0,
+        date: input.date || undefined,
+        date_due: input.dueDate || undefined,
+        payment_term_id: num(input.paymentTermId ?? ''),
+        incoterm_id: num(input.incotermId ?? ''),
+        location_incoterms: input.incotermLocation || undefined,
+        payment_mode_id: num(input.modeReglementId),
+        fk_account: num(input.fkAccount),
+        lines: input.lines.map((l) => ({
+          product_id: l.productId ? Number(l.productId) : undefined,
+          description: l.label,
+          qty: l.qty,
+          pu_ht: l.unitPriceHt,
+          tva_tx: l.vatRate,
+          product_type: l.productType ?? 0,
+          remise_percent: l.discPercent ?? 0,
+          ref_supplier: l.supplierRef || undefined,
+        })),
+        validate: input.validate,
+        warehouse_id: num(input.warehouseId),
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-invoices'] })

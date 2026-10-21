@@ -62,7 +62,7 @@ function matchesSearch(row: ThirdPartyRow, query: string) {
 
 export interface ThirdPartyRow {
   // Real societe.rowid, parsed from the list row's own card.php?socid= link
-  // (see societeListParser.ts) — null only if that link was somehow missing
+  // — null only if that link was somehow missing
   // from a row's HTML, in which case the name renders as plain text instead
   // of a dead link.
   id: number | null
@@ -70,8 +70,7 @@ export interface ThirdPartyRow {
   country: string
   // ISO 3166-1 alpha-2 (e.g. "ZM"), when the source row has one — only the
   // real /api/customers/index.php rows do (see toThirdPartyRow); optional
-  // because the legacy-scraped societeListParser.ts producer of this same
-  // row type never had a code to give, only the display name.
+  // because other producers of this row type have only the display name.
   countryCode?: string
   outstandingBalance: number
   tpin: string
@@ -97,7 +96,7 @@ export interface ThirdPartyStatSpec {
   color: IconColor
 }
 
-function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
+function StatCard({ stat, isLoading }: { stat: ThirdPartyStatSpec; isLoading: boolean }) {
   const { theme } = useTheme()
   const compact = usesBlueLayout(theme)
   const Icon = stat.icon
@@ -105,7 +104,9 @@ function StatCard({ stat }: { stat: ThirdPartyStatSpec }) {
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div className="min-w-0">
         <p className={`${compact ? 'text-[10px] leading-3' : 'text-xs'} font-semibold text-text-muted uppercase tracking-wide`}>{stat.label}</p>
-        <p className={`${compact ? 'text-lg leading-5' : 'text-xl mt-1'} font-bold text-text!`}>{stat.value}</p>
+        <p className={`${compact ? 'text-lg leading-5' : 'text-xl mt-1'} font-bold text-text!`}>
+          {isLoading ? <span className="block h-5 w-20 animate-pulse rounded bg-surface-hover" /> : stat.value}
+        </p>
         <p className={`${compact ? 'text-[10px] leading-3' : 'text-xs mt-0.5'} text-text-faint`}>{stat.caption}</p>
       </div>
       <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-10 h-10 rounded-lg'} flex items-center justify-center ${ICON_STYLES[stat.color]}`}>
@@ -240,6 +241,9 @@ export function ThirdPartyList({
   newLabel,
   stats,
   rows,
+  isLoading = false,
+  statusMessage,
+  emptyMessage = 'No Data Available In Table',
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -249,6 +253,9 @@ export function ThirdPartyList({
   newLabel: string
   stats: ThirdPartyStatSpec[]
   rows: ThirdPartyRow[]
+  isLoading?: boolean
+  statusMessage?: string
+  emptyMessage?: string
 }) {
   const { theme } = useTheme()
   const location = useLocation()
@@ -312,6 +319,7 @@ export function ThirdPartyList({
     // bottom even when there are only a few rows, instead of floating right under the table
     // with dead space below it.
     <div className="-m-6 flex-1 flex flex-col min-h-0">
+      {isLoading && <span className="sr-only" role="status">Loading {title.toLowerCase()} data</span>}
       {/* sticky -top-6 (not top-0): position:sticky's offset is always measured from main's
           own padding edge (24px inset), not its true edge — -24px shifts the stick point to
           clamp flush against main's true top instead. See StickyFormShell.tsx for the full
@@ -350,9 +358,15 @@ export function ThirdPartyList({
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
           {stats.map((s) => (
-            <StatCard key={s.label} stat={s} />
+            <StatCard key={s.label} stat={s} isLoading={isLoading} />
           ))}
         </div>
+
+        {statusMessage && (
+          <p role="alert" className="rounded-lg border border-border bg-surface-alt px-4 py-3 text-sm text-text-muted">
+            {statusMessage}
+          </p>
+        )}
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="blue-density-toolbar flex flex-wrap items-center gap-3 p-4 border-b border-border">
@@ -456,10 +470,20 @@ export function ThirdPartyList({
               </TheadRow>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }, (_, row) => (
+                  <tr key={row} aria-hidden="true" className="border-b border-border">
+                    {COLUMNS.map((column, columnIndex) => (
+                      <td key={column.key} className="px-4 py-3">
+                        <span className={`block h-4 animate-pulse rounded bg-surface-hover ${columnIndex === 0 ? 'w-3/4' : 'w-1/2'}`} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : rows.length === 0 ? (
                 <tr>
                   <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
-                    No Data Available In Table
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : filteredRows.length === 0 ? (

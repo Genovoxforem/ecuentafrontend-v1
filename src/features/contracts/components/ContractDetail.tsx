@@ -13,9 +13,6 @@ import {
   Pencil,
   Copy,
   Trash2,
-  Search,
-  Link2,
-  Upload,
   LoaderCircle,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -24,6 +21,7 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/Le
 import { useTheme } from '../../../context/ThemeContext'
 
 import { useContractsList } from '../contracts.queries'
+import { ContractContactsTab, ContractDocumentsTab, ContractAgendaTab, ContractFollowUpTab } from './ContractTabs'
 import { useContractApiDetail, useContractLines, useContractOperation, useDeleteContract, useUpdateContract, contractLineStatusLabel } from '../contractDetail.queries'
 
 const TABS = [
@@ -182,11 +180,11 @@ export function ContractDetail() {
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 px-6 py-4 space-y-4 no-scrollbar">
         {tab === 'card' && <ContractCardTab id={id} />}
-        {tab === 'contacts' && <ContactsAddressesTab />}
-        {tab === 'notes' && <NotesTab />}
-        {tab === 'followup' && <FollowUpTab />}
-        {tab === 'documents' && <LinkedFilesTab />}
-        {tab === 'agenda' && <EventsAgendaTab />}
+        {tab === 'contacts' && <ContractContactsTab id={id} />}
+        {tab === 'notes' && <NotesTab id={id} />}
+        {tab === 'followup' && <ContractFollowUpTab id={id} />}
+        {tab === 'documents' && <ContractDocumentsTab id={id} />}
+        {tab === 'agenda' && <ContractAgendaTab id={id} socid={contract.thirdPartyId ? Number(contract.thirdPartyId) : undefined} />}
       </div>
     </div>
   )
@@ -443,214 +441,80 @@ function ContractCardTab({ id }: { id: string | undefined }) {
   )
 }
 
-// --- Design-only tabs below --------------------------------------------
-// contrat/contact.php, note.php, follow_up.php, document.php and agenda.php
-// are all full-page legacy HTML with no JSON API behind them (confirmed by
-// reading each file directly — no json_encode/Content-Type: application/json
-// anywhere in them). Per the standing rule against integrating scraped HTML
-// pages, these tabs reproduce the real page's layout only — every control is
-// inert (disabled, with a tooltip explaining why) and every list shows an
-// honest empty state rather than invented data.
+function NotesTab({ id }: { id: string | undefined }) {
+  const contractApi = useContractApiDetail(id)
+  const updateContract = useUpdateContract(id)
+  const [draft, setDraft] = useState<{ pub: string; priv: string } | null>(null)
+  const [saveError, setSaveError] = useState('')
+  const [saved, setSaved] = useState(false)
 
-function ContactsAddressesTab() {
-  return (
-    <div className="space-y-3">
-      <TabTitle>Contacts/Addresses</TabTitle>
-      
-      <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-          <div>
-            <p className="text-xs text-text-faint mb-1">Nature Of Contact</p>
-            <p className="text-sm font-medium text-text! flex items-center gap-1.5">
-              <Users2 size={14} /> Users
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-text-faint mb-1">Third-Party</p>
-            <select disabled className="w-full text-sm rounded-md border border-input-border bg-surface-hover text-text-faint px-2 py-1.5 cursor-not-allowed">
-              <option>—</option>
-            </select>
-          </div>
-          <div>
-            <p className="text-xs text-text-faint mb-1">Users/Contacts/Addresses</p>
-            <select disabled className="w-full text-sm rounded-md border border-input-border bg-surface-hover text-text-faint px-2 py-1.5 cursor-not-allowed">
-              <option>—</option>
-            </select>
-          </div>
-          <button type="button" disabled title="No real API available on this backend"           className={operationBtn}>
-            Add
-          </button>
-        </div>
-      </Card>
-      <Card className="!h-auto !p-0 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium px-4 py-2.5">Nature Of Contact</th>
-              <th className="font-medium px-4 py-2.5">Third-Party</th>
-              <th className="font-medium px-4 py-2.5">Users/Contacts/Addresses</th>
-              <th className="font-medium px-4 py-2.5">Contact Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-text-faint italic">
-                No data source available.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  )
-}
+  if (contractApi.isLoading) return <LegacyLoadingCard label="Loading notes…" />
+  if (contractApi.isError || !contractApi.data) {
+    return (
+      <LegacyErrorCard
+        title="Couldn't load notes"
+        message={contractApi.error instanceof Error ? contractApi.error.message : 'Unknown error.'}
+        onRetry={() => contractApi.refetch()}
+      />
+    )
+  }
 
-function NotesTab() {
-  const [notePublic, setNotePublic] = useState('')
-  const [notePrivate, setNotePrivate] = useState('')
+  const contract = contractApi.data
+  const canEdit = !!contract.actions.can_edit
+  const pub = draft?.pub ?? contract.note_public ?? ''
+  const priv = draft?.priv ?? contract.note_private ?? ''
+  const dirty = draft !== null && (pub !== (contract.note_public ?? '') || priv !== (contract.note_private ?? ''))
+
+  async function handleSave() {
+    setSaveError('')
+    setSaved(false)
+    try {
+      await updateContract.mutateAsync({ note_public: pub, note_private: priv })
+      setDraft(null)
+      setSaved(true)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Could not save the notes.')
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <TabTitle>Notes</TabTitle>
-        <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-          Save
+        <button
+          type="button"
+          disabled={!canEdit || !dirty || updateContract.isPending}
+          title={canEdit ? 'Save notes' : 'You do not have permission to edit this contract'}
+          onClick={() => void handleSave()}
+          className={operationBtn}
+        >
+          {updateContract.isPending && <LoaderCircle size={14} className="animate-spin" />} Save
         </button>
       </div>
-      
+      {saveError && <p role="alert" className="text-sm text-danger">{saveError}</p>}
+      {saved && !dirty && <p role="status" className="text-sm text-text-muted">Notes saved.</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="!h-auto">
           <p className="text-sm font-semibold text-text!">Note (public)</p>
-          <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={3} className="w-full mt-2 text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
+          <textarea
+            value={pub}
+            readOnly={!canEdit}
+            onChange={(e) => { setSaved(false); setDraft({ pub: e.target.value, priv }) }}
+            rows={5}
+            className="w-full mt-2 text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
+          />
         </Card>
         <Card className="!h-auto">
           <p className="text-sm font-semibold text-text!">Note (private)</p>
-          <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={3} className="w-full mt-2 text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2" />
+          <textarea
+            value={priv}
+            readOnly={!canEdit}
+            onChange={(e) => { setSaved(false); setDraft({ pub, priv: e.target.value }) }}
+            rows={5}
+            className="w-full mt-2 text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2"
+          />
         </Card>
       </div>
-    </div>
-  )
-}
-
-function FollowUpTab() {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <TabTitle>Follow Up</TabTitle>
-        <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-          Ecuenta Application
-        </button>
-      </div>
-      
-      <Card className="!h-auto !p-0 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium px-4 py-2.5">Date</th>
-              <th className="font-medium px-4 py-2.5">Customer/Technical Support Representative</th>
-              <th className="font-medium px-4 py-2.5">Status</th>
-              <th className="font-medium px-4 py-2.5">Options</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-text-faint italic">
-                No data source available.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  )
-}
-
-function LinkedFilesTab() {
-  return (
-    <div className="space-y-3">
-      <TabTitle>Linked Files</TabTitle>
-      
-      <Card className="!h-auto">
-        <p className="text-sm font-semibold text-text! mb-2">Attach a new file/document</p>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="file"
-            disabled
-            className="text-sm text-text-faint file:mr-3 file:rounded-md file:border file:border-input-border file:bg-surface-hover file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-text-faint cursor-not-allowed"
-          />
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-            <Upload size={14} /> Upload
-          </button>
-        </div>
-      </Card>
-      <Card className="!h-auto">
-        <p className="text-sm font-semibold text-text! mb-2">Link a new file/document</p>
-        <div className="flex flex-wrap items-center gap-3">
-          <input disabled placeholder="URL to link" className="flex-1 min-w-[180px] text-sm rounded-md border border-input-border bg-surface-hover text-text-faint px-3 py-1.5 cursor-not-allowed" />
-          <input disabled placeholder="Label" className="flex-1 min-w-[140px] text-sm rounded-md border border-input-border bg-surface-hover text-text-faint px-3 py-1.5 cursor-not-allowed" />
-          <button type="button" disabled title="No real API available on this backend" className={disabledBtn}>
-            <Link2 size={14} /> Link
-          </button>
-        </div>
-      </Card>
-      <Card className="!h-auto">
-        <p className="text-sm font-semibold text-text! mb-2">Attached files and documents</p>
-        <p className="text-sm text-text-faint italic text-center py-4">No Documents Uploaded</p>
-      </Card>
-      <Card className="!h-auto">
-        <p className="text-sm font-semibold text-text! mb-2">Linked files and documents</p>
-        <p className="text-sm text-text-faint italic text-center py-4">No Registered Links</p>
-      </Card>
-    </div>
-  )
-}
-
-function EventsAgendaTab() {
-  return (
-    <div className="space-y-3">
-      <TabTitle>Events/Agenda</TabTitle>
-      
-      <Card className="!h-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div>
-            <p className="text-text-faint text-xs">Created By</p>
-            <p className="font-medium text-text!">—</p>
-          </div>
-          <div>
-            <p className="text-text-faint text-xs">Creation Date</p>
-            <p className="font-medium text-text!">—</p>
-          </div>
-          <div>
-            <p className="text-text-faint text-xs">Latest Modification Date</p>
-            <p className="font-medium text-text!">—</p>
-          </div>
-        </div>
-      </Card>
-      <Card className="!h-auto">
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-            <input disabled placeholder="Search" className="w-full text-sm rounded-md border border-input-border bg-surface-hover text-text-faint pl-8 pr-3 py-1.5 cursor-not-allowed" />
-          </div>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium py-2 pr-3">Ref.</th>
-              <th className="font-medium py-2 pr-3">Date</th>
-              <th className="font-medium py-2 pr-3">By</th>
-              <th className="font-medium py-2 pr-3">Type</th>
-              <th className="font-medium py-2">Title</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={5} className="py-6 text-center text-text-faint italic">
-                No data source available.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
     </div>
   )
 }

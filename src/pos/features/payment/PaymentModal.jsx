@@ -61,7 +61,7 @@ function PaymentModal({ open, onClose }) {
                     className={`flex items-center justify-between px-6 py-2.5 rounded-t-2xl ${
                         payment.completedReceipt
                             ? "bg-white dark:bg-slate-900 text-gray-900 dark:text-white border-b border-gray-200 dark:border-slate-700"
-                            : "bg-[#2c6291] text-white"
+                            : "bg-[#2f6fe4] text-white"
                     }`}
                 >
                     <div className="flex items-center gap-2 text-lg font-semibold">

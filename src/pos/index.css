@@ -171,3 +171,9 @@
   background: #eef2f7;
   color-scheme: light;
 }
+
+/* The app-wide dark theme paints every <main> (index.css: html[data-theme='dark'] main). POS V2 has its own
+   light/dark switch, so its <main> must stay transparent and let .pos-v2-root's background show through. */
+html[data-theme] .pos-v2-root main {
+  background-color: transparent;
+}

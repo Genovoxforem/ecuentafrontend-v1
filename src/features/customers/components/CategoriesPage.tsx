@@ -1,22 +1,35 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CalendarPlus, ChevronDown, ChevronRight, Folder, FolderOpen, Link2, Loader2, Network, Plus, Search, Tag, Tags, UsersRound, X } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { listProductCategories } from '../../../api/products'
+import { Link, useSearchParams } from 'react-router-dom'
+import { CalendarPlus, ChevronDown, ChevronRight, Folder, FolderOpen, Link2, Loader2, Network, Eye, Package, Pencil, Plus, Search, Tag, Tags, UsersRound, X } from 'lucide-react'
 import { Card, TodayStatCard } from '../../../shared/components/dashboard/DashboardKit'
-import { resolveLegacyRoute } from '../../../shared/legacyRoute'
-import { fetchCategoryItems, useCategories, useCreateCategory, type CategoryLinkedItem, type CategoryRow, type CategoryType } from '../categories.queries'
+import { ROUTES } from '../../../routes'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
+import {
+  fetchCategoryItems,
+  useCategories,
+  useCreateCategory,
+  useUpdateCategory,
+  type CategoryLinkedItem,
+  type CategoryRow,
+  type CategoryType,
+} from '../categories.queries'
+import { TagFormModal, type TagFormValues } from './TagFormModal'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const toolbarBtn = 'flex items-center gap-1.5 rounded-md border border-input-border bg-input-bg px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover disabled:opacity-60'
 
 // What the tagged records are called in the cards and the empty states.
-const ITEM_NOUN: Record<CategoryType, string> = { 1: 'Vendors', 2: 'Customers', 4: 'Contacts' }
+const ITEM_NOUN: Record<CategoryType, string> = { 0: 'Products', 1: 'Vendors', 2: 'Customers', 4: 'Contacts' }
 
-function TaggedItem({ item }: { item: CategoryLinkedItem }) {
+function TaggedItem({ item, type }: { item: CategoryLinkedItem; type: CategoryType }) {
   const text = [item.ref, item.label].filter(Boolean).join(' ') || `#${item.id}`
-  const to = resolveLegacyRoute(item.href)
+  const to = item.to
+  const Icon = type === 0 ? Package : UsersRound
   return (
     <li className="flex items-center gap-2 py-0.5 text-sm">
-      <UsersRound size={13} className="shrink-0 text-text-faint" />
+      <Icon size={13} className="shrink-0 text-text-faint" />
       {to ? (
         <Link to={to} className="text-brand hover:underline">
           {text}
@@ -30,18 +43,20 @@ function TaggedItem({ item }: { item: CategoryLinkedItem }) {
 
 // The classic tags/categories page (see categories.queries.ts): four summary
 // cards, the tag tree with expand / collapse, the records filed under each tag
-// and the real "new tag" form behind the + button. Shared between Customer
-// Tags/Categories (type=2) and Contact Tags/Categories (type=4) — the same UI
-// over the same table, filtered by category type.
+// and the real "new tag" form behind the + button. Shared between Product/Service
+// (type=0), Vendor (1), Customer (2) and Contact (4) Tags/Categories — the same
+// UI over the same table, filtered by category type. Product tags can also be
+// edited from the card (product/fapi/categories.php); the other types are edited in place through categories/fapi.
 export function CategoriesPage({ type, title }: { type: CategoryType; title: string }) {
   const [search, setSearch] = useState('')
   const { data, isLoading, isError, error: queryError } = useCategories(type, search)
   const createCategory = useCreateCategory(type)
+  const updateCategory = useUpdateCategory(type)
+  const canEdit = type === 0
+
+  const [editing, setEditing] = useState<CategoryRow | null>(null)
 
   const [showForm, setShowForm] = useState(false)
-  const [label, setLabel] = useState('')
-  const [description, setDescription] = useState('')
-  const [parentId, setParentId] = useState(-1)
   const [error, setError] = useState('')
 
   // Tags whose children are showing, and the records loaded for a tag (a tag
@@ -54,6 +69,10 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
   const [itemsError, setItemsError] = useState('')
 
   const rows = useMemo(() => data?.items ?? [], [data])
+  const [urlParams, setUrlParams] = useSearchParams()
+  const editParam = Number(urlParams.get('edit')) || 0
+  const [handledEdit, setHandledEdit] = useState(0)
+  const editTarget = canEdit && editParam && editParam !== handledEdit ? rows.find((c) => c.id === editParam) : undefined
   const searching = search.trim() !== ''
   const children = useMemo(() => {
     const ids = new Set(rows.map((c) => c.id))
@@ -65,23 +84,62 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
     }
     return map
   }, [rows])
+  // Product tags only: product/fapi/categories.php carries the creation date and author the tree lacks.
+  const { data: tagDates } = useQuery({
+    queryKey: ['products', 'tagDates'],
+    queryFn: async () => new Map((await listProductCategories()).categories.map((c) => [c.id, c])),
+    enabled: type === 0,
+    staleTime: 1000 * 60,
+    retry: false,
+  })
+  const createdThisMonth = useMemo(() => {
+    if (!tagDates) return null
+    const now = new Date()
+    return [...tagDates.values()].filter((c) => c.date_creation && new Date(c.date_creation * 1000).getMonth() === now.getMonth() && new Date(c.date_creation * 1000).getFullYear() === now.getFullYear()).length
+  }, [tagDates])
   const stats = data?.stats
 
-  function handleSave() {
-    if (!label.trim()) {
-      setError('Name is required.')
-      return
+  // A tag cannot move under itself or under one of its own sub-tags.
+  const editParentOptions = useMemo(() => {
+    if (!editing) return rows
+    const blocked = new Set<number>([editing.id])
+    const walk = (id: number) => {
+      for (const k of children.get(id) ?? []) {
+        blocked.add(k.id)
+        walk(k.id)
+      }
     }
+    walk(editing.id)
+    return rows.filter((c) => !blocked.has(c.id))
+  }, [editing, rows, children])
+
+  if (editTarget) {
+    // Arrived from a tag card's Modify button: open that tag's dialog once.
+    setHandledEdit(editParam)
+    setUrlParams({}, { replace: true })
+    setShowForm(false)
+    setError('')
+    setEditing(editTarget)
+  }
+
+  function handleUpdate(v: TagFormValues) {
+    if (!editing) return
+    setError('')
+    updateCategory.mutate(
+      { id: editing.id, label: v.label, description: v.description, color: v.color, parentId: v.parentId, previousParentId: editing.parentId || 0, visible: v.visible },
+      {
+        onSuccess: () => setEditing(null),
+        onError: (err) => setError(err instanceof Error ? err.message : 'Could not save this tag — please try again.'),
+      },
+    )
+  }
+
+  function handleSave(v: TagFormValues) {
     setError('')
     createCategory.mutate(
-      { label: label.trim(), description: description.trim(), parentId },
+      { label: v.label, description: v.description, color: v.color, parentId: v.parentId, visible: v.visible },
       {
-        onSuccess: () => {
-          setLabel('')
-          setDescription('')
-          setParentId(-1)
-          setShowForm(false)
-        },
+        onSuccess: () => setShowForm(false),
         onError: (err) => setError(err instanceof Error ? err.message : 'Could not save this tag — please try again.'),
       },
     )
@@ -153,9 +211,23 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
           <div className="flex flex-1 items-center rounded-md bg-brand/10 px-3 py-1.5 text-sm text-text!" title={c.description ?? undefined}>
             <span className="flex items-center gap-2">
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: c.color ? `#${c.color}` : '#397db9' }} />
-              {nested ? c.label : c.fullLabel}
+              {canEdit ? (
+                <Link to={ROUTES.productTagDetail.replace(':id', String(c.id))} className="hover:underline">
+                  {nested ? c.label : c.fullLabel}
+                </Link>
+              ) : nested ? (
+                c.label
+              ) : (
+                c.fullLabel
+              )}
             </span>
           </div>
+          {type === 0 && tagDates?.get(c.id)?.date_creation ? (
+            <span className="hidden shrink-0 text-xs text-text-faint sm:inline" title="Created">
+              {new Date((tagDates.get(c.id)!.date_creation as number) * 1000).toLocaleDateString('en-GB')}
+              {tagDates.get(c.id)?.created_by ? ` · ${tagDates.get(c.id)!.created_by}` : ''}
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={() => void toggleItems(c.id)}
@@ -165,10 +237,19 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
           >
             {loadingId === c.id ? <Loader2 size={12} className="animate-spin" /> : c.itemCount}
           </button>
+          {canEdit ? (
+            <Link to={ROUTES.productTagDetail.replace(':id', String(c.id))} aria-label={`View ${c.label}`} title="View" className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:text-brand">
+              <Eye size={16} />
+            </Link>
+          ) : (
+            <button type="button" aria-label={`Modify ${c.label}`} title="Modify" onClick={() => { setError(''); setEditing(c) }} className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:text-brand">
+              <Pencil size={15} />
+            </button>
+          )}
         </div>
         {showItems && items[c.id] && (
           <ul className="mb-1 space-y-0.5 border-l border-border pl-3" style={{ marginLeft: depth * 24 + 40 }}>
-            {items[c.id].length === 0 ? <li className="text-xs italic text-text-faint">Nothing is filed under this tag.</li> : items[c.id].map((item) => <TaggedItem key={item.id} item={item} />)}
+            {items[c.id].length === 0 ? <li className="text-xs italic text-text-faint">Nothing is filed under this tag.</li> : items[c.id].map((item) => <TaggedItem key={item.id} item={item} type={type} />)}
           </ul>
         )}
         {kids.length > 0 && open && <ul>{kids.map((k) => renderNode(k, depth + 1, true))}</ul>}
@@ -184,53 +265,54 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Tag size={20} className="text-brand" /> {title}
         </h2>
-        <button type="button" onClick={() => setShowForm((v) => !v)} aria-label={showForm ? 'Close the new tag form' : 'New tag'} className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand text-white hover:bg-brand-hover">
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-        </button>
+        <InBanner>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null)
+              setError('')
+              setShowForm(true)
+            }}
+            className="flex items-center justify-center h-9 px-3 rounded-lg bg-brand text-white hover:bg-brand-hover"
+          >
+            <Plus size={16} />
+            <span className="ml-1.5 text-sm font-medium">New tag/category</span>
+          </button>
+        </InBanner>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <TodayStatCard label="Tags/categories" value={stats ? String(stats.total) : '—'} caption="Tags/categories" icon={Tags} color="blue" />
         <TodayStatCard label="Parent tag/category" value={stats ? String(stats.roots) : '—'} caption="Parent tag/category" icon={Network} color="violet" />
         <TodayStatCard label="Linked items" value={stats ? String(stats.linked) : '—'} caption={`Tag/category / ${ITEM_NOUN[type]}`} icon={Link2} color="cyan" />
-        <TodayStatCard label="Created this month" value={stats ? String(stats.createdThisMonth) : '—'} caption="New tags/categories" icon={CalendarPlus} color="green" />
+        <TodayStatCard label="Created this month" value={createdThisMonth !== null && type === 0 ? String(createdThisMonth) : stats ? String(stats.createdThisMonth) : '—'} caption="New tags/categories" icon={CalendarPlus} color="green" />
       </div>
 
       {showForm && (
-        <Card className="!h-auto">
-          {error && <p className="mb-3 whitespace-pre-line text-sm font-medium text-danger">{error}</p>}
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Name</label>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Description</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs text-text-faint mb-1">Add in</label>
-              <select value={parentId} onChange={(e) => setParentId(Number(e.target.value))} className={inputCls}>
-                <option value={-1}>No parent</option>
-                {rows.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.fullLabel}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="button" disabled={createCategory.isPending} onClick={handleSave} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-              Save
-            </button>
-          </div>
-        </Card>
+        <TagFormModal mode="create" parents={rows} pending={createCategory.isPending} error={error} onSubmit={handleSave} onClose={() => setShowForm(false)} />
+      )}
+      {editing && (
+        <TagFormModal
+          key={editing.id}
+          mode="edit"
+          initial={{ label: editing.label, description: editing.description ?? '', color: editing.color ? `#${editing.color}` : undefined, parentId: editing.parentId || 0 }}
+          parents={editParentOptions}
+          pending={updateCategory.isPending}
+          error={error}
+          onSubmit={handleUpdate}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="text-sm text-text-muted">Name:</label>
-        <div className="relative w-64">
+        <div className="relative w-72">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} className={inputCls + ' w-full pl-8'} placeholder="Search" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} className={inputCls + ' w-full pl-8 pr-8'} placeholder="Name" />
+          {search && (
+            <button type="button" onClick={() => setSearch('')} aria-label="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-text-faint hover:text-text">
+              <X size={14} />
+            </button>
+          )}
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           <button type="button" className={toolbarBtn} onClick={() => setExpanded(new Set())}>
@@ -240,10 +322,10 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
             <FolderOpen size={14} /> Expand all
           </button>
           <button type="button" className={toolbarBtn} disabled={loadingAll || rows.length === 0} onClick={() => void expandItems()}>
-            {loadingAll ? <Loader2 size={14} className="animate-spin" /> : <UsersRound size={14} />} Expand {ITEM_NOUN[type].toLowerCase()}
+            {loadingAll ? <Loader2 size={14} className="animate-spin" /> : <UsersRound size={14} />} Expand {ITEM_NOUN[type]}
           </button>
           <button type="button" className={toolbarBtn} onClick={() => setShown(new Set())}>
-            <Folder size={14} /> Collapse {ITEM_NOUN[type].toLowerCase()}
+            <Folder size={14} /> Collapse {ITEM_NOUN[type]}
           </button>
         </div>
       </div>

@@ -70,8 +70,8 @@ export function QuotationsList({ summary }: { summary: QuotationsSummary }) {
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
-  // Real customer-scoping filter — reads QuotationRow.socid (already parsed
-  // from the row's own third-party link, see quotationListParser.ts). Lets
+  // Real customer-scoping filter — reads QuotationRow.socid (the list row's
+  // fk_soc, see quotations.queries.ts). Lets
   // a customer's own Related Items tab ("View all" on its Proposals card)
   // link here instead of the legacy backend's own filtered list.php.
   const customerIdParam = searchParams.get('customerId')

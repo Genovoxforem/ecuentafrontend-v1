@@ -39,11 +39,11 @@ export function AdvanceListPage() {
           </Card>
           <Card className="!h-auto">
             <p className="text-xs text-text-faint uppercase tracking-wide">Total Used Advance</p>
-            <p className="text-lg font-bold text-text-faint mt-0.5">—</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{data ? fmtZMW(data.totalUsedAmount) : '—'}</p>
           </Card>
           <Card className="!h-auto">
             <p className="text-xs text-text-faint uppercase tracking-wide">Total Remaining Advance</p>
-            <p className="text-lg font-bold text-text-faint mt-0.5">—</p>
+            <p className="text-lg font-bold text-text! mt-0.5">{data ? fmtZMW(data.totalRemainingAmount) : '—'}</p>
           </Card>
         </div>
 

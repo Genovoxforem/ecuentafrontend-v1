@@ -38,7 +38,7 @@ function OrderTypeBar() {
                 type="button"
                 onClick={() => setModalOpen(true)}
                 title={selectedTable ? selectedTable.label : "Select Table"}
-                className="flex-1 min-w-0 flex items-center justify-center gap-1 bg-[#397db9] border border-[#397db9] text-white font-medium rounded-md sm:rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-2 whitespace-nowrap shadow-sm shadow-[#397db9]/30 hover:bg-[#2c6291]"
+                className="flex-1 min-w-0 flex items-center justify-center gap-1 bg-[#3b82f6] border border-[#3b82f6] text-white font-medium rounded-md sm:rounded-lg px-1.5 sm:px-2.5 py-1.5 sm:py-2 whitespace-nowrap shadow-sm shadow-[#3b82f6]/30 hover:bg-[#2f6fe4]"
             >
                 <MapPin size={13} className="sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span className="hidden sm:inline text-[13px] truncate">{selectedTable ? selectedTable.label : "Table"}</span>

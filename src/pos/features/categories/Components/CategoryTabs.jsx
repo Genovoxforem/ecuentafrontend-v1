@@ -105,7 +105,7 @@ function CategoryTabs({ categories, selectedCategory, onSelect }) {
                         onClick={() => onSelect(category)}
                         className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap shrink-0 transition-colors ${
                             selectedCategory === category
-                                ? "bg-[#2c6291] text-white"
+                                ? "bg-[#2f6fe4] text-white"
                                 : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                         }`}
                     >
@@ -122,8 +122,8 @@ function CategoryTabs({ categories, selectedCategory, onSelect }) {
                         title={`${hiddenCategories.length} more categories`}
                         className={`shrink-0 px-3 py-1.5 text-sm font-semibold rounded-full shadow-sm whitespace-nowrap transition-colors border ${
                             selectedIsHidden
-                                ? "bg-[#2c6291] text-white border-[#2c6291]"
-                                : "bg-white text-[#397db9] border-[#397db9]/40 hover:bg-[#397db9]/10 dark:bg-gray-800 dark:text-blue-300 dark:border-blue-300/30 dark:hover:bg-gray-700"
+                                ? "bg-[#2f6fe4] text-white border-[#2f6fe4]"
+                                : "bg-white text-[#3b82f6] border-[#3b82f6]/40 hover:bg-[#3b82f6]/10 dark:bg-gray-800 dark:text-blue-300 dark:border-blue-300/30 dark:hover:bg-gray-700"
                         }`}
                     >
                         +{hiddenCategories.length}
@@ -146,7 +146,7 @@ function CategoryTabs({ categories, selectedCategory, onSelect }) {
                                 }}
                                 className={`px-3 py-2 text-sm rounded-lg text-left whitespace-nowrap transition-colors ${
                                     selectedCategory === category
-                                        ? "bg-[#2c6291] text-white font-medium"
+                                        ? "bg-[#2f6fe4] text-white font-medium"
                                         : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
                                 }`}
                             >

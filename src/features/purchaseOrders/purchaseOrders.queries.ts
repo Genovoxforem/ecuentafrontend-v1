@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
-import { parsePurchaseOrderListRow, parseUsDate, type PurchaseOrderListRow, type RawPurchaseOrderListRow } from './purchaseOrderListParser'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { PO_BASE } from './purchaseOrderFapi'
+import { parseUsDate } from './purchaseOrderTypes'
 
 export interface PurchaseOrderRow {
   id: number | null
@@ -17,6 +18,10 @@ export interface PurchaseOrderRow {
   status: string
   statusCode: number | null
   billed: boolean
+  // From fourn/commande/fapi/list.php (dispatch table); undefined on the classic list.
+  qtyOrdered?: number
+  qtyReceived?: number
+  hasReceipts?: boolean
 }
 
 export interface PurchaseOrdersSummary {
@@ -28,74 +33,64 @@ export interface PurchaseOrdersSummary {
   orders: PurchaseOrderRow[]
 }
 
-function toRow(r: PurchaseOrderListRow): PurchaseOrderRow {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// 'YYYY-MM-DD[ HH:MM]' from the API, as the US date the list's own sorting and filters read.
+function usDate(value: unknown): string {
+  const m = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})-(\d{2})/) : null
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
+}
+
+// GET fourn/commande/fapi/list.php: real status codes, the supplier as an object, qty ordered / received
+// and a summary of counts and amounts by status computed with the status filter removed. Pages of up to
+// 100 are read until the whole list is in (the page sorts, filters and paginates it locally).
+async function fetchFromFapi(): Promise<PurchaseOrdersSummary> {
+  const items: any[] = []
+  let summary: any = null
+  let pages = 1
+  for (let page = 1; page <= pages && page <= 50; page += 1) {
+    const d = await fapiGet<any>(`${PO_BASE}/list.php`, { page, limit: 100, sort: 'date', direction: 'desc' })
+    summary ??= d.summary
+    pages = d.pages ?? 1
+    items.push(...(d.items ?? []))
+  }
+  const orders: PurchaseOrderRow[] = items.map((o) => ({
+    id: Number(o.id) || null,
+    ref: o.ref ?? '',
+    refOrderVendor: o.ref_supplier ?? '',
+    requestAuthor: o.author?.name ?? o.author?.login ?? '',
+    thirdParty: o.supplier?.name ?? '',
+    socid: o.supplier?.id != null ? Number(o.supplier.id) : null,
+    city: o.supplier?.town ?? '',
+    zipCode: '',
+    orderDate: usDate(o.date_order) || usDate(o.date_creation),
+    plannedDelivery: usDate(o.date_delivery),
+    amountExclTax: Number(o.total_ht) || 0,
+    status: o.status_label ?? '',
+    statusCode: o.status == null ? null : Number(o.status),
+    billed: Boolean(Number(o.billed)),
+    qtyOrdered: Number(o.qty_ordered) || 0,
+    qtyReceived: Number(o.qty_received) || 0,
+    hasReceipts: (Number(o.qty_received) || 0) > 0,
+  }))
+  const now = new Date()
+  const ordersThisMonth = orders.filter((r) => {
+    const d = parseUsDate(r.orderDate)
+    return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  }).length
   return {
-    id: r.id,
-    ref: r.ref,
-    refOrderVendor: r.refOrderVendor,
-    requestAuthor: r.requestAuthor,
-    thirdParty: r.thirdPartyName,
-    socid: r.socid,
-    city: r.city,
-    zipCode: r.zipCode,
-    orderDate: r.orderDate,
-    plannedDelivery: r.plannedDelivery,
-    amountExclTax: r.amountExclTax,
-    status: r.statusLabel,
-    statusCode: r.statusCode,
-    billed: r.billed,
+    totalOrders: Number(summary?.count) || orders.length,
+    ordersThisMonth,
+    totalPurchaseAmount: Number(summary?.total_amount_ht) || orders.reduce((sum, r) => sum + r.amountExclTax, 0),
+    approvedCount: Number(summary?.count_by_status?.['2']) || 0,
+    pendingCount: Number(summary?.count_by_status?.['1']) || 0,
+    orders,
   }
 }
 
-// POST fourn/commande/purchase_ajax_list.php (length=-1 in the body) — a
-// real, working DataTables JSON endpoint (confirmed by reading its PHP
-// source directly), unrelated to the old dead /api/purchase-orders/*
-// namespace this app was previously built against (which never existed on
-// this backend at all — hence the local-only fake collection this
-// replaces).
-//
-// Must be a POST, not a GET with query params: the real PHP reads
-// `$_POST['length']` directly, not GETPOST() — confirmed live the same way
-// as Quotations' identical bug (see quotations.queries.ts's own comment for
-// the full writeup): a GET with `?length=-1` leaves $_POST empty, so
-// $rowperpage silently falls back to the hardcoded default of 10 rows,
-// truncating this list (and every stat card computed from it) whenever
-// there are more than 10 real orders. This dataset happened to have only 7
-// rows when this was first built, which is why the bug went unnoticed.
-//
-// The 4 stat cards on the real fourn/commande/list.php page are each their
-// own raw SQL query (COUNT(*), COUNT(*) this month, SUM(total_ht), and a
-// COUNT(*) GROUP BY fk_statut restricted to statuses 5 and 3) rather than
-// anything this AJAX endpoint itself returns — read directly from list.php.
-// Recomputed client-side here from the same full row set instead, matching
-// this app's established "fetch once, compute client-side" convention.
-//
-// The Order Status card counts fk_statut 2 (the "Approved" badge) as Approved
-// and fk_statut 1 (the "Validated" badge) as Pending — read from the current
-// list.php (`fk_statut IN (2,1)`). An older version of that page counted
-// statuses 5 and 3 instead, which is why this card once disagreed with the
-// real one (0 / 3 here against 4 / 8 there).
 export function usePurchaseOrdersSummary() {
   return useQuery({
     queryKey: ['purchaseOrders', 'list'],
-    queryFn: async (): Promise<PurchaseOrdersSummary> => {
-      const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
-      const { data } = await axios.post<{ aaData: RawPurchaseOrderListRow[] }>('/fourn/commande/purchase_ajax_list.php', body)
-      const rows = (data.aaData ?? []).map(parsePurchaseOrderListRow)
-      const now = new Date()
-      const ordersThisMonth = rows.filter((r) => {
-        const d = parseUsDate(r.orderDate)
-        return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      }).length
-      return {
-        totalOrders: rows.length,
-        ordersThisMonth,
-        totalPurchaseAmount: rows.reduce((sum, r) => sum + r.amountExclTax, 0),
-        approvedCount: rows.filter((r) => r.statusCode === 2).length,
-        pendingCount: rows.filter((r) => r.statusCode === 1).length,
-        orders: rows.map(toRow),
-      }
-    },
+    queryFn: (): Promise<PurchaseOrdersSummary> => fetchFromFapi(),
     staleTime: 1000 * 30,
   })
 }

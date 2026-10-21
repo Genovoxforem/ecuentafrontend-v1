@@ -8,7 +8,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
-import { useCreateRebate, useRebateCreateForm } from '../rebate.queries'
+import { useCreateRebate, useRebateCreateForm, useRebatesEnabled } from '../rebate.queries'
 
 const inputCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const areaCls = 'w-full px-3 py-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -43,6 +43,7 @@ export function CreateRebateInvoicePage() {
   const [created, setCreated] = useState<string | null>(null)
   const { data, isLoading, isFetching, isPlaceholderData, isError, error, refetch } = useRebateCreateForm(socid)
   const create = useCreateRebate()
+  const gate = useRebatesEnabled()
 
   const invoices = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -50,6 +51,7 @@ export function CreateRebateInvoicePage() {
     return q ? all.filter((i) => `${i.ref} ${i.date} ${i.amountTtc} ${i.zraStatus}`.toLowerCase().includes(q)) : all
   }, [data?.invoices, search])
 
+  if (gate.data && !gate.data.enabled) return <LegacyErrorCard title="Couldn't load the rebate form" message={gate.data.message} onRetry={() => gate.refetch()} />
   if (isLoading) return <LegacyLoadingCard label="Loading rebate form…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load the rebate form" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 

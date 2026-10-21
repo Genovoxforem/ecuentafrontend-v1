@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Truck, Search, AlertTriangle } from 'lucide-react'
+import { Truck, Search } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
-import { useLandedCostList } from '../warehouseExtras.queries'
-import type { LandedCostRow } from '../landedCostListParser'
+import { useLandedCostList, type LandedCostRow } from '../landedCosts.queries'
 import { formatDateTime, formatMoney } from '../../../utils/format'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none appearance-none'
@@ -55,8 +54,8 @@ function sortValue(c: LandedCostRow, key: SortKey): string | number {
   }
 }
 
-// List Landed Cost — the backend's own list (fourn/facture/landedcostlist.php), with its
-// product filter applied by the backend.
+// List Landed Cost — the allocations of the vendor invoices (fourn/facture/fapi/landed_costs.php, one call per
+// invoice; see landedCosts.queries.ts), with the product filter applied here.
 export function LandedCostListPage() {
   const [productDraft, setProductDraft] = useState('')
   const [productFilter, setProductFilter] = useState('')
@@ -104,16 +103,6 @@ export function LandedCostListPage() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
-        {data?.incomplete && (
-          <div role="alert" className="flex items-start gap-2 rounded-md border border-warning-fg/30 bg-warning-bg px-3 py-2 text-sm text-warning-fg">
-            <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-            <span>
-              The backend's landed cost list page stops with an error part-way through (landedcostlist.php, line 335), so only the record(s) it printed before failing are shown here. Its
-              administrator needs to fix that page before the full list can be read.
-            </span>
-          </div>
-        )}
-
         {isLoading ? (
           <LegacyLoadingCard label="Loading landed costs…" />
         ) : isError || !data ? (

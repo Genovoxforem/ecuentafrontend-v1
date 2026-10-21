@@ -1,27 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useSalesOrdersSummary, type OrderRow } from '../salesOrders/salesOrders.queries'
-import { parseOrderShipmentStockDetails } from '../salesOrders/orderExtraTabsParser'
+import { fapiGet } from '../../api/fapiEnvelope'
 
-// Real reference page: expedition/shippingcard.php?action=create2's "Yet To
-// Create Shipment" tab. Its own SQL (read directly from source) is:
-//   SELECT ss.* FROM llx_commande ss WHERE ss.fk_statut >= '1'
-//     [+ fk_user_author / fk_soc / date_creation filters matching the 3
-//        visible form fields], then per matching order a second query joins
-//     commandedet -> expeditiondet to skip any order that already has at
-//     least one shipment line.
-// Neither step has a JSON endpoint. Step 1 is reproduced honestly from the
-// real, already-used commande/salesoredr_ajax_list.php (useSalesOrdersSummary)
-// filtered client-side the same way. Step 2 has no JSON equivalent at all —
-// confirmed live: the real order-list endpoint's `status` field never
-// distinguishes "shipped" from "not shipped" (all 97 Validated orders on this
-// install show status "Validated" regardless of real shipped state, checked
-// directly against the live backend). The only real signal for "does this
-// order still need shipping" is the same per-order Stock Details table
-// Order Detail's own Shipments tab already parses (useOrderShipmentStock /
-// parseOrderShipmentStockDetails against expedition/shipment.php?id=X) — so
-// this re-runs that same real, already-proven check once per Validated order
-// that matches the visible filters (bounded by them, same as the reference
-// page's own per-row loop), rather than guessing from the order list alone.
+// "Yet To Create Shipment" tab of the classic shipment search: validated orders (inside the date / customer / author
+// filters) that still have something to ship. The candidates come from the sales order list; each one is checked
+// against expedition/fapi/shipment.php (see orderStillNeedsShipment), bounded by the filters like the classic loop.
 export interface PendingShipmentFilters {
   dateFrom: string // yyyy-mm-dd, empty = no lower bound
   dateTo: string // yyyy-mm-dd, empty = no upper bound
@@ -50,11 +33,15 @@ function matchesFilters(order: OrderRow, filters: PendingShipmentFilters): boole
   return true
 }
 
+// expedition/fapi/shipment.php?id=: the order's lines with what is ordered, already shipped and still to ship;
+// the order needs a shipment while any line has a quantity left (to_be_shipped_total > 0).
 async function orderStillNeedsShipment(id: number): Promise<boolean> {
-  const res = await fetch(`/expedition/shipment.php?id=${id}`, { credentials: 'same-origin' })
-  if (!res.ok) return false
-  const html = await res.text()
-  return parseOrderShipmentStockDetails(html).some((row) => row.remainToShip > 0)
+  try {
+    const d = await fapiGet<{ to_be_shipped_total?: number; stock_rows?: { qty_to_ship?: number }[] }>('/expedition/fapi/shipment.php', { id })
+    return (Number(d.to_be_shipped_total) || 0) > 0 || (d.stock_rows ?? []).some((r) => (Number(r.qty_to_ship) || 0) > 0)
+  } catch {
+    return false
+  }
 }
 
 export function useOrdersPendingShipment(filters: PendingShipmentFilters) {

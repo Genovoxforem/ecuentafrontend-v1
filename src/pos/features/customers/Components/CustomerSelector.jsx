@@ -175,18 +175,18 @@ function CustomerSelector() {
                         </div>
                     </div>
                     <div className="min-w-0 max-w-[42%] sm:max-w-[45%] space-y-0.5">
-                        <div className="flex items-center gap-1 min-w-0 text-[#397db9] dark:text-blue-300 text-[10px] sm:text-[11px] font-bold leading-tight">
+                        <div className="flex items-center gap-1 min-w-0 text-[#3b82f6] dark:text-blue-300 text-[10px] sm:text-[11px] font-bold leading-tight">
                             <IdCard size={10} className="shrink-0" />
                             <span className="truncate">TPIN: {selectedCustomer.tpin || "—"}</span>
                         </div>
                         {selectedCustomer.phone && (
-                            <div className="flex items-center gap-1 min-w-0 text-[#397db9]/90 dark:text-blue-300/80 text-[10px] sm:text-[11px] font-bold leading-tight">
+                            <div className="flex items-center gap-1 min-w-0 text-[#3b82f6]/90 dark:text-blue-300/80 text-[10px] sm:text-[11px] font-bold leading-tight">
                                 <Phone size={10} className="shrink-0" />
                                 <span className="truncate">{selectedCustomer.phone}</span>
                             </div>
                         )}
                         {selectedCustomer.email && (
-                            <div className="flex items-center gap-1 min-w-0 text-[#397db9]/80 dark:text-blue-300/70 text-[10px] sm:text-[11px] font-bold leading-tight">
+                            <div className="flex items-center gap-1 min-w-0 text-[#3b82f6]/80 dark:text-blue-300/70 text-[10px] sm:text-[11px] font-bold leading-tight">
                                 <Mail size={10} className="shrink-0" />
                                 <span className="truncate">{selectedCustomer.email}</span>
                             </div>

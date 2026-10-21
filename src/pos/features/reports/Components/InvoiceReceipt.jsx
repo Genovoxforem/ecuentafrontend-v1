@@ -152,9 +152,9 @@ const RECEIPT_STYLES = `
     .item-details { display: flex; justify-content: space-between; font-size: 11px; margin-top: 2px; color: #333; }
     .item-total { font-weight: bold; }
     .total-label { text-align: center; font-weight: bold; font-size: 12px; margin: 6px 0; }
-    .grand-total { font-size: 15px; font-weight: bold; border-top: 2px double #333; margin-top: 6px; padding-top: 6px; color: #397db9; }
+    .grand-total { font-size: 15px; font-weight: bold; border-top: 2px double #333; margin-top: 6px; padding-top: 6px; color: #3b82f6; }
     .payment-section { background: #f0f9ff; border: 1px solid #23527b; border-radius: 4px; padding: 6px 8px; margin-top: 4px; }
-    .payment-title { font-weight: bold; color: #397db9; font-size: 12px; text-align: center; margin-bottom: 4px; }
+    .payment-title { font-weight: bold; color: #3b82f6; font-size: 12px; text-align: center; margin-bottom: 4px; }
     .zra-title { font-weight: bold; font-size: 12px; color: #1e3a8a; text-align: center; margin-bottom: 4px; }
     .zra-info { font-size: 10px; color: #333; line-height: 1.4; word-break: break-all; }
     .zra-qr { text-align: center; margin: 10px 0; }

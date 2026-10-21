@@ -1,5 +1,6 @@
 import { useState, Fragment } from 'react'
-import { ListTree, FileText, Loader2, AlertTriangle, ChevronDown, ChevronRight, Rows3, ListCollapse, Pencil, Trash2 } from 'lucide-react'
+import { useRememberedToggle } from '../useRememberedToggle'
+import { SlidersHorizontal, ListTree, FileText, Loader2, AlertTriangle, ChevronDown, ChevronRight, Rows3, ListCollapse, Pencil, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
@@ -54,6 +55,7 @@ export function SubledgerReport() {
   const deleteEntry = useDeleteLedgerEntry()
   const confirm = useConfirm()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [showFilters, toggleFilters] = useRememberedToggle('ecuenta:ledger-subledger:filters', true)
   const toggleGroup = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -71,7 +73,15 @@ export function SubledgerReport() {
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <ListTree size={20} className="text-brand" /> Operations - View By Subledger Account
         </h2>
-        <LedgerToolbar active="subledger" />
+        <LedgerToolbar
+          active="subledger"
+          extra={
+            <button type="button" onClick={toggleFilters} aria-pressed={showFilters} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text! whitespace-nowrap">
+              <SlidersHorizontal size={14} /> {showFilters ? 'Hide filters' : 'Show filters'}
+            </button>
+          }
+        />
+        {showFilters && (
         <LedgerFilterBar
           draft={draft}
           onChange={setDraft}
@@ -83,6 +93,7 @@ export function SubledgerReport() {
           }}
           submitting={isFetching}
         />
+        )}
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
@@ -97,12 +108,14 @@ export function SubledgerReport() {
 
         {report && (
           <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-            {report.groups.length > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface">
+            {/* Only has something to show when there are groups. */}
+            <div className={`${report.groups.length > 0 ? 'flex' : 'hidden'} items-center justify-between px-3 py-2 border-b border-border bg-surface`}>
               <p className="text-xs text-text-faint">
-                {report.groups.length} subledger account{report.groups.length === 1 ? '' : 's'} · click one to see its transaction lines
+                {report.groups.length > 0 && `${report.groups.length} subledger account${report.groups.length === 1 ? '' : 's'} · click one to see its transaction lines`}
               </p>
               <div className="flex items-center gap-1">
+                {report.groups.length > 0 && (
+                  <>
                 <button
                   type="button"
                   onClick={() => setExpanded(new Set(report.groups.map((g) => g.subledgerAccount)))}
@@ -117,9 +130,10 @@ export function SubledgerReport() {
                 >
                   <ListCollapse size={12} /> Collapse all
                 </button>
+                  </>
+                )}
               </div>
             </div>
-          )}
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">

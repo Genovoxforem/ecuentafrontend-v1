@@ -10,11 +10,14 @@ import { setBannerSlot } from './bannerSlot'
 
 type BannerRoute = { key: string; path: string; kind: 'list' | 'detail' }
 
+// Purchase-invoice views (Manual, Automatic, Paid, ...) are the same list page as vendorInvoiceList, so they get its banner too.
+const VENDOR_INVOICE_VIEW_KEYS = /^vendorInvoice(Paid|Unpaid|Manual|Automatic|Expense|Imports)$/
+
 const BANNER_ROUTES: BannerRoute[] = Object.entries(ROUTES)
   .reduce<BannerRoute[]>((routes, [key, path]) => {
     const normalizedKey = key.toLowerCase()
     if (normalizedKey.includes('create') || normalizedKey.includes('edit')) return routes
-    if (normalizedKey.includes('list') || key === 'bankingAccounts' || key === 'loanProducts') routes.push({ key, path, kind: 'list' })
+    if (normalizedKey.includes('list') || VENDOR_INVOICE_VIEW_KEYS.test(key) || key === 'bankingAccounts' || key === 'loanProducts') routes.push({ key, path, kind: 'list' })
     return routes
   }, [])
   .sort((a, b) => b.path.split('/').length - a.path.split('/').length)
@@ -54,6 +57,8 @@ const BANNER_ACTIONS: Record<string, Array<{ label: string; path: string }>> = {
 // over that crumb for the routes listed here.
 const TITLE_OVERRIDES: Record<string, string> = {
   invoiceList: 'Sales Invoices',
+  productPriceList: 'Product Price List',
+  productTags: 'Products/Services tags/categories area',
   ledgerDashboard: 'Operations - View By Accounting Account (Ledger)',
   kitchenBeverageOrders: 'Beverage Order Management',
   kitchenOrderManagement: 'Kitchen Order Management',
@@ -166,7 +171,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
   const createPath = route?.kind === 'list' ? routeCreatePath(route.key) : undefined
   const actions = route?.kind !== 'list'
     ? []
-    : (BANNER_ACTIONS[route.key] ?? (createPath ? [{ label: routeCreateLabel(route.key), path: createPath }] : []))
+    : (BANNER_ACTIONS[VENDOR_INVOICE_VIEW_KEYS.test(route.key) ? 'vendorInvoiceList' : route.key] ?? (createPath ? [{ label: routeCreateLabel(route.key), path: createPath }] : []))
   const baseTitle = route
     ? routeTitle(route.key, route.kind).replace(/\s+(List|Details)$/i, '').toLowerCase()
     : title.toLowerCase()

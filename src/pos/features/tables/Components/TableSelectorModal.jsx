@@ -56,7 +56,7 @@ function TableSelectorModal({ onClose }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-2.5 bg-[#2c6291] text-white">
+                <div className="flex items-center justify-between px-5 py-2.5 bg-[#2f6fe4] text-white">
                     <h3 className="flex items-center gap-2 font-semibold">
                         <Utensils size={18} />
                         Select Table
@@ -92,7 +92,7 @@ function TableSelectorModal({ onClose }) {
                                                 ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-400 text-emerald-700 dark:text-emerald-400"
                                                 : table.occupied
                                                 ? "bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-400 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
-                                                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-100 hover:-translate-y-0.5 hover:border-[#2c6291] hover:shadow-md cursor-pointer"
+                                                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-100 hover:-translate-y-0.5 hover:border-[#2f6fe4] hover:shadow-md cursor-pointer"
                                         } ${resumingId && !isResuming ? "opacity-50" : ""}`}
                                     >
                                         {isSelected && (
@@ -106,7 +106,7 @@ function TableSelectorModal({ onClose }) {
                                         ) : (
                                             <Utensils
                                                 size={22}
-                                                className={isSelected ? "text-emerald-500" : table.occupied ? "text-amber-500 dark:text-amber-400" : "text-[#2c6291] dark:text-blue-300"}
+                                                className={isSelected ? "text-emerald-500" : table.occupied ? "text-amber-500 dark:text-amber-400" : "text-[#2f6fe4] dark:text-blue-300"}
                                             />
                                         )}
                                         <span className="font-bold">{table.label}</span>

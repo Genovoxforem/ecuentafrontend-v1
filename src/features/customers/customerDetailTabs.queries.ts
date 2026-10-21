@@ -686,7 +686,12 @@ export interface AgendaFilters {
   status?: string
   user?: string
   search?: string
+  /** YYYY-MM-DD; either end may be empty. Sent as the legacy tab's own `datefilter=MM/DD/YYYY - MM/DD/YYYY`. */
+  from?: string
+  to?: string
 }
+
+const usDate = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}`
 
 export function useCustomerAgenda(socid: string | undefined, filters: AgendaFilters) {
   return useQuery({
@@ -697,6 +702,7 @@ export function useCustomerAgenda(socid: string | undefined, filters: AgendaFilt
       if (filters.status) params.set('status', filters.status)
       if (filters.user) params.set('user', filters.user)
       if (filters.search) params.set('search', filters.search)
+      if (filters.from || filters.to) params.set('datefilter', `${usDate(filters.from || '1900-01-01')} - ${usDate(filters.to || '2100-12-31')}`)
       return fetchJson<AgendaResponse>(`/societe/api/agenda.php?${params.toString()}`)
     },
     enabled: !!socid,

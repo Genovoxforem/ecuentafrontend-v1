@@ -1,122 +1,119 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { parsePurchaseOrderCard, type PurchaseOrderCard } from './purchaseOrderCardParser'
-import { parsePurchaseOrderDispatch, type PurchaseOrderDispatchData } from './purchaseOrderDispatchParser'
-import { parsePurchaseOrderInfo, type PurchaseOrderInfoData } from './purchaseOrderInfoParser'
-// fourn/commande/contact.php and fourn/commande/document.php render the
-// exact same generic Dolibarr templates (core/tpl/contacts.tpl.php,
-// core/tpl/document_actions_post_headers.tpl.php) Sales Orders' own
-// commande/contact.php and commande/document.php already do — confirmed by
-// reading both PHP files directly, not assumed. Reused here rather than
-// duplicated, since these parse the shared template's output, not anything
-// sales-order-specific.
-import {
-  parseOrderContactsHtml,
-  parseContactFormOptions,
-  type ContactRow,
-  type ContactFormOptions,
-} from '../salesOrders/orderExtraTabsParser'
-import { parseOrderDocumentsHtml, parseDocumentsPageMeta, type OrderDocumentRow, type DocumentsPageMeta } from '../salesOrders/orderCardParser'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { fapi } from '../../api/axios'
+import { requireJson } from '../salesOrders/orderApi'
+import { mapPurchaseOrderGet, PO_BASE, usePurchaseOrderFormOptions, type PurchaseOrderCardFull } from './purchaseOrderFapi'
+import type { PurchaseOrderDispatchData, PurchaseOrderInfoData } from './purchaseOrderTypes'
+import type { ContactRow, ContactFormOptions } from '../salesOrders/orderExtraTabTypes'
+import type { OrderDocumentRow, DocumentsPageMeta } from '../salesOrders/orderDocumentTypes'
 
-async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  return res.text()
-}
-
+// fourn/commande/fapi/get.php: card, lines, totals, receipt progress and available_actions in one
+// call.
 export function usePurchaseOrderCard(id: string | undefined) {
-  return useQuery<PurchaseOrderCard>({
+  const options = usePurchaseOrderFormOptions()
+  return useQuery<PurchaseOrderCardFull>({
     queryKey: ['purchaseOrders', 'detail', id],
-    queryFn: async () => parsePurchaseOrderCard(await fetchHtml(`/fourn/commande/card.php?id=${id}`), Number(id)),
+    queryFn: async () => mapPurchaseOrderGet(await fapiGet(`${PO_BASE}/get.php`, { id }), Number(id), options.data),
     enabled: !!id,
   })
 }
 
-// Re-Open / Classify Reception / Classify Billed are all plain
-// `?id=X&action=Y` GETs on card.php itself in the real page (read directly
-// from its action-buttons block) — no request body, no separate JSON
-// contract, just a same-origin navigation the real "ReOpen"/"Classify
-// Reception"/"Classify Billed" buttons perform. Reproduced here as a GET
-// fetch instead of a real navigation so the SPA can re-render the result
-// inline rather than losing the app shell.
-function useSimpleCardAction(action: string) {
+// Every lifecycle step goes through fourn/commande/fapi/actions.php, which re-checks the state and
+// the caller's rights itself (the list in get.php is advice, this is the gate).
+export type PurchaseOrderLifecycleAction =
+  | 'validate'
+  | 'approve'
+  | 'make_order'
+  | 'classify_billed'
+  | 'classify_unbilled'
+  | 'cancel'
+  | 'reopen'
+  | 'clone'
+  | 'delete'
+  | 'classify_received'
+  | 'build_doc'
+
+async function postLifecycle<T = { id?: number }>(id: string, action: PurchaseOrderLifecycleAction, extra: Record<string, unknown> = {}) {
+  return fapiPost<T>(`${PO_BASE}/actions.php`, { id: Number(id), ...extra }, { action })
+}
+
+function invalidatePurchaseOrder(queryClient: ReturnType<typeof useQueryClient>, id?: string) {
+  queryClient.invalidateQueries({ queryKey: id ? ['purchaseOrders', 'detail', id] : ['purchaseOrders', 'detail'] })
+  queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'list'] })
+}
+
+// Validate and Approve need a warehouse when stock is managed; the form's default is sent.
+export function usePurchaseOrderLifecycle() {
+  const queryClient = useQueryClient()
+  const options = usePurchaseOrderFormOptions()
+  return useMutation({
+    mutationFn: async ({ id, action, extra }: { id: string; action: PurchaseOrderLifecycleAction; extra?: Record<string, unknown> }) => {
+      const warehouse = options.data?.defaults.warehouse_id
+      const withWarehouse = (action === 'validate' || action === 'approve') && warehouse ? { warehouse_id: warehouse } : {}
+      return postLifecycle(id, action, { ...withWarehouse, ...extra })
+    },
+    onSuccess: (_data, { id }) => invalidatePurchaseOrder(queryClient, id),
+  })
+}
+
+// Re-Open and Classify Billed.
+function useSimpleCardAction(fapiAction: PurchaseOrderLifecycleAction) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetchHtml(`/fourn/commande/card.php?id=${id}&action=${action}`)
+      await postLifecycle(id, fapiAction)
     },
-    onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id] })
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'list'] })
-    },
+    onSuccess: (_data, id) => invalidatePurchaseOrder(queryClient, id),
   })
 }
 
 export function useReopenPurchaseOrder() {
   return useSimpleCardAction('reopen')
 }
+// actions.php?action=classify_received {id, type: tot|par|nev}: sets the reception state without moving stock, as the
+// classic button does (receiving goods into a warehouse is dispatch.php).
 export function useClassifyReceptionPurchaseOrder() {
-  return useSimpleCardAction('classifyreception')
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await postLifecycle(id, 'classify_received', { type: 'tot' })
+    },
+    onSuccess: (_data, id) => invalidatePurchaseOrder(queryClient, id),
+  })
 }
 export function useClassifyBilledPurchaseOrder() {
-  return useSimpleCardAction('classifybilled')
+  return useSimpleCardAction('classify_billed')
 }
 
-// Delete needs the real per-page CSRF token (`?action=delete&token=X` —
-// read directly from card.php's own Delete button href), unlike the 3
-// actions above which carry no token check at all in that same source.
-// Scraped fresh from the card page's own hidden `token` field right before
-// submitting, same as this app's other real-token mutations
-// (ThirdPartyCreateForm.tsx's societeToken pattern).
 export function useDeletePurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const html = await fetchHtml(`/fourn/commande/card.php?id=${id}`)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const token = doc.querySelector('a.butActionDelete')?.getAttribute('href')?.match(/token=([a-f0-9]+)/)?.[1] ?? ''
-      await fetchHtml(`/fourn/commande/card.php?id=${id}&action=delete&token=${token}`)
+      await postLifecycle(id, 'delete')
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'list'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'list'] }),
   })
 }
 
-// Clone (`?action=clone&object=order&socid=X`) redirects to the new cloned
-// order's own card.php?id=NEW_ID on success (real behavior, confirmed from
-// card.php's own clone handling) — `fetch` follows that redirect
-// automatically, so the new id is read back out of the final `res.url`
-// rather than the response body.
+// Clone answers the new order's id (the classic page redirects to it instead).
 export function useClonePurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, socid }: { id: string; socid: number | null }) => {
-      const res = await fetch(`/fourn/commande/card.php?id=${id}&socid=${socid ?? ''}&action=clone&object=order`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const newIdMatch = res.url.match(/[?&]id=(\d+)/)
-      return newIdMatch ? newIdMatch[1] : null
+    mutationFn: async ({ id, socid }: { id: string; socid: number | null }): Promise<string | null> => {
+      const d = await postLifecycle(id, 'clone', socid ? { socid } : {})
+      return d?.id ? String(d.id) : null
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'list'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'list'] }),
   })
 }
 
-// Real doc-gen contract — same generic Dolibarr FormFile mechanism already
-// used for Warehouses (see warehouseExtras.queries.ts's
-// useGenerateWarehouseDoc), just posted to this page's own URL instead.
+// actions.php?action=build_doc {model, lang_id}: generates the PDF with the chosen template.
 export function useGeneratePurchaseOrderDoc(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { token: string; model: string; langId: string }) => {
-      const body = new URLSearchParams()
-      body.set('action', 'builddoc')
-      body.set('token', input.token)
-      body.set('model', input.model)
-      body.set('lang_id', input.langId)
-      body.set('builddoc_generatebutton', 'Generate')
-      const res = await fetch(`/fourn/commande/card.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await postLifecycle(id ?? '', 'build_doc', { model: input.model, lang_id: input.langId })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id] })
@@ -124,81 +121,166 @@ export function useGeneratePurchaseOrderDoc(id: string | undefined) {
   })
 }
 
-// --- Item Receipts tab (fourn/commande/dispatch.php) ---------------------
+// --- Item Receipts tab (fourn/commande/fapi/dispatch.php) ------------------
 
 export function usePurchaseOrderDispatch(id: string | undefined) {
   return useQuery<PurchaseOrderDispatchData>({
     queryKey: ['purchaseOrders', 'detail', id, 'dispatch'],
-    queryFn: async () => parsePurchaseOrderDispatch(await fetchHtml(`/fourn/commande/dispatch.php?id=${id}`)),
+    queryFn: async () => {
+      const d = await fapiGet<any>(`${PO_BASE}/dispatch.php`, { id })
+      const warehouses = (d.warehouses ?? []).map((w: any) => ({ value: String(w.value ?? w.id), label: String(w.label ?? w.ref ?? w.value ?? w.id) }))
+      return {
+        date: d.order?.date ?? d.date ?? '',
+        method: d.order?.method ?? d.method ?? '',
+        requestAuthor: d.order?.author ?? d.request_author ?? '',
+        receipts: (d.receipts ?? d.dispatched ?? d.rows ?? []).map((r: any) => ({
+          receptionRef: String(r.reception_ref ?? r.ref ?? ''),
+          receptionUrl: '',
+          productRef: String(r.product_ref ?? ''),
+          productLabel: String(r.product_label ?? r.label ?? ''),
+          creationDate: String(r.date ?? r.datec ?? ''),
+          plannedDeliveryDate: String(r.eta ?? r.planned_date ?? ''),
+          qtyDispatched: String(r.qty ?? ''),
+          warehouse: String(r.warehouse ?? r.warehouse_ref ?? ''),
+          comment: String(r.comment ?? ''),
+        })),
+        warehouses,
+        defaultWarehouseId: String(d.default_warehouse_id ?? warehouses[0]?.value ?? ''),
+        lines: (d.lines ?? []).map((l: any) => ({
+          lineId: Number(l.line_id ?? l.id),
+          label: String(l.product_label ?? l.label ?? l.description ?? l.product_ref ?? ''),
+          ordered: Number(l.ordered ?? l.qty) || 0,
+          received: Number(l.received) || 0,
+          remaining: Number(l.remaining) || 0,
+          batchTracked: Boolean(l.batch_tracked ?? l.has_batch ?? l.tobatch),
+        })),
+      }
+    },
     enabled: !!id,
   })
 }
 
-// --- Events/Agenda tab (fourn/commande/info.php) --------------------------
+export interface ReceiveInput {
+  lines: Array<{ lineId: number; qty: number; warehouseId: number; batch?: string; eatby?: string; comment?: string }>
+}
+
+// POST dispatch.php?action=receive: a multi-line receipt is one transaction, over-receipt is refused,
+// and the order moves itself to partially / fully received (status_changed: false if that update failed).
+export function useReceivePurchaseOrder(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: ReceiveInput) =>
+      fapiPost<{ status_changed?: boolean }>(
+        `${PO_BASE}/dispatch.php`,
+        {
+          id: Number(id),
+          lines: input.lines.map((l) => ({ line_id: l.lineId, qty: l.qty, warehouse_id: l.warehouseId, batch: l.batch || undefined, eatby: l.eatby || undefined, comment: l.comment || undefined })),
+        },
+        { action: 'receive' },
+      ),
+    onSuccess: () => {
+      invalidatePurchaseOrder(queryClient, id)
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'dispatch'] })
+    },
+  })
+}
+
+// --- Events/Agenda tab (fourn/commande/fapi/agenda.php) ---------------------
 
 export function usePurchaseOrderInfo(id: string | undefined) {
   return useQuery<PurchaseOrderInfoData>({
     queryKey: ['purchaseOrders', 'detail', id, 'info'],
-    queryFn: async () => parsePurchaseOrderInfo(await fetchHtml(`/fourn/commande/info.php?id=${id}`)),
+    queryFn: async () => {
+      const d = await fapiGet<any>(`${PO_BASE}/agenda.php`, { id })
+      return {
+        createdBy: d.created_by ?? '',
+        creationDate: d.creation_date ?? '',
+        latestModificationDate: d.latest_modification_date ?? '',
+        validatedBy: d.validated_by ?? '',
+        validationDate: d.validation_date ?? '',
+        approvedBy: d.approved_by ?? '',
+        approvingDate: d.approving_date ?? d.approval_date ?? '',
+        events: (d.events ?? []).map((e: any) => ({
+          ref: String(e.ref ?? e.id ?? ''),
+          url: e.url ?? '',
+          date: e.date ?? '',
+          owner: e.owner ?? '',
+          label: e.label ?? '',
+          relatedObjectRef: e.related_object_ref ?? '',
+          relatedObjectUrl: e.related_object_url ?? '',
+          statusLabel: e.status_label ?? '',
+        })),
+      }
+    },
     enabled: !!id,
   })
 }
 
-// --- Contacts/Addresses tab (fourn/commande/contact.php) ------------------
+// --- Contacts/Addresses tab (fourn/commande/fapi/contacts.php) --------------
 
 export interface PurchaseOrderContactsData {
   rows: ContactRow[]
   formOptions: ContactFormOptions
 }
 
-// `newcompany` re-fetches the page with a different third-party pre-selected
-// for the "Third-party contacts" add-row — same real behavior as Sales
-// Orders' useOrderContacts (a full page reload on the real site).
+// `newcompany` re-reads the options with another third-party's contacts pre-selected.
 export function usePurchaseOrderContacts(id: string | undefined, newcompany?: string) {
   return useQuery<PurchaseOrderContactsData>({
     queryKey: ['purchaseOrders', 'detail', id, 'contacts', newcompany ?? ''],
     queryFn: async () => {
-      const url = `/fourn/commande/contact.php?id=${id}${newcompany ? `&newcompany=${newcompany}` : ''}`
-      const html = await fetchHtml(url)
-      return { rows: parseOrderContactsHtml(html), formOptions: parseContactFormOptions(html) }
+      const d = await fapiGet<any>(`${PO_BASE}/contacts.php`, { id, newcompany })
+      const opts = d.options ?? {}
+      const mapRows = (list: any[]): ContactRow[] =>
+        list.map((c) => ({
+          nature: c.nature_label ?? (c.nature === 'internal' ? 'User' : 'Third-Party Contact'),
+          thirdParty: c.thirdparty ?? '',
+          contact: c.name ?? '',
+          contactType: c.type_label ?? '',
+          status: c.status_label ?? '',
+        }))
+      const toOpts = (list: any[], placeholder?: string) => {
+        const out = (list ?? []).map((o: any) => ({ value: String(o.value ?? o.id), label: o.label ?? o.name ?? '' }))
+        return placeholder ? [{ value: '-1', label: placeholder }, ...out] : out
+      }
+      return {
+        rows: [...mapRows(d.rows?.internal ?? []), ...mapRows(d.rows?.external ?? [])],
+        formOptions: {
+          issuerCompanyName: opts.issuer_company ?? '',
+          internalUserOptions: toOpts(opts.users),
+          internalTypeOptions: toOpts(opts.internal_types),
+          companyOptions: toOpts(opts.companies),
+          selectedCompanyId: String(opts.selected_company ?? ''),
+          externalContactOptions: toOpts(opts.company_contacts, 'Select contact'),
+          hasRealExternalContact: (opts.company_contacts ?? []).length > 0,
+          externalTypeOptions: toOpts(opts.external_types),
+        },
+      }
     },
     enabled: !!id,
   })
 }
 
-// Identical real contract to Sales Orders' useAddOrderContact (both post
-// action=addcontact to their own contact.php, no CSRF token check on this
-// action — confirmed by reading fourn/commande/contact.php's own handler
-// directly), just targeting the supplier-order page.
 export function useAddPurchaseOrderContact(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { source: 'internal' | 'external'; userid?: string; type?: string; contactid?: string; typecontact?: string }) => {
-      const body = new URLSearchParams()
-      body.set('id', id ?? '')
-      body.set('action', 'addcontact')
-      body.set('source', input.source)
-      if (input.userid) body.set('userid', input.userid)
-      if (input.type) body.set('type', input.type)
-      if (input.contactid) body.set('contactid', input.contactid)
-      if (input.typecontact) body.set('typecontact', input.typecontact)
-      const res = await fetch(`/fourn/commande/contact.php?id=${id}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
-      if (errorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = errorMatch[1]
-        throw new Error((div.textContent ?? 'The legacy backend rejected this contact.').trim())
-      }
+      const internal = input.source === 'internal'
+      await fapiPost(
+        `${PO_BASE}/contacts.php`,
+        {
+          id: Number(id),
+          source: input.source,
+          ...(internal ? { fk_user: Number(input.userid) } : { fk_socpeople: Number(input.contactid) }),
+          type_contact: Number((internal ? input.type : input.typecontact) || 0),
+        },
+        { action: 'add' },
+      )
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'contacts'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'contacts'] }),
   })
 }
 
-// --- Linked Files tab (fourn/commande/document.php) -----------------------
+// --- Linked Files tab (fourn/commande/fapi/documents.php) -------------------
 
 export interface PurchaseOrderDocumentsData {
   rows: OrderDocumentRow[]
@@ -209,8 +291,18 @@ export function usePurchaseOrderDocuments(id: string | undefined) {
   return useQuery<PurchaseOrderDocumentsData>({
     queryKey: ['purchaseOrders', 'detail', id, 'documents'],
     queryFn: async () => {
-      const html = await fetchHtml(`/fourn/commande/document.php?id=${id}`)
-      return { rows: parseOrderDocumentsHtml(html), meta: parseDocumentsPageMeta(html) }
+      const d = await fapiGet<any>(`${PO_BASE}/documents.php`, { id })
+      const canEdit = Boolean(d.meta?.can_upload ?? d.meta?.can_edit)
+      return {
+        rows: (d.files ?? []).map((f: any) => ({ name: f.name ?? '', url: f.url ?? '', size: String(f.size ?? ''), date: f.date ?? '', deletable: canEdit })),
+        meta: {
+          attachedCount: d.meta?.attached_count ?? (d.files ?? []).length,
+          totalSize: d.meta?.total_size ?? '',
+          savingDocMask: d.meta?.saving_doc_mask ?? '',
+          attachToken: '',
+          links: (d.links ?? []).map((l: any) => ({ id: Number(l.id) || 0, label: l.label ?? '', url: l.url ?? '', date: l.date ?? '' })),
+        },
+      }
     },
     enabled: !!id,
   })
@@ -221,44 +313,57 @@ export function useUploadPurchaseOrderDocument(id: string | undefined) {
   return useMutation({
     mutationFn: async (input: { token: string; file: File; savingDocMask: string; useMask: boolean }) => {
       const body = new FormData()
-      body.set('token', input.token)
-      body.set('section_dir', '')
-      body.set('section_id', '0')
-      body.set('sortfield', '')
-      body.set('sortorder', '')
-      body.set('max_file_size', '536870912')
-      body.set('userfile[]', input.file)
-      body.set('sendit', 'Upload')
+      body.set('id', id ?? '')
+      body.append('userfile[]', input.file)
       if (input.useMask) body.set('savingdocmask', input.savingDocMask)
-      const res = await fetch(`/fourn/commande/document.php?id=${id}&uploadform=1`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const res = requireJson(await fapi.post(`${PO_BASE}/documents.php?action=upload`, body))
+      if (res.data?.success === false) throw new Error(res.data.message || 'Upload failed.')
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'documents'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'documents'] }),
   })
 }
 
-// objecttype='order_supplier' — CommandeFournisseur::$element, read directly
-// from that class (not 'commande', which is Sales Orders' own element name).
 export function useLinkPurchaseOrderDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { token: string; link: string; label: string }) => {
-      const body = new URLSearchParams()
-      body.set('token', input.token)
-      body.set('link_section_dir', '')
-      body.set('link_section_id', '0')
-      body.set('link', input.link)
-      body.set('label', input.label)
-      body.set('objecttype', 'order_supplier')
-      body.set('objectid', id ?? '')
-      body.set('linkit', 'Link')
-      const res = await fetch(`/fourn/commande/document.php?id=${id}&uploadform=1`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      await fapiPost(`${PO_BASE}/documents.php`, { id: Number(id), link: input.link, label: input.label }, { action: 'link' })
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'documents'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'detail', id, 'documents'] }),
   })
+}
+
+// --- Lines of a draft (fourn/commande/fapi/lines.php) ------------------------
+// POST ?action=add|update|delete, draft orders only (the guards answer 409 otherwise). A vendor price can be named
+// with supplier_price_id instead of a number: the price, reference, discount and VAT are then read through
+// get_buyprice(), the same call the card makes.
+export interface PurchaseOrderLineInput {
+  description: string
+  qty: number
+  unitPriceHt: number
+  vatRate: number
+  discountPercent?: number
+  productId?: number
+  supplierPriceId?: number
+}
+
+export function usePurchaseOrderLines(id: string | undefined) {
+  const queryClient = useQueryClient()
+  const refresh = () => invalidatePurchaseOrder(queryClient, id)
+  const body = (input: PurchaseOrderLineInput) =>
+    input.supplierPriceId
+      ? { supplier_price_id: input.supplierPriceId, qty: input.qty }
+      : {
+          ...(input.productId ? { product_id: input.productId } : {}),
+          description: input.description,
+          qty: input.qty,
+          pu_ht: input.unitPriceHt,
+          tva_tx: input.vatRate,
+          remise_percent: input.discountPercent ?? 0,
+        }
+  return {
+    add: useMutation({ mutationFn: (input: PurchaseOrderLineInput) => fapiPost<any>(`${PO_BASE}/lines.php`, { id: Number(id), ...body(input) }, { action: 'add' }), onSuccess: refresh }),
+    update: useMutation({ mutationFn: ({ lineId, ...input }: PurchaseOrderLineInput & { lineId: number }) => fapiPost<any>(`${PO_BASE}/lines.php`, { id: Number(id), line_id: lineId, ...body(input) }, { action: 'update' }), onSuccess: refresh }),
+    remove: useMutation({ mutationFn: (lineId: number) => fapiPost<any>(`${PO_BASE}/lines.php`, { id: Number(id), line_id: lineId }, { action: 'delete' }), onSuccess: refresh }),
+  }
 }

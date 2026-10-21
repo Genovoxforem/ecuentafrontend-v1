@@ -1,6 +1,7 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { useLanguageOptions } from '../users/users.queries'
 import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
+import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // societe/card.php?type=c|f|p hardcodes this exact 3-option list inline
 // (<select name="nrc_id">NRC/Passport/Driving license</select>) rather than
@@ -49,7 +50,7 @@ interface WizardOptionsResponse {
 async function fetchWizardOptions(): Promise<WizardOptionsResponse> {
   const res = await fetch('/societe/api/meta.php?action=wizard_options', { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data: WizardOptionsResponse = await res.json()
+  const data = await parseLegacyJson<WizardOptionsResponse>(res)
   if (!data.ok) throw new Error('Legacy backend rejected the wizard_options request.')
   return data
 }
@@ -62,7 +63,7 @@ export interface CustomerLookups {
   defaultCountryId: number | null
   countries: Array<{ id: number; label: string }>
   currencies: Array<{ code: string; name: string }>
-  legalForms: Array<{ id: number; label: string }>
+  legalForms: Array<{ id: number; code: string; label: string }>
   typent: Array<{ id: number; label: string }>
   effectifs: Array<{ id: number; label: string }>
   incoterms: Array<{ id: number; code: string }>
@@ -106,7 +107,7 @@ export const customerLookupsQuery = queryOptions({
       // same constraint every other dropdown in this app already has, so
       // duplicates are collapsed to their first occurrence rather than
       // producing duplicate React keys.
-      legalForms: dedupeByLabel(data.juridical),
+      legalForms: dedupeByLabel(data.juridical).map((f) => ({ id: f.id, code: f.code, label: f.label })),
       typent: data.typent.filter((t) => t.label).map((t) => ({ id: t.id, label: t.label })),
       effectifs: data.effectif.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label })),
       incoterms: data.incoterms.filter((i) => i.id > 0).map((i) => ({ id: i.id, code: i.label })),
@@ -211,7 +212,7 @@ export function useThirdPartyFormOptions() {
     countries: lookups?.countries?.map((c) => ({ value: String(c.id), label: c.label })) ?? [],
     defaultCountryId: lookups?.defaultCountryId ?? null,
     currencies: lookups?.currencies?.map((c) => ({ value: c.code, label: c.name })) ?? [],
-    businessEntityTypes: lookups?.legalForms?.map((f) => ({ value: String(f.id), label: f.label })) ?? [],
+    businessEntityTypes: lookups?.legalForms?.map((f) => ({ value: String(f.code || f.id), label: f.label })) ?? [],
     thirdPartyTypes: lookups?.typent?.map((t) => ({ value: String(t.id), label: t.label })) ?? [],
     nrcTypes: NRC_OPTIONS,
     workforce: lookups?.effectifs?.map((e) => ({ value: String(e.id), label: e.label })) ?? [],

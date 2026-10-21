@@ -2,8 +2,8 @@ import { lazy, Suspense, useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    LayoutGrid, Tag, Search, ScanBarcode, Layers, Plus, Moon, Sun, LogOut, ChevronDown, Image as ImageIcon, X, Settings,
-    Trash2, ArrowLeftRight, Home, FileText, Undo2, UtensilsCrossed, Monitor, RefreshCw, Power, ChevronRight, ConciergeBell, Coins,
+    LayoutGrid, Tag, Search, ScanBarcode, Layers, Plus, Moon, Sun, LogOut, ChevronDown, X, Settings,
+    Trash2, ArrowLeftRight, Home, FileText, Undo2, UtensilsCrossed, Monitor, RefreshCw, Power, ChevronRight, ConciergeBell, Coins, ArrowUpDown,
 } from "lucide-react";
 import "../pos/index.css";
 import { useTheme } from "../context/ThemeContext";
@@ -12,6 +12,10 @@ import useAuthStore from "../pos/stores/authStore";
 import { useCategories } from "../pos/features/categories/hooks/useCategories";
 import { useProducts } from "../pos/features/products/hooks/useProducts";
 import CartPanelV2 from "./CartPanelV2";
+import { PRIMARY_BTN, PRIMARY_ACTIVE } from "./buttonStyles";
+import { useCompanyName } from "./company";
+import ProductTile from "./ProductTile";
+import useFavourites from "./favourites";
 import CreditNoteModalV2 from "./CreditNoteModalV2";
 import SyncConfirm from "./SyncConfirm";
 import CartToast from "../pos/features/pos/Components/CartToast";
@@ -35,44 +39,6 @@ function stockTone(stock) {
     if (n <= 0) return { n, label: "Out of stock", dot: "bg-red-500", cls: "text-red-700 dark:text-red-300" };
     if (n <= 5) return { n, label: `Low stock: ${n}`, dot: "bg-amber-500", cls: "text-amber-800 dark:text-amber-300" };
     return { n, label: `In stock: ${n}`, dot: "bg-emerald-500", cls: "text-emerald-800 dark:text-emerald-300" };
-}
-
-export function ProductCard({ product, onAdd, categoryLabel }) {
-    const [imgFailed, setImgFailed] = useState(false);
-    const tone = stockTone(product.stock);
-    return (
-        <div
-            role="button"
-            tabIndex={0}
-            onClick={() => onAdd(product)}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onAdd(product)}
-            title={product.name}
-            className="group flex cursor-pointer flex-col rounded-lg border border-slate-200 bg-white p-1.5 text-left transition hover:border-blue-500 active:scale-[0.99] dark:border-slate-700 dark:bg-[#111c2e] dark:hover:border-blue-500"
-        >
-            <div className="relative grid h-[92px] place-items-center overflow-hidden rounded-md bg-slate-100 text-slate-300 dark:bg-[#0b1424] dark:text-slate-600">
-                {product.image && !imgFailed ? (
-                    <img src={product.image} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={() => setImgFailed(true)} />
-                ) : (
-                    <ImageIcon size={28} strokeWidth={1.5} />
-                )}
-                {tone && (
-                    <span className={`absolute bottom-1.5 left-1.5 flex items-center gap-1.5 rounded-md bg-white/95 px-2 py-0.5 text-[12px] font-normal leading-4 dark:bg-[#111c2e]/95 ${tone.cls}`}>
-                        <i className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} /> {tone.label}
-                    </span>
-                )}
-            </div>
-            <p className="mt-1.5 truncate text-[12px] font-normal text-slate-500 dark:text-slate-400">{categoryLabel || product.ref}</p>
-            <p className="line-clamp-2 text-[13px] font-medium leading-[18px] text-slate-900 dark:text-slate-100">{product.name}</p>
-            <div className="mt-auto flex items-center justify-between pt-1">
-                <span className="text-[15px] font-semibold tabular-nums text-slate-900 dark:text-white">
-                    {formatAmount(product.price)} <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">ZMW</span>
-                </span>
-                <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-600 text-white transition group-hover:bg-blue-700">
-                    <Plus size={15} />
-                </span>
-            </div>
-        </div>
-    );
 }
 
 function MenuItem({ icon: Icon, children, onClick, danger, disabled, chevron }) {
@@ -101,6 +67,7 @@ function PosV2() {
     const { logout: mainLogout, user } = useAuth();
     const terminalConfig = useAuthStore((s) => s.terminalConfig);
     const terminal = terminalConfig?.terminalNumber || 1;
+    const companyName = useCompanyName();
 
     const cart = usePosStore((s) => s.cart);
     const sales = usePosStore((s) => s.sales);
@@ -108,8 +75,10 @@ function PosV2() {
     const setSearchTerm = usePosStore((s) => s.setSearchTerm);
     const addToCart = usePosStore((s) => s.addToCart);
     const removeFromCart = usePosStore((s) => s.removeFromCart);
+    const changeQty = usePosStore((s) => s.changeQty);
     const createNewSale = usePosStore((s) => s.createNewSale);
     const cashSessionOpen = usePosStore((s) => s.cashSessionOpen);
+    const setCashSessionOpen = usePosStore((s) => s.setCashSessionOpen);
     const activePlace = usePosStore((s) => s.activePlace);
     const cartsByPlace = usePosStore((s) => s.cartsByPlace);
     const customersByPlace = usePosStore((s) => s.customersByPlace);
@@ -135,7 +104,31 @@ function PosV2() {
     const [creditOpen, setCreditOpen] = useState(false);
     const [syncAsk, setSyncAsk] = useState(false);
     const [heldQuery, setHeldQuery] = useState("");
+    const [sort, setSort] = useState("default");
+    const [inStockOnly, setInStockOnly] = useState(false);
+    const favIds = useFavourites((s) => s.ids);
     const searchRef = useRef(null);
+
+    // Same check as POS V1's sidebar: the store assumes an open drawer until the backend says otherwise.
+    // With no open session on this terminal the sale screen is locked and the "Cash Desk Control - New"
+    // dialog opens so the cashier can open one (it also offers Logout).
+    useEffect(() => {
+        let cancelled = false;
+        let timer;
+        getActiveSession(terminal)
+            .then((res) => {
+                if (cancelled || !res.success) return;
+                setCashSessionOpen(!!res.session);
+                if (!res.session) timer = setTimeout(() => !cancelled && setCashOpen(true), 600);
+            })
+            .catch((err) => {
+                if (!cancelled) showToast(err.message || "Unable to reach the server", "error");
+            });
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [terminal, setCashSessionOpen, showToast]);
 
     // Cash expected in this terminal's drawer: the open session's expected amount, or the theoretical amount when none is open.
     const { data: cashAmount } = useQuery({
@@ -189,12 +182,25 @@ function PosV2() {
     const products = useMemo(() => {
         const q = searchTerm.trim().toLowerCase();
         const ids = activeId !== null ? descendantIds(activeId) : null;
-        return allProducts.filter((p) => {
+        const list = allProducts.filter((p) => {
             if (ids && !ids.has(String(p.categoryId))) return false;
+            if (inStockOnly) {
+                const t = stockTone(p.stock);
+                if (t && t.n <= 0) return false;
+            }
             if (!q) return true;
             return [p.name, p.ref, p.barcode].some((v) => String(v ?? "").toLowerCase().includes(q));
         });
-    }, [allProducts, activeId, searchTerm, descendantIds]);
+        if (sort === "price-asc") return [...list].sort((a, b) => Number(a.price) - Number(b.price));
+        if (sort === "price-desc") return [...list].sort((a, b) => Number(b.price) - Number(a.price));
+        if (sort === "fav") return [...list].sort((a, b) => Number(favIds.has(b.id)) - Number(favIds.has(a.id)));
+        if (sort === "name") return [...list].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        return list;
+    }, [allProducts, activeId, searchTerm, descendantIds, sort, inStockOnly, favIds]);
+
+    const cartQtyById = useMemo(() => new Map(cart.map((i) => [i.id, i.qty])), [cart]);
+    // Cart lines restored from a held/draft sale can lack the photo — fall back to the live product list.
+    const imageById = useMemo(() => new Map(allProducts.filter((p) => p.image).map((p) => [p.id, p.image])), [allProducts]);
 
     const total = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.qty, 0), [cart]);
     const heldCount = sales.filter((x) => x.place !== activePlace).length;
@@ -309,7 +315,7 @@ function PosV2() {
                     <div className="flex items-center gap-2">
                         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white">E</span>
                         <div className="leading-tight">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Taste of India</p>
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{companyName}</p>
                             <p className="text-base font-bold">Point of Sale</p>
                         </div>
                     </div>
@@ -376,28 +382,48 @@ function PosV2() {
                             </div>
                         )}
                     </div>
-                    <button type="button" onClick={() => { setMenu(null); createNewSale(); }} className="flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-md shadow-blue-600/30 transition hover:bg-blue-700 active:scale-95">
+                    <button type="button" onClick={() => { setMenu(null); createNewSale(); }} className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold shadow-md shadow-blue-600/30 active:scale-95 ${PRIMARY_BTN}`}>
                         <Plus size={16} /> New sale
                     </button>
                 </header>
 
                 <div className="flex min-h-0 flex-1">
                     <section className="flex min-w-0 flex-1 flex-col">
-                        <div className="shrink-0 px-4 pt-4">
+                        <div className="shrink-0 px-2 pt-2">
                             <div className="flex items-baseline gap-3">
                                 <p className="text-xl font-bold">{heading}</p>
                                 <span className="text-sm text-slate-500 dark:text-slate-400">{products.length} items</span>
                                 {activeId !== null && (
-                                    <button type="button" onClick={clearFilter} className="ml-auto text-sm font-semibold text-blue-600 hover:underline">Clear filter</button>
+                                    <button type="button" onClick={clearFilter} className="text-sm font-semibold text-blue-600 hover:underline">Clear filter</button>
                                 )}
+                                <div className="ml-auto flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setInStockOnly((v) => !v)}
+                                        aria-pressed={inStockOnly}
+                                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${inStockOnly ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-emerald-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}
+                                    >
+                                        In stock only
+                                    </button>
+                                    <label className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                        <ArrowUpDown size={13} />
+                                        <select value={sort} onChange={(e) => setSort(e.target.value)} className="bg-transparent py-0.5 text-xs font-semibold outline-none">
+                                            <option value="default">Featured</option>
+                                            <option value="fav">Favourites first</option>
+                                            <option value="name">Name A–Z</option>
+                                            <option value="price-asc">Price: low to high</option>
+                                            <option value="price-desc">Price: high to low</option>
+                                        </select>
+                                    </label>
+                                </div>
                             </div>
                             {chips.length > 0 && (
                                 <div className="relative mt-3 flex items-center gap-2">
-                                    <button type="button" onClick={() => setSubId(null)} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${subId === null ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 hover:border-blue-500 dark:border-slate-600"}`}>
+                                    <button type="button" onClick={() => setSubId(null)} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${subId === null ? PRIMARY_ACTIVE : "border-slate-200 hover:border-blue-500 dark:border-slate-600"}`}>
                                         All <span className="opacity-70">{countFor(parentId)}</span>
                                     </button>
                                     {chips.slice(0, CHIP_LIMIT).map((c) => (
-                                        <button key={c.id} type="button" onClick={() => setSubId(c.id)} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${subId === c.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 hover:border-blue-500 dark:border-slate-600"}`}>
+                                        <button key={c.id} type="button" onClick={() => setSubId(c.id)} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${subId === c.id ? PRIMARY_ACTIVE : "border-slate-200 hover:border-blue-500 dark:border-slate-600"}`}>
                                             {c.label} <span className="opacity-60">{countFor(c.id)}</span>
                                         </button>
                                     ))}
@@ -420,7 +446,7 @@ function PosV2() {
                                 </div>
                             )}
                         </div>
-                        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
+                        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
                             {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
                             {loading ? (
                                 <p className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">Loading products…</p>
@@ -428,9 +454,9 @@ function PosV2() {
                                 <p className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">No products found.</p>
                             ) : (
                                 <>
-                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] content-start gap-2.5">
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] content-start gap-3">
                                         {products.slice(0, visible).map((p) => (
-                                            <ProductCard key={p.id} product={p} categoryLabel={labelById.get(String(p.categoryId))} onAdd={(prod) => addToCart(prod)} />
+                                            <ProductTile key={p.id} product={p} categoryLabel={labelById.get(String(p.categoryId))} inCartQty={cartQtyById.get(p.id) || 0} onAdd={(prod) => addToCart(prod, 1)} onRemove={(prod) => changeQty(prod.id, -1)} />
                                         ))}
                                     </div>
                                     {products.length > visible && (
@@ -445,8 +471,8 @@ function PosV2() {
                         </div>
                     </section>
 
-                    <div className="shrink-0 p-2 pl-0">
-                        <CartPanelV2 cart={cart} onRemove={removeFromCart} total={total} cashSessionOpen={cashSessionOpen} />
+                    <div className="shrink-0 py-2 pr-2">
+                        <CartPanelV2 imageById={imageById} cart={cart} onRemove={removeFromCart} total={total} cashSessionOpen={cashSessionOpen} />
                     </div>
                 </div>
             </main>
@@ -493,7 +519,7 @@ function PosV2() {
                                         )}
                                         <div className="mt-3 flex items-center gap-2">
                                             <p className="flex-1 text-base font-bold">ZMW {formatAmount(saleTotal)}</p>
-                                            <button type="button" onClick={() => { switchSale(sale.place); setHeldOpen(false); }} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">{active ? "Open" : "Resume"}</button>
+                                            <button type="button" onClick={() => { switchSale(sale.place); setHeldOpen(false); }} className={`rounded-xl px-4 py-2 text-sm font-semibold ${PRIMARY_BTN}`}>{active ? "Open" : "Resume"}</button>
                                             {sale.place !== "0" && (
                                                 <button type="button" title="Delete sale" onClick={() => deleteSale(sale.place)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100"><Trash2 size={15} /></button>
                                             )}
@@ -507,7 +533,16 @@ function PosV2() {
             )}
 
             <Suspense fallback={null}>
-                {cashOpen && <CashDeskModal open={cashOpen} onClose={() => setCashOpen(false)} onLogout={logout} />}
+                {cashOpen && (
+                    <CashDeskModal
+                        open={cashOpen}
+                        onClose={() => {
+                            setCashOpen(false);
+                            queryClient.invalidateQueries({ queryKey: ["cashChip"] });
+                        }}
+                        onLogout={logout}
+                    />
+                )}
                 {creditOpen && <CreditNoteModalV2 onClose={() => setCreditOpen(false)} />}
                 {reportsOpen && <InvoiceHistory onClose={() => setReportsOpen(false)} />}
             </Suspense>

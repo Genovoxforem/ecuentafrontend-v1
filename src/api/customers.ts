@@ -217,6 +217,8 @@ export interface CreateInput {
   status?: number
   code_client?: string
   code_fournisseur?: string
+  // The extended fields (societe/fapi get.php `writable`): last name, group, legal form, tags, social links ...
+  [extra: string]: string | number | number[] | undefined
 }
 
 /**
@@ -258,4 +260,89 @@ export async function deleteThirdParty(id: number): Promise<{ id: number }> {
     params: { id },
   })
   return res.data.data
+}
+
+// ── Customer rebates (absolute discounts) ────────────────
+// societe/fapi/rebates.php — llx_societe_remise_except, the table the classic
+// discount screens read and write. A rebate is consumed once it is attached to
+// an invoice or an invoice line; only available ones can still be applied.
+
+export interface CustomerRebate {
+  id: number
+  socid: number
+  customer: string
+  date: string
+  description: string
+  discount_type: number
+  discount_type_label: string
+  amount_ht: number
+  amount_tva: number
+  amount_ttc: number
+  tva_tx: number
+  consumed: boolean
+  // The invoice it was used on, when consumed (null otherwise).
+  invoice: { id?: number; ref?: string } | string | null
+  by: string
+}
+
+export interface CustomerRebatesData {
+  items: CustomerRebate[]
+  totals: { available_ht: number; available_ttc: number; consumed_ttc: number }
+  currency: string
+  pagination: Pagination
+  can_create: boolean
+}
+
+interface FapiEnvelope<T> {
+  success: boolean
+  data: T
+  message: string | null
+  errors: unknown
+}
+
+function unwrapRebates<T>(body: FapiEnvelope<T>, fallback: string): T {
+  if (!body?.success) throw new Error(body?.message || fallback)
+  return body.data
+}
+
+export async function fetchCustomerRebates(params: { socid: number; status?: 'available' | 'consumed' | 'all'; page?: number; limit?: number }): Promise<CustomerRebatesData> {
+  const res = await fapi.get<FapiEnvelope<CustomerRebatesData>>('/societe/fapi/rebates.php', { params })
+  return unwrapRebates(res.data, 'Could not load the discounts.')
+}
+
+/** VAT is derived server-side from amount_ht and tva_tx (DiscountAbsolute::create). */
+export async function createCustomerRebate(input: { socid: number; amount_ht: number; tva_tx: number; description: string }): Promise<{ id: number; amount_ttc: number }> {
+  const res = await fapi.post<FapiEnvelope<{ id: number; socid: number; customer: string; amount_ht: number; amount_ttc: number }>>(
+    '/societe/fapi/rebates.php',
+    { action: 'create', discount_type: 0, ...input },
+    { validateStatus: () => true },
+  )
+  return unwrapRebates(res.data, 'Could not create the discount.')
+}
+
+// societe/fapi/discounts.php (15 Oct 2026): the customer card's discount panel, one
+// customer, both kinds of discount. The list of credits above comes from rebates.php;
+// this adds the standing percentage and deleting an unused credit.
+export interface CustomerDiscounts {
+  relative_percent: number
+  relative_note: string
+  relative_set_on: string | null
+  relative_set_by: string | null
+  can_edit: boolean
+}
+
+export async function fetchCustomerDiscounts(socid: number): Promise<CustomerDiscounts> {
+  const res = await fapi.get<FapiEnvelope<CustomerDiscounts>>('/societe/fapi/discounts.php', { params: { socid } })
+  return unwrapRebates(res.data, 'Could not load the customer discounts.')
+}
+
+export async function setCustomerRelativeDiscount(input: { socid: number; percent: number; note?: string }): Promise<void> {
+  const res = await fapi.post<FapiEnvelope<unknown>>('/societe/fapi/discounts.php', input, { params: { action: 'set_relative', socid: input.socid }, validateStatus: () => true })
+  unwrapRebates(res.data, 'Could not set the discount.')
+}
+
+/** Only an unused credit can be deleted; a consumed one is refused (409) naming its invoice. */
+export async function deleteCustomerAbsoluteDiscount(input: { socid: number; id: number }): Promise<void> {
+  const res = await fapi.post<FapiEnvelope<unknown>>('/societe/fapi/discounts.php', input, { params: { action: 'delete_absolute', socid: input.socid }, validateStatus: () => true })
+  unwrapRebates(res.data, 'Could not delete the discount.')
 }

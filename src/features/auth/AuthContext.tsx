@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (credentials: LoginCredentials) => {
     setSessionExpiredMessage(null)
     const data = await loginRequest(credentials)
-    setStoredToken(data.bearer_token ?? data.api_key ?? data.token ?? null)
+    setStoredToken(data.bearer_token)
     // Waited for (alongside fetchMe) before the app opens: the dashboard and most
     // list pages read legacy endpoints, and one that reaches the backend before
     // this login finishes gets the login page back. It never throws, and the

@@ -4,13 +4,16 @@ import { ShoppingCart, ShoppingBag, Store } from "lucide-react";
 import usePosStore from "../pos/features/pos/stores/posStore";
 import { formatAmount } from "../pos/utils/currency";
 import { computeCartTotals } from "../pos/features/payment/services/paymentService";
-import { COMPANY_NAME } from "./company";
+import { useCompanyName } from "./company";
+import { usePosSession } from "../pos/hooks/usePosSession";
 import "../pos/index.css";
 
 // Second-screen view of a sale (?place=<sale>&terminal=<n>): the current order on the left and a
 // welcome panel on the right. The POS keeps its sales in localStorage, so this window follows the
 // cashier's cart by rehydrating whenever that storage changes (same browser profile only).
 export default function CustomerDisplayV2() {
+    usePosSession();
+    const COMPANY_NAME = useCompanyName();
     const [params] = useSearchParams();
     const place = params.get("place") || "0";
     const cartsByPlace = usePosStore((s) => s.cartsByPlace);

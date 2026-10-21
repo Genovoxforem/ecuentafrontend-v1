@@ -3,32 +3,14 @@ import { Link, useParams } from 'react-router-dom'
 import { History } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { useQuotationConsumptionHistory } from '../quotationDetail.queries'
 import { useQuotationCard } from '../quotationDetail.queries'
-import { useStockMovementsList } from '../../warehouses/stockMovementsList.queries'
 
-// Uses the existing stock-movement JSON API and filters returned origin links
-// to this quotation. The backend's dedicated consumption-history page has no
-// JSON endpoint, so results beyond the movement API's page limit are flagged.
 export function ConsumptionHistoryReplica() {
   const { id } = useParams<{ id: string }>()
   const quotation = useQuotationCard(id)
-  const movements = useStockMovementsList(
-    { search: quotation.data?.ref, limit: 1000 },
-    Boolean(quotation.data?.ref && id),
-  )
-  const history = useMemo(
-    () =>
-      (movements.data?.movements ?? []).filter((row) => {
-        if (!id || !row.originUrl) return false
-        try {
-          const origin = new URL(row.originUrl, window.location.origin)
-          return origin.pathname.includes('/propal/card.php') && origin.searchParams.get('id') === id
-        } catch {
-          return false
-        }
-      }),
-    [id, movements.data],
-  )
+  const movements = useQuotationConsumptionHistory(id)
+  const history = useMemo(() => movements.data?.rows ?? [], [movements.data])
 
   return (
     <div className="space-y-4">
@@ -42,7 +24,7 @@ export function ConsumptionHistoryReplica() {
       ) : quotation.isLoading || movements.isLoading ? (
         <Card className="!h-auto text-sm text-text-muted">Loading consumption history…</Card>
       ) : movements.isError ? (
-        <Card className="!h-auto"><p role="alert" className="text-sm text-danger">{movements.error instanceof Error ? movements.error.message : 'Could not load stock movements.'}</p></Card>
+        <Card className="!h-auto"><p role="alert" className="text-sm text-danger">{movements.error instanceof Error ? movements.error.message : 'Could not load consumption history.'}</p></Card>
       ) : (
         <Card className="!h-auto !p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -60,12 +42,12 @@ export function ConsumptionHistoryReplica() {
               <tbody>
                 {history.length ? history.map((row) => (
                   <tr key={row.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5 text-text-muted">{row.dateFormatted || '—'}</td>
-                    <td className="px-4 py-2.5 text-text!">{[row.productRef, row.productLabel].filter(Boolean).join(' — ') || '—'}</td>
-                    <td className="px-4 py-2.5 text-text-muted">{row.warehouseRef || '—'}</td>
-                    <td className="px-4 py-2.5 text-text-muted">{row.batch || '—'}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{row.date || '—'}</td>
+                    <td className="px-4 py-2.5 text-text!">{[row.product_ref, row.product_label].filter(Boolean).join(' — ') || '—'}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{row.warehouse || '—'}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{row.lot_serial || '—'}</td>
                     <td className="px-4 py-2.5 text-right text-text-muted">{row.qty}</td>
-                    <td className="px-4 py-2.5 text-text-muted">{row.author || '—'}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{row.by || '—'}</td>
                   </tr>
                 )) : (
                   <tr><td colSpan={6} className="px-4 py-6 text-center text-text-faint italic">No consumption movements are linked to this quotation.</td></tr>
@@ -73,9 +55,6 @@ export function ConsumptionHistoryReplica() {
               </tbody>
             </table>
           </div>
-          {(movements.data?.totalRecords ?? 0) > (movements.data?.movements.length ?? 0) && (
-            <p className="border-t border-border px-4 py-3 text-xs text-warning">The backend returned a capped movement page. This history may be incomplete.</p>
-          )}
         </Card>
       )}
     </div>

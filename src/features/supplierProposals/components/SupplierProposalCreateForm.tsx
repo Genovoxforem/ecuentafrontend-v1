@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FileBadge, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -8,7 +8,7 @@ import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
-import { useCreateSupplierProposal, useSupplierProposalCreateForm, type SupplierProposalFormOption } from '../supplierProposals.queries'
+import { useCreateSupplierProposal, useSupplierProposalCreateForm, useSupplierProposalDefaults, type SupplierProposalFormOption } from '../supplierProposals.queries'
 
 function OptionSelect({ value, onChange, options, placeholder }: { value: string; onChange: (value: string) => void; options: SupplierProposalFormOption[]; placeholder?: string }) {
   return (
@@ -49,6 +49,16 @@ export function SupplierProposalCreateForm({ fixedCustomerId, backTo }: { fixedC
   const [projectId, setProjectId] = useState('')
   const [currency, setCurrency] = useState('')
   const [formError, setFormError] = useState('')
+  const { data: defaults } = useSupplierProposalDefaults(vendorId)
+
+  // The vendor's own payment terms, mode and bank (then the install default), into fields still blank.
+  useEffect(() => {
+    if (!defaults) return
+    setPaymentTermsId((prev) => prev || defaults.paymentTermsId)
+    setPaymentTypeId((prev) => prev || defaults.paymentTypeId)
+    setBankAccountId((prev) => prev || defaults.bankAccountId)
+    setShippingMethodId((prev) => prev || defaults.shippingMethodId)
+  }, [defaults])
 
   if (isLoading) return <LegacyLoadingCard label="Loading price request form…" />
   if (isError || !form) {

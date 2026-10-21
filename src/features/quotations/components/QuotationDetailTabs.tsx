@@ -15,9 +15,6 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { LegacyObjectLink } from '../../../shared/components/LegacyObjectLink'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
-import { useWarehouses } from '../../warehouses/warehouseExtras.queries'
-import { useProductOptions } from '../../products/products.queries'
 import {
   useQuotationContacts,
   useAddQuotationContact,
@@ -26,18 +23,14 @@ import {
   useQuotationDocuments,
   useUploadQuotationDocument,
   useLinkQuotationDocument,
+  useQuotationConsumptionHistory,
   useDeclareConsumption,
   useQuotationAgenda,
 } from '../quotationDetail.queries'
 import { selectCls, InfoRow, type TabKey } from './QuotationDetailShared'
 
-// Mirrors Purchase Order Detail's own ContactsTab (comm/propal/contact.php
-// renders the exact same generic core/tpl/contacts.tpl.php template — see
-// quotationDetail.queries.ts's header comment) — same 2 add-rows (Users /
-// Third-Party Contacts) plus the assigned-contacts table.
 function ContactsTab({ id }: { id: string }) {
-  const [company, setCompany] = useState<string | undefined>(undefined)
-  const { data, isLoading, isError } = useQuotationContacts(id, company)
+  const { data, isLoading, isError } = useQuotationContacts(id)
   const addContact = useAddQuotationContact(id)
 
   const [userid, setUserid] = useState('')
@@ -47,8 +40,22 @@ function ContactsTab({ id }: { id: string }) {
 
   if (isLoading) return <p className="p-4 text-sm text-text-muted">Loading contacts…</p>
   if (isError || !data) return <p className="p-4 text-sm text-danger">Could not load contacts.</p>
-  const { rows, formOptions } = data
-  const effectiveCompany = company ?? formOptions.selectedCompanyId
+  const { options } = data
+  const rows = [...data.rows.internal, ...data.rows.external].map((row) => ({
+    linkid: row.linkid,
+    nature: row.nature_label,
+    thirdParty: row.thirdparty,
+    contact: row.name,
+    contactType: row.type_label,
+    status: row.status_label,
+  }))
+  const internalUsers = options.users.map((user) => ({ value: String(user.id), label: user.name }))
+  const internalTypes = options.internal_types.map((item) => ({ value: String(item.value), label: item.label }))
+  const externalContacts = options.company_contacts.map((contact) => ({
+    value: String(contact.id),
+    label: [contact.name, contact.poste, contact.email].filter(Boolean).join(' — '),
+  }))
+  const externalTypes = options.external_types.map((item) => ({ value: String(item.value), label: item.label }))
 
   return (
     <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
@@ -74,11 +81,11 @@ function ContactsTab({ id }: { id: string }) {
                   <Users size={13} className="text-text-faint" /> Users
                 </span>
               </td>
-              <td className="py-2 px-3 text-text-muted">{formOptions.issuerCompanyName || '—'}</td>
+              <td className="py-2 px-3 text-text-muted">{options.issuer_company || '—'}</td>
               <td className="py-2 px-3">
                 <select value={userid} onChange={(e) => setUserid(e.target.value)} className={selectCls}>
                   <option value=""></option>
-                  {formOptions.internalUserOptions.map((o) => (
+                  {internalUsers.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -87,7 +94,7 @@ function ContactsTab({ id }: { id: string }) {
               </td>
               <td className="py-2 px-3">
                 <select value={type} onChange={(e) => setType(e.target.value)} className={selectCls}>
-                  {formOptions.internalTypeOptions.map((o) => (
+                  {internalTypes.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -111,30 +118,17 @@ function ContactsTab({ id }: { id: string }) {
                   <Users size={13} className="text-text-faint" /> Third-Party Contacts
                 </span>
               </td>
-              <td className="py-2 px-3">
-                <select
-                  value={effectiveCompany}
-                  onChange={(e) => {
-                    setCompany(e.target.value)
-                    setContactid('')
-                  }}
-                  className={selectCls}
-                >
-                  {formOptions.companyOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+              <td className="py-2 px-3 text-text-muted">
+                {options.companies.find((companyOption) => companyOption.id === options.selected_company)?.name ?? '—'}
               </td>
               <td className="py-2 px-3">
                 <select
                   value={contactid}
                   onChange={(e) => setContactid(e.target.value)}
-                  disabled={!formOptions.hasRealExternalContact}
+                  disabled={!externalContacts.length}
                   className={`${selectCls} disabled:opacity-50`}
                 >
-                  {formOptions.externalContactOptions.map((o) => (
+                  {externalContacts.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -143,7 +137,7 @@ function ContactsTab({ id }: { id: string }) {
               </td>
               <td className="py-2 px-3">
                 <select value={typecontact} onChange={(e) => setTypecontact(e.target.value)} className={selectCls}>
-                  {formOptions.externalTypeOptions.map((o) => (
+                  {externalTypes.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -153,7 +147,7 @@ function ContactsTab({ id }: { id: string }) {
               <td className="py-2 px-4 text-right">
                 <button
                   type="button"
-                  disabled={!formOptions.hasRealExternalContact || !contactid || !typecontact || typecontact === '0' || addContact.isPending}
+                  disabled={!externalContacts.length || !contactid || !typecontact || addContact.isPending}
                   onClick={() => addContact.mutate({ source: 'external', contactid, typecontact })}
                   className="px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50"
                 >
@@ -187,8 +181,8 @@ function ContactsTab({ id }: { id: string }) {
                 </td>
               </tr>
             ) : (
-              rows.map((row, i) => (
-                <tr key={i} className="border-b border-border last:border-0">
+              rows.map((row) => (
+                <tr key={row.linkid} className="border-b border-border last:border-0">
                   <td className="py-2 px-4 text-text!">{row.nature}</td>
                   <td className="py-2 px-3 text-text-muted">{row.thirdParty}</td>
                   <td className="py-2 px-3 text-text-muted">{row.contact}</td>
@@ -204,12 +198,6 @@ function ContactsTab({ id }: { id: string }) {
   )
 }
 
-// core/tpl/notes.tpl.php — two independent editable fields, each saved with
-// its own real POST (core/actions_setnotes.inc.php). Saving the public note
-// on this deployment shares the same auto-PDF-regeneration call that's
-// already confirmed to crash for quotations (see this session's Create
-// Quotation live-test finding) — that's a real backend bug, not something
-// wrong with this form; the private note isn't affected.
 function NotesTab({ id }: { id: string }) {
   const { data, isLoading, isError } = useQuotationNotes(id)
   const setNote = useSetQuotationNote(id)
@@ -221,8 +209,8 @@ function NotesTab({ id }: { id: string }) {
   if (isLoading) return <p className="p-4 text-sm text-text-muted">Loading notes…</p>
   if (isError || !data) return <p className="p-4 text-sm text-danger">Could not load notes.</p>
 
-  const publicValue = publicDirty ? notePublic : data.notePublic
-  const privateValue = privateDirty ? notePrivate : data.notePrivate
+  const publicValue = publicDirty ? notePublic : data.note_public
+  const privateValue = privateDirty ? notePrivate : data.note_private
 
   return (
     <Card className="!h-auto shrink-0">
@@ -241,7 +229,7 @@ function NotesTab({ id }: { id: string }) {
           />
           <button
             type="button"
-            disabled={setNote.isPending}
+            disabled={setNote.isPending || !data.can_edit}
             onClick={() => setNote.mutate({ field: 'note_public', value: publicValue }, { onSuccess: () => setPublicDirty(false) })}
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover disabled:opacity-60"
           >
@@ -261,7 +249,7 @@ function NotesTab({ id }: { id: string }) {
           />
           <button
             type="button"
-            disabled={setNote.isPending}
+            disabled={setNote.isPending || !data.can_edit}
             onClick={() => setNote.mutate({ field: 'note_private', value: privateValue }, { onSuccess: () => setPrivateDirty(false) })}
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover disabled:opacity-60"
           >
@@ -274,33 +262,27 @@ function NotesTab({ id }: { id: string }) {
   )
 }
 
-// Mirrors Purchase Order Detail's own DocumentsTab (comm/propal/document.php
-// renders the exact same generic
-// core/tpl/document_actions_post_headers.tpl.php template — see
-// quotationDetail.queries.ts's header comment). Delete isn't exposed here —
-// same reasoning as Purchase Orders' equivalent tab.
 function DocumentsTab({ id }: { id: string }) {
   const { data, isLoading, isError } = useQuotationDocuments(id)
   const uploadDoc = useUploadQuotationDocument(id)
   const linkDoc = useLinkQuotationDocument(id)
 
   const [file, setFile] = useState<File | null>(null)
-  const [useMask, setUseMask] = useState(true)
   const [linkUrl, setLinkUrl] = useState('')
   const [linkLabel, setLinkLabel] = useState('')
 
   if (isLoading) return <p className="p-4 text-sm text-text-muted">Loading linked files…</p>
   if (isError || !data) return <p className="p-4 text-sm text-danger">Could not load linked files.</p>
-  const { rows, meta } = data
+  const { files, links, meta } = data
 
   function handleUpload() {
     if (!file) return
-    uploadDoc.mutate({ token: meta.attachToken, file, savingDocMask: meta.savingDocMask, useMask }, { onSuccess: () => setFile(null) })
+    uploadDoc.mutate(file, { onSuccess: () => setFile(null) })
   }
   function handleLink() {
     if (!linkUrl.trim()) return
     linkDoc.mutate(
-      { token: meta.attachToken, link: linkUrl.trim(), label: linkLabel.trim() },
+      { link: linkUrl.trim(), label: linkLabel.trim() },
       { onSuccess: () => { setLinkUrl(''); setLinkLabel('') } },
     )
   }
@@ -310,8 +292,8 @@ function DocumentsTab({ id }: { id: string }) {
       <Card className="!h-auto shrink-0">
         <table className="w-full">
           <tbody>
-            <InfoRow label="Number of attached files/documents" value={String(meta.attachedCount)} />
-            <InfoRow label="Total size of attached files/documents" value={meta.totalSize} />
+            <InfoRow label="Number of attached files/documents" value={String(files.length)} />
+            <InfoRow label="Total size of attached files/documents" value={`${(files.reduce((sum, item) => sum + item.size_raw, 0) / 1024).toFixed(1)} Kb`} />
           </tbody>
         </table>
       </Card>
@@ -325,23 +307,15 @@ function DocumentsTab({ id }: { id: string }) {
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="block w-full text-sm text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-surface-hover file:text-text hover:file:bg-border"
             />
-            {meta.savingDocMask && (
-              <label className="flex items-start gap-2 text-xs text-text-faint">
-                <input type="checkbox" checked={useMask} onChange={(e) => setUseMask(e.target.checked)} className="mt-0.5" />
-                <span>
-                  Save file on server with name "<b className="text-text-muted">{meta.savingDocMask}</b>" (otherwise original filename)
-                </span>
-              </label>
-            )}
             <button
               type="button"
-              disabled={!file || uploadDoc.isPending}
+              disabled={!meta.can_edit || !file || uploadDoc.isPending}
               onClick={handleUpload}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-60"
             >
               {uploadDoc.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Upload size={13} />} Upload
             </button>
-            {uploadDoc.isError && <p className="text-xs text-danger">Could not upload the file — please try again.</p>}
+            {uploadDoc.isError && <p className="text-xs text-danger">{uploadDoc.error instanceof Error ? uploadDoc.error.message : 'Could not upload the file.'}</p>}
             {uploadDoc.isSuccess && <p className="text-xs text-success">File uploaded.</p>}
           </div>
         </Card>
@@ -353,13 +327,13 @@ function DocumentsTab({ id }: { id: string }) {
             <input type="text" value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label" className={selectCls} />
             <button
               type="button"
-              disabled={!linkUrl.trim() || linkDoc.isPending}
+              disabled={!meta.can_edit || !linkUrl.trim() || linkDoc.isPending}
               onClick={handleLink}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-60"
             >
               {linkDoc.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Link2 size={13} />} Link
             </button>
-            {linkDoc.isError && <p className="text-xs text-danger">Could not link the file — please try again.</p>}
+            {linkDoc.isError && <p className="text-xs text-danger">{linkDoc.error instanceof Error ? linkDoc.error.message : 'Could not link the file.'}</p>}
             {linkDoc.isSuccess && <p className="text-xs text-success">Link added.</p>}
           </div>
         </Card>
@@ -370,7 +344,7 @@ function DocumentsTab({ id }: { id: string }) {
           <h3 className="font-semibold text-text!">Attached files and documents</h3>
         </div>
         <div className="p-4">
-          {rows.length === 0 ? (
+          {files.length === 0 ? (
             <p className="text-sm text-text-faint italic py-6 text-center">No documents uploaded.</p>
           ) : (
             <table className="w-full text-sm">
@@ -383,10 +357,10 @@ function DocumentsTab({ id }: { id: string }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((doc) => (
+                {files.map((doc) => (
                   <tr key={doc.url} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3">
-                      <a href={stripBackendPrefix(doc.url)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                      <a href={doc.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                         {doc.name}
                       </a>
                     </td>
@@ -394,7 +368,7 @@ function DocumentsTab({ id }: { id: string }) {
                     <td className="py-2 text-text-muted">{doc.date}</td>
                     <td className="py-2 pl-3">
                       <div className="flex items-center justify-center gap-2">
-                        <a href={stripBackendPrefix(doc.url)} target="_blank" rel="noreferrer" title="Preview" className="text-text-faint hover:text-text">
+                        <a href={doc.url} target="_blank" rel="noreferrer" title="Preview" className="text-text-faint hover:text-text">
                           <Eye size={14} />
                         </a>
                       </div>
@@ -412,7 +386,7 @@ function DocumentsTab({ id }: { id: string }) {
           <h3 className="font-semibold text-text!">Linked files and documents</h3>
         </div>
         <div className="p-4">
-          {meta.links.length === 0 ? (
+          {links.length === 0 ? (
             <p className="text-sm text-text-faint italic py-6 text-center">No registered links.</p>
           ) : (
             <table className="w-full text-sm">
@@ -423,8 +397,8 @@ function DocumentsTab({ id }: { id: string }) {
                 </tr>
               </thead>
               <tbody>
-                {meta.links.map((link, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
+                {links.map((link) => (
+                  <tr key={link.id} className="border-b border-border last:border-0">
                     <td className="py-2 pr-3">
                       <a href={link.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                         {link.label}
@@ -442,17 +416,14 @@ function DocumentsTab({ id }: { id: string }) {
   )
 }
 
-// custom/consumption/card.php's real "Declare" form (action=conso) — read
-// directly from that PHP source. The real page's own "List Of Consumption"
-// table below this form is a full stock-movement ledger (its own
-// custom/consumption module, unrelated to the quotation itself beyond the
-// origin filter) — not scraped here; "View full history" opens the real
-// page instead of reproducing that ledger.
 function ConsumptionsTab({ id }: { id: string }) {
   const declare = useDeclareConsumption(id)
-  const warehouses = useWarehouses()
-  const { data: products } = useProductOptions()
-  const productOptions = (products ?? []).map((p) => ({ value: p.id, label: `${p.ref} - ${p.label}` }))
+  const { data, isLoading, isError } = useQuotationConsumptionHistory(id)
+  const warehouses = data?.options.warehouses ?? []
+  const productOptions = (data?.options.products ?? []).map((product) => ({
+    value: String(product.id),
+    label: product.label,
+  }))
 
   const [warehouseId, setWarehouseId] = useState('')
   const [productId, setProductId] = useState('')
@@ -463,9 +434,17 @@ function ConsumptionsTab({ id }: { id: string }) {
   const [sellBy, setSellBy] = useState('')
 
   function handleDeclare() {
-    if (!warehouseId || !productId || !qty || !lotSerial) return
+    if (!warehouseId || !productId || !qty || (data?.options.batch_enabled && !lotSerial)) return
     declare.mutate(
-      { productId, warehouseId, qty: Number(qty), label, lotSerial, eatBy, sellBy },
+      {
+        productId,
+        warehouseId,
+        qty: Number(qty),
+        label: label || data?.options.default_label || '',
+        lotSerial,
+        eatBy,
+        sellBy,
+      },
       {
         onSuccess: () => {
           setQty('')
@@ -483,6 +462,9 @@ function ConsumptionsTab({ id }: { id: string }) {
           View full history
         </Link>
       </div>
+      {isLoading && <p className="mb-3 text-sm text-text-muted">Loading stock options…</p>}
+      {isError && <p role="alert" className="mb-3 text-sm text-danger">Could not load quotation stock options.</p>}
+      {data && !data.options.can_write && <p className="mb-3 text-sm text-warning">You do not have permission to register stock consumption for this quotation.</p>}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
         <div>
           <span className="text-sm text-text">
@@ -513,7 +495,7 @@ function ConsumptionsTab({ id }: { id: string }) {
         </div>
         <div>
           <span className="text-sm text-text">
-            Lot/Serial number<span className="text-danger">*</span>
+          Lot/Serial number{data?.options.batch_enabled && <span className="text-danger">*</span>}
           </span>
           <input type="text" value={lotSerial} onChange={(e) => setLotSerial(e.target.value)} className={`${inputClasses} mt-1`} />
         </div>
@@ -521,19 +503,19 @@ function ConsumptionsTab({ id }: { id: string }) {
           <span className="text-sm text-text">Label of movement</span>
           <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className={`${inputClasses} mt-1`} />
         </div>
-        <div>
+        {data?.options.eatby_enabled && <div>
           <span className="text-sm text-text">Eat-by date</span>
           <input type="date" value={eatBy} onChange={(e) => setEatBy(e.target.value)} className={`${inputClasses} mt-1`} />
-        </div>
-        <div>
+        </div>}
+        {data?.options.sellby_enabled && <div>
           <span className="text-sm text-text">Sell-by date</span>
           <input type="date" value={sellBy} onChange={(e) => setSellBy(e.target.value)} className={`${inputClasses} mt-1`} />
-        </div>
+        </div>}
       </div>
       <div className="flex items-center gap-2 mt-4">
         <button
           type="button"
-          disabled={!warehouseId || !productId || !qty || !lotSerial || declare.isPending}
+          disabled={!data?.options.can_write || !warehouseId || !productId || !qty || (data.options.batch_enabled && !lotSerial) || declare.isPending}
           onClick={handleDeclare}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
@@ -557,12 +539,12 @@ function AgendaTab({ id, socid }: { id: string; socid?: number }) {
       <Card className="!h-auto shrink-0">
         <table className="w-full">
           <tbody>
-            <InfoRow label="Created By" value={data.createdBy} />
-            <InfoRow label="Creation Date" value={data.creationDate} />
-            <InfoRow label="Latest Modification Date" value={data.latestModificationDate} />
-            {data.validatedBy && <InfoRow label="Validated By" value={data.validatedBy} />}
-            {data.validationDate && <InfoRow label="Validation Date" value={data.validationDate} />}
-            {data.closingDate && <InfoRow label="Closing Date" value={data.closingDate} />}
+            <InfoRow label="Created By" value={data.created_by} />
+            <InfoRow label="Creation Date" value={data.creation_date} />
+            <InfoRow label="Latest Modification Date" value={data.latest_modification_date} />
+            {data.validated_by && <InfoRow label="Validated By" value={data.validated_by} />}
+            {data.validation_date && <InfoRow label="Validation Date" value={data.validation_date} />}
+            {data.closing_date && <InfoRow label="Closing Date" value={data.closing_date} />}
           </tbody>
         </table>
       </Card>
@@ -615,9 +597,9 @@ function AgendaTab({ id, socid }: { id: string; socid?: number }) {
                     <td className="px-4 py-2.5 text-text-muted">{e.owner}</td>
                     <td className="px-4 py-2.5 text-text!">{e.label}</td>
                     <td className="px-4 py-2.5">
-                      <LegacyObjectLink url={e.relatedObjectUrl}>{e.relatedObjectRef}</LegacyObjectLink>
+                      <LegacyObjectLink url={e.related_object_url}>{e.related_object_ref}</LegacyObjectLink>
                     </td>
-                    <td className="px-4 py-2.5 text-text-muted">{e.statusLabel}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{e.status_label}</td>
                   </tr>
                 ))
               )}

@@ -134,7 +134,7 @@ function CashDeskModal({ open, onClose, onLogout }) {
                 <div
                     className={`flex items-center justify-between px-5 py-2.5 rounded-t-xl ${
                         session
-                            ? "bg-[#2c6291] text-white uppercase tracking-wide"
+                            ? "bg-[#2f6fe4] text-white uppercase tracking-wide"
                             : "bg-gray-50 dark:bg-slate-800 text-[var(--text-navy)] dark:text-white border-b border-gray-200 dark:border-slate-700"
                     }`}
                 >
@@ -314,7 +314,7 @@ function CashDeskModal({ open, onClose, onLogout }) {
                         <button
                             type="button"
                             onClick={onLogout}
-                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#397db9] text-white hover:bg-[#2c6291]"
+                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#3b82f6] text-white hover:bg-[#2f6fe4]"
                         >
                             Logout
                         </button>
@@ -325,7 +325,7 @@ function CashDeskModal({ open, onClose, onLogout }) {
                             disabled={submitting}
                             onClick={session ? handleCloseSession : handleOpenSession}
                             className={`px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${
-                                session ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#397db9] hover:bg-[#2c6291]"
+                                session ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#3b82f6] hover:bg-[#2f6fe4]"
                             }`}
                         >
                             {session ? "Close" : "Save"}

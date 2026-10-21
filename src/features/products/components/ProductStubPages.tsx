@@ -1,36 +1,14 @@
-import { Percent, Tag, Tags, Upload } from 'lucide-react'
-import { NotBuiltPage } from '../../../shared/components/dashboard/NotBuiltPage'
+import { CategoriesPage } from '../../customers/components/CategoriesPage'
+import { ProductImportWizard } from './ProductImportWizard'
 
-// Honest "not built yet" landings for nav items that have no backend
-// endpoint on this app's server yet — see NotBuiltPage.tsx. Wiring these to
-// real routes (instead of no <Route> at all) fixes the previous silent
-// bounce-to-/dashboard behavior. (Stocks/StocksByLot/LotsSerials/
-// VariantAttributes moved out to their own real, live-data components —
-// see ProductStocksPage.tsx etc.)
-export function ProductPriceListPage() {
-  return <NotBuiltPage icon={Tag} title="Bulk Price Update" description="Mass price editing across products. No such endpoint exists on this backend yet." />
-}
-
+// categories/index.php?type=product — the shared tags/categories page over
+// categories/api/index.php (tree with stats, tagged products, create), plus edit
+// and delete through product/fapi/categories.php.
 export function ProductTagsPage() {
-  return <NotBuiltPage icon={Tags} title="Product/Service Tags & Categories" description="Tag/category management. No dedicated management endpoint exists on this backend yet (categories can only be picked, not managed, from the create form)." />
+  return <CategoriesPage type={0} title="Products/Services tags/categories area" />
 }
 
+// product/product_import_wizard.php — see ProductImportWizard.tsx.
 export function ProductImportPage() {
-  return (
-    <NotBuiltPage
-      icon={Upload}
-      title="Import Products"
-      description="Bulk CSV/Excel product import (Dolibarr's generic import wizard: pick a format, map columns, run the import). No upload/import endpoint exists on this backend yet."
-    />
-  )
-}
-
-export function ProductVatUpdatePage() {
-  return (
-    <NotBuiltPage
-      icon={Percent}
-      title="Global VAT Update"
-      description="Mass VAT-rate change across products/services. No dedicated endpoint exists on this backend yet."
-    />
-  )
+  return <ProductImportWizard />
 }
