@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Info, Loader2, Save, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -59,11 +60,22 @@ interface FormProps {
   // Without it the form is a setup form that stays on the page after saving.
   redirectTo?: string
   note?: string
+  // A form with a JSON endpoint: `load` returns the form in the usual shape and `save` receives the field values (dates as yyyy-mm-dd)
+  // and returns the message to show. Without them the page reads and posts the backend form as before.
+  load?: () => Promise<LegacyFormData>
+  save?: (values: Record<string, string>) => Promise<string>
 }
 
 function LegacyForm({ data, ...p }: FormProps & { data: LegacyFormData }) {
   const navigate = useNavigate()
   const submit = useSubmitLegacyForm(p.path)
+  const queryClient = useQueryClient()
+  const customSave = useMutation({
+    mutationFn: (values: Record<string, string>) => p.save!(values),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
+  })
+  const pending = submit.isPending || customSave.isPending
+  const failure = submit.error ?? customSave.error
   const derived = !p.fields
   const items: Item[] = p.fields
     ? p.fields.filter((f) => data.fields[f.name]).map((cfg) => ({ kind: 'field', cfg }))
@@ -75,6 +87,20 @@ function LegacyForm({ data, ...p }: FormProps & { data: LegacyFormData }) {
 
   const save = () => {
     setSaved(null)
+    if (p.save) {
+      const out: Record<string, string> = {}
+      for (const f of configs) {
+        const v = data.fields[f.name].tag === 'select' && !(values[f.name] ?? '').trim() ? '' : (values[f.name] ?? '')
+        out[f.name] = f.kind === 'date' ? toIso(v) : v
+      }
+      customSave.mutate(out, {
+        onSuccess: (message) => {
+          if (p.redirectTo) navigate(p.redirectTo)
+          else setSaved(message || 'Saved.')
+        },
+      })
+      return
+    }
     const body = new URLSearchParams({ ...data.hidden, ...p.submitExtra })
     for (const f of configs) {
       // A select's blank choice carries a non-breaking space; the setting should be stored empty.
@@ -108,10 +134,10 @@ function LegacyForm({ data, ...p }: FormProps & { data: LegacyFormData }) {
           <button
             type="button"
             onClick={save}
-            disabled={submit.isPending}
+            disabled={pending}
             className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
-            {submit.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {p.submitLabel ?? (derived && data.submitLabel ? data.submitLabel : 'Save')}
+            {pending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {p.submitLabel ?? (derived && data.submitLabel ? data.submitLabel : 'Save')}
           </button>
           {p.redirectTo && (
             <button type="button" onClick={() => navigate(p.redirectTo!)} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
@@ -129,9 +155,9 @@ function LegacyForm({ data, ...p }: FormProps & { data: LegacyFormData }) {
       )}
       {p.note && <p className="text-xs text-text-faint">{p.note}</p>}
       {saved && <div className="whitespace-pre-line rounded-lg border border-success/40 bg-success-bg/50 px-3.5 py-3 text-sm text-success-fg">{saved}</div>}
-      {submit.isError && (
+      {failure && (
         <div className="whitespace-pre-line rounded-lg border border-danger/40 bg-danger-bg/50 px-3.5 py-3 text-sm text-danger">
-          {submit.error instanceof Error ? submit.error.message : 'Saving failed.'}
+          {failure instanceof Error ? failure.message : 'Saving failed.'}
         </div>
       )}
       <Card className="!h-auto">
@@ -196,7 +222,7 @@ function LegacyForm({ data, ...p }: FormProps & { data: LegacyFormData }) {
 // values and option lists it prints are what is shown, and Save posts the same
 // fields the original form posts.
 export function LegacyFormPage(props: FormProps) {
-  const { data, isLoading, isError, error, refetch } = useLegacyForm(props.path, props.anchor, props.query)
+  const { data, isLoading, isError, error, refetch } = useLegacyForm(props.path, props.anchor, props.query, props.load)
   if (isLoading) return <LegacyLoadingCard label={`Loading ${props.title.toLowerCase()}…`} />
   if (isError || !data) return <LegacyErrorCard title={`Couldn't load ${props.title.toLowerCase()}`} message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   return <LegacyForm key={props.path} data={data} {...props} />

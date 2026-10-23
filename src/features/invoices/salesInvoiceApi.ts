@@ -126,6 +126,7 @@ export interface SalesInvoiceModel {
 export interface SalesInvoiceMargin {
   enabled: boolean
   margin_info: string
+  rows?: { label: string; sellingPrice: string; costPrice: string; margin: string }[]
 }
 
 export interface SalesInvoiceHeader {

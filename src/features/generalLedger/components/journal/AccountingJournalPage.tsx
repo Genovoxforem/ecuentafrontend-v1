@@ -84,7 +84,7 @@ export function AccountingJournalPage({ config, icon: Icon }: { config: JournalC
     setActionError(null)
     setExporting(true)
     try {
-      await downloadJournalCsv(config, data.token, listed)
+      await downloadJournalCsv(config, data)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Export failed.')
     } finally {
@@ -104,7 +104,7 @@ export function AccountingJournalPage({ config, icon: Icon }: { config: JournalC
     })
     if (!ok) return
     try {
-      await write.mutateAsync({ token: data.token, filters: listed })
+      await write.mutateAsync({ filters: listed })
       setDraft(null)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Registering transactions failed.')

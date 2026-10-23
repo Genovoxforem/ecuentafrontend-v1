@@ -11,9 +11,10 @@ import { parseDictRows, type DictRow } from './dolibarrDictParser'
 // that host after the first one); this follows Dolibarr's well-documented
 // dict.php action=enable/disable/delete-via-GET convention, worth
 // confirming once interactively in the running app.
-export function useDictList(path: string) {
+export function useDictList(path: string, enabled = true) {
   return useQuery({
     queryKey: ['generalLedger', 'dict', path],
+    enabled,
     queryFn: async (): Promise<DictRow[]> => {
       const html = await fetchLegacyText(path)
       return parseDictRows(html)

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Check, Plus, RotateCcw, RefreshCw, Cake, Umbrella, Search, Clock } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ListPagination } from '../../../shared/components/ListPagination'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Avatar } from '../../../shared/components/Avatar'
 import { formatDateTimeAmPm } from '../../../utils/format'
 import { useAuth } from '../../auth/AuthContext'
@@ -133,7 +135,7 @@ function TypeFilterDropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none hover:bg-surface-hover"
+        className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none hover:bg-surface-hover"
       >
         {label}
         <ChevronDown size={14} className={`text-text-faint transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -199,7 +201,7 @@ export function AgendaOverview() {
   // pages of their own, they're just this same real Agenda view with a
   // different starting filter, matching the real reference app's own
   // "status=todo&filtert=-1" style list.php links.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const initialStatus = searchParams.get('status') === 'done' || searchParams.get('status') === 'todo' ? searchParams.get('status')! : ''
   const initialView: ViewMode = searchParams.get('view') === 'list' ? 'list' : 'month'
   const initialScope = searchParams.get('scope')
@@ -218,7 +220,20 @@ export function AgendaOverview() {
   const [checkHoliday, setCheckHoliday] = useState(false)
   const [showNewEvent, setShowNewEvent] = useState(searchParams.get('new') === '1')
   const [viewEventId, setViewEventId] = useState<number | null>(null)
+  // List view paging: the table shows one page of the filtered events and the pager at the bottom of the card moves between pages.
+  const [listPage, setListPage] = useState(1)
+  const [listPerPage, setListPerPage] = useState(25)
   const [searchText, setSearchText] = useState('')
+
+  // Closing also drops ?new=1, otherwise clicking "New event" again would not change the URL and the form would not reopen.
+  const closeNewEvent = () => {
+    setShowNewEvent(false)
+    if (searchParams.get('new') === '1') {
+      const next = new URLSearchParams(searchParams)
+      next.delete('new')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   // Default owner to the current logged-in user once real users load —
   // matches the real backend's own default (filtert = $user->id).
@@ -245,7 +260,8 @@ export function AgendaOverview() {
     setStatus(nextStatus)
     setView(searchParams.get('view') === 'list' ? 'list' : 'month')
     setOwnerId(searchParams.get('scope') === 'all' ? ALL_OWNERS : user?.id ? Number(user.id) : undefined)
-    if (searchParams.get('new') === '1') setShowNewEvent(true)
+    // Follows the URL both ways: ?new=1 opens the form, any other sidebar link closes it again.
+    setShowNewEvent(searchParams.get('new') === '1')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsKey])
 
@@ -301,6 +317,10 @@ export function AgendaOverview() {
     if (!q) return fetchedEvents
     return fetchedEvents.filter((ev) => ev.label.toLowerCase().includes(q) || ev.description.toLowerCase().includes(q))
   }, [fetchedEvents, searchText])
+
+  const pagedEvents = useMemo(() => visibleEvents.slice((listPage - 1) * listPerPage, listPage * listPerPage), [visibleEvents, listPage, listPerPage])
+  // A new filter / view / date range starts again from the first page.
+  useEffect(() => setListPage(1), [view, visibleEvents.length])
 
   const upcoming = useMemo(() => {
     const now = Date.now()
@@ -393,27 +413,30 @@ export function AgendaOverview() {
               <p className="text-sm text-text-faint">Plan, manage and track your events and activities.</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowNewEvent(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover shrink-0"
-          >
-            <Plus size={16} /> Create Event
-          </button>
+          <InBanner>
+            <button
+              type="button"
+              onClick={() => setShowNewEvent(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover shrink-0"
+            >
+              <Plus size={16} /> Create Event
+            </button>
+          </InBanner>
         </div>
 
-        <Card className="!h-auto !p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full sm:w-56">
+        <div className="flex flex-nowrap items-stretch gap-2">
+        <Card className="!h-auto !p-3 shrink-0">
+          <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&_button]:shrink-0 [&_button]:whitespace-nowrap [&_button]:px-2 [&_input[type=date]]:w-[6.8rem] [&_input[type=date]]:px-1 [&_select]:min-w-[4.5rem] [&_select]:[field-sizing:content] [&_select]:px-1.5 [&_select]:h-8 [&_input]:h-8 [&_button]:h-8">
+            <div className="relative w-36 shrink-0">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 placeholder="Search events…"
-                className="w-full h-9 pl-8 pr-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                className="w-full h-8 pl-8 pr-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
               />
             </div>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
               <option value="">All Status</option>
               {options?.statuses.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -424,7 +447,7 @@ export function AgendaOverview() {
             <select
               value={ownerId ?? ''}
               onChange={(e) => setOwnerId(e.target.value ? Number(e.target.value) : undefined)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value={ALL_OWNERS}>All Owners</option>
               {options?.users.map((u) => (
@@ -436,7 +459,7 @@ export function AgendaOverview() {
             <select
               value={projectId ?? ''}
               onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value="">All Projects</option>
               {options?.projects.map((p) => (
@@ -450,29 +473,23 @@ export function AgendaOverview() {
                 type="date"
                 value={toDateInputValue(anchor)}
                 onChange={(e) => e.target.value && setAnchor(new Date(e.target.value))}
-                className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+                className="h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
               />
               <span className="text-text-faint text-sm">–</span>
-              <input type="date" value={toDateInputValue(rangeEnd)} disabled className="h-9 px-2 rounded-md border border-input-border bg-surface-alt text-text-faint text-sm outline-none cursor-not-allowed" />
+              <input type="date" value={toDateInputValue(rangeEnd)} disabled className="h-8 px-2 rounded-md border border-input-border bg-surface-alt text-text-faint text-sm outline-none cursor-not-allowed" />
             </div>
-            <button type="button" onClick={resetFilters} className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-input-border text-text-muted text-sm font-medium hover:bg-surface-hover">
-              <RotateCcw size={13} /> Clear
+            <button type="button" onClick={resetFilters} title="Clear" aria-label="Clear" className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-input-border text-text-muted text-sm font-medium hover:bg-surface-hover">
+              <RotateCcw size={13} />
             </button>
           </div>
         </Card>
 
-        <Card className="!h-auto !p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-text!">Filters</h3>
-            <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-              <RotateCcw size={11} /> Reset All
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        <Card className="!h-auto !p-3 min-w-0 flex-1">
+          <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&_button]:shrink-0 [&_button]:whitespace-nowrap [&_button]:px-2 [&_input[type=date]]:w-[6.8rem] [&_input[type=date]]:px-1 [&_select]:min-w-[4.5rem] [&_select]:[field-sizing:content] [&_select]:px-1.5 [&_select]:h-8 [&_input]:h-8 [&_button]:h-8">
             <select
               value={view === 'list' ? 'month' : view}
               onChange={(e) => setView(e.target.value as ViewMode)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value="month">Month view</option>
               <option value="week">Week view</option>
@@ -481,7 +498,7 @@ export function AgendaOverview() {
             <select
               value={usergroupId ?? ''}
               onChange={(e) => setUsergroupId(e.target.value ? Number(e.target.value) : undefined)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value="">All User Groups</option>
               {options?.usergroups.map((g) => (
@@ -493,7 +510,7 @@ export function AgendaOverview() {
             <select
               value={socid ?? ''}
               onChange={(e) => setSocid(e.target.value ? Number(e.target.value) : undefined)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value="">All Third-Parties</option>
               {options?.thirdparties.map((tp) => (
@@ -505,7 +522,7 @@ export function AgendaOverview() {
             <select
               value={categoryId ?? ''}
               onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value="">All Tags/Categories</option>
               {options?.categories.map((c) => (
@@ -517,7 +534,7 @@ export function AgendaOverview() {
             <select
               value={resourceId ?? ''}
               onChange={(e) => setResourceId(e.target.value ? Number(e.target.value) : undefined)}
-              className="h-9 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
+              className="h-8 px-2.5 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none"
             >
               <option value="">All Resources</option>
               {options?.resources.map((r) => (
@@ -529,24 +546,30 @@ export function AgendaOverview() {
             <button
               type="button"
               onClick={() => setShowBirthday((v) => !v)}
-              className={`flex items-center gap-1.5 h-9 rounded-full px-3 text-xs font-medium border ${showBirthday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
+              title="Birthdays"
+              aria-label="Birthdays"
+              className={`flex items-center gap-1.5 h-8 rounded-full px-3 text-xs font-medium border ${showBirthday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
             >
-              <Cake size={13} /> Birthdays
+              <Cake size={13} />
             </button>
             <button
               type="button"
               onClick={() => setCheckHoliday((v) => !v)}
-              className={`flex items-center gap-1.5 h-9 rounded-full px-3 text-xs font-medium border ${checkHoliday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
+              title="Holidays"
+              aria-label="Holidays"
+              className={`flex items-center gap-1.5 h-8 rounded-full px-3 text-xs font-medium border ${checkHoliday ? 'bg-brand text-white border-brand' : 'border-input-border text-text-muted hover:bg-surface-hover'}`}
             >
-              <Umbrella size={13} /> Holidays
+              <Umbrella size={13} />
             </button>
             <button
               type="button"
               onClick={() => refetch()}
+              title="Refresh"
+              aria-label="Refresh"
               disabled={isFetching}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-input-border text-text-muted text-sm font-medium hover:bg-surface-hover disabled:opacity-50"
+              className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-input-border text-text-muted text-sm font-medium hover:bg-surface-hover disabled:opacity-50"
             >
-              <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh
+              <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
             </button>
             <span className="h-6 w-px bg-border shrink-0" />
             {options?.types && (
@@ -558,11 +581,15 @@ export function AgendaOverview() {
                 onDeselectAll={deselectAllTypes}
               />
             )}
+            <button type="button" onClick={resetFilters} className="ml-auto flex shrink-0 items-center gap-1 text-xs font-medium text-brand hover:underline" title="Reset all filters">
+              <RotateCcw size={13} />
+            </button>
           </div>
         </Card>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-4 items-start px-6 py-4 flex-1 min-h-0">
+      <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] gap-4 items-start px-6 py-4 flex-1 min-h-0">
         <div className="space-y-4">
           <MiniCalendar month={anchor} onSelect={(d) => { setAnchor(d); setView('day') }} />
 
@@ -599,7 +626,7 @@ export function AgendaOverview() {
         </div>
 
         <div className="flex flex-col min-h-0 self-stretch">
-          <Card className="!p-0 overflow-hidden">
+          <Card className="!p-0 overflow-hidden flex-1 min-h-0">
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 {view !== 'list' && (
@@ -662,14 +689,19 @@ export function AgendaOverview() {
 
             {view === 'week' && (
               <div className="flex-1 min-h-0 overflow-auto">
+                {/* The day names stay pinned at the top while the events of the week scroll inside the card. */}
+                <div className="sticky top-0 z-10 grid grid-cols-7 border-b border-border bg-surface">
+                  {weekDays.map((d) => (
+                    <p key={d.toISOString()} className="border-r border-border px-2 py-2 text-xs font-semibold text-text!">
+                      {DAY_NAMES[(d.getDay() + 6) % 7].slice(0, 3)} {d.getDate()}
+                    </p>
+                  ))}
+                </div>
                 <div className="grid grid-cols-7">
                   {weekDays.map((d) => {
                     const dayEvents = eventsOn(d)
                     return (
-                      <div key={d.toISOString()} className="min-h-32 border-b border-r border-border p-2 space-y-1.5">
-                        <p className="text-xs font-semibold text-text! mb-1">
-                          {DAY_NAMES[(d.getDay() + 6) % 7].slice(0, 3)} {d.getDate()}
-                        </p>
+                      <div key={d.toISOString()} className="min-h-32 border-r border-border p-2 space-y-1.5">
                         {dayEvents.length === 0 ? <p className="text-[11px] text-text-faint italic">—</p> : dayEvents.map((ev) => <EventChip key={ev.id} ev={ev} onOpen={setViewEventId} />)}
                       </div>
                     )
@@ -701,7 +733,7 @@ export function AgendaOverview() {
                     <p className="text-sm">No events yet — create one, or check a quotation, contract, order, or invoice for its own logged events.</p>
                   </div>
                 ) : (
-                  <table className="w-full text-sm">
+                  <table data-no-autopage className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
                         <th className="font-medium px-4 py-2.5">Ref.</th>
@@ -715,7 +747,7 @@ export function AgendaOverview() {
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleEvents.map((ev) => (
+                      {pagedEvents.map((ev) => (
                         <tr key={ev.id} className="border-b border-border">
                           <td className="px-4 py-3 max-w-[260px]">
                             <button type="button" onClick={() => setViewEventId(ev.id)} className="flex w-full items-center gap-1.5 text-left text-brand hover:underline">
@@ -764,11 +796,14 @@ export function AgendaOverview() {
               </div>
             )}
 
+            {view === 'list' && (
+              <ListPagination page={listPage} perPage={listPerPage} total={visibleEvents.length} onPageChange={setListPage} onPerPageChange={(n) => { setListPerPage(n); setListPage(1) }} />
+            )}
           </Card>
         </div>
       </div>
 
-      {showNewEvent && <AddEventModal onClose={() => setShowNewEvent(false)} onCreated={() => setShowNewEvent(false)} />}
+      {showNewEvent && <AddEventModal onClose={closeNewEvent} onCreated={closeNewEvent} />}
       {viewEventId !== null && <EventDetailModal eventId={viewEventId} onClose={() => setViewEventId(null)} />}
     </div>
   )

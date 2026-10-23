@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { LedgerReport, LedgerAccountGroup, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerHtmlParser'
-import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
-import { legacyAdminSend } from '../settings/legacyAdminRequest'
-import { fetchPieceCard } from './pieceCard.queries'
+import type { LedgerReport, LedgerAccountGroup, LedgerMeta, SubledgerReportData } from './ledgerHtmlParser'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { mapSubledgerFapi, type FapiSubledger } from './subledgerFapi'
+import { deletePiece, pieceNumFromDeleteUrl } from './pieceFapi'
 
 // The Ledger and Subledger reports read a real JSON API that sits next to the classic
 // server-rendered pages — accountancy/bookkeeping/listbyaccount_ajax_api.php (real filtering,
@@ -170,7 +170,7 @@ interface RawLedgerApiMeta {
   next_page: number | null
   prev_page: number | null
 }
-interface RawLedgerApiResponse {
+export interface RawLedgerApiResponse {
   meta: RawLedgerApiMeta
   summary: {
     opening: { debit: number; credit: number; balance: number }
@@ -199,7 +199,7 @@ function mapMeta(m: RawLedgerApiMeta): LedgerMeta {
   }
 }
 
-function mapApiResponseToLedgerReport(data: RawLedgerApiResponse): LedgerReport {
+export function mapApiResponseToLedgerReport(data: RawLedgerApiResponse): LedgerReport {
   const groups: LedgerAccountGroup[] = data.groups.map((g) => {
     const balance = g.subtotal_debit - g.subtotal_credit
     return {
@@ -247,74 +247,19 @@ function mapApiResponseToLedgerReport(data: RawLedgerApiResponse): LedgerReport 
   }
 }
 
-// Same real entries as the account-grouped Ledger view, regrouped by
-// subledger_account (a real per-entry field the API already returns —
-// confirmed live rather than assumed) instead of account_number. Most
-// entries have no subledger (only 401/411-style third-party-linked accounts
-// typically do), so those fall under an honest "No subledger account"
-// bucket rather than being silently dropped.
-function mapApiResponseToSubledgerReport(data: RawLedgerApiResponse): SubledgerReportData {
-  const byKey = new Map<string, SubledgerGroup>()
-  for (const g of data.groups) {
-    for (const e of g.entries) {
-      const key = e.subledger_account || ''
-      let group = byKey.get(key)
-      if (!group) {
-        group = { subledgerAccount: key, rows: [], totalDebit: 0, totalCredit: 0, balance: 0, balanceSide: null }
-        byKey.set(key, group)
-      }
-      group.rows.push({
-        transactionNum: e.piece_num,
-        cardUrl: e.piece_url,
-        journal: e.code_journal,
-        date: e.doc_date ?? '',
-        accountingDoc: e.doc_ref,
-        label: e.label_operation,
-        currencyCode: e.currency_code,
-        conversionAmount: e.cur_montant ? String(e.cur_montant) : '',
-        exchangeRate: '',
-        debit: e.debit,
-        credit: e.credit,
-        letteringCode: e.lettering_code || '',
-        dateExport: e.date_export ?? '',
-        docType: e.doc_type,
-        fkDoc: e.fk_doc ? String(e.fk_doc) : '',
-        docUrl: e.doc_url || null,
-        canEdit: e.can_edit,
-        editUrl: e.edit_url,
-        canDelete: e.can_delete,
-        deleteUrl: e.delete_url,
-      })
-      group.totalDebit += e.debit
-      group.totalCredit += e.credit
-    }
-  }
-  const groups = Array.from(byKey.values())
-    .map((g) => {
-      const balance = g.totalDebit - g.totalCredit
-      return { ...g, balance: Math.abs(balance), balanceSide: (balance >= 0 ? 'Dr' : 'Cr') as 'Dr' | 'Cr' }
-    })
-    // Real subledger accounts first (alphabetical), unassigned entries last.
-    .sort((a, b) => (a.subledgerAccount || '￿').localeCompare(b.subledgerAccount || '￿'))
-  return {
-    groups,
-    grandTotalDebit: data.summary.period.debit,
-    grandTotalCredit: data.summary.period.credit,
-    meta: mapMeta(data.meta),
-  }
+// accountancy/fapi/list.php?action=by_account answers with the same meta / filters / summary / groups payload the older
+// listbyaccount_ajax_api.php did (entry field names match exactly), inside the fapi envelope, key-authenticated. Filters, paging and
+// sorting are the ones tested above; dates go as ISO search_date_start / search_date_end, the names the answer echoes back.
+function fapiParams(filters: LedgerFilters): Record<string, string> {
+  const params = buildParams(filters)
+  for (const k of ['search_date_startday', 'search_date_startmonth', 'search_date_startyear', 'search_date_endday', 'search_date_endmonth', 'search_date_endyear']) params.delete(k)
+  if (filters.dateStart) params.set('search_date_start', filters.dateStart)
+  if (filters.dateEnd) params.set('search_date_end', filters.dateEnd)
+  return Object.fromEntries(params.entries())
 }
 
 async function fetchBookkeepingApi(filters: LedgerFilters): Promise<RawLedgerApiResponse> {
-  const params = buildParams(filters)
-  const res = await fetch(`/accountancy/bookkeeping/listbyaccount_ajax_api.php?${params.toString()}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  // Same defensive parse every other real-JSON-API fetch in this app uses —
-  // this one was calling res.json() directly, which throws a cryptic
-  // "Unexpected token '<'" instead of a real message on the odd request
-  // this backend answers with an HTML page instead of JSON.
-  const data = await parseLegacyJson<RawLedgerApiResponse>(res)
-  if (data.error) throw new Error(data.error)
-  return data
+  return fapiGet<RawLedgerApiResponse>('/accountancy/fapi/list.php', { ...fapiParams(filters), action: 'by_account' })
 }
 
 export function useLedgerReport(filters: LedgerFilters) {
@@ -325,10 +270,16 @@ export function useLedgerReport(filters: LedgerFilters) {
   })
 }
 
+// accountancy/fapi/subledger.php groups the lines by subledger account itself and takes the same filters. include_unassigned=1 also
+// returns the lines with no subledger account (grouped under an empty key, last), which this report always showed.
+function subledgerParams(filters: LedgerFilters): Record<string, string> {
+  return { ...fapiParams(filters), include_unassigned: '1' }
+}
+
 export function useSubledgerReport(filters: LedgerFilters) {
   return useQuery({
     queryKey: ['generalLedger', 'bySubledger', filters],
-    queryFn: async (): Promise<SubledgerReportData> => mapApiResponseToSubledgerReport(await fetchBookkeepingApi(filters)),
+    queryFn: async (): Promise<SubledgerReportData> => mapSubledgerFapi(await fapiGet<FapiSubledger>('/accountancy/fapi/subledger.php', subledgerParams(filters))),
     staleTime: 1000 * 30,
   })
 }
@@ -341,112 +292,11 @@ export function useSubledgerReport(filters: LedgerFilters) {
 export function useDeleteLedgerEntry() {
   const queryClient = useQueryClient()
   return useMutation({
+    // `url` is the row's delete link; its mvt_num names the transaction, which piece.php?action=delete removes.
     mutationFn: async (url: string) => {
-      const res = await fetch(url, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
-  })
-}
-
-export interface ChartOption {
-  code: string
-  label: string
-}
-
-// Backs the real accountancy/bookkeeping/card.php?action=create page —
-// confirmed live: the form is a single one-shot POST (header fields +
-// exactly one movement line together), submitted to a PRE-ASSIGNED piece
-// number the backend hands out just by rendering this page (a real hidden
-// next_num_mvt field, e.g. "7" — the create form's own <form action>
-// already points at card.php?piece_num=7). Real field names confirmed by
-// reading the raw form: doc_date/doc_dateday/doc_datemonth/doc_dateyear
-// (mm/dd/yyyy, same split-date convention as useUpdatePieceHeader's own
-// setdate form)/code_journal/doc_ref for the header,
-// accountingaccount_number/subledger_account/subledger_label/
-// label_operation/multicurrency_code/currency_amo (the real exchange-rate
-// field name — NOT exchange_rate or multicurrency_tx)/debit/credit for the
-// one line, submitted as action=confirm_create (not addline). No JSON
-// create endpoint exists anywhere in this module — this genuinely persists
-// to the real backend the same way submitting the real form does.
-export interface CreateTransactionContext {
-  token: string
-  nextNumMvt: string
-  journalOptions: ChartOption[]
-  accountOptions: ChartOption[]
-  currencyOptions: ChartOption[]
-}
-
-export function useCreateTransactionContext() {
-  return useQuery({
-    queryKey: ['generalLedger', 'createTransactionContext'],
-    queryFn: async (): Promise<CreateTransactionContext> => {
-      const doc = await fetchLegacyDocument('/accountancy/bookkeeping/card.php', new URLSearchParams({ action: 'create' }))
-      const token = doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? ''
-      const nextNumMvt = doc.querySelector<HTMLInputElement>('input[name="next_num_mvt"]')?.value ?? ''
-      const optionsOf = (selectName: string, dropDash: boolean) => {
-        const select = doc.querySelector<HTMLSelectElement>(`select[name="${selectName}"]`)
-        if (!select) return []
-        return Array.from(select.querySelectorAll('option'))
-          .map((o) => ({ code: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
-          .filter((o) => o.code && (!dropDash || o.code !== '-1'))
-      }
-      return {
-        token,
-        nextNumMvt,
-        journalOptions: optionsOf('code_journal', false),
-        accountOptions: optionsOf('accountingaccount_number', true),
-        currencyOptions: optionsOf('multicurrency_code', false),
-      }
-    },
-    staleTime: 1000 * 15,
-  })
-}
-
-export interface CreateTransactionInput {
-  token: string
-  nextNumMvt: string
-  fields: {
-    doc_date: string
-    doc_dateday: string
-    doc_datemonth: string
-    doc_dateyear: string
-    code_journal: string
-    doc_ref: string
-    accountingaccount_number: string
-    subledger_account: string
-    subledger_label: string
-    label_operation: string
-    multicurrency_code: string
-    currency_amo: string
-    debit: string
-    credit: string
-  }
-}
-
-export function useCreateTransaction() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ token, nextNumMvt, fields }: CreateTransactionInput) => {
-      const body = new URLSearchParams({ token, action: 'confirm_create', next_num_mvt: nextNumMvt, mode: '_tmp', save: 'Add', ...fields })
-      const html = await legacyAdminSend(
-        '/accountancy/bookkeeping/card.php',
-        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() },
-        `?piece_num=${encodeURIComponent(nextNumMvt)}`,
-      )
-      // A refused post (a missing required field) re-renders the create page with an error box.
-      const errorMatch = html.match(/<div class="error">([\s\S]*?)<\/div>/)
-      if (errorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = errorMatch[1]
-        throw new Error((div.textContent ?? 'The backend rejected this transaction.').trim())
-      }
-      // The page keeps a new transaction in its scratch table (mode `_tmp`) until it is validated,
-      // and numbers it from that table's own sequence — so it is only found under that mode.
-      // Trusting the 200 status alone is not enough; the transaction has to be there.
-      const card = await fetchPieceCard(nextNumMvt, '_tmp')
-      if (!card || card.accountingDoc !== fields.doc_ref) throw new Error(`The backend did not create this transaction (no transaction ${nextNumMvt} with accounting doc. "${fields.doc_ref}" was found). Try again.`)
-      return { pieceNum: nextNumMvt }
+      const pieceNum = pieceNumFromDeleteUrl(url)
+      if (!pieceNum) throw new Error('This entry has no transaction number to delete.')
+      await deletePiece(pieceNum)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })

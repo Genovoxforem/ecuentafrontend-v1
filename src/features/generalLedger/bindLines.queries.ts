@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { bindKindOf, bindLines, loadBindLines } from './bindingFapi'
 import { parseBindLines } from './bindLinesParser'
 
 // accountancy/customer/list.php and accountancy/supplier/list.php are the same
@@ -10,7 +11,12 @@ export const VENDOR_BIND_PATH = '/accountancy/supplier/list.php'
 export function useBindLines(limit: number, page: number, path: string = CUSTOMER_BIND_PATH) {
   return useQuery({
     queryKey: ['generalLedger', 'bindLines', path, limit, page],
-    queryFn: async () => parseBindLines(await fetchLegacyDocument(path, new URLSearchParams({ limit: String(limit), page: String(page) }))),
+    // Customer and vendor lines come from binding_customer.php / binding_vendor.php (action=to_dispatch); anything else is still the page.
+    queryFn: async () => {
+      const kind = bindKindOf(path)
+      if (kind) return loadBindLines(kind, limit, page)
+      return parseBindLines(await fetchLegacyDocument(path, new URLSearchParams({ limit: String(limit), page: String(page) })))
+    },
     staleTime: 0,
     placeholderData: (prev) => prev,
   })
@@ -48,6 +54,8 @@ export function useBindSelectedLines(path: string = CUSTOMER_BIND_PATH) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: BindInput): Promise<string> => {
+      const kind = bindKindOf(path)
+      if (kind) return bindLines(kind, input.selections.map((s) => ({ lineId: s.lineId, account: s.account })))
       const body = new URLSearchParams({
         token: input.token,
         action: 'ventil',

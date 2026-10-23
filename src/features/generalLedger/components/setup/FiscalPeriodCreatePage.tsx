@@ -1,9 +1,9 @@
 import { CalendarRange } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
 import { LegacyFormPage } from '../LegacyFormPage'
+import { loadFiscalPeriodForm, saveFiscalPeriod } from '../../fiscalPeriodsFapi'
 
-// accountancy/admin/fiscalyear_card.php?action=create — the real "New fiscal
-// period" form; Save posts action=add and the backend redirects to the new period.
+// accountancy/fapi/fiscal_periods.php?action=create — the "New fiscal period" form; Save creates the period and returns to the list.
 export function FiscalPeriodCreatePage() {
   return (
     <LegacyFormPage
@@ -13,6 +13,8 @@ export function FiscalPeriodCreatePage() {
       query={{ action: 'create' }}
       anchor="label"
       redirectTo={ROUTES.ledgerFiscalPeriod}
+      load={loadFiscalPeriodForm}
+      save={saveFiscalPeriod}
       fields={[
         { name: 'label', label: 'Label', required: true },
         { name: 'fiscalyear', label: 'Start date', kind: 'date', required: true },

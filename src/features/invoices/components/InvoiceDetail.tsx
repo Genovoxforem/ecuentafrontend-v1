@@ -421,10 +421,7 @@ function RecurringInvoiceModal({ facid, onCancel }: { facid: string; onCancel: (
       generatePdf,
     }
     convert.mutate(input, {
-      onSuccess: (result) => {
-        onCancel()
-        if (result.redirect) window.location.href = result.redirect
-      },
+      onSuccess: () => onCancel(),
     })
   }
 
@@ -1229,7 +1226,7 @@ function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
   const inv = data.invoice
   const facid = inv.id
   const zraSync = useSyncSalesInvoiceZra(facid)
-  const marginRows = data.margin.enabled ? parseMarginRows(data.margin.margin_info) : []
+  const marginRows = data.margin.enabled ? (data.margin.rows ?? parseMarginRows(data.margin.margin_info)) : []
   const [showZraPortal, setShowZraPortal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   // Real bug confirmed live (invoice 342, currency INR): inv.currency_symbol

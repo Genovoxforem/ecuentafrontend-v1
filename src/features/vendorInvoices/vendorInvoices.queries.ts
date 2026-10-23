@@ -66,7 +66,7 @@ export function vendorInvoiceStatusLabel(row: VendorInvoiceRow) {
 // fourn/facture/fapi/list.php: the five views (all, manual, automatic, expense, imports) and the status
 // filters are applied by the server, so each tab is its own call.
 const FAPI_VIEW: Partial<Record<VendorInvoiceStatus, string>> = { all: 'all', manual: 'manual', automatic: 'automatic', expense: 'expense', imports: 'imports' }
-const FAPI_STATUS: Partial<Record<VendorInvoiceStatus, string>> = { draft: 'draft', validated: 'validated', succeeded: 'zra_ok', notSucceeded: 'zra_failed', paid: 'paid', unpaid: 'unpaid', abandoned: 'abandoned' }
+const FAPI_STATUS: Partial<Record<VendorInvoiceStatus, string>> = { draft: 'draft', validated: 'validated', succeeded: 'zra_ok', notSucceeded: 'zra_pending', paid: 'paid', unpaid: 'unpaid', abandoned: 'abandoned' }
 
 function usDate(value: unknown): string {
   const m = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})-(\d{2})/) : null

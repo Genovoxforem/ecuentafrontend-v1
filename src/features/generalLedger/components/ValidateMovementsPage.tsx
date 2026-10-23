@@ -20,13 +20,13 @@ export function ValidateMovementsPage() {
       title: 'Validate movements?',
       message: `Validate the accounting movements (year ${year} shown)?`,
       warningTitle: 'Validated movements can no longer be modified or deleted.',
-      warningMessage: "The backend's link carries only the year, so it may validate movements outside the months shown here. This cannot be undone from the app.",
+      warningMessage: `Every movement of the fiscal year that is not validated yet will be locked (${data?.description.match(/\d+ not yet validated/)?.[0] ?? 'all of them'}). This cannot be undone from the app.`,
       variant: 'default',
       confirmLabel: 'Validate Movements',
     })
     if (!ok) return
     validate.mutate(undefined, {
-      onSuccess: () => setNotice('Validation requested. The backend page gives no confirmation and does not show which movements are validated, so this screen cannot check the result.'),
+      onSuccess: (count) => setNotice(`${count} movement(s) validated.`),
     })
   }
 

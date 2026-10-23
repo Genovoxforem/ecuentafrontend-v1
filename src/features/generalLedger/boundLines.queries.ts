@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from './bindLines.queries'
+import { bindKindOf, loadBoundLines, rebindLines } from './bindingFapi'
 import { parseBoundLines } from './boundLinesParser'
 import { parseBoundExpenseLines } from './boundExpenseLinesParser'
 
@@ -21,7 +22,11 @@ export function useBoundExpenseLines(limit: number, page: number) {
 export function useBoundLines(limit: number, page: number, path: string = CUSTOMER_LINES_PATH) {
   return useQuery({
     queryKey: ['generalLedger', 'boundLines', path, limit, page],
-    queryFn: async () => parseBoundLines(await fetchLegacyDocument(path, new URLSearchParams({ limit: String(limit), page: String(page) }))),
+    queryFn: async () => {
+      const kind = bindKindOf(path)
+      if (kind) return loadBoundLines(kind, limit, page)
+      return parseBoundLines(await fetchLegacyDocument(path, new URLSearchParams({ limit: String(limit), page: String(page) })))
+    },
     staleTime: 0,
     placeholderData: (prev) => prev,
   })
@@ -40,6 +45,8 @@ export function useRebindLines(path: string = PATH) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: RebindInput): Promise<string> => {
+      const kind = bindKindOf(path)
+      if (kind) return rebindLines(kind, input.lineIds, input.account)
       const body = new URLSearchParams({
         token: input.token,
         formfilteraction: 'list',

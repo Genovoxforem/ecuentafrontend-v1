@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStepper } from '../../../shared/components/layout/StickyFormShell'
 import { ROUTES } from '../../../routes'
 import {
   useCreateCategory,
@@ -982,34 +982,7 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
               </div>
             </InBanner>
 
-            <div className="flex items-center">
-              {PRODUCT_WIZARD_STEPS.map((s, i) => {
-                const isDone = i < step
-                const isActive = i === step
-                return (
-                  <div key={s.title} className={`flex items-center ${i < PRODUCT_WIZARD_STEPS.length - 1 ? 'flex-1' : ''}`}>
-                    <button type="button" onClick={() => i <= step && setStep(i)} title={s.subtitle} className="flex items-center gap-2.5 group text-left">
-                      <span
-                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors ${
-                          isDone
-                            ? 'bg-success border-success text-white'
-                            : isActive
-                              ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
-                              : 'bg-surface border-border text-text-faint'
-                        }`}
-                      >
-                        {isDone ? <Check size={14} /> : i + 1}
-                      </span>
-                      <span className="hidden sm:block">
-                        <span className={`block text-sm ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
-                        <span className="block text-xs text-text-faint">{s.subtitle}</span>
-                      </span>
-                    </button>
-                    {i < PRODUCT_WIZARD_STEPS.length - 1 && <div className={`h-0.5 flex-1 mx-3 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
-                  </div>
-                )
-              })}
-            </div>
+            <WizardStepper steps={PRODUCT_WIZARD_STEPS} step={step} onStep={setStep} canGoTo={(i) => i <= step} />
           </>
         }
         footerLeft={

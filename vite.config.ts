@@ -183,6 +183,9 @@ export default defineConfig({
         // object-form manualChunks — codeSplitting.groups is its replacement.
         codeSplitting: {
           groups: [
+            // React gets its own chunk, ahead of the charts group. Left out, rolldown placed React inside vendor-charts (it is a
+            // shared dependency of recharts), so the whole 420 KB charts chunk was part of the first load of every page.
+            { name: 'vendor-react', test: /node_modules\/(react|react-dom|scheduler|react-is)\//, priority: 20 },
             { name: 'vendor-charts', test: /node_modules\/recharts/ },
             { name: 'vendor-excel', test: /node_modules\/exceljs/ },
             { name: 'vendor-barcode', test: /node_modules\/(jsbarcode|qrcode)/ },

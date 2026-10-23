@@ -1,9 +1,11 @@
 import { useMemo, useState, type ComponentType } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Power, Trash2 } from 'lucide-react'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../../shared/components/ListPagination'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { useDictList, useToggleDictStatus, useDeleteDictRow } from '../../dolibarrDict.queries'
+import type { DictRow } from '../../dolibarrDictParser'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -17,16 +19,26 @@ export function DictListPage({
   title,
   path,
   columns,
+  source,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
   path: string
   columns: string[]
+  // A dictionary with a JSON endpoint: rows come from `load` and the row actions go by row id instead of the scraped links.
+  source?: { load: () => Promise<DictRow[]>; setActive: (rowid: string, active: boolean) => Promise<void>; remove: (rowid: string) => Promise<void> }
 }) {
-  const { data: rows, isLoading, isError, error, refetch } = useDictList(path)
+  const legacyList = useDictList(path, !source)
+  const jsonList = useQuery({ queryKey: ['generalLedger', 'dict', 'json', path], queryFn: () => source!.load(), enabled: !!source })
+  const { data: rows, isLoading, isError, error, refetch } = source ? jsonList : legacyList
+  const queryClient = useQueryClient()
+  const jsonDone = () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'dict', 'json', path] })
+  const jsonToggle = useMutation({ mutationFn: ({ rowid, active }: { rowid: string; active: boolean }) => source!.setActive(rowid, active), onSuccess: jsonDone })
+  const jsonDelete = useMutation({ mutationFn: (rowid: string) => source!.remove(rowid), onSuccess: jsonDone })
   const toggle = useToggleDictStatus(path)
   const del = useDeleteDictRow(path)
   const confirm = useConfirm()
+  const actionError = (source ? (jsonToggle.error ?? jsonDelete.error) : null) as Error | null
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -64,6 +76,7 @@ export function DictListPage({
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4">
+        {actionError && <p role="alert" className="mb-2 text-sm text-danger">{actionError.message}</p>}
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-3 p-3 border-b border-border">
             <input
@@ -141,8 +154,8 @@ export function DictListPage({
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            disabled={!r.toggleUrl || toggle.isPending}
-                            onClick={() => r.toggleUrl && toggle.mutate(r.toggleUrl)}
+                            disabled={source ? jsonToggle.isPending : !r.toggleUrl || toggle.isPending}
+                            onClick={() => (source ? jsonToggle.mutate({ rowid: r.rowid, active: !r.active }) : r.toggleUrl && toggle.mutate(r.toggleUrl))}
                             title={r.active ? 'Disable' : 'Enable'}
                             className="text-text-muted hover:text-brand disabled:opacity-40"
                           >
@@ -150,9 +163,11 @@ export function DictListPage({
                           </button>
                           <button
                             type="button"
-                            disabled={!r.deleteUrl || del.isPending}
+                            disabled={source ? jsonDelete.isPending : !r.deleteUrl || del.isPending}
                             onClick={async () => {
-                              if (r.deleteUrl && (await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) del.mutate(r.deleteUrl)
+                              if (!(source || r.deleteUrl) || !(await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) return
+                              if (source) jsonDelete.mutate(r.rowid)
+                              else del.mutate(r.deleteUrl!)
                             }}
                             title="Delete"
                             className="text-danger hover:text-danger-fg disabled:opacity-40"

@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useProjectOptions } from '../../../api/lookups'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { api } from '../../../api/axios'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { SearchableSelect, type SearchableSelectOption } from '../../../shared/components/forms/SearchableSelect'
@@ -30,24 +29,9 @@ import { formatMoney } from '../../../utils/format'
 // Keeping this as its own component means the standalone module form can
 // keep evolving (or not) independently of this one.
 
-interface ProjectOption {
-  id: string
-  ref: string
-  title: string
-}
 
 // GET /api/projects.php — same real, working endpoint used by every other
 // Create form in this app (queries llx_projet WHERE fk_statut = 1).
-function useProjectOptions() {
-  return useQuery({
-    queryKey: ['projects', 'open'],
-    queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
-      return data.results ?? []
-    },
-    staleTime: 1000 * 60,
-  })
-}
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
 

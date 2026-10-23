@@ -103,6 +103,29 @@ export function useMinMaxStockPage(filters: MinMaxStockFilters) {
   })
 }
 
+export interface EoqResult {
+  eoq: number
+  // Why the figure is what it is; the endpoint says so when there is no demand to work from.
+  note: string
+}
+
+// GET ?action=eoq&product=: the economic order quantity of one product. Annual demand is read from manual stock
+// movements (types 2 and 3) over 365 days, so a product with none answers 0 together with the reason.
+export function useProductEoq(productId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['warehouses', 'minMaxStock', 'eoq', productId],
+    enabled,
+    retry: false,
+    staleTime: 1000 * 60,
+    queryFn: async (): Promise<EoqResult> => {
+      const d = await fapiGet<any>(FAPI, { action: 'eoq', product: productId })
+      const body = d.eoq !== null && typeof d.eoq === 'object' ? d.eoq : d
+      const value = Number(typeof d.eoq === 'object' ? (body.eoq ?? body.value ?? body.quantity) : d.eoq)
+      return { eoq: Number.isFinite(value) ? value : 0, note: String(body.reason ?? body.explanation ?? body.note ?? body.message ?? d.reason ?? d.note ?? '') }
+    },
+  })
+}
+
 export interface BulkStockUpdateEntry {
   productId: number
   minStock: number

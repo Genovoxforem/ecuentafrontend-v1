@@ -1,7 +1,7 @@
 import { useState } from 'react'
+import { useProjectOptions } from '../../../api/lookups'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import axios from 'axios'
 import { FileBadge, Check, X, Plus, Pencil, Trash2, LoaderCircle, Save, CheckCircle2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -9,27 +9,13 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
-import { api } from '../../../api/axios'
-import { fetchQuotationFormOptions } from '../../../api/quotations'
+import { addQuotationLine, createQuotation, deleteQuotation, fetchQuotationFormOptions, quotationAction } from '../../../api/quotations'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 
-// This form talks to a real, complete JSON API —
-// comm/propal/api/proposal_handler.php — read directly from its PHP source.
-// Replaces the previous local-only fake collection (quotations.queries.ts's
-// old comment claimed "no backend endpoint exists... confirmed", which
-// turned out to be wrong — the same situation Purchase Orders were in
-// before that page was rebuilt this same way).
-const API_URL = '/comm/propal/api/proposal_handler.php'
-
-interface ApiEnvelope<T> {
-  success: boolean
-  error?: string
-  errors?: Record<string, string>
-  data?: T
-}
+// Created through comm/propal/fapi (create.php for the header, lines.php for each line, proposal.php to validate).
 
 // Quotation-specific dropdown dictionaries are served by its form-options API.
 interface DictOption {
@@ -67,24 +53,9 @@ function useQuotationDictionaries() {
   })
 }
 
-interface ProjectOption {
-  id: string
-  ref: string
-  title: string
-}
 // GET /api/projects.php — same real, working endpoint (queries llx_projet
 // WHERE fk_statut = 1) already used for Sales/Purchase Orders' Project
 // field; not document-type-specific, reused as-is here.
-function useProjectOptions() {
-  return useQuery({
-    queryKey: ['projects', 'open'],
-    queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
-      return data.results ?? []
-    },
-    staleTime: 1000 * 60,
-  })
-}
 
 // dis_type: 1 = % off the line, 2 = a flat amount off the line — real
 // values CommandeFournisseurLine-style addline() params accept, read
@@ -112,14 +83,6 @@ function lineExclAfterDiscount(qty: number, unitPrice: number, discount: number,
 }
 function lineTotalIncl(qty: number, unitPrice: number, vatRate: number, discount: number, discountType: DiscountType): number {
   return lineExclAfterDiscount(qty, unitPrice, discount, discountType) * (1 + vatRate / 100)
-}
-
-// The real page's own selectDate()-driven fields post as Unix timestamps
-// (dol_mktime under the hood) — matched here rather than a plain "YYYY-MM-DD"
-// string.
-function toUtcTimestamp(isoDate: string): number {
-  const [y, m, d] = isoDate.split('-').map(Number)
-  return Math.floor(Date.UTC(y, m - 1, d) / 1000)
 }
 
 let lineKeySeq = 0
@@ -285,16 +248,15 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
   // handleCreateProposal() in proposal_handler.php.
   const createMutation = useMutation({
     mutationFn: async (validate: boolean) => {
-      const body = {
-        action: 'create',
+      const created = await createQuotation({
         socid: Number(customerId),
-        date: toUtcTimestamp(date),
-        fin_validite: toUtcTimestamp(validityDate),
+        date,
+        fin_validite: validityDate,
         ref_client: refCustomer || undefined,
         note_public: notePublic || undefined,
         note_private: notePrivate || undefined,
-        fk_project: projectId ? Number(projectId) : undefined,
-        date_livraison: deliveryDate ? toUtcTimestamp(deliveryDate) : undefined,
+        project_id: projectId ? Number(projectId) : undefined,
+        delivery_date: deliveryDate || undefined,
         availability_id: availabilityId ? Number(availabilityId) : undefined,
         demand_reason_id: demandReasonId ? Number(demandReasonId) : undefined,
         shipping_method_id: shippingMethodId ? Number(shippingMethodId) : undefined,
@@ -304,27 +266,28 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
         location_incoterms: incotermLocation || undefined,
         multicurrency_code: currencyCode || undefined,
         multicurrency_tx: currencyCode ? Number(exchangeRate) || 1 : undefined,
-        validate,
-        lines: lines.map((l) => ({
-          fk_product: l.productId ? Number(l.productId) : null,
-          desc: l.description,
-          qty: l.qty,
-          subprice: l.unitPrice,
-          tva_tx: l.vatRate,
-          default_vat_code: l.vatCode,
-          dis_type: Number(l.discountType),
-          remise_percent: l.discountType === '1' ? l.discountValue : 0,
-          remise_amount: l.discountType === '2' ? l.discountValue : 0,
-          pa_ht: l.buyingPrice || undefined,
-          product_type: 0,
-        })),
+      })
+      // create.php stores the header only; the lines go in one by one. A refused line removes the draft so no empty quotation is left behind.
+      try {
+        for (const l of lines) {
+          const gross = l.qty * l.unitPrice
+          await addQuotationLine(created.id, {
+            product_id: l.productId ? Number(l.productId) : undefined,
+            description: l.description,
+            qty: l.qty,
+            pu_ht: l.unitPrice,
+            tva_tx: l.vatRate,
+            // lines.php only takes a percentage, so a flat amount off the line is converted.
+            remise_percent: l.discountType === '1' ? l.discountValue : gross > 0 ? (l.discountValue / gross) * 100 : 0,
+            product_type: 0,
+          })
+        }
+        if (validate) await quotationAction(created.id, 'validate')
+      } catch (e) {
+        await deleteQuotation(created.id).catch(() => undefined)
+        throw e
       }
-      const { data } = await axios.post<ApiEnvelope<CreatedQuotation>>(`${API_URL}?action=create`, body, { validateStatus: () => true })
-      if (!data.success) {
-        const detail = data.errors ? Object.values(data.errors).join(' ') : undefined
-        throw new Error(detail ?? data.error ?? 'Failed to create quotation')
-      }
-      return data.data as CreatedQuotation
+      return created as CreatedQuotation
     },
     onSuccess: (quotation) => {
       setCreatedQuotation(quotation)
@@ -449,7 +412,7 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
     >
       <div className="flex flex-col gap-4 flex-1 shrink-0">
         <Card className="!h-auto shrink-0">
-          <div className="rounded-lg bg-surface-alt border border-border p-3 mb-4">
+          <div className="mb-4">
             <Field label="Customer" required>
               {fixedCustomerId ? (
                 <div className={`${inputClasses} flex items-center gap-2`}>
@@ -592,14 +555,14 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
         </Card>
 
         <Card className="!h-auto shrink-0 !p-0 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center justify-between px-2 py-3 border-b border-border">
             <h3 className="font-semibold text-text!">Item Table</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-4 py-2.5">Product/Service</th>
+                  <th className="font-medium pl-2 pr-4 py-2.5">Product/Service</th>
                   <th className="font-medium px-4 py-2.5 w-24">VAT</th>
                   <th className="font-medium px-4 py-2.5 w-28">Unit Price (Excl.)</th>
                   <th className="font-medium px-4 py-2.5 w-28">Unit Price (Inc. Tax)</th>
@@ -612,7 +575,7 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
               </thead>
               <tbody>
                 <tr className="border-b border-border align-top bg-surface-alt/50">
-                  <td className="px-4 py-2">
+                  <td className="pl-2 pr-4 py-2">
                     <SearchableSelect value={draftProductId} onChange={pickDraftProduct} options={productOptions} placeholder="Select Predefined Product/Services" />
                   </td>
                   <td className="px-4 py-2">
@@ -696,7 +659,7 @@ export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomer
                   const unitPriceIncl = line.unitPrice * (1 + line.vatRate / 100)
                   return (
                     <tr key={line.key} className="border-b border-border align-top">
-                      <td className="px-4 py-2.5 text-text!">{line.description}</td>
+                      <td className="pl-2 pr-4 py-2.5 text-text!">{line.description}</td>
                       <td className="px-4 py-2.5 text-center tabular-nums text-text-muted">
                         {line.vatRate}%{line.vatCode ? `(${line.vatCode})` : ''}
                       </td>

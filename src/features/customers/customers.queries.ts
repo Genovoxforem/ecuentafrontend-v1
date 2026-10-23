@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ThirdPartyRow as FapiThirdPartyRow } from '../../api/customers'
-import { api } from '../../api/axios'
+import { fetchThirdParties, fetchThirdPartySummary } from '../../api/customers'
+import { fetchAllPages } from '../../api/fapiRow'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
 
 export interface CustomerListApiRow {
@@ -80,24 +81,25 @@ export function toCustomerListRow(item: CustomerListApiRow): ThirdPartyRow {
 }
 
 /**
- * The active backend serves the customer list through /api/customers/;
- * the Societe fapi list and summary routes are not available there.
+ * Customers list + summary KPIs from the key-authenticated fapi (the same endpoints the vendors list uses):
+ *   GET /societe/fapi/list.php?type=customer   (paged, 100 a page)
+ *   GET /societe/fapi/summary.php?type=customer
  */
 export function useCustomersSummary() {
   return useQuery({
     queryKey: ['customers', 'summary'],
     queryFn: async (): Promise<CustomersSummary> => {
-      const { data } = await api.get<CustomerListApiResponse>('/customers/', {
-        params: { type: 'customer', limit: 250 },
-      })
-      const rows: ThirdPartyRow[] = (data.customers ?? []).map(toCustomerListRow)
-
+      const [items, summary] = await Promise.all([
+        fetchAllPages((page) => fetchThirdParties({ type: 'customer', limit: 100, page, sort: 'name', direction: 'asc' })),
+        fetchThirdPartySummary('customer'),
+      ])
+      const rows: ThirdPartyRow[] = items.map(toThirdPartyRow)
       return {
-        totalCustomers: data.total_count ?? rows.length,
-        createdThisMonth: null,
-        outstandingBalance: null,
-        defaultCountryCustomers: null,
-        otherCountryCustomers: null,
+        totalCustomers: summary.total ?? rows.length,
+        createdThisMonth: summary.created_this_month ?? 0,
+        outstandingBalance: summary.outstanding_balance ?? 0,
+        defaultCountryCustomers: summary.default_country_parties ?? 0,
+        otherCountryCustomers: summary.other_country_parties ?? 0,
         customers: rows,
       }
     },

@@ -33,10 +33,8 @@ const FILTER_SPECS: Record<string, FilterSpec> = {
   't.label_operation': { kind: 'text', name: 'search_mvt_label' },
   't.debit': { kind: 'text', name: 'search_debit' },
   't.credit': { kind: 'text', name: 'search_credit' },
-  't.lettering_code': { kind: 'text', name: 'search_lettering_code', extra: 'notReconciled' },
-  't.date_creation': { kind: 'dates', names: ['date_creation_start', 'date_creation_end'] },
-  't.tms': { kind: 'dates', names: ['date_modification_start', 'date_modification_end'] },
-  't.date_export': { kind: 'dates', names: ['date_export_start', 'date_export_end'] },
+  't.lettering_code': { kind: 'text', name: 'search_lettering_code' },
+  // The creation, modification and export date ranges and "not reconciled" are not filters of list.php (bug list), so they are not offered.
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {

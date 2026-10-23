@@ -27,6 +27,7 @@ import {
   useMinMaxStockPage,
   useBulkUpdateMinMaxStock,
   useApplySuggestedLevels,
+  useProductEoq,
   useImportMinMaxCsv,
   type MinMaxStockRow,
   type MinMaxStatusKey,
@@ -35,6 +36,28 @@ import {
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
+
+// The economic order quantity is worked out on demand, one product at a time, since the server computes it from a year
+// of movements; a figure of 0 comes with the reason (usually no manual movements to estimate demand from).
+function EoqCell({ productId }: { productId: number }) {
+  const [asked, setAsked] = useState(false)
+  const { data, isFetching, isError, error } = useProductEoq(productId, asked)
+  if (!asked) {
+    return (
+      <button type="button" onClick={() => setAsked(true)} className="text-brand hover:underline">
+        Calculate
+      </button>
+    )
+  }
+  if (isFetching) return <LoaderCircle size={13} className="ml-auto animate-spin text-text-faint" />
+  if (isError) return <span className="text-danger" title={error instanceof Error ? error.message : undefined}>Failed</span>
+  return (
+    <span className="tabular-nums text-text-muted" title={data?.note || undefined}>
+      {data && data.eoq > 0 ? data.eoq.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}
+      {data && data.eoq <= 0 && data.note ? <span className="block max-w-40 whitespace-normal text-[11px] text-text-faint">{data.note}</span> : null}
+    </span>
+  )
+}
 
 function StatTile({ label, value, sub, icon: Icon }: { label: string; value: string; sub: string; icon: typeof Boxes }) {
   return (
@@ -305,6 +328,7 @@ export function MinMaxStockPage() {
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Suggested Max</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Daily Usage</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Lead Time</th>
+                  <th className="px-4 py-2.5 text-right whitespace-nowrap">EOQ</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Selling Price</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Stock Value</th>
                 </tr>
@@ -312,13 +336,13 @@ export function MinMaxStockPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-6 text-center text-text-faint">
+                    <td colSpan={12} className="px-4 py-6 text-center text-text-faint">
                       <LoaderCircle size={16} className="inline animate-spin mr-2" /> Loading products…
                     </td>
                   </tr>
                 ) : pageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-4 text-text-faint italic">
+                    <td colSpan={12} className="px-4 py-4 text-text-faint italic">
                       No Data Available In Table
                     </td>
                   </tr>
@@ -399,6 +423,9 @@ export function MinMaxStockPage() {
                         </td>
                         <td className="px-4 py-2.5 text-right text-xs text-text-muted whitespace-nowrap">{r.avgDailyUsage > 0 ? `${r.avgDailyUsage.toFixed(2)}/d` : '—'}</td>
                         <td className="px-4 py-2.5 text-right text-xs text-text-muted whitespace-nowrap">{r.leadTimeDays}d</td>
+                        <td className="px-4 py-2.5 text-right text-xs">
+                          <EoqCell productId={r.id} />
+                        </td>
                         <td className="px-4 py-2.5 text-right text-xs text-text-muted whitespace-nowrap" title="Read-only — the reference app's own bulk save never persists edits to this field.">
                           {r.sellingPrice > 0 ? formatMoney(r.sellingPrice) : '—'}
                         </td>

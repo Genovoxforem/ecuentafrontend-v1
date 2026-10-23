@@ -112,6 +112,45 @@ export function fetchCategoryItems(type: CategoryType, categoryId?: number): Pro
   return fetchItemsFapi(type, categoryId)
 }
 
+export interface CategoryCandidate {
+  id: number
+  ref: string
+  label: string
+  linked: boolean
+}
+
+// GET categories/fapi/list.php?action=candidates feeds the add-member picker: the records of the tag's type that match
+// the search, with the ones already filed under the tag flagged so they are not offered twice.
+export async function fetchCategoryCandidates(type: CategoryType, tagId: number, search: string): Promise<CategoryCandidate[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = await fapiGet<any>(`${FAPI}/list.php`, { type: TYPE_NAME[type], id: tagId, action: 'candidates', search: search || undefined, limit: 20 })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const list: any[] = d.candidates ?? d.items ?? d.objects ?? []
+  return list.map((o) => ({
+    id: Number(o.id),
+    ref: String(o.ref ?? o.code ?? ''),
+    label: String(o.label ?? o.name ?? ''),
+    linked: Boolean(o.linked ?? o.already_linked ?? o.is_linked ?? o.is_member),
+  }))
+}
+
+// categories/fapi/assign.php and unassign.php take object_ids (an array; a lone object_id is ignored and nothing is
+// attached), file a record under a tag or take it out again (the record itself is
+// untouched). Both refresh the tag tree, whose counts change.
+export function useCategoryMembership(type: CategoryType) {
+  const queryClient = useQueryClient()
+  const done = () => queryClient.invalidateQueries({ queryKey: ['categories', type] })
+  const assign = useMutation({
+    mutationFn: ({ tagId, objectId }: { tagId: number; objectId: number }) => fapiPost(`${FAPI}/assign.php`, { type: TYPE_NAME[type], id: tagId, object_ids: [objectId] }),
+    onSuccess: done,
+  })
+  const unassign = useMutation({
+    mutationFn: ({ tagId, objectId }: { tagId: number; objectId: number }) => fapiPost(`${FAPI}/unassign.php`, { type: TYPE_NAME[type], id: tagId, object_ids: [objectId] }),
+    onSuccess: done,
+  })
+  return { assign, unassign }
+}
+
 // POST categories/fapi/create.php (409 on a duplicate name at the same level); the colour is stored without the #.
 export function useCreateCategory(type: CategoryType) {
   const queryClient = useQueryClient()

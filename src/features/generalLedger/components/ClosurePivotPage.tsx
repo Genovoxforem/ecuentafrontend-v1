@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useLegacyList } from '../legacyList.queries'
+import type { LegacyTable } from '../legacyTable'
 
 // The 12-month "movements by month" pivot shared by accountancy/closure/index.php
 // (Annual closure) and closure/validate.php (Validate movements): a header row
@@ -13,14 +14,17 @@ export function ClosurePivotPage({
   title,
   path,
   note,
+  load,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
   path: string
   note?: string
+  // Reads the counts from a JSON endpoint instead of the backend page.
+  load?: (params: Record<string, string>) => Promise<LegacyTable>
 }) {
   const [year, setYear] = useState(new Date().getFullYear())
-  const { data, isLoading, isFetching, isError, error, refetch } = useLegacyList(path, /^Jan/, { year: String(year) })
+  const { data, isLoading, isFetching, isError, error, refetch } = useLegacyList(path, /^Jan/, { year: String(year) }, undefined, load)
 
   return (
     <div className="space-y-4">

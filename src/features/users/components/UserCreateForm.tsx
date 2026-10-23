@@ -7,9 +7,7 @@ import {
   LoaderCircle,
   ChevronLeft,
   ChevronRight,
-  Contact,
   Briefcase,
-  Share2,
   User,
   Shield,
   UserCheck,
@@ -32,13 +30,12 @@ import {
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStepper } from '../../../shared/components/layout/StickyFormShell'
 import { type FieldSpec, type IconType, inputClasses, StepFields } from '../../../shared/components/forms/StepFormFields'
 import { SocialLinksStep } from '../../../shared/components/forms/SocialLinksStep'
 import { todayIso } from '../../../shared/localCollection'
 import { useCreateUserReal, useUserWizardOptions, useUserStateOptions, useUsersSummary, useLanguageOptions, useUserIdByName } from '../users.queries'
 
-const STEP_ICONS: IconType[] = [Contact, Briefcase, Share2]
 const GENDER_TO_REAL: Record<string, 'man' | 'woman' | ''> = { Male: 'man', Female: 'woman', '': '' }
 
 function randomApiKey() {
@@ -336,32 +333,7 @@ export function UserCreateForm() {
             </div>
           </div>
 
-          <div className="flex items-center">
-            {steps.map((s, i) => {
-              const StepIcon = STEP_ICONS[i]
-              const isDone = i < step
-              const isActive = i === step
-              return (
-                <div key={s.title} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : ''}`}>
-                  <button type="button" onClick={() => setStep(i)} title={s.title} className="flex flex-col items-center gap-2 group">
-                    <span
-                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
-                        isDone
-                          ? 'bg-success border-success text-white'
-                          : isActive
-                            ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
-                            : 'bg-surface border-border text-text-faint group-hover:border-brand/40 group-hover:text-brand'
-                      }`}
-                    >
-                      {isDone ? <Check size={16} /> : <StepIcon size={16} />}
-                    </span>
-                    <span className={`hidden sm:block text-xs whitespace-nowrap ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
-                  </button>
-                  {i < steps.length - 1 && <div className={`h-0.5 flex-1 mx-2 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
-                </div>
-              )
-            })}
-          </div>
+          <WizardStepper steps={steps} step={step} onStep={setStep} />
         </>
       }
       footerLeft={

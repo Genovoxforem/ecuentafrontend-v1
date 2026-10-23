@@ -1,5 +1,7 @@
 import { Coins } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
+import { saveVariousPayment } from '../../specialPaymentsSave'
+import { loadVariousPaymentForm } from '../../specialMetaFapi'
 import { LegacyFormPage } from '../LegacyFormPage'
 
 // compta/bank/various_payment/card.php?action=create — the real "New
@@ -8,6 +10,8 @@ import { LegacyFormPage } from '../LegacyFormPage'
 export function MiscPaymentCreatePage() {
   return (
     <LegacyFormPage
+      load={loadVariousPaymentForm}
+      save={saveVariousPayment}
       icon={Coins}
       title="New Miscellaneous Payment"
       path="/compta/bank/various_payment/card.php"

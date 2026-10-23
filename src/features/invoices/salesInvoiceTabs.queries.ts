@@ -1,20 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fapi } from '../../api/axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 
-// Real contracts for the remaining compta/sales/card.php tabs — read
-// verbatim from compta/sales/js/documents.js, ledgerentry.js, shipment.js,
-// and the inline RecurringInvoiceModal script on the rendered page itself
-// (see salesInvoice.queries.ts header comment for the parent investigation).
-const SALES_BASE = '/compta/sales'
+// The invoice card's tabs, all on compta/facture/fapi (key-authenticated JSON; the compta/sales/api/* files they replace
+// need a PHP session cookie). Every call takes the invoice id as `id`; writes are POST ?action=.
+const FAPI = '/compta/facture/fapi'
 
-async function postForm<T = { success: boolean; error?: string; [k: string]: unknown }>(url: string, fd: FormData): Promise<T> {
-  const res = await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const json = (await res.json()) as T & { success: boolean; error?: string }
-  if (!json.success) throw new Error(json.error || 'The legacy backend rejected this request.')
-  return json
-}
-
-// --- Linked Files (compta/sales/api/documents.php) -----------------------
+// --- Linked Files (compta/facture/fapi/documents.php) ---------------------
 
 export interface SalesDocumentFile {
   name: string
@@ -22,6 +14,7 @@ export interface SalesDocumentFile {
   date: string
   is_pdf: boolean
   download_url: string
+  view_url?: string
   preview_html?: string
 }
 
@@ -51,114 +44,89 @@ export interface SalesDocumentsData {
   related: SalesDocumentRelated[]
 }
 
-const DOCS_API = `${SALES_BASE}/api/documents.php`
+const DOCS = `${FAPI}/documents.php`
+
+interface RawDocuments {
+  files?: Array<{ name: string; size_label?: string; size?: number | string; date?: string; is_pdf?: boolean; download_url?: string; view_url?: string }>
+  links?: Array<{ id: number | string; label?: string; url?: string; date?: string }>
+  related?: Array<Record<string, unknown>>
+  models?: Array<{ value: string; label: string; selected?: boolean }>
+  meta?: { attached_count?: number }
+}
 
 export function useSalesInvoiceDocuments(facid: string | undefined) {
   return useQuery<SalesDocumentsData>({
     queryKey: ['salesInvoice', facid, 'documents'],
     queryFn: async () => {
-      const res = await fetch(`${DOCS_API}?facid=${facid}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Could not load linked files.')
-      return json
+      const d = await fapiGet<RawDocuments>(DOCS, { id: facid })
+      return {
+        nb_files: d.meta?.attached_count ?? (d.files ?? []).length,
+        files: (d.files ?? []).map((f) => ({ name: f.name, size: f.size_label ?? String(f.size ?? ''), date: f.date ?? '', is_pdf: Boolean(f.is_pdf), download_url: f.download_url ?? '', view_url: f.view_url })),
+        margin: { enabled: false, margin_info: '' },
+        models: (d.models ?? []).map((m) => ({ value: m.value, label: m.label, selected: Boolean(m.selected) })),
+        links: (d.links ?? []).map((l) => ({ rowid: String(l.id), label: l.label ?? '', url: l.url ?? '', date: l.date ?? '' })),
+        related: (d.related ?? []).map((r) => ({
+          type_label: String(r.type_label ?? r.type ?? ''),
+          ref: String(r.ref ?? ''),
+          url: String(r.url ?? ''),
+          date: String(r.date ?? ''),
+          amount_ht: String(r.amount_ht ?? r.total_ht ?? ''),
+          status: String(r.status_label ?? r.status ?? ''),
+          ee_rowid: String(r.rowid ?? r.ee_rowid ?? r.id ?? ''),
+        })),
+      }
     },
     enabled: !!facid,
   })
 }
 
-export function useUploadSalesDocument(facid: string | undefined) {
+function useDocsMutation<I>(facid: string | undefined, run: (input: I) => Promise<unknown>) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File) => {
-      const fd = new FormData()
-      fd.set('action', 'uploadfile')
-      fd.set('facid', facid ?? '')
-      fd.set('file', file)
-      return postForm(DOCS_API, fd)
-    },
+    mutationFn: run,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
   })
 }
 
-export function useDeleteSalesDocument(facid: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (filename: string) => {
-      const fd = new FormData()
-      fd.set('action', 'deletefile')
-      fd.set('facid', facid ?? '')
-      fd.set('filename', filename)
-      return postForm(DOCS_API, fd)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
+export function useUploadSalesDocument(facid: string | undefined) {
+  return useDocsMutation(facid, async (file: File) => {
+    const fd = new FormData()
+    fd.set('id', facid ?? '')
+    fd.set('file', file)
+    return fapi.post(DOCS, fd, { params: { action: 'upload' } })
   })
+}
+
+export function useDeleteSalesDocument(facid: string | undefined) {
+  return useDocsMutation(facid, (name: string) => fapiPost(DOCS, { id: Number(facid), name }, { action: 'delete_file' }))
 }
 
 export interface GenerateSalesDocumentInput {
   model: string
   lang: string
-  token: string
+  token?: string
   copy?: boolean
 }
 
 export function useGenerateSalesDocument(facid: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: GenerateSalesDocumentInput) => {
-      const fd = new FormData()
-      fd.set('action', 'generate')
-      fd.set('facid', facid ?? '')
-      fd.set('model', input.model)
-      fd.set('lang', input.lang)
-      fd.set('token', input.token)
-      if (input.copy) fd.set('buttongeneratetype', 'Generate-copy')
-      return postForm(DOCS_API, fd)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
-  })
+  return useDocsMutation(facid, (input: GenerateSalesDocumentInput) => fapiPost(DOCS, { id: Number(facid), model: input.model, lang_id: input.lang }, { action: 'generate' }))
 }
 
 export function useAddSalesDocumentLink(facid: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: { label: string; url: string }) => {
-      const fd = new FormData()
-      fd.set('action', 'addlink')
-      fd.set('facid', facid ?? '')
-      fd.set('label', input.label)
-      fd.set('url', input.url)
-      return postForm(DOCS_API, fd)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
-  })
+  return useDocsMutation(facid, (input: { label: string; url: string }) => fapiPost(DOCS, { id: Number(facid), link: input.url, label: input.label }, { action: 'link' }))
 }
 
 export function useDeleteSalesDocumentLink(facid: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (linkId: string) => {
-      const fd = new FormData()
-      fd.set('action', 'deletelink')
-      fd.set('facid', facid ?? '')
-      fd.set('linkid', linkId)
-      return postForm(DOCS_API, fd)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
-  })
+  return useDocsMutation(facid, (linkId: string) => fapiPost(DOCS, { id: Number(facid), linkid: Number(linkId) }, { action: 'delete_link' }))
 }
 
-// Real linktype codes the page's own loadLinkableObjects() offers, each a
-// classic Dolibarr object type.
+// The element types documents.php can link to (its linkable_types).
 export const LINKABLE_OBJECT_TYPES: { value: string; label: string }[] = [
-  { value: 'invoice', label: 'Invoice' },
+  { value: 'facture', label: 'Invoice' },
   { value: 'commande', label: 'Sales Order' },
   { value: 'propal', label: 'Quotation' },
   { value: 'contrat', label: 'Contract' },
-  { value: 'fichinter', label: 'Intervention' },
-  { value: 'supplier_proposal', label: 'Supplier Proposal' },
-  { value: 'order_supplier', label: 'Purchase Order' },
-  { value: 'invoice_supplier', label: 'Purchase Invoice' },
+  { value: 'shipping', label: 'Shipment' },
 ]
 
 export interface LinkableObjectOption {
@@ -170,43 +138,19 @@ export function useLinkableObjects(facid: string | undefined, linktype: string, 
   return useQuery<LinkableObjectOption[]>({
     queryKey: ['salesInvoice', facid, 'linkableObjects', linktype],
     queryFn: async () => {
-      const res = await fetch(`${DOCS_API}?facid=${facid}&action=get_linkable_objects&linktype=${linktype}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Could not load linkable objects.')
-      return json.results ?? []
+      const d = await fapiGet<{ items?: Array<{ id: number | string; ref?: string }> }>(DOCS, { id: facid, action: 'linkable_objects', type: linktype })
+      return (d.items ?? []).map((o) => ({ id: String(o.id), ref: o.ref ?? String(o.id) }))
     },
     enabled: enabled && !!facid && !!linktype,
   })
 }
 
 export function useLinkSalesObject(facid: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: { targettype: string; targetid: string }) => {
-      const fd = new FormData()
-      fd.set('action', 'add_object_linked')
-      fd.set('facid', facid ?? '')
-      fd.set('targettype', input.targettype)
-      fd.set('targetid', input.targetid)
-      return postForm(DOCS_API, fd)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
-  })
+  return useDocsMutation(facid, (input: { targettype: string; targetid: string }) => fapiPost(DOCS, { id: Number(facid), type: input.targettype, target_id: Number(input.targetid) }, { action: 'link_object' }))
 }
 
 export function useUnlinkSalesObject(facid: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (eeRowid: string) => {
-      const fd = new FormData()
-      fd.set('action', 'delete_object_linked')
-      fd.set('facid', facid ?? '')
-      fd.set('ee_rowid', eeRowid)
-      return postForm(DOCS_API, fd)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
-  })
+  return useDocsMutation(facid, (eeRowid: string) => fapiPost(DOCS, { id: Number(facid), rowid: Number(eeRowid) }, { action: 'unlink_object' }))
 }
 
 // --- ZRA Portal Details (compta/sales/api/zra.php) ------------------------
@@ -233,10 +177,25 @@ export function useSalesInvoiceZraPortal(facid: string | undefined, enabled: boo
   return useQuery<ZraPortalDetails>({
     queryKey: ['salesInvoice', facid, 'zraPortal'],
     queryFn: async () => {
-      const fd = new FormData()
-      fd.set('facid', facid ?? '')
-      fd.set('action', 'selectinvoice')
-      return postForm<ZraPortalDetails & { success: boolean }>(`${SALES_BASE}/api/zra.php`, fd)
+      const d = await fapiGet<{ portal?: Partial<ZraPortalDetails['portal']>; invoice_ref?: string; customer?: string; request_sent?: boolean }>(`${FAPI}/zra.php`, { id: facid })
+      const p = d.portal ?? {}
+      return {
+        portal: {
+          errorcode: p.errorcode ?? '',
+          errormessage: p.errormessage ?? '',
+          invoice_no: p.invoice_no ?? '',
+          receipt_no: p.receipt_no ?? '',
+          date: p.date ?? '',
+          internal_data: p.internal_data ?? '',
+          signature: p.signature ?? '',
+          sdc_id: p.sdc_id ?? '',
+          mrc: p.mrc ?? '',
+          qr_url: p.qr_url ?? '',
+        },
+        invoice_ref: d.invoice_ref ?? '',
+        customer: d.customer ?? '',
+        request_sent: Boolean(d.request_sent),
+      }
     },
     enabled: enabled && !!facid,
   })
@@ -266,17 +225,43 @@ export interface SalesLedgerEntryData {
   balance: string
 }
 
-const LEDGER_API = `${SALES_BASE}/api/ledgerentry.php`
+interface RawLedgerEntry {
+  date?: string
+  piece?: string
+  ref?: string
+  journal?: string
+  account?: string
+  label?: string
+  debit?: number | string
+  credit?: number | string
+  amount?: number | string
+}
+const money = (v: number | string | undefined) => (typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))
 
 export function useSalesInvoiceLedgerEntries(facid: string | undefined) {
   return useQuery<SalesLedgerEntryData>({
     queryKey: ['salesInvoice', facid, 'ledgerEntries'],
     queryFn: async () => {
-      const res = await fetch(`${LEDGER_API}?facid=${facid}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Could not load ledger entries.')
-      return json
+      const d = await fapiGet<{ entries?: RawLedgerEntry[]; count?: number; total_debit?: number; total_credit?: number; balance?: number }>(`${FAPI}/ledger.php`, { id: facid })
+      return {
+        count: d.count ?? (d.entries ?? []).length,
+        entries: (d.entries ?? []).map((e) => ({
+          date: e.date ?? '',
+          piece: e.piece ?? '',
+          ref: e.ref ?? '',
+          journal: e.journal ?? '',
+          account: e.account ?? '',
+          label: e.label ?? '',
+          debit: money(e.debit),
+          debit_raw: Number(e.debit) || 0,
+          credit: money(e.credit),
+          credit_raw: Number(e.credit) || 0,
+          amount: money(e.amount ?? (Number(e.debit) || 0) - (Number(e.credit) || 0)),
+        })),
+        total_debit: money(d.total_debit),
+        total_credit: money(d.total_credit),
+        balance: money(d.balance),
+      }
     },
     enabled: !!facid,
   })
@@ -285,12 +270,7 @@ export function useSalesInvoiceLedgerEntries(facid: string | undefined) {
 export function useDeleteSalesLedgerEntries(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
-      const fd = new FormData()
-      fd.set('action', 'delete')
-      fd.set('facid', facid ?? '')
-      return postForm(LEDGER_API, fd)
-    },
+    mutationFn: () => fapiPost(`${FAPI}/ledger.php`, { id: Number(facid) }, { action: 'delete' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'ledgerEntries'] }),
   })
 }
@@ -313,8 +293,6 @@ export interface SalesShipmentData {
   warning?: string
   shipment: SalesShipmentDetails
 }
-
-const SHIPMENT_API = `${SALES_BASE}/api/shipment.php`
 
 // Fields the real API omits entirely (rather than returning '') for an
 // empty/never-saved shipment record — confirmed live: submitting an
@@ -348,12 +326,8 @@ export function useSalesInvoiceShipment(facid: string | undefined) {
   return useQuery<SalesShipmentData>({
     queryKey: ['salesInvoice', facid, 'shipment'],
     queryFn: async () => {
-      const res = await fetch(`${SHIPMENT_API}?facid=${facid}&action=get`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Could not load shipment/GRN details.')
-      json.shipment = normalizeShipment(json.shipment)
-      return json
+      const d = await fapiGet<{ shipment?: Partial<SalesShipmentDetails> }>(`${FAPI}/shipment.php`, { id: facid })
+      return { shipment: normalizeShipment(d.shipment) }
     },
     enabled: !!facid,
   })
@@ -362,22 +336,7 @@ export function useSalesInvoiceShipment(facid: string | undefined) {
 export function useSaveSalesInvoiceShipment(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (rawInput: SalesShipmentDetails) => {
-      const input = normalizeShipment(rawInput)
-      const fd = new FormData()
-      fd.set('action', 'save_shipment')
-      fd.set('facid', facid ?? '')
-      fd.set('gdn_no', input.gdn_no)
-      fd.set('grn_no', input.grn_no)
-      fd.set('month_year', input.month_year)
-      fd.set('shipping_via', input.shipping_via)
-      fd.set('shipping_date', input.shipping_date)
-      fd.set('tracking_id', input.tracking_id)
-      fd.set('transporter', input.transporter)
-      fd.set('truck_details', input.truck_details)
-      fd.set('shipping_address', input.shipping_address)
-      return postForm(SHIPMENT_API, fd)
-    },
+    mutationFn: async (rawInput: SalesShipmentDetails) => fapiPost(`${FAPI}/shipment.php`, { id: Number(facid), ...normalizeShipment(rawInput) }, { action: 'save' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'shipment'] }),
   })
 }
@@ -402,21 +361,20 @@ export interface RecurringInvoiceInput {
 // The conversion itself, for callers that only learn the invoice id after
 // creating it (the create page's "Template invoice" type).
 export function convertToRecurringInvoice(facid: string, input: RecurringInvoiceInput) {
-  const fd = new FormData()
-  fd.set('action', 'create')
-  fd.set('facid', facid)
-  fd.set('title', input.title)
-  fd.set('frequency', input.frequency)
-  fd.set('unit_frequency', input.unitFrequency)
-  fd.set('reday', input.reday)
-  fd.set('remonth', input.remonth)
-  fd.set('reyear', input.reyear)
-  fd.set('rehour', input.rehour)
-  fd.set('nb_gen_max', input.nbGenMax)
-  if (input.autoValidate) fd.set('auto_validate', '1')
-  if (input.useNewPrice) fd.set('usenewprice', '1')
-  if (input.generatePdf) fd.set('generate_pdf', '1')
-  return postForm<{ success: boolean; error?: string; message?: string; redirect?: string; id?: number }>('/compta/sales/api/recurring_invoice.php', fd)
+  return fapiPost<{ id?: number }>(`${FAPI}/recurring_invoices.php`, {
+    id: Number(facid),
+    title: input.title,
+    frequency: Number(input.frequency),
+    unit_frequency: input.unitFrequency,
+    reday: Number(input.reday),
+    remonth: Number(input.remonth),
+    reyear: Number(input.reyear),
+    rehour: Number(input.rehour),
+    nb_gen_max: Number(input.nbGenMax) || 0,
+    auto_validate: input.autoValidate ? 1 : 0,
+    usenewprice: input.useNewPrice ? 1 : 0,
+    generate_pdf: input.generatePdf ? 1 : 0,
+  }, { action: 'create' })
 }
 
 export function useConvertToRecurringInvoice(facid: string | undefined) {

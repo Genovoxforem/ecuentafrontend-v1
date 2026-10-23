@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { resolveBackendAsset } from '../../api/backends'
+import { fapiGet } from '../../api/fapiEnvelope'
 import {
   cloneProduct,
   correctProductStock,
@@ -32,6 +33,7 @@ import {
   saveProductCompositionChild,
   saveProductNotes,
   saveProductUomConversion,
+  setProductBatchTracking,
   searchProducts,
   setProductStockLimits,
   transferProductStock,
@@ -53,7 +55,6 @@ import { BACKEND_ACTION_UNAVAILABLE_PREFIX } from '../../shared/components/Backe
 import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
 import type { RichProductRow } from './productRich'
 import { parseListDate, richRowFromListItem } from './productListMapper'
-import { NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import {
   type ProductDetailPanel,
   type ProductDocumentRow,
@@ -697,20 +698,13 @@ export interface ProductConnection {
   connectionsLabel: string
   initials: string
 }
-interface RawDashboardTimeline {
-  ref: string
-  id: number
-  date: string
-  amount: string
-  customer: string
-  status: string
-  status_id: number
-}
-interface RawDashboardConnection {
-  id: number
-  name: string
-  connections: string
-  initials: string
+export interface FapiProductDashboard {
+  timeline: Array<{ id: number; ref: string; date: string; amount_formatted: string; customer: string; status: string; status_id: number }>
+  timeline_total: number
+  timeline_page: number
+  timeline_per_page: number
+  connections: Array<{ id: number; name: string; connections: string; initials: string }>
+  teams: Array<{ id: number; name: string; connections: string; initials: string }>
 }
 export interface ProductDashboard {
   timeline: ProductTimelineEntry[]
@@ -720,30 +714,23 @@ export interface ProductDashboard {
   connections: ProductConnection[]
   teams: ProductConnection[]
 }
+export function mapProductDashboard(d: FapiProductDashboard): ProductDashboard {
+  const conn = (c: { id: number; name: string; connections: string; initials: string }): ProductConnection => ({ id: c.id, name: c.name, connectionsLabel: c.connections, initials: c.initials })
+  return {
+    timeline: d.timeline.map((t) => ({ ref: t.ref, invoiceId: t.id, date: t.date, amount: t.amount_formatted, customer: t.customer, status: t.status, statusId: t.status_id })),
+    timelineTotal: d.timeline_total,
+    timelinePage: d.timeline_page,
+    timelinePerPage: d.timeline_per_page,
+    connections: d.connections.map(conn),
+    teams: d.teams.map(conn),
+  }
+}
 export function useProductDashboard(id: string | undefined, page: number = 1) {
   return useQuery({
     queryKey: ['products', 'legacy', 'dashboard', id, page],
-    queryFn: async (): Promise<ProductDashboard> => {
-      const res = await fetch(`/product/ajax/product_dashboard.php?product_id=${encodeURIComponent(id!)}&page=${page}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const data: {
-        timeline?: RawDashboardTimeline[]
-        timeline_total?: number
-        timeline_page?: number
-        timeline_per_page?: number
-        connections?: RawDashboardConnection[]
-        teams?: RawDashboardConnection[]
-      } = await res.json()
-      const mapConn = (c: RawDashboardConnection): ProductConnection => ({ id: c.id, name: c.name, connectionsLabel: c.connections, initials: c.initials })
-      return {
-        timeline: (data.timeline ?? []).map((t) => ({ ref: t.ref, invoiceId: t.id, date: t.date, amount: t.amount, customer: t.customer, status: t.status, statusId: t.status_id })),
-        timelineTotal: data.timeline_total ?? 0,
-        timelinePage: data.timeline_page ?? 1,
-        timelinePerPage: data.timeline_per_page ?? 10,
-        connections: (data.connections ?? []).map(mapConn),
-        teams: (data.teams ?? []).map(mapConn),
-      }
-    },
+    // product/fapi/dashboard.php answers the invoice timeline and the connections next to the sales window (replacing the session-only
+    // product/ajax/product_dashboard.php); captured from newecuenta on 23 Oct 2026 (tests/fixtures/product-dashboard.json).
+    queryFn: async (): Promise<ProductDashboard> => mapProductDashboard(await fapiGet<FapiProductDashboard>('/product/fapi/dashboard.php', { id: id!, page })),
     enabled: !!id,
     staleTime: 1000 * 30,
     retry: false,
@@ -1133,6 +1120,20 @@ export function useGenerateProductBarcode() {
       (() => generateProductBarcode(Number(id)))(),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', id] })
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', id] })
+    },
+  })
+}
+
+// product/fapi/uom.php?action=enable_batch | disable_batch: the Stock and UOM tabs both need tracking on before they can
+// offer a lot. Both tabs read the flag from stock.php's options, so both refresh.
+export function useSetBatchTracking() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => setProductBatchTracking(id, enabled),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', id] })
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'stockOverview', id] })
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', id] })
     },
   })

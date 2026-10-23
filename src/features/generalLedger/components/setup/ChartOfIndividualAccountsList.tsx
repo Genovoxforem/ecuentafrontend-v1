@@ -125,7 +125,7 @@ export function ChartOfIndividualAccountsList() {
                         type="button"
                         disabled={!r.toggleUrl || toggle.isPending}
                         onClick={() => r.toggleUrl && toggle.mutate(r.toggleUrl)}
-                        title={r.reconcilable ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                        title={!r.toggleUrl ? 'No chart account carries this code, so it cannot be switched' : r.reconcilable ? 'Enabled — click to disable' : 'Disabled — click to enable'}
                         className={`inline-flex items-center justify-center disabled:opacity-40 ${r.reconcilable ? 'text-brand' : 'text-text-faint'} hover:text-brand`}
                       >
                         {r.reconcilable ? <Eye size={16} /> : <EyeOff size={16} />}

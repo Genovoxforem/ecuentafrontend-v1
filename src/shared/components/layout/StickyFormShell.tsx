@@ -24,7 +24,7 @@ import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 //     algorithm instead, which doesn't have that problem.
 export interface WizardStepDef {
   title: string
-  subtitle: string
+  subtitle?: string
 }
 
 const WizardContext = createContext<number | null>(null)
@@ -37,9 +37,12 @@ export function WizardStep({ n, children }: { n: number; children: ReactNode }) 
 }
 
 // Step indicator: numbered circles joined by a line, title and subtitle centred underneath. role=tablist keeps the page banner from hoisting it.
-export function WizardStepper({ steps, step, onStep, canGoTo = () => true }: { steps: WizardStepDef[]; step: number; onStep: (i: number) => void; canGoTo?: (i: number) => boolean }) {
+// The stepper is drawn at this factor of its base size (zoom); density styles resize the parts, so one factor keeps them in proportion. Every wizard in the app uses this component.
+const WIZARD_STEPPER_ZOOM = 1.04
+
+export function WizardStepper({ steps, step, onStep, canGoTo = () => true }: { steps: readonly WizardStepDef[]; step: number; onStep: (i: number) => void; canGoTo?: (i: number) => boolean }) {
   return (
-    <div role="tablist" className="flex items-center px-12 sm:px-16">
+    <div role="tablist" className="flex items-center px-12 py-1 sm:px-16" style={{ zoom: WIZARD_STEPPER_ZOOM }}>
       {steps.map((w, i) => {
         const done = i < step
         const active = i === step
