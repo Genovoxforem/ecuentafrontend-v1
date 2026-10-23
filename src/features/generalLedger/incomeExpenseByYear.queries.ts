@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseIncomeExpenseByYear } from './incomeExpenseByYearParser'
+import { loadReportingArea } from './reportsFapi'
 
 export type Basis = 'BOOKKEEPING' | 'RECETTES-DEPENSES' | 'CREANCES-DETTES'
 
@@ -13,11 +12,8 @@ export const BASIS_OPTIONS: { value: Basis; label: string }[] = [
 export function useIncomeExpenseByYear(lastYear: number | null, basis: Basis) {
   return useQuery({
     queryKey: ['generalLedger', 'incomeExpenseByYear', lastYear, basis],
-    queryFn: async () => {
-      const params = new URLSearchParams({ modecompta: basis })
-      if (lastYear) params.set('year', String(lastYear))
-      return parseIncomeExpenseByYear(await fetchLegacyDocument('/compta/resultat/index.php', params))
-    },
+    // compta/resultat/fapi/reporting_area.php: four years ending `year`, month by month, on the chosen basis.
+    queryFn: () => loadReportingArea(lastYear, basis),
     placeholderData: (prev) => prev,
   })
 }

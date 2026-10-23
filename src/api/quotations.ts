@@ -155,6 +155,13 @@ export interface CreateQuotationInput {
   mode_reglement_id?: number
   multicurrency_code?: string
   multicurrency_tx?: number
+  // Header fields the classic create form also sends; create.php reports any it does not store in ignored_fields[].
+  delivery_date?: string
+  availability_id?: number
+  demand_reason_id?: number
+  shipping_method_id?: number
+  fk_incoterms?: number
+  location_incoterms?: string
 }
 
 export async function createQuotation(input: CreateQuotationInput): Promise<{ id: number; ref: string }> {

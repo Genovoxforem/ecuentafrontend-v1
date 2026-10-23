@@ -62,7 +62,7 @@ import { deleteThirdParty } from '../../../api/customers'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ROUTES } from '../../../routes'
 import { useTheme } from '../../../context/ThemeContext'
-import { formatMoney } from '../../../utils/format'
+import { formatDateTime, formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import {
   useCustomerDetail,
@@ -986,7 +986,7 @@ function ThirdPartyTab({
             {data.status === 1 ? 'Active' : 'Closed'}
           </span>
         </div>
-        <InfoRow label="Creation Date" value={data.dateCreation} />
+        <InfoRow label="Creation Date" value={formatDateTime(data.dateCreation)} />
         <InfoRow label="Created By" value={data.createdBy} />
       </Card>
       </div>

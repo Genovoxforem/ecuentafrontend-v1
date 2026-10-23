@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { WizardStepper } from '../../../shared/components/layout/StickyFormShell'
 import { Check, LoaderCircle, Search, MapPin, Tag, CalendarDays, UserPlus, UserRound, BedDouble, Info, Moon, ArrowLeft, ArrowRight, Users2, Sparkles, ClipboardCheck } from 'lucide-react'
 import { Card, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import {
@@ -76,25 +77,7 @@ const STEPS = [
 type StepNum = (typeof STEPS)[number]['n']
 
 function Stepper({ step }: { step: StepNum }) {
-  return (
-    <div className="flex items-center flex-wrap gap-y-2">
-      {STEPS.map((s, i) => (
-        <div key={s.n} className="flex items-center">
-          <div className="flex items-center gap-2">
-            <span
-              className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold shrink-0 transition-colors ${
-                step === s.n ? 'bg-brand text-white' : step > s.n ? 'bg-brand/15 text-brand' : 'bg-surface-hover text-text-faint'
-              }`}
-            >
-              {step > s.n ? <Check size={14} /> : s.n}
-            </span>
-            <span className={`hidden sm:inline text-sm font-medium ${step === s.n ? 'text-text!' : 'text-text-faint'}`}>{s.label}</span>
-          </div>
-          {i < STEPS.length - 1 && <div className={`w-6 sm:w-10 h-px mx-2 sm:mx-3 transition-colors ${step > s.n ? 'bg-brand/40' : 'bg-border'}`} />}
-        </div>
-      ))}
-    </div>
-  )
+  return <WizardStepper steps={STEPS.map((s) => ({ title: s.label, subtitle: s.hint }))} step={step - 1} onStep={() => {}} canGoTo={() => false} />
 }
 
 // The real page is a single scrolling form, restructured here into 4 steps.

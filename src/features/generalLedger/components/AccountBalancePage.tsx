@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Scale } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { LegacyListPage } from './LegacyListPage'
+import { loadAccountBalance } from '../balanceFapi'
 
 const dateCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -15,7 +16,7 @@ const fieldsToIso = (fields: Record<string, string>, prefix: string) => {
   return y ? `${y}-${fields[`${prefix}month`]}-${fields[`${prefix}day`]}` : ''
 }
 
-// accountancy/bookkeeping/balance.php — the real account balance (debit / credit / balance per
+// accountancy/fapi/balance.php — the real account balance (debit / credit / balance per
 // accounting account, with the totals row). The date range starts at whatever the backend
 // defaults to (its current fiscal range) and can be changed. As on the backend page, the account
 // and its debit and credit open that account's ledger (debit in red, credit in blue).
@@ -36,6 +37,7 @@ export function AccountBalancePage() {
       icon={Scale}
       title="Account Balance"
       path="/accountancy/bookkeeping/balance.php"
+      load={loadAccountBalance}
       firstHeader={/^Accounting account/}
       fixedParams={{ ...splitDate('date_start', range.start ?? ''), ...splitDate('date_end', range.end ?? '') }}
       linkFor={(header, _cell, row) => {

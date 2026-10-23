@@ -40,7 +40,7 @@ export const nav: NavSection = {
     {
       label: 'Users',
       path: ROUTES.usersDashboard,
-      items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'Users tags/categories', path: ROUTES.userTags }],
+      items: [{ label: 'List User', path: ROUTES.usersDashboard }, { label: 'List Users', path: ROUTES.usersDashboard }, { label: 'Create User', path: ROUTES.userCreate }, { label: 'Users tags/categories', path: ROUTES.userTags }],
     },
     {
       label: 'User Groups',

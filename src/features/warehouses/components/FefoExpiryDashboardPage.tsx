@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { ScanBarcode, XCircle, AlertTriangle, HelpCircle, Filter, Info, Trash2, Search } from 'lucide-react'
+import { ScanBarcode, XCircle, AlertTriangle, HelpCircle, Filter, Info, Settings2, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useFefoLots, useWriteOffLot, type FefoLotRow, type FefoStatus } from '../fefo.queries'
+import { useFefoLots, type FefoLotRow, type FefoStatus } from '../fefo.queries'
+import { FefoLotModal } from './FefoLotModal'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -99,8 +100,7 @@ export function FefoExpiryDashboardPage() {
   const [warnDays, setWarnDays] = useState(30)
   const { data, isLoading, isError, error, refetch } = useFefoLots(warnDays)
   const rows = data?.rows
-  const writeOff = useWriteOffLot()
-  const [writeOffError, setWriteOffError] = useState('')
+  const [managed, setManaged] = useState<FefoRow | null>(null)
   const [warehouseFilter, setWarehouseFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | FefoStatus>('')
   const [search, setSearch] = useState('')
@@ -124,15 +124,6 @@ export function FefoExpiryDashboardPage() {
   const noDate = counters?.noExpiryLots ?? 0
   const expiredUnits = counters?.expiredQty ?? 0
   const expiringUnits = counters?.expiringQty ?? 0
-
-  function handleWriteOff(r: FefoRow) {
-    if (!r.lotId || !r.warehouseId) return
-    const qty = Number(window.prompt(`Write off how many units of ${r.label} (lot ${r.lotSerial}) from ${r.warehouse}? Up to ${r.qty}.`, String(r.qty)))
-    if (!(qty > 0)) return
-    const reason = window.prompt('Reason for the write-off', 'Expired') ?? ''
-    setWriteOffError('')
-    writeOff.mutate({ lotId: r.lotId, warehouseId: r.warehouseId, qty, reason }, { onError: (e) => setWriteOffError(e instanceof Error ? e.message : 'The write-off failed.') })
-  }
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -163,7 +154,6 @@ export function FefoExpiryDashboardPage() {
       <div className="flex-1 flex flex-col min-h-0 space-y-4 px-6 py-4">
         {isError && <LegacyErrorCard title="Couldn't load lot expiry data" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
         {isLoading && <LegacyLoadingCard label="Loading lot expiry data…" />}
-        {writeOffError && <p role="alert" className="text-sm text-danger">{writeOffError}</p>}
 
         {rows && (
           <>
@@ -278,12 +268,12 @@ export function FefoExpiryDashboardPage() {
                           <td className="px-3 py-2">
                             <button
                               type="button"
-                              disabled={!data?.canWriteOff || !r.lotId || writeOff.isPending}
-                              onClick={() => handleWriteOff(r)}
-                              title={data?.canWriteOff ? 'Write off stock of this lot' : 'You are not allowed to write off stock'}
-                              className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={!r.lotId}
+                              onClick={() => setManaged(r)}
+                              title="Write off, approve, quarantine or correct the dates of this lot"
+                              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              <Trash2 size={13} />
+                              <Settings2 size={13} /> Manage
                             </button>
                           </td>
                         </tr>
@@ -304,6 +294,7 @@ export function FefoExpiryDashboardPage() {
           </>
         )}
       </div>
+      {managed && data && <FefoLotModal row={managed} rights={data} onClose={() => setManaged(null)} />}
       {rows && <ListPagination page={page} perPage={perPage} total={filtered.length} onPageChange={setPage} edgeToEdge />}
     </div>
   )

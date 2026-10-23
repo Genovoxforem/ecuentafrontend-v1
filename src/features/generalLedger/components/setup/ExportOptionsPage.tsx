@@ -1,8 +1,9 @@
 import { Download } from 'lucide-react'
 import { LegacyFormPage } from '../LegacyFormPage'
+import { loadExportOptions, saveExportOptions } from '../../setupFormsFapi'
 
-// accountancy/admin/export.php — the real export settings. The sections, labels and order are the
-// backend form's own; Modify posts its action=update and stores them as backend constants.
+// accountancy/fapi/export_options.php — the real export settings (model, file prefix, format, separator, end of line, date format).
+// Modify posts action=update; the backend stores the ones the chosen model allows.
 export function ExportOptionsPage() {
-  return <LegacyFormPage icon={Download} title="Export Options" path="/accountancy/admin/export.php" anchor="ACCOUNTING_EXPORT_MODELCSV" />
+  return <LegacyFormPage icon={Download} title="Export Options" path="/accountancy/admin/export.php" anchor="ACCOUNTING_EXPORT_MODELCSV" load={loadExportOptions} save={saveExportOptions} />
 }

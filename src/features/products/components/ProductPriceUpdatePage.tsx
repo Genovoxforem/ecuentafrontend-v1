@@ -154,7 +154,7 @@ export function ProductPriceUpdatePage() {
   const allTicked = pageIds.length > 0 && pageIds.every((id) => ticked.has(id))
 
   return (
-    <div className="min-w-0 max-w-full space-y-3 pr-1">
+    <div className="min-w-0 max-w-full space-y-3">
       <h2 className="sr-only">Product Price Update</h2>
       <InBanner>
         

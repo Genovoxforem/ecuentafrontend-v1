@@ -77,7 +77,7 @@ export function ProductPriceListPage() {
       {lists.isError && <LegacyErrorCard title="Couldn't load the price lists" message={lists.error instanceof Error ? lists.error.message : 'Unknown error.'} onRetry={() => lists.refetch()} />}
 
       {lists.data && lists.data.items.length === 0 && (
-        <div className="mx-4 flex h-fit flex-col items-center gap-3 rounded-md border border-brand bg-brand/10 px-6 py-14 text-center">
+        <div className="flex h-fit flex-col items-center gap-3 rounded-md border border-brand bg-brand/10 px-6 py-14 text-center">
           <p className="text-xl font-semibold text-text!">No Price Updates Yet</p>
           <p className="mt-2 text-sm text-brand">Create a list, add products with their new prices, then apply it.</p>
           <button type="button" onClick={() => setShowNew(true)} className="mt-4 rounded-md bg-brand px-6 py-2.5 text-sm font-medium text-white shadow-lg hover:bg-brand-hover">

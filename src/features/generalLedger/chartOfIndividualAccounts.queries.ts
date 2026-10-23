@@ -1,27 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { parseSubaccounts } from './components/setup/chartOfIndividualAccountsParser'
+import { loadSubaccounts, toggleSubaccountReconcilable } from './subaccountsFapi'
 
-const PATH = '/accountancy/admin/subaccount.php'
-
+// accountancy/fapi/subaccounts.php — the customer, supplier and employee accounting codes.
 export function useSubaccounts() {
   return useQuery({
-    queryKey: ['generalLedger', 'subaccounts'],
-    queryFn: async () => parseSubaccounts(await fetchLegacyDocument(PATH)),  
+    queryKey: ['generalLedger', 'subaccounts', 'fapi'],
+    queryFn: loadSubaccounts,
   })
 }
 
-async function followSubaccountLink(url: string): Promise<void> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const html = await res.text()
-  if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-}
-
+// `accountId` is the chart account the flag lives on (SubaccountRow.toggleUrl).
 export function useToggleSubaccountReconcilable() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (url: string) => followSubaccountLink(url),
+    mutationFn: (accountId: string) => toggleSubaccountReconcilable(accountId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'subaccounts'] }),
   })
 }

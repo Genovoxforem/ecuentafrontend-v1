@@ -1,9 +1,11 @@
-import { type ComponentType, type ReactNode } from 'react'
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LayoutGrid, PieChart as PieChartIcon } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 import { formatMoney } from '../../../utils/format'
+
+// The pie is loaded on demand: recharts is large and DashboardKit is imported by almost every page.
+const InvoiceStatusPie = lazy(() => import('./InvoiceStatusPie'))
 
 // Shared building blocks for the "module dashboard" pages ported from the
 // reference app (Sales, Purchases, Warehouse, Payroll, ...) — each one is an
@@ -313,15 +315,9 @@ export function InvoiceStatusChart({ title, rows }: { title: string; rows: Invoi
       <SectionHeading icon={PieChartIcon}>{title}</SectionHeading>
       <div className="flex-1 min-h-56 flex items-center justify-center mt-2">
         {hasData ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={rows} dataKey="count" nameKey="status" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                {rows.map((row, i) => (
-                  <Cell key={row.status} fill={`var(--color-chart-${(i % 8) + 1})`} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<p className="text-sm text-text-faint">Loading chart…</p>}>
+            <InvoiceStatusPie rows={rows} />
+          </Suspense>
         ) : (
           <p className="text-sm text-text-faint">Not enough data...</p>
         )}

@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listProductCategories } from '../../../api/products'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CalendarPlus, ChevronDown, ChevronRight, Folder, FolderOpen, Link2, Loader2, Network, Eye, Package, Pencil, Plus, Search, Tag, Tags, UsersRound, X } from 'lucide-react'
+import { CalendarPlus, ChevronDown, ChevronRight, Folder, FolderOpen, Link2, Loader2, Network, Eye, Package, Pencil, Plus, Search, Tag, Tags, Unlink, UsersRound, X } from 'lucide-react'
 import { Card, TodayStatCard } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import {
+  fetchCategoryCandidates,
   fetchCategoryItems,
   useCategories,
+  useCategoryMembership,
   useCreateCategory,
   useUpdateCategory,
   type CategoryLinkedItem,
@@ -23,7 +25,7 @@ const toolbarBtn = 'flex items-center gap-1.5 rounded-md border border-input-bor
 // What the tagged records are called in the cards and the empty states.
 const ITEM_NOUN: Record<CategoryType, string> = { 0: 'Products', 1: 'Vendors', 2: 'Customers', 4: 'Contacts' }
 
-function TaggedItem({ item, type }: { item: CategoryLinkedItem; type: CategoryType }) {
+function TaggedItem({ item, type, onRemove, removing }: { item: CategoryLinkedItem; type: CategoryType; onRemove?: () => void; removing?: boolean }) {
   const text = [item.ref, item.label].filter(Boolean).join(' ') || `#${item.id}`
   const to = item.to
   const Icon = type === 0 ? Package : UsersRound
@@ -36,6 +38,63 @@ function TaggedItem({ item, type }: { item: CategoryLinkedItem; type: CategoryTy
         </Link>
       ) : (
         <span className="text-text!">{text}</span>
+      )}
+      {onRemove && (
+        <button type="button" onClick={onRemove} disabled={removing} aria-label={`Remove ${text} from this tag`} title="Remove from this tag" className="ml-1 rounded p-0.5 text-text-faint hover:text-danger disabled:opacity-50">
+          {removing ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />}
+        </button>
+      )}
+    </li>
+  )
+}
+
+// The add-member picker under a tag: search the records of the tag's type and file one under it. Product tags have
+// their own detail page for this, so the picker serves vendor, customer and contact tags.
+function AddMember({ type, tagId, onAdded }: { type: CategoryType; tagId: number; onAdded: (item: CategoryLinkedItem) => void }) {
+  const [term, setTerm] = useState('')
+  const [error, setError] = useState('')
+  const deferred = useDeferredValue(term.trim())
+  const { assign } = useCategoryMembership(type)
+  const found = useQuery({ queryKey: ['categories', 'candidates', type, tagId, deferred], queryFn: () => fetchCategoryCandidates(type, tagId, deferred), enabled: deferred.length >= 2, staleTime: 1000 * 15, retry: false })
+  const options = (found.data ?? []).filter((c) => !c.linked)
+  function add(c: { id: number; ref: string; label: string }) {
+    setError('')
+    assign.mutate(
+      { tagId, objectId: c.id },
+      {
+        onSuccess: () => {
+          onAdded({ id: c.id, ref: c.ref, label: c.label, to: null })
+          setTerm('')
+        },
+        onError: (e) => setError(e instanceof Error ? e.message : 'Could not add it to this tag.'),
+      },
+    )
+  }
+  return (
+    <li className="pt-1">
+      <div className="relative w-64">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faint" />
+        <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={`Add ${ITEM_NOUN[type].toLowerCase()} to this tag…`} className={inputCls + ' w-full !h-8 pl-8 text-xs'} />
+      </div>
+      {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
+      {deferred.length >= 2 && (
+        <ul className="mt-1 max-h-40 w-64 overflow-auto rounded-md border border-border bg-surface text-sm shadow-sm">
+          {found.isFetching ? (
+            <li className="px-3 py-1.5 text-xs text-text-faint">Searching…</li>
+          ) : found.isError ? (
+            <li className="px-3 py-1.5 text-xs text-danger">The search failed.</li>
+          ) : options.length === 0 ? (
+            <li className="px-3 py-1.5 text-xs italic text-text-faint">No more matches.</li>
+          ) : (
+            options.map((c) => (
+              <li key={c.id}>
+                <button type="button" disabled={assign.isPending} onClick={() => add(c)} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text hover:bg-surface-hover disabled:opacity-50">
+                  <Plus size={12} className="text-brand" /> {[c.ref, c.label].filter(Boolean).join(' ') || `#${c.id}`}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
       )}
     </li>
   )
@@ -67,6 +126,9 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
   const [loadingAll, setLoadingAll] = useState(false)
   const [loadingId, setLoadingId] = useState<number | null>(null)
   const [itemsError, setItemsError] = useState('')
+  const [removingKey, setRemovingKey] = useState('')
+  const { unassign } = useCategoryMembership(type)
+  const editableMembers = type !== 0
 
   const rows = useMemo(() => data?.items ?? [], [data])
   const [urlParams, setUrlParams] = useSearchParams()
@@ -231,8 +293,8 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
           <button
             type="button"
             onClick={() => void toggleItems(c.id)}
-            disabled={c.itemCount === 0}
-            title={c.itemCount === 0 ? 'Nothing is filed under this tag' : showItems ? 'Hide the tagged items' : 'Show the tagged items'}
+            disabled={c.itemCount === 0 && !editableMembers}
+            title={c.itemCount === 0 && !editableMembers ? 'Nothing is filed under this tag' : showItems ? 'Hide the tagged items' : 'Show the tagged items'}
             className="inline-flex h-6 min-w-6 items-center justify-center rounded bg-brand px-1.5 text-xs font-bold text-white disabled:opacity-60"
           >
             {loadingId === c.id ? <Loader2 size={12} className="animate-spin" /> : c.itemCount}
@@ -249,7 +311,31 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
         </div>
         {showItems && items[c.id] && (
           <ul className="mb-1 space-y-0.5 border-l border-border pl-3" style={{ marginLeft: depth * 24 + 40 }}>
-            {items[c.id].length === 0 ? <li className="text-xs italic text-text-faint">Nothing is filed under this tag.</li> : items[c.id].map((item) => <TaggedItem key={item.id} item={item} type={type} />)}
+            {items[c.id].length === 0 ? <li className="text-xs italic text-text-faint">Nothing is filed under this tag.</li> : items[c.id].map((item) => (
+              <TaggedItem
+                key={item.id}
+                item={item}
+                type={type}
+                removing={removingKey === `${c.id}-${item.id}`}
+                onRemove={
+                  editableMembers
+                    ? () => {
+                        setItemsError('')
+                        setRemovingKey(`${c.id}-${item.id}`)
+                        unassign.mutate(
+                          { tagId: c.id, objectId: item.id },
+                          {
+                            onSuccess: () => setItems((prev) => ({ ...prev, [c.id]: (prev[c.id] ?? []).filter((x) => x.id !== item.id) })),
+                            onError: (e) => setItemsError(e instanceof Error ? e.message : 'Could not remove it from this tag.'),
+                            onSettled: () => setRemovingKey(''),
+                          },
+                        )
+                      }
+                    : undefined
+                }
+              />
+            ))}
+            {editableMembers && <AddMember type={type} tagId={c.id} onAdded={(item) => setItems((prev) => ({ ...prev, [c.id]: [...(prev[c.id] ?? []), item] }))} />}
           </ul>
         )}
         {kids.length > 0 && open && <ul>{kids.map((k) => renderNode(k, depth + 1, true))}</ul>}

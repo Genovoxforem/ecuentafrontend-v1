@@ -1,7 +1,7 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
 import { useLanguageOptions } from '../users/users.queries'
 import { isBackendUnavailable } from '../../shared/components/BackendUnavailable'
-import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // societe/card.php?type=c|f|p hardcodes this exact 3-option list inline
 // (<select name="nrc_id">NRC/Passport/Driving license</select>) rather than
@@ -47,12 +47,11 @@ interface WizardOptionsResponse {
   default_country_id: number | null
 }
 
+// societe/fapi/meta.php (key-authenticated; replaces the session-only societe/api/meta.php wizard_options). The same lists
+// plus the extended-field options; the lists open with a { id: 0, label: '—' } "none" entry.
 async function fetchWizardOptions(): Promise<WizardOptionsResponse> {
-  const res = await fetch('/societe/api/meta.php?action=wizard_options', { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data = await parseLegacyJson<WizardOptionsResponse>(res)
-  if (!data.ok) throw new Error('Legacy backend rejected the wizard_options request.')
-  return data
+  const data = await fapiGet<Omit<WizardOptionsResponse, 'ok'>>('/societe/fapi/meta.php')
+  return { ok: true, ...data }
 }
 
 // Same shape this app's other consumer (OrderCreateForm.tsx's Currency
@@ -143,11 +142,8 @@ export function useStatesByCountry(countryId: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'wizardStates', countryId],
     queryFn: async (): Promise<StateOption[]> => {
-      const res = await fetch(`/societe/api/meta.php?action=states&country_id=${countryId}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: { ok: boolean; states: Array<{ id: number; label: string }> } = await res.json()
-      if (!data.ok) return []
-      return data.states.map((s) => ({ value: String(s.id), label: s.label }))
+      const data = await fapiGet<{ states?: Array<{ id: number; label: string }> }>('/societe/fapi/meta.php', { action: 'states', country_id: Number(countryId) })
+      return (data.states ?? []).map((s) => ({ value: String(s.id), label: s.label }))
     },
     enabled: !!countryId,
     staleTime: 1000 * 60 * 10,

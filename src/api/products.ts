@@ -725,6 +725,11 @@ export function deleteProductUomConversion(id: number | string, convId: number) 
   return postTab<Record<string, unknown>>('uom.php', 'delete_conversion', { id: Number(id), conv_id: convId }, 'Could not delete this conversion.')
 }
 
+/** Turns lot/batch tracking on or off. Switching it off is refused (409) while lots exist, since they would stay attached to an untracked product. */
+export function setProductBatchTracking(id: number | string, enabled: boolean) {
+  return postTab<Record<string, unknown>>('uom.php', enabled ? 'enable_batch' : 'disable_batch', { id: Number(id) }, 'Could not change the lot tracking.')
+}
+
 export function getProductSuppliers(id: number | string) {
   return call<ProductSuppliersData>(fapi.get(`${BASE}/suppliers.php`, { params: { id } }), 'Could not load the supplier prices.')
 }

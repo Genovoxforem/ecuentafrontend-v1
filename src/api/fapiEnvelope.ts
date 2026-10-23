@@ -19,8 +19,15 @@ function errorText(body: { message?: unknown; errors?: unknown } | undefined, fa
   const errors = body?.errors
   if (errors && typeof errors === 'object') {
     for (const value of Object.values(errors as Record<string, unknown>)) {
-      const first = Array.isArray(value) ? value[0] : value
-      if (typeof first === 'string' && first && !parts.includes(first)) parts.push(first)
+      const list = Array.isArray(value) ? value : [value]
+      // A refused line comes as {index, message}: name the line so the user knows which one to fix.
+      const texts = list.map((e) => {
+        if (typeof e === 'string') return e
+        const line = e as { index?: unknown; message?: unknown } | null
+        return typeof line?.message === 'string' ? (typeof line.index === 'number' ? `Line ${line.index + 1}: ${line.message}` : line.message) : ''
+      })
+      const shown = texts.every((t) => t === '' || t.startsWith('Line ')) ? texts : texts.slice(0, 1)
+      for (const t of shown) if (t && !parts.includes(t)) parts.push(t)
     }
   }
   return parts.join(' — ') || fallback

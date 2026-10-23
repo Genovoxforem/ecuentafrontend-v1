@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 
@@ -171,8 +172,22 @@ export function useProjectsList(filter: ProjectListFilter) {
 // The navbar's "Today New Leads" pill: how many open leads were created today,
 // counted from the same real open-leads list the Open Leads page shows (newest
 // first). Dates there are printed MM/DD/YYYY hh:mm AM.
+//
+// It reads the whole 500-row legacy open-leads page (about 240 KB of server-built HTML, 1.5 to 2.4 s) and the navbar mounts on
+// every page, so it is only requested a few seconds after the page opens, once the page's own data has had the connection.
+function useReadyAfter(ms: number) {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReady(true), ms)
+    return () => window.clearTimeout(timer)
+  }, [ms])
+  return ready
+}
+
 export function useTodayNewLeadsCount() {
+  const ready = useReadyAfter(6000)
   return useQuery({
+    enabled: ready,
     queryKey: ['projects', 'todayNewLeads'],
     queryFn: async (): Promise<number> => {
       const res = await fetch(`${buildListUrl('openLeads')}&sortfield=p.datec&sortorder=desc`, { credentials: 'same-origin' })

@@ -1,48 +1,42 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 
-// product/stock/uom/box_break_api.php — a real, complete 15-route REST API
-// (found by grepping product/stock/ for json_encode; the page's own earlier
-// comment wrongly claimed no such endpoint existed). Every route below is
-// live-verified against the dev backend. Envelope is always {ok, data} or
-// {ok:false, error}.
-
+// product/stock/fapi/box_break.php (23 Oct 2026): the box-break routes as ?action=..., answering the standard {success, data, message, errors}
+// envelope, replacing the session-only product/stock/uom/box_break_api.php. Every read answer was captured from newecuenta on 23 Oct 2026
+// (tests/fixtures/box-break-*.json); the writes use the field names the endpoint's own 422 messages ask for and were not run. The lists
+// come back as `items`; adaptRead() puts each into the shape the screens already use.
+const FAPI = '/product/stock/fapi/box_break.php'
+// The label sheet and the history export are downloads the endpoint does not offer, so they still point at the old file.
 const BASE = '/product/stock/uom/box_break_api.php'
 
-async function boxBreakGet<T>(route: string, params?: Record<string, string | number | undefined>): Promise<T> {
-  const qs = new URLSearchParams({ route })
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== '') qs.set(k, String(v))
+export function adaptRead(route: string, d: Record<string, unknown>): unknown {
+  const items = (d.items ?? []) as unknown[]
+  switch (route) {
+    case 'uoms':
+      return items.map((u) => ({ ...(u as object), is_base: (u as { is_base: boolean }).is_base ? 1 : 0 }))
+    case 'history': {
+      const pg = d.pagination as { page: number; limit: number; total: number; pages: number }
+      return { rows: items, total: pg.total, page: pg.page, limit: pg.limit, pages: pg.pages, kpi: d.kpi }
     }
+    case 'trend':
+      return { days: d.days, rows: items }
+    case 'pending':
+      return { pending: items, count: d.count }
+    case 'stock':
+      return d
+    default:
+      return items
   }
-  const res = await fetch(`${BASE}?${qs.toString()}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  let json: { ok: boolean; data?: T; error?: string }
-  try {
-    json = await res.json()
-  } catch {
-    throw new Error(NOT_SIGNED_IN_MESSAGE)
-  }
-  if (!json.ok) throw new Error(json.error || 'Box Break request failed.')
-  return json.data as T
+}
+
+async function boxBreakGet<T>(route: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  const query: Record<string, string | number | undefined> = { action: route }
+  for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined && v !== '') query[k] = v
+  return adaptRead(route, await fapiGet<Record<string, unknown>>(FAPI, query)) as T
 }
 
 async function boxBreakPost<T>(route: string, body: object): Promise<T> {
-  const res = await fetch(`${BASE}?route=${route}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  let json: { ok: boolean; data?: T; error?: string }
-  try {
-    json = await res.json()
-  } catch {
-    throw new Error(NOT_SIGNED_IN_MESSAGE)
-  }
-  if (!json.ok) throw new Error(json.error || 'Box Break request failed.')
-  return json.data as T
+  return fapiPost<T>(FAPI, body, { action: route })
 }
 
 export interface BoxBreakProduct {

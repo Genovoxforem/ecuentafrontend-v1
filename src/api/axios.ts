@@ -109,4 +109,12 @@ function handleApiError(error: unknown) {
 }
 
 api.interceptors.response.use((response) => response, handleApiError)
-fapi.interceptors.response.use((response) => response, handleApiError)
+// Every non-GET fapi answer lists the body keys the endpoint never read (ignored_fields[]), which is
+// how a silently dropped field shows up. Log it in dev so a form sending an unsupported key is caught.
+fapi.interceptors.response.use((response) => {
+  const ignored = (response.data as { ignored_fields?: unknown } | null)?.ignored_fields
+  if (import.meta.env.DEV && response.config.method !== 'get' && Array.isArray(ignored) && ignored.length) {
+    console.warn(`[fapi] ${response.config.url} ignored: ${ignored.join(', ')}`)
+  }
+  return response
+}, handleApiError)

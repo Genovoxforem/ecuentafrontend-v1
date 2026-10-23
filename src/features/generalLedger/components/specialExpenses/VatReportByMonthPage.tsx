@@ -143,7 +143,7 @@ export function VatReportByMonthPage() {
         </div>
       </Card>
 
-      <Card className="!h-auto !p-0 overflow-hidden">
+      {data.balance.length > 0 && (<Card className="!h-auto !p-0 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">Tax Balance</div>
         <table className="w-full text-sm">
           <tbody>
@@ -155,7 +155,7 @@ export function VatReportByMonthPage() {
             ))}
           </tbody>
         </table>
-      </Card>
+      </Card>)}
     </div>
   )
 }

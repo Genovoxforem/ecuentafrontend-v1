@@ -1,35 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SalesInvoiceData } from './salesInvoiceApi'
 import { fapi } from '../../api/axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { fapiToSalesInvoice } from './salesInvoiceFapi'
 import { fetchInvoiceFormSettings, type InvoiceFormSettings } from '../../api/invoices'
 
-// compta/sales/api/invoice.php — see salesInvoiceApi.ts header comment for
-// why this replaces the compta/facture/card.php HTML-scraping approach for
-// this page's main tab. Every mutation below is read verbatim from the real
-// page's own compta/sales/js/invoice.js (functions submitAddLine/
-// submitEditLine/deleteLine/action/submitValidate) — same generic action=X
-// POST to this one endpoint, {success, error?} response, confirmed live.
-const SALES_BASE = '/compta/sales'
-const API = `${SALES_BASE}/api/invoice.php`
+// Every card mutation goes to compta/facture/fapi (key-authenticated; replaces the session-only compta/sales/api/invoice.php).
+const FAPI = '/compta/facture/fapi'
 
-async function postAction<T = { success: boolean; error?: string; [k: string]: unknown }>(fd: FormData): Promise<T> {
-  const res = await fetch(API, { method: 'POST', body: fd, credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const json = (await res.json()) as T & { success: boolean; error?: string }
-  if (!json.success) throw new Error(json.error || 'The legacy backend rejected this request.')
-  return json
+// "16 (A)" (rate and VAT code, as the line form holds it) -> the two fields the API takes.
+function splitVat(v: string): { tva_tx: number; vat_src_code?: string } {
+  const m = /^\s*([\d.]+)\s*(?:\(([^)]*)\))?/.exec(v)
+  return { tva_tx: Number(m?.[1]) || 0, vat_src_code: m?.[2] || undefined }
 }
 
+// compta/facture/fapi/get.php, reshaped for the card by fapiToSalesInvoice().
 export function useSalesInvoice(facid: string | undefined) {
   return useQuery<SalesInvoiceData>({
     queryKey: ['salesInvoice', facid],
-    queryFn: async () => {
-      const res = await fetch(`${API}?facid=${facid}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = (await res.json()) as SalesInvoiceData & { error?: string }
-      if (!json.success) throw new Error(json.error || 'Could not load this invoice.')
-      return json
-    },
+    queryFn: async () => fapiToSalesInvoice(await fapiGet<Record<string, unknown>>('/compta/facture/fapi/get.php', { id: facid })),
     enabled: !!facid,
   })
 }
@@ -48,20 +37,18 @@ export interface SalesLineInput {
 export function useAddSalesInvoiceLine(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: SalesLineInput) => {
-      const fd = new FormData()
-      fd.set('action', 'addline')
-      fd.set('facid', facid ?? '')
-      fd.set('product_id', input.productId)
-      fd.set('desc', input.desc)
-      fd.set('qty', String(input.qty))
-      fd.set('pu_ht', String(input.priceHt))
-      fd.set('tva_tx', input.vatRateStr)
-      fd.set('remise_percent', String(input.discountPercent ?? 0))
-      fd.set('remise_type', input.discountType ?? '1')
-      if (input.costPrice) fd.set('pa_ht', String(input.costPrice))
-      return postAction(fd)
-    },
+    mutationFn: async (input: SalesLineInput) =>
+      fapiPost(`${FAPI}/lines.php`, {
+        id: Number(facid),
+        product_id: input.productId ? Number(input.productId) : undefined,
+        description: input.desc,
+        qty: input.qty,
+        pu_ht: input.priceHt,
+        ...splitVat(input.vatRateStr),
+        remise_percent: input.discountPercent ?? 0,
+        remise_type: Number(input.discountType ?? '1'),
+        pa_ht: input.costPrice || undefined,
+      }, { action: 'add' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })
 }
@@ -73,19 +60,17 @@ export interface SalesLineUpdateInput extends SalesLineInput {
 export function useUpdateSalesInvoiceLine(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: SalesLineUpdateInput) => {
-      const fd = new FormData()
-      fd.set('action', 'updateline')
-      fd.set('facid', facid ?? '')
-      fd.set('lineid', input.lineId)
-      fd.set('desc', input.desc)
-      fd.set('qty', String(input.qty))
-      fd.set('pu_ht', String(input.priceHt))
-      fd.set('tva_tx', input.vatRateStr)
-      fd.set('remise_percent', String(input.discountPercent ?? 0))
-      fd.set('remise_type', input.discountType ?? '1')
-      return postAction(fd)
-    },
+    mutationFn: async (input: SalesLineUpdateInput) =>
+      fapiPost(`${FAPI}/lines.php`, {
+        id: Number(facid),
+        line_id: Number(input.lineId),
+        description: input.desc,
+        qty: input.qty,
+        pu_ht: input.priceHt,
+        ...splitVat(input.vatRateStr),
+        remise_percent: input.discountPercent ?? 0,
+        remise_type: Number(input.discountType ?? '1'),
+      }, { action: 'update' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })
 }
@@ -93,13 +78,7 @@ export function useUpdateSalesInvoiceLine(facid: string | undefined) {
 export function useDeleteSalesInvoiceLine(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (lineId: string) => {
-      const fd = new FormData()
-      fd.set('action', 'deleteline')
-      fd.set('facid', facid ?? '')
-      fd.set('lineid', lineId)
-      return postAction(fd)
-    },
+    mutationFn: async (lineId: string) => fapiPost(`${FAPI}/lines.php`, { id: Number(facid), line_id: Number(lineId) }, { action: 'delete' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })
 }
@@ -112,11 +91,14 @@ export type SalesInvoiceSimpleAction = 'clone' | 'delete' | 'reopen' | 'classify
 export function useSalesInvoiceAction(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (action: SalesInvoiceSimpleAction) => {
-      const fd = new FormData()
-      fd.set('action', action)
-      fd.set('facid', facid ?? '')
-      return postAction<{ success: boolean; error?: string; new_id?: string; redirect?: string }>(fd)
+    mutationFn: async (action: SalesInvoiceSimpleAction): Promise<{ new_id?: string }> => {
+      if (action === 'delete') {
+        await fapi.delete(`${FAPI}/delete.php`, { params: { id: facid } })
+        return {}
+      }
+      const apiAction = action === 'reopen' ? 'classify_unpaid' : action === 'classifypaid' ? 'classify_paid' : 'clone'
+      const d = await fapiPost<{ new_id?: number }>(`${FAPI}/actions.php`, { id: Number(facid), ...(apiAction === 'classify_paid' ? { close_code: 'other' } : {}) }, { action: apiAction })
+      return { new_id: action === 'clone' && d.new_id ? String(d.new_id) : undefined }
     },
     onSuccess: (_data, action) => {
       if (action !== 'delete') queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] })
@@ -132,14 +114,8 @@ export interface ValidateSalesInvoiceInput {
 export function useValidateSalesInvoice(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: ValidateSalesInvoiceInput) => {
-      const fd = new FormData()
-      fd.set('action', 'validate')
-      fd.set('facid', facid ?? '')
-      fd.set('idwarehouse', input.idwarehouse)
-      if (input.zravalidate) fd.set('zravalidate', input.zravalidate)
-      return postAction(fd)
-    },
+    mutationFn: async (input: ValidateSalesInvoiceInput) =>
+      fapiPost(`${FAPI}/actions.php`, { id: Number(facid), idwarehouse: input.idwarehouse ? Number(input.idwarehouse) : undefined, zravalidate: input.zravalidate || undefined }, { action: 'validate' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })
 }
@@ -150,13 +126,7 @@ export function useValidateSalesInvoice(facid: string | undefined) {
 export function useModifySalesInvoice(facid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (idwarehouse: string) => {
-      const fd = new FormData()
-      fd.set('action', 'modif')
-      fd.set('facid', facid ?? '')
-      fd.set('idwarehouse', idwarehouse)
-      return postAction(fd)
-    },
+    mutationFn: async (idwarehouse: string) => fapiPost(`${FAPI}/actions.php`, { id: Number(facid), idwarehouse: idwarehouse ? Number(idwarehouse) : undefined }, { action: 'back_to_draft' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })
 }
@@ -223,33 +193,21 @@ export interface SalesProductPricing {
 // handler (toggleAddLine()): POST /product/ajax/products.php,
 // action=fetch&id=<id>&outjson=1&socid=<socid>&qty=1&price_base_type=HT.
 export async function fetchSalesProductPricing(productId: string, socid: string): Promise<SalesProductPricing> {
-  const fd = new FormData()
-  fd.set('action', 'fetch')
-  fd.set('id', productId)
-  fd.set('outjson', '1')
-  fd.set('socid', socid)
-  fd.set('qty', '1')
-  fd.set('price_base_type', 'HT')
-  const res = await fetch('/product/ajax/products.php', { method: 'POST', credentials: 'same-origin', body: fd })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const json = await res.json()
-  const vatRate = Number(json.tva_tx ?? json.vat_rate) || 0
-  const vatCode = json.vat_code || json.default_vat_code || ''
-  let priceHt = Number(json.price ?? json.price_ht) || 0
-  const priceTtc = Number(json.price_ttc) || 0
-  if (!priceHt && priceTtc) {
-    const localtax1 = Number(json.localtax1_tx ?? json.iplAmt) || 0
-    const combined = vatRate + localtax1
-    priceHt = combined > 0 ? priceTtc / (1 + combined / 100) : priceTtc
-  }
+  const d = await fapiGet<{
+    product?: { type?: number }
+    price?: { pu_ht?: number; pu_ttc?: number }
+    vat?: { rate?: number; code?: string }
+    levies?: { total_rate?: number }
+    cost?: { cost_price?: number; pmp?: number }
+  }>('/product/fapi/price_for_customer.php', { product: Number(productId), socid: Number(socid), qty: 1, price_base_type: 'HT' })
   return {
-    priceHt,
-    priceTtc,
-    vatRate,
-    vatCode,
-    localtax1: Number(json.localtax1_tx ?? json.iplAmt) || 0,
-    costPrice: Number(json.cost_price) || 0,
-    productType: Number(json.type) || 0,
+    priceHt: Number(d.price?.pu_ht) || 0,
+    priceTtc: Number(d.price?.pu_ttc) || 0,
+    vatRate: Number(d.vat?.rate) || 0,
+    vatCode: d.vat?.code ?? '',
+    localtax1: Number(d.levies?.total_rate) || 0,
+    costPrice: Number(d.cost?.cost_price) || Number(d.cost?.pmp) || 0,
+    productType: Number(d.product?.type) || 0,
   }
 }
 

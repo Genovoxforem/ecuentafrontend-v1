@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { htmlToText } from '../../shared/htmlToText'
 import type { InvoiceNotes } from './invoiceTypes'
 import type { ContactRow, ContactFormOptions } from '../salesOrders/orderExtraTabTypes'
@@ -24,32 +24,26 @@ export function useInvoiceNotes(id: string | undefined) {
   return useQuery<InvoiceNotesData>({
     queryKey: ['invoices', 'detail', id, 'notes'],
     queryFn: async () => {
-      const res = await fetch(`/compta/sales/api/notes.php?facid=${id}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await parseLegacyJson<{ success: boolean; error?: string; note_public?: string | null; note_private?: string | null }>(res)
-      if (!json.success) throw new Error(json.error || 'Could not load the notes.')
+      const d = await fapiGet<{ note_public?: string | null; note_private?: string | null }>('/compta/facture/fapi/notes.php', { id })
       return {
-        notePublic: htmlToText(json.note_public),
-        notePrivate: htmlToText(json.note_private),
+        notePublic: htmlToText(d.note_public),
+        notePrivate: htmlToText(d.note_private),
         notePublicEditUrl: '',
         notePrivateEditUrl: '',
-        rawPublic: json.note_public ?? '',
-        rawPrivate: json.note_private ?? '',
+        rawPublic: d.note_public ?? '',
+        rawPrivate: d.note_private ?? '',
       }
     },
     enabled: !!id,
   })
 }
 
+// compta/facture/fapi/notes.php writes only the note(s) sent, at any invoice status.
 export function useUpdateInvoiceNote(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ notePublic, notePrivate }: { notePublic: string; notePrivate: string }) => {
-      const body = new URLSearchParams({ action: 'save', facid: id ?? '', note_public: notePublic, note_private: notePrivate })
-      const res = await fetch('/compta/sales/api/notes.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await parseLegacyJson<{ success: boolean; error?: string }>(res)
-      if (!json.success) throw new Error(json.error || 'Could not save the note.')
+      await fapiPost('/compta/facture/fapi/notes.php', { id: Number(id), note_public: notePublic, note_private: notePrivate })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invoices', 'detail', id, 'notes'] }),
   })
@@ -198,30 +192,31 @@ export interface StandingOrderRow {
 }
 
 interface RawStandingOrder {
-  rowid: string | number
-  date: string
-  amount: string
-  processed_date: string
+  id?: number | string
+  rowid?: number | string
+  date?: string
+  request_date?: string
+  amount?: string | number
+  processed_date?: string | null
   user_name?: string
   user_login?: string
   bon_ref?: string
+  ref?: string
 }
 
+// compta/facture/fapi/standing_orders.php: `orders` is every request on the invoice (pending and processed), `history` the processed ones.
 export function useInvoiceStandingOrders(id: string | undefined) {
   return useQuery<StandingOrderRow[]>({
     queryKey: ['invoices', 'detail', id, 'standingOrders'],
     queryFn: async () => {
-      const res = await fetch(`/compta/sales/api/standingorders.php?facid=${id}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await parseLegacyJson<{ success: boolean; error?: string; orders?: RawStandingOrder[]; history?: RawStandingOrder[] }>(res)
-      if (!json.success) throw new Error(json.error || 'Could not load the direct debit orders.')
-      const bonRef = new Map((json.history ?? []).map((h) => [String(h.rowid), h.bon_ref ?? '']))
-      return (json.orders ?? []).map((o) => ({
-        requestDate: o.date,
+      const d = await fapiGet<{ orders?: RawStandingOrder[]; history?: RawStandingOrder[] }>('/compta/facture/fapi/standing_orders.php', { id })
+      const bonRef = new Map((d.history ?? []).map((h) => [String(h.id ?? h.rowid), h.bon_ref ?? h.ref ?? '']))
+      return (d.orders ?? []).map((o) => ({
+        requestDate: o.date ?? o.request_date ?? '',
         user: o.user_name || o.user_login || '',
-        amount: o.amount,
-        ref: bonRef.get(String(o.rowid)) ?? '',
-        processDate: o.processed_date,
+        amount: String(o.amount ?? ''),
+        ref: bonRef.get(String(o.id ?? o.rowid)) ?? '',
+        processDate: o.processed_date ?? '',
       }))
     },
     enabled: !!id,
@@ -237,13 +232,7 @@ export function useInvoiceStandingOrders(id: string | undefined) {
 export function useInvoiceAgendaCount(id: string | undefined) {
   return useQuery<number>({
     queryKey: ['invoices', 'detail', id, 'agendaCount'],
-    queryFn: async () => {
-      const res = await fetch(`/compta/sales/api/agenda.php?facid=${id}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json = await parseLegacyJson<{ success: boolean; error?: string; count?: number; events?: unknown[] }>(res)
-      if (!json.success) throw new Error(json.error || 'Could not load the events.')
-      return json.count ?? json.events?.length ?? 0
-    },
+    queryFn: async () => (await fapiGet<{ count?: number; events?: unknown[] }>('/compta/facture/fapi/agenda.php', { id })).count ?? 0,
     enabled: !!id,
   })
 }

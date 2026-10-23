@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { WizardStepper } from '../../../shared/components/layout/StickyFormShell'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, BedDouble, CalendarCheck, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Coins, Copy, Gift, Info, LoaderCircle, Plus, Search, Trash2, User, UserCheck, Users, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -44,28 +45,7 @@ const STEPS = [
 ] as const
 
 function Stepper({ step }: { step: number }) {
-  return (
-    <div className="flex items-center">
-      {STEPS.map((s, i) => (
-        <Fragment key={s.key}>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <span
-              className={`shrink-0 w-8 h-8 rounded-full grid place-items-center text-xs font-bold ${
-                i < step ? 'bg-brand text-white' : i === step ? 'bg-brand text-white ring-4 ring-brand/20' : 'bg-surface-alt text-text-faint border border-border'
-              }`}
-            >
-              {i < step ? <Check size={14} /> : i + 1}
-            </span>
-            <div className="hidden md:block">
-              <p className={`text-sm font-semibold ${i <= step ? 'text-text!' : 'text-text-faint'}`}>{s.label}</p>
-              <p className="text-xs text-text-faint">{s.sub}</p>
-            </div>
-          </div>
-          {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-3 md:mx-4 ${i < step ? 'bg-brand' : 'bg-border'}`} />}
-        </Fragment>
-      ))}
-    </div>
-  )
+  return <WizardStepper steps={STEPS.map((s) => ({ title: s.label, subtitle: s.sub }))} step={step} onStep={() => {}} canGoTo={() => false} />
 }
 
 // Real page: booking.php?type=booking. Ref No/Purpose/Extra Service

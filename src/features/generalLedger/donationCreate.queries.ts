@@ -1,16 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from './bindLines.queries'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 
-// don/card.php?action=create — Dolibarr's "Create a donation" form. The page
-// renders the CSRF token and the option lists (countries, payment types,
-// projects); saving is a classic form POST (action=add) that redirects to
-// card.php?id=<new id> on success and re-renders the form with a
-// showToast("…", "error") message when Date or Amount is missing (see the PHP:
-// only those two are required). The visible Country <select> on the real page
-// has an empty name attribute, so the original never posts a country; the PHP
-// itself reads `country_id`, so this form sends it and the country is kept.
-const PATH = '/don/card.php'
+// The "Create a donation" form on don/fapi: its dropdowns from meta.php, the donation saved through donation.php?action=create.
 
 export interface Option {
   value: string
@@ -25,30 +16,29 @@ export interface DonationCreateForm {
   projects: Option[]
 }
 
-// Read from the whole document, not the <form> element: this page's markup is
-// not well-formed, so the browser's parser can split the form apart.
-const optionsOf = (doc: Document, selector: string): Option[] =>
-  Array.from(doc.querySelectorAll<HTMLOptionElement>(`${selector} option`)).map((o) => ({ value: o.value, label: (o.textContent ?? '').replace(/\s+/g, ' ').trim() }))
+// don/fapi/meta.php — the new-donation dropdowns. Payment modes are posted by code, countries and projects by id.
+interface FapiDonationMeta {
+  payment_modes: Array<{ id: number; code: string; label: string }>
+  countries: Array<{ id: number; code: string; label: string }>
+  projects: Array<{ id: number; ref?: string; title?: string; label?: string }>
+  currency: string
+}
 
-export function parseDonationCreate(doc: Document): DonationCreateForm {
-  const amount = doc.querySelector('[name="amount"]')
-  // The country select is the one holding the "Select Country" placeholder.
-  const country = Array.from(doc.querySelectorAll('select')).find((s) => Array.from(s.options).some((o) => /select country/i.test(o.text)))
+export function mapDonationMeta(m: FapiDonationMeta): DonationCreateForm {
   return {
-    token: doc.querySelector<HTMLInputElement>('form[action*="card.php"] input[name="token"]')?.value ?? doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? '',
-    currency: (amount?.parentElement?.querySelector('.input-group-text')?.textContent ?? '').trim(),
-    countries: Array.from(country?.options ?? []).map((o) => ({ value: o.value, label: (o.textContent ?? '').replace(/\s+/g, ' ').trim() })),
-    paymentTypes: optionsOf(doc, 'select[name="modepayment"]'),
-    projects: optionsOf(doc, 'select[name="fk_project"]'),
+    token: '',
+    currency: m.currency,
+    countries: [{ value: '0', label: '' }, ...m.countries.map((c) => ({ value: String(c.id), label: c.label }))],
+    paymentTypes: [{ value: '', label: '' }, ...m.payment_modes.map((p) => ({ value: p.code, label: p.label }))],
+    projects: [{ value: '0', label: '' }, ...m.projects.map((p) => ({ value: String(p.id), label: [p.ref, p.title ?? p.label].filter(Boolean).join(' - ') }))],
   }
 }
 
 export function useDonationCreateForm() {
   return useQuery({
-    queryKey: ['generalLedger', 'donationCreate'],
-    queryFn: async () => parseDonationCreate(await fetchLegacyDocument(PATH, new URLSearchParams({ action: 'create' }))),
-    staleTime: 0,
-    gcTime: 0, // the CSRF token must not outlive the page
+    queryKey: ['generalLedger', 'donationCreate', 'fapi'],
+    queryFn: async () => mapDonationMeta(await fapiGet<FapiDonationMeta>('/don/fapi/meta.php')),
+    staleTime: 10 * 60_000,
   })
 }
 
@@ -71,48 +61,29 @@ export interface DonationInput {
   project: string
 }
 
-function dateFields(us: string): Record<string, string> {
+// Date as MM/dd/yyyy (the form's own format) -> yyyy-MM-dd.
+const isoDate = (us: string) => {
   const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? { re: us, remonth: m[1], reday: m[2], reyear: m[3] } : { re: '', remonth: '', reday: '', reyear: '' }
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
+}
+const orNull = (v: string) => (v.trim() === '' ? null : v.trim())
+
+// don/fapi/donation.php?action=create: only date and amount are required. The document lists date, amount, public, societe, email,
+// modepayment and country_id; the other fields are sent under Dolibarr's own property names and come back in `ignored_fields` if unknown.
+export function donationBody(i: DonationInput) {
+  return {
+    date: isoDate(i.date), amount: Number(i.amount.replace(/,/g, '')), public: Number(i.isPublic), societe: orNull(i.company), lastname: orNull(i.lastname),
+    firstname: orNull(i.firstname), address: orNull(i.address), zip: orNull(i.zipcode), town: orNull(i.town), country_id: Number(i.country) || 0, email: orNull(i.email),
+    modepayment: orNull(i.paymentType), note_public: orNull(i.notePublic), note_private: orNull(i.notePrivate), fk_project: Number(i.project) || null,
+  }
 }
 
 export function useCreateDonation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (i: DonationInput): Promise<{ id: string }> => {
-      const body = new URLSearchParams({
-        token: i.token,
-        action: 'add',
-        ...dateFields(i.date),
-        amount: i.amount,
-        public: i.isPublic,
-        societe: i.company,
-        lastname: i.lastname,
-        firstname: i.firstname,
-        address: i.address,
-        zipcode: i.zipcode,
-        town: i.town,
-        country_id: i.country,
-        email: i.email,
-        modepayment: i.paymentType,
-        note_public: i.notePublic,
-        note_private: i.notePrivate,
-        fk_project: i.project,
-      })
-      const res = await fetch(PATH, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      // Success redirects to card.php?id=N; anything else is the form again.
-      const id = new URL(res.url).searchParams.get('id')
-      if (id) return { id }
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const err = toastMessages(html).find((m) => m.type === 'error')
-      throw new Error(err?.message ?? 'The backend did not accept this donation.')
+      const res = await fapiPost<{ id: number }>('/don/fapi/donation.php', donationBody(i), { action: 'create' })
+      return { id: String(res.id) }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })

@@ -28,6 +28,7 @@ export function LegacyListPage({
   noFilters,
   rowSelect,
   searchable,
+  load,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
@@ -49,6 +50,8 @@ export function LegacyListPage({
   rowSelect?: { selected: Set<string>; onChange: (next: Set<string>) => void }
   // A search box that filters the rows on screen, and a "Showing … entries" line under the table.
   searchable?: boolean
+  // Reads the list from a JSON endpoint instead of the backend page (same params in, same table out).
+  load?: (params: Record<string, string>) => Promise<LegacyTable>
 }) {
   const [limit, setLimit] = useState(25)
   const [page, setPage] = useState(0)
@@ -65,6 +68,7 @@ export function LegacyListPage({
       page: String(page),
     },
     hasHeader,
+    load,
   )
 
   if (isLoading) return <LegacyLoadingCard label={`Loading ${title.toLowerCase()}…`} />

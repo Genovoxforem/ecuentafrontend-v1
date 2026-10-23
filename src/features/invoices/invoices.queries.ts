@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
+import { fapiGet } from '../../api/fapiEnvelope'
 import { api } from '../../api/axios'
 import { fetchInvoices, type InvoiceListParams, type InvoiceRow as FapiInvoiceRow } from '../../api/invoices'
 import { fapiInvoiceToRow, type InvoiceListLookups } from './invoiceListMapper'
@@ -73,13 +73,13 @@ async function fetchEveryInvoice(params: InvoiceListParams): Promise<FapiInvoice
 // photo — it never fails the list.
 async function fetchListLookups(): Promise<InvoiceListLookups> {
   const [modes, users] = await Promise.allSettled([
-    api.get<{ success: boolean; results: { id: string | number; text: string }[] }>('/payment_types.php'),
-    axios.get<{ rows?: { id: number; login: string; photo: string }[] }>('/userprofile/api/users.php', { params: { action: 'list', mode: 'all', limit: 500 } }),
+    fapiGet<{ mode_options: Array<{ id: number; label: string }> }>('/compta/facture/fapi/form_settings.php'),
+    fapiGet<{ items?: Array<{ id: number; login: string; photo?: string }> }>('/core/fapi/users.php', { limit: 500 }),
   ])
   const paymentModes = new Map<number, string>()
-  if (modes.status === 'fulfilled' && modes.value.data.success) for (const m of modes.value.data.results) paymentModes.set(Number(m.id), m.text)
+  if (modes.status === 'fulfilled') for (const m of modes.value.mode_options) paymentModes.set(m.id, m.label)
   const userMap = new Map<string, { id: number; photo: string }>()
-  if (users.status === 'fulfilled' && Array.isArray(users.value.data.rows)) for (const u of users.value.data.rows) userMap.set(String(u.login).toLowerCase(), { id: u.id, photo: u.photo })
+  if (users.status === 'fulfilled') for (const u of users.value.items ?? []) userMap.set(String(u.login).toLowerCase(), { id: u.id, photo: u.photo ?? '' })
   return { paymentModes, users: userMap }
 }
 

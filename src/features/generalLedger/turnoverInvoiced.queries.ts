@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseTurnoverInvoiced } from './turnoverInvoicedParser'
+import { loadTurnover } from './reportsFapi'
 
 export const TURNOVER_BASIS_OPTIONS = [
   { value: 'BOOKKEEPING', label: 'Ledger (bookkeeping)' },
@@ -17,11 +16,8 @@ export interface TurnoverFilters {
 export function useTurnoverInvoiced(filters: TurnoverFilters) {
   return useQuery({
     queryKey: ['generalLedger', 'turnoverInvoiced', filters],
-    queryFn: async () => {
-      const params = new URLSearchParams({ modecompta: filters.basis })
-      if (filters.start && filters.end) params.set('newdatepicker', `${filters.start} - ${filters.end}`)
-      return parseTurnoverInvoiced(await fetchLegacyDocument('/compta/stats/index.php', params))
-    },
+    // compta/stats/fapi/turnover.php: the period (start / end), the basis (modecompta) and, per year, the amount and its change.
+    queryFn: () => loadTurnover(filters),
     placeholderData: (prev) => prev,
   })
 }

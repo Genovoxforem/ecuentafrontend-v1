@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { fapi } from '../../api/axios'
 import { updateThirdParty } from '../../api/customers'
-import { fetchSocieteFormContext } from './thirdPartyOptions.queries'
 
 // GET societe/api/societe.php?id=X — a real, working endpoint discovered by
 // probing the same societe/api/* namespace the Customer List (list.php) and
@@ -173,12 +172,6 @@ interface RawSocieteProfile {
   default_lang: string
 }
 
-interface RawSocieteResponse {
-  ok: boolean
-  error?: string
-  profile: RawSocieteProfile
-}
-
 function mapProfile(raw: RawSocieteProfile): CustomerProfile {
   return {
     id: raw.id,
@@ -262,21 +255,27 @@ function mapProfile(raw: RawSocieteProfile): CustomerProfile {
   }
 }
 
-export function useCustomerDetail(id: string | undefined) {
+// One read of societe/fapi/get.php serves the profile block and the extended block + tags (the second hook below used to make its own
+// identical request). Both hooks share this query key and each picks its part with `select`, so the card makes one call, and a save that
+// invalidates ['customers', 'detail', id] refreshes both.
+interface ThirdPartyRecord {
+  profile: RawSocieteProfile
+  extended: ThirdPartyExtended
+  categories?: ThirdPartyExtra['categories']
+}
+function useThirdPartyRecord<T>(id: string | undefined, select: (d: ThirdPartyRecord) => T) {
   return useQuery({
     queryKey: ['customers', 'detail', id],
-    queryFn: async (): Promise<CustomerProfile> => {
-      const { data } = await axios.get<string>(`/societe/api/societe.php`, {
-        params: { id },
-        transformResponse: (raw) => raw,
-      })
-      const parsed: RawSocieteResponse = JSON.parse(data.trim())
-      if (!parsed.ok) throw new Error(parsed.error ?? 'Failed to load third party')
-      return mapProfile(parsed.profile)
-    },
+    queryFn: () => fapiGet<ThirdPartyRecord>('/societe/fapi/get.php', { id }),
+    select,
     enabled: !!id,
     staleTime: 1000 * 30,
   })
+}
+
+// societe/fapi/get.php carries the `profile` block this card maps (key-authenticated; societe/api/societe.php needs a PHP session).
+export function useCustomerDetail(id: string | undefined) {
+  return useThirdPartyRecord(id, (d): CustomerProfile => mapProfile(d.profile))
 }
 
 // Fields the Third-party tab's Edit mode lets a user change — the plain
@@ -328,13 +327,10 @@ export function useUploadCustomerDocument(socid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (file: File) => {
-      const { token } = await fetchSocieteFormContext()
       const form = new FormData()
-      form.append('token', token)
+      form.append('socid', socid ?? '')
       form.append('file', file)
-      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(`/societe/api/documents.php?socid=${socid}`, form, { validateStatus: () => true })
-      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to upload file')
-      return data
+      return fapi.post('/societe/fapi/documents.php', form, { params: { action: 'upload', socid } })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'documents'] })
@@ -342,30 +338,18 @@ export function useUploadCustomerDocument(socid: string | undefined) {
   })
 }
 
-// societe/api/notify.php?action=add — real INSERT into llx_notify_def,
-// confirmed by reading that file directly.
+// societe/fapi/notifications.php?action=add {socid, action_id, contact_id}
 export function useAddCustomerNotification(socid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (fields: { action_id: number; contact_id: number }) => {
-      const { token } = await fetchSocieteFormContext()
-      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
-        `/societe/api/notify.php?socid=${socid}`,
-        { token, action: 'add', ...fields },
-        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
-      )
-      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to add notification')
-      return data
-    },
+    mutationFn: async (fields: { action_id: number; contact_id: number }) => fapiPost('/societe/fapi/notifications.php', { socid: Number(socid), ...fields }, { action: 'add', socid }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'notifications'] })
     },
   })
 }
 
-// societe/api/paymentmodes.php — real INSERT into llx_societe_rib (or a real
-// CompanyBankAccount::create() when that class is present on this
-// deployment), confirmed by reading that file directly.
+// societe/fapi/payment_modes.php?action=create {socid, label, bank, number, iban, bic}
 export interface NewPaymentModeInput {
   label: string
   bank: string
@@ -377,16 +361,7 @@ export interface NewPaymentModeInput {
 export function useCreatePaymentMode(socid: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (fields: NewPaymentModeInput) => {
-      const { token } = await fetchSocieteFormContext()
-      const { data } = await axios.post<{ ok: boolean; error?: string; message?: string }>(
-        `/societe/api/paymentmodes.php?socid=${socid}`,
-        { token, action: 'create', ...fields },
-        { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true },
-      )
-      if (!data.ok) throw new Error(data.error ?? data.message ?? 'Failed to add payment mode')
-      return data
-    },
+    mutationFn: async (fields: NewPaymentModeInput) => fapiPost('/societe/fapi/payment_modes.php', { socid: Number(socid), ...fields }, { action: 'create', socid }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'paymentmodes'] })
     },
@@ -412,16 +387,7 @@ export interface ThirdPartyExtra {
 }
 
 export function useThirdPartyExtra(id: string | undefined) {
-  return useQuery({
-    queryKey: ['customers', 'extra', id],
-    queryFn: async (): Promise<ThirdPartyExtra> => {
-      const res = await fapi.get<{ data: { extended: ThirdPartyExtended; categories: ThirdPartyExtra['categories'] } }>('/societe/fapi/get.php', { params: { id } })
-      return { extended: res.data.data.extended, categories: res.data.data.categories ?? [] }
-    },
-    enabled: !!id,
-    staleTime: 1000 * 30,
-    retry: false,
-  })
+  return useThirdPartyRecord(id, (d): ThirdPartyExtra => ({ extended: d.extended, categories: d.categories ?? [] }))
 }
 
 // Quick edit's choices that are not plain text. Ids are the dropdowns' own values.

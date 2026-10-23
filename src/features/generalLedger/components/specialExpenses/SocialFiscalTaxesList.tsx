@@ -1,11 +1,13 @@
 import { Landmark } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
 import { LegacyListPage } from '../LegacyListPage'
+import { loadSocialCharges } from '../../specialPaymentsFapi'
 
 // compta/sociales/list.php — the real list of social/fiscal taxes.
 export function SocialFiscalTaxesList() {
   return (
     <LegacyListPage
+      load={loadSocialCharges}
       icon={Landmark}
       title="Social Or Fiscal Taxes"
       path="/compta/sociales/list.php"

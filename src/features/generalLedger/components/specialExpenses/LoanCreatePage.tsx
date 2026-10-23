@@ -1,5 +1,7 @@
 import { HandCoins } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
+import { saveLoan } from '../../specialPaymentsSave'
+import { loadLoanForm } from '../../specialMetaFapi'
 import { LegacyFormPage } from '../LegacyFormPage'
 
 // loan/card.php?action=create — the real "New loan" form; Save posts
@@ -7,6 +9,8 @@ import { LegacyFormPage } from '../LegacyFormPage'
 export function LoanCreatePage() {
   return (
     <LegacyFormPage
+      load={loadLoanForm}
+      save={saveLoan}
       icon={HandCoins}
       title="New Loan"
       path="/loan/card.php"

@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Package, Trash2, Eye, LoaderCircle, AlertTriangle } from 'lucide-react'
+import { Package, Plus, Trash2, Eye, LoaderCircle, AlertTriangle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
-import { usePackingList, useUpdatePackingDeliveryStatus, useDeletePacking, DELIVERY_STATUS_LABEL, type PackingRow } from '../packingList.queries'
+import { usePackingList, useUpdatePackingDeliveryStatus, useDeletePacking, useCreatePacking, DELIVERY_STATUS_LABEL, type PackingRow } from '../packingList.queries'
+import { useShipments } from '../warehouseExtras.queries'
+import { PackingDetailModal } from './PackingDetailModal'
 
 const COLUMNS = ['Sl.No', 'Ref.Id', 'Order Status', 'Packing Date', 'Update Delivery Status', 'Action']
 
@@ -40,6 +42,14 @@ export function PackingListPage() {
   const deletePacking = useDeletePacking()
   const confirm = useConfirm()
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [openPackId, setOpenPackId] = useState<number | null>(null)
+  const [newShipment, setNewShipment] = useState('')
+  const createPacking = useCreatePacking()
+  const shipments = useShipments()
+  // A shipment that already has a packing record cannot be given a second one.
+  const packedShipmentIds = new Set((rows ?? []).map((r) => String(r.shipmentId)))
+  const freeShipments = (shipments.data ?? []).filter((s) => !packedShipmentIds.has(String(s.id)))
+  const openRow = rows?.find((r) => r.packId === openPackId) ?? null
 
   async function handleDelete(packId: number) {
     if (!(await confirm({ title: 'Delete Packing Record?', message: 'Are you sure you want to delete this packing record?' }))) return
@@ -66,6 +76,31 @@ export function PackingListPage() {
           <p className="text-sm text-danger-fg">{deletePacking.error instanceof Error ? deletePacking.error.message : 'Could not delete this packing record.'}</p>
         </Card>
       )}
+
+      <Card className="!h-auto">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-text-faint">
+            Open a packing record for a shipment
+            <select value={newShipment} onChange={(e) => setNewShipment(e.target.value)} className="mt-1 block h-9 w-64 rounded-md border border-input-border bg-input-bg px-3 text-sm text-text">
+              <option value="">{shipments.isLoading ? 'Loading shipments…' : 'Choose a shipment…'}</option>
+              {freeShipments.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.ref}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={!newShipment || createPacking.isPending}
+            onClick={() => createPacking.mutate(Number(newShipment), { onSuccess: () => setNewShipment('') })}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {createPacking.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={14} />} Create
+          </button>
+        </div>
+        {createPacking.isError && <p role="alert" className="mt-2 text-sm text-danger">{createPacking.error instanceof Error ? createPacking.error.message : 'Could not create the packing record.'}</p>}
+      </Card>
 
       <Card className="!p-0 overflow-x-auto">
         <table className="w-full text-sm">
@@ -115,7 +150,7 @@ export function PackingListPage() {
                       >
                         {deletingId === r.packId ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       </button>
-                      <button type="button" disabled title="No Packing/Delivery detail page exists in this app yet" className="p-1.5 rounded-md text-text-faint opacity-40 cursor-not-allowed">
+                      <button type="button" onClick={() => setOpenPackId(r.packId)} title="Packers and printable packing list" className="p-1.5 rounded-md text-text-faint hover:bg-surface-hover hover:text-brand">
                         <Eye size={14} />
                       </button>
                     </div>
@@ -126,6 +161,7 @@ export function PackingListPage() {
           </tbody>
         </table>
       </Card>
+      {openRow && <PackingDetailModal row={openRow} onClose={() => setOpenPackId(null)} />}
     </div>
   )
 }
