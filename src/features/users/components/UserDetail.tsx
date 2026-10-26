@@ -2450,11 +2450,10 @@ export function UserDetail() {
   const [tab, setTab] = useState<Tab>('Overview')
   const [permModule, setPermModule] = useState<string | null>(null)
 
-  // "<zip> <town>, <country> - <state>" — countryLabel/stateLabel aren't
-  // part of userprofile/api/user.php's response (bare numeric ids only), so
-  // this reduces to whatever of zip/town is present, same honesty
-  // convention as the rest of this file.
-  const locationLabel = detail ? [detail.zip, detail.town].filter(Boolean).join(' ') : ''
+  // "<zip> <town>, <country> - <state>": whatever of the five the user has (userprofile/fapi/user.php names the country and the state).
+  const locationLabel = detail
+    ? [[[detail.zip, detail.town].filter(Boolean).join(' '), detail.countryLabel].filter(Boolean).join(', '), detail.stateLabel].filter(Boolean).join(' - ')
+    : ''
 
   if (isLoading) {
     return (
@@ -2594,7 +2593,7 @@ export function UserDetail() {
 
             <div className="flex items-center gap-1">
               <a
-                href={detail?.actions.canEmail ? detail.urls.email : undefined}
+                href={detail?.actions.canEmail && user.email ? `mailto:${user.email}` : undefined}
                 title={detail?.actions.canEmail ? 'Send by email' : 'No email on file'}
                 aria-disabled={!detail?.actions.canEmail}
                 className={`p-2 rounded-lg border border-border ${detail?.actions.canEmail ? 'text-text-faint hover:bg-surface-hover hover:text-brand' : 'text-text-faint/50 pointer-events-none'}`}

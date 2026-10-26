@@ -5,10 +5,9 @@ import { StickyListLayout, ScrollCard, STICKY_THEAD } from '../../../shared/comp
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { useExpenseReportsList, type ExpenseListFilters } from '../expenses.queries'
-import { parseParty } from '../expensePagesParser'
 import { controlCls } from '../expenseTable'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { PaidBadge, PartyHtml, PerPageSelect, SearchBox, SortTh, StatusBadge } from './expenseParts'
+import { PaidBadge, PartyLink, PerPageSelect, SearchBox, SortTh, StatusBadge } from './expenseParts'
 import { ROUTES } from '../../../routes'
 
 const STATUS_OPTIONS = [
@@ -21,8 +20,8 @@ const STATUS_OPTIONS = [
   { value: '99', label: 'Refused' },
 ]
 
-// The columns the endpoint can sort by (its `columns[].data` names). Linked To, Paid and Notes are not
-// sortable on the backend's own table either.
+// The columns the backend's own table sorts by (named like the item's fields; the fapi list takes the same names). Linked To, Paid and
+// Notes are not sortable on the backend's own table either.
 const COLUMNS: { key: string; label: string; sort?: string; align?: 'right' }[] = [
   { key: 'ref', label: 'Ref', sort: 'ref' },
   { key: 'linked', label: 'Linked To' },
@@ -49,7 +48,7 @@ function useDebounced<T>(value: T, ms = 300): T {
 }
 
 // expense/list.php: every expense report, searched, sorted and paged by the backend
-// (expense/ajax/expense_list.php), newest first.
+// (expense/fapi/list.php), newest first.
 export function ExpenseReportsList() {
   const [status, setStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -78,7 +77,7 @@ export function ExpenseReportsList() {
   // What is on screen, as the backend's Copy / CSV / Excel / Print / PDF buttons export it.
   const getExportData = () => ({
     headers: ['Ref', 'User', 'Start Date', 'End Date', 'Created', 'Amount HT', 'VAT', 'Amount TTC', 'Status', 'Notes'],
-    rows: rows.map((r) => [r.ref, parseParty(r.userHtml)?.name ?? r.user, r.dateStart, r.dateEnd, r.dateCreate, r.totalHt, r.totalTva, r.totalTtc, r.status, r.notes]),
+    rows: rows.map((r) => [r.ref, r.userParty?.name ?? r.user, r.dateStart, r.dateEnd, r.dateCreate, r.totalHt, r.totalTva, r.totalTtc, r.status, r.notes]),
   })
 
   return (
@@ -135,7 +134,7 @@ export function ExpenseReportsList() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={COLUMNS.length} className="px-4 py-8 text-center italic text-text-faint">
-                      {data.total === 0 ? 'No expense records available' : 'No matching records found'}
+                      {data.total === 0 && !status && !dateFrom && !dateTo && !search ? 'No expense records available' : 'No matching records found'}
                     </td>
                   </tr>
                 )}
@@ -147,10 +146,10 @@ export function ExpenseReportsList() {
                       </Link>
                     </td>
                     <td className="px-3 py-2">
-                      <PartyHtml html={r.linkedHtml} showIcon />
+                      <PartyLink party={r.linkedParty} showIcon />
                     </td>
                     <td className="px-3 py-2">
-                      <PartyHtml html={r.userHtml} avatar />
+                      <PartyLink party={r.userParty} avatar />
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateStart}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateEnd}</td>

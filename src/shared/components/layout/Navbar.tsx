@@ -116,8 +116,15 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
       if (e.target instanceof Element && e.target.closest('[data-navbar-layer]')) return
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpenPanel(null)
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenPanel(null)
+    }
     document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [openPanel])
 
   function togglePanel(name: PanelName) {
@@ -296,7 +303,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
           {openPanel === 'daily-summary' && <DailySummaryPanel onClose={closePanel} />}
         </div>
 
-        <div className="relative hidden lg:block">
+        <div className="relative hidden lg:block" ref={openPanel === 'pos' ? panelRef : undefined}>
           <IconButton
             title="POS"
             glow

@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createProductCategory, isMissingEndpoint, searchZraClassification } from '../../api/products'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS, WEIGHT_UNITS, type FormOption } from '../products/productConstants'
 
 // The "Add Products" flow of the ZRA module, wired to what the backend itself
 // uses (all confirmed live against 172.16.5.10 by reading custom/zra/
 // zra-import.php and the endpoints its own scripts call):
-//   - form options and their default selections: the page's own #productsForm
+//   - form options and their default selections: GET /product/fapi/form_options.php
 //     (countries, units, packaging, tax categories, warehouses, barcode types,
 //     accounts, tags/categories);
 //   - ASYCUDA prefill:   POST /quicklinks_ajax.php  type=get_importproduct;
@@ -18,10 +20,7 @@ import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAG
 // The old /api/zra/* and /api/products/create-full/ routes this used to call are
 // not on this backend.
 
-export interface FormOption {
-  value: string
-  label: string
-}
+export type { FormOption }
 
 const collapse = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
 
@@ -50,50 +49,80 @@ export interface ProductFormOptions {
   defaults: Record<string, string>
 }
 
-const PRODUCTS_FORM_PATH = '/custom/zra/zra-import.php'
-
-// Options that only mean "nothing chosen" on the real form.
-const NONE = new Set(['0', '-1'])
-
-export function parseProductForm(doc: Document): ProductFormOptions {
-  const form: ParentNode = doc.querySelector('#productsForm') ?? doc
-  const select = (name: string) => form.querySelector<HTMLSelectElement>(`select[name="${name}"]`)
-  const options = (name: string, dropNone = true): FormOption[] =>
-    Array.from(select(name)?.options ?? [])
-      .map((o) => ({ value: o.value, label: collapse(o.textContent) }))
-      .filter((o) => o.label !== '' && !(dropNone && NONE.has(o.value)))
-
-  const defaults: Record<string, string> = {}
-  for (const s of Array.from(form.querySelectorAll<HTMLSelectElement>('select[name]'))) {
-    if (!s.multiple) defaults[s.name] = s.value
+// product/fapi/form_options.php. Tax categories and unit lists carry the value the create
+// call still posts (legacy_value, e.g. "16 (A)", "69 (ACR)"), so that is what each option holds.
+interface FapiOption {
+  value: string | number
+  label: string
+  legacy_value?: string
+}
+interface FapiFormOptions {
+  countries?: FapiOption[]
+  categories?: FapiOption[]
+  warehouses?: FapiOption[]
+  barcode_types?: FapiOption[]
+  accounting_accounts?: FapiOption[]
+  natures?: FapiOption[]
+  measuring_units?: { weight?: FapiOption[]; size?: FapiOption[]; surface?: FapiOption[]; volume?: FapiOption[] }
+  zra?: {
+    vat_categories?: FapiOption[]
+    ipl_categories?: FapiOption[]
+    tl_categories?: FapiOption[]
+    excise_categories?: FapiOption[]
+    packaging_units?: FapiOption[]
+    quantity_units?: FapiOption[]
   }
-  for (const i of Array.from(form.querySelectorAll<HTMLInputElement>('input[name]'))) {
-    if (i.type === 'hidden') defaults[i.name] = i.value
+  defaults?: Record<string, unknown> & { accountancy?: { product?: Record<string, string> } }
+}
+
+export function mapProductFormOptions(d: FapiFormOptions): ProductFormOptions {
+  const list = (items: FapiOption[] | undefined, legacy = false): FormOption[] =>
+    (items ?? []).map((o) => ({ value: String(legacy && o.legacy_value ? o.legacy_value : o.value), label: collapse(o.label) })).filter((o) => o.label !== '')
+  // Scale codes of the weight/size/surface/volume selects. The endpoint returns these lists empty, so the app's own constants fill them.
+  const scale = (items: FapiOption[] | undefined, fallback: FormOption[]) => (items?.length ? list(items) : fallback)
+  const df = d.defaults ?? {}
+  const str = (v: unknown, fallback = '') => (v === undefined || v === null ? fallback : String(v))
+  const vat = list(d.zra?.vat_categories, true)
+
+  const defaults: Record<string, string> = {
+    statut: str(df.statut, '1'),
+    statut_buy: str(df.statut_buy, '1'),
+    finished: str(df.finished, '2'),
+    country_id: str(df.country_id),
+    price_base_type: str(df.create_form_price_base_type, 'TTC'),
+    // the endpoint names the pre-selected category by its legacy value ("16 (A)")
+    tva_tx: vat.some((o) => o.value === df.tva_tx) ? str(df.tva_tx) : '',
+    fk_barcode_type: str(df.fk_barcode_type),
+    weight_units: str(df.weight_units, '0'),
+    size_units: str(df.size_units, '0'),
+    surface_units: str(df.surface_units, '0'),
+    volume_units: str(df.volume_units, '0'),
   }
+  for (const [k, v] of Object.entries(df.accountancy?.product ?? {})) defaults[k] = str(v)
 
   return {
-    countries: options('country_id'),
-    units: options('units'),
-    packingUnits: options('packing'),
-    vatCategories: options('tva_tx'),
-    iplCategories: options('iplCatCd'),
-    tourismCategories: options('tlCatCd'),
-    exciseCategories: options('exciseTxCatCd'),
-    warehouses: options('fk_default_warehouse'),
-    barcodeTypes: options('fk_barcode_type'),
-    categories: options('categories[]', false),
-    accountingAccounts: options('accountancy_code_sell', false),
-    natures: options('finished'),
-    weightUnits: options('weight_units', false),
-    sizeUnits: options('size_units', false),
-    surfaceUnits: options('surface_units', false),
-    volumeUnits: options('volume_units', false),
+    countries: list(d.countries),
+    units: list(d.zra?.quantity_units, true),
+    packingUnits: list(d.zra?.packaging_units, true),
+    vatCategories: vat,
+    iplCategories: list(d.zra?.ipl_categories, true),
+    tourismCategories: list(d.zra?.tl_categories, true),
+    exciseCategories: list(d.zra?.excise_categories, true),
+    warehouses: list(d.warehouses),
+    barcodeTypes: list(d.barcode_types),
+    categories: list(d.categories),
+    accountingAccounts: list(d.accounting_accounts),
+    natures: list(d.natures),
+    weightUnits: scale(d.measuring_units?.weight, WEIGHT_UNITS),
+    sizeUnits: scale(d.measuring_units?.size, SIZE_UNITS),
+    surfaceUnits: scale(d.measuring_units?.surface, SURFACE_UNITS),
+    volumeUnits: scale(d.measuring_units?.volume, VOLUME_UNITS),
     defaults,
   }
 }
 
 const FORM_OPTIONS_KEY = ['zra', 'product-form-options'] as const
-const fetchFormOptions = async () => parseProductForm(await fetchLegacyDocument(PRODUCTS_FORM_PATH))
+const fetchFormOptions = async () => mapProductFormOptions(await fapiGet<FapiFormOptions>('/product/fapi/form_options.php'))
 
 export function useProductFormOptions() {
   return useQuery({

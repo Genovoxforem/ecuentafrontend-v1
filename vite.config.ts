@@ -51,6 +51,8 @@ const BACKEND_OWNED_PATHS = [
   '/payroll',
   '/payroll_v2',
   '/loan',
+  '/stripe',
+  '/ecm',
   '/expense',
   '/ticket',
   '/kitchen',
@@ -107,6 +109,23 @@ function htaccessPlugin(): Plugin {
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
+</IfModule>
+
+# Compression. A page of the invoice list is about 1.1 MB of JSON on a server that does not compress it (172.16.5.10 answers the
+# whole list, 24 MB, as plain text); gzipped it is a few tens of KB. The built files shrink from 7.8 MB to about 2.2 MB.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# Caching. Every built file has a hash in its name, so it never changes: keep it a year. index.html is checked on every visit, so a new
+# build is picked up at once.
+<IfModule mod_headers.c>
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+  <If "%{REQUEST_URI} == '/' || %{REQUEST_URI} == '/index.html'">
+    Header set Cache-Control "no-cache"
+  </If>
 </IfModule>
 `
       const outDir = path.resolve(import.meta.dirname, 'dist')
@@ -189,6 +208,9 @@ export default defineConfig({
             { name: 'vendor-charts', test: /node_modules\/recharts/ },
             { name: 'vendor-excel', test: /node_modules\/exceljs/ },
             { name: 'vendor-barcode', test: /node_modules\/(jsbarcode|qrcode)/ },
+            // One chunk for the icons: left alone, every lucide icon became its own tiny file and index.html preloaded 116 of them
+            // (126 of the 142 preloaded files were under 2.5 KB), a request each before the first page could draw.
+            { name: 'vendor-icons', test: /node_modules\/lucide-react/ },
           ],
         },
       },
@@ -268,6 +290,10 @@ export default defineConfig({
       // downloads. No React route starts with /imports, so a plain prefix
       // is safe.
       '^/imports(/|$)': proxyConfig(BACKEND_URL),
+      // Stripe's JSON API (/stripe/fapi/transactions.php, payouts.php). No React route starts with /stripe.
+      '^/stripe(/|$)': proxyConfig(BACKEND_URL),
+      // The ECM / document area's JSON API (/ecm/fapi/*). No React route starts with /ecm.
+      '^/ecm(/|$)': proxyConfig(BACKEND_URL),
       // Projects/Leads module (projet/*.php) and its tag/category creation
       // (categories/card.php?type=6) and vendor-proposal statistics
       // (comm/propal/stats/*) — same no-REST-API scrape pattern, see
@@ -348,6 +374,8 @@ export default defineConfig({
       // /payroll/ (/payroll/employee-award, …), so only the backend's PHP files
       // there are proxied — a browser refresh of an app route must reach the app.
       '^/payroll/[^/?]+\\.php(\\?|$)': proxyConfig(BACKEND_URL),
+      // payroll/fapi/<file>.php - the key-authenticated JSON mirror of the HRM pages (see features/payroll/hrm.api.ts).
+      '^/payroll/fapi/[^/?]+\\.php(\\?|$)': proxyConfig(BACKEND_URL),
       // Banking — loan/loan-sidebar-list-ajax.php (real JSON, Loan List) —
       // see banking.queries.ts. No React route starts with /loan, so a
       // plain prefix is safe, but anchored anyway.

@@ -1,7 +1,7 @@
-// custom/payroll_v2/admin/setup.php has no JSON API of its own (and the
-// payroll_v2/api/paye.php that would cover PAYE bands dies on a bad
-// require_once on the dev backends), so the Setup screen reads the classic
-// page's tabs and posts back to it, exactly as its own forms do.
+// What the Payroll V2 Setup screen still reads from the classic page (custom/payroll_v2/admin/setup.php): leave types with
+// their country and active flag, the countries list, the PAYE tax bands with their tax years, and the devices. The three
+// constant tabs (General, Statutory, Payslip sharing) come from payroll_v2/fapi/setup.php instead (see payrollSetup.queries.ts),
+// and the fapi has no answer yet for these four (no tax-year list, leave types without country/active, no devices endpoint).
 
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim()
 
@@ -16,8 +16,7 @@ function dataRows(doc: Document, header: string): HTMLTableCellElement[][] {
     .map((tr) => Array.from(tr.querySelectorAll('td')))
 }
 
-// ---- General / Statutory / Payslip sharing: one control per constant,
-// named after the constant in lower case (see $constants in setup.php).
+// ---- One constant of a settings tab (General / Statutory / Payslip sharing).
 
 export type SetupFieldType = 'text' | 'password' | 'checkbox' | 'select'
 
@@ -27,18 +26,6 @@ export interface SetupField {
   type: SetupFieldType
   value: string
   options: Array<{ value: string; label: string }>
-}
-
-export function parseSetupFields(doc: Document, labels: Array<{ key: string; label: string }>): SetupField[] {
-  return labels.map(({ key, label }) => {
-    const el = doc.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key.toLowerCase()}"]`)
-    if (el instanceof HTMLSelectElement) {
-      const options = Array.from(el.options, (o) => ({ value: o.value, label: text(o) }))
-      return { key, label, type: 'select', value: el.selectedOptions[0]?.value ?? el.options[0]?.value ?? '', options }
-    }
-    if (el?.type === 'checkbox') return { key, label, type: 'checkbox', value: el.hasAttribute('checked') ? '1' : '0', options: [] }
-    return { key, label, type: el?.type === 'password' ? 'password' : 'text', value: el?.getAttribute('value') ?? '', options: [] }
-  })
 }
 
 // ---- Leave types (c_holiday_types, every row — active or not)

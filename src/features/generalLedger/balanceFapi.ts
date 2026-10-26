@@ -5,8 +5,8 @@ import type { LegacyCell, LegacyTable } from './legacyTable'
 // accountancy/fapi/balance.php (22 Oct 2026): one row per accounting account for the date range, with its opening balance, the period's
 // debit and credit, the period balance and the closing balance, and the totals. Captured from newecuenta on 22 Oct 2026
 // (tests/fixtures/accountancy-balance.json). Filters checked live: the date range (date_start / date_end), search_ledger_code (journal)
-// and search_accountancy_code_start / _end all change the result; `journal` and `account_start` / `account_end` do not. The page only
-// uses the date range.
+// and search_accountancy_code_start / _end all change the result. Since 23 Oct 2026 the documented `journal`, `account_start` and
+// `account_end` filters work too (re-tested live), so the page offers a journal and an account range next to the date range.
 export interface FapiBalance {
   accounts: Array<{ numero_compte: string; account_label: string; opening_balance: number; debit: number; credit: number; balance: number; closing_balance: number }>
   totals: { opening_balance: number; debit: number; credit: number; balance: number; closing_balance: number }
@@ -41,5 +41,13 @@ export function mapBalanceFapi(data: FapiBalance): LegacyTable {
 }
 
 export async function loadAccountBalance(params: Record<string, string>): Promise<LegacyTable> {
-  return mapBalanceFapi(await fapiGet<FapiBalance>('/accountancy/fapi/balance.php', { date_start: isoFrom(params, 'date_start'), date_end: isoFrom(params, 'date_end') }))
+  return mapBalanceFapi(
+    await fapiGet<FapiBalance>('/accountancy/fapi/balance.php', {
+      date_start: isoFrom(params, 'date_start'),
+      date_end: isoFrom(params, 'date_end'),
+      journal: params.journal || undefined,
+      account_start: params.account_start || undefined,
+      account_end: params.account_end || undefined,
+    }),
+  )
 }

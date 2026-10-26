@@ -16,6 +16,7 @@ export function MiscPaymentsList() {
       addTo={{ label: 'New Miscellaneous Payments', to: ROUTES.ledgerMiscPaymentCreate }}
       linkFor={(header, cell) => {
         const id = new URLSearchParams((cell.href ?? '').split('?')[1] ?? '')
+        if (/^Ref/i.test(header) && cell.href?.includes('/various_payment/card.php')) return ROUTES.ledgerMiscPaymentDetail.replace(':id', id.get('id') ?? '')
         if (/^Bank account/i.test(header) && cell.href?.includes('/compta/bank/card.php')) return ROUTES.bankingAccountDetail.replace(':id', id.get('id') ?? '')
         if (/^Bank entry/i.test(header) && cell.href?.includes('/compta/bank/line.php')) return ROUTES.bankingEntryDetail.replace(':id', id.get('rowid') ?? '')
         return null

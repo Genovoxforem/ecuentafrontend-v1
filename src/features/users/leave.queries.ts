@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
-import { fetchLegacyDocument, fetchLegacyText, legacyMissingContentError, legacyRefusalMessages, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { fetchLegacyDocument, legacyMissingContentError, legacyRefusalMessages, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from '../generalLedger/bindLines.queries'
 import { parseLeaveCard, type LeaveCard } from './leaveCardParser'
-import { parseHolidayStats, parseHolidayRows, type HolidayStats, type HolidayRequestRow, type HolidayAjaxResponse } from './holidayParser'
+import type { HolidayStats, HolidayRequestRow } from './holidayParser'
+import { loadHolidayStats, loadLeaveRequests } from './leaveFapi'
 
 // Reused by the Payroll module (see modules/payroll/PayrollLeaveListModule.tsx
 // / PayrollLeaveRequestModule.tsx) rather than duplicated — this same data
@@ -43,21 +44,14 @@ export function useLeaveTypes() {
   })
 }
 
-// ── Holiday Management (holiday/list.php) — real data ───────────────────
-// Real: the 5 stat cards render server-side into list.php's own initial
-// HTML (not through the AJAX endpoint below), and the request table itself
-// is genuine server-side DataTables JSON from holiday/ajax_holiday_list.php
-// — both confirmed live (recordsTotal matched the "Leave Records" stat
-// card exactly, and search_status/datefilter both changed the returned
-// row set). See holidayParser.ts's own top comment for the exact shapes.
+// ── Holiday Management: the stat cards and the requests come from payroll/fapi/leave_list.php (leaveFapi.ts). The request, its card and
+// the create form are still the holiday/ pages (holiday/card.php): leave_detail.php is documented from code only, with no leave request on the
+// instance to compare its fields with the card, and its writers (create, approve, refuse, cancel) only answer a plan.
 
 export function useHolidayStats() {
   return useQuery({
     queryKey: ['users', 'holiday', 'stats'],
-    queryFn: async (): Promise<HolidayStats> => {
-      const doc = await fetchLegacyDocument('/holiday/list.php')
-      return parseHolidayStats(doc)
-    },
+    queryFn: (): Promise<HolidayStats> => loadHolidayStats(),
   })
 }
 
@@ -70,28 +64,10 @@ export interface HolidayListInput {
   status: HolidaySearchStatus
 }
 
-// yyyy-mm-dd -> MM/DD/YYYY, the real page's own daterangepicker format for
-// its combined `datefilter` field (confirmed live: "01/01/2026 - 12/31/2026").
-function toLegacyDateSlash(iso: string): string {
-  const [y, m, d] = iso.split('-')
-  return `${m}/${d}/${y}`
-}
-
 export function useHolidayRequests(input: HolidayListInput) {
   return useQuery({
     queryKey: ['users', 'holiday', 'list', input],
-    queryFn: async (): Promise<HolidayRequestRow[]> => {
-      const body = new URLSearchParams({
-        draw: '1',
-        start: '0',
-        length: '-1',
-        datefilter: `${toLegacyDateSlash(input.from)} - ${toLegacyDateSlash(input.to)}`,
-      })
-      if (input.status) body.set('search_status', input.status)
-      const text = await fetchLegacyText('/holiday/ajax_holiday_list.php', { method: 'POST', body })
-      const json = JSON.parse(text) as HolidayAjaxResponse
-      return parseHolidayRows(json)
-    },
+    queryFn: (): Promise<HolidayRequestRow[]> => loadLeaveRequests(input),
   })
 }
 

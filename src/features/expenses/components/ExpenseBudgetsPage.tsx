@@ -1,21 +1,51 @@
-import { useState } from 'react'
-import { PiggyBank, Info } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { PiggyBank, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useCreateBudget, useExpenseBudgets } from '../expenseTabs.queries'
+import { controlCls } from '../expenseTable'
+import type { Tone } from '../expenseTabsParser'
+import { Field, FormProblem } from './expenseParts'
 
-const inputCls = 'h-9 px-3 rounded-lg border border-input-border bg-surface-alt text-text-faint text-sm outline-none cursor-not-allowed'
+const BAR_CLS: Record<Tone, string> = {
+  danger: 'bg-danger-fg',
+  warning: 'bg-warning-fg',
+  success: 'bg-success-fg',
+  info: 'bg-info-fg',
+  primary: 'bg-brand',
+  none: 'bg-brand',
+}
 
-// Design only: expense/budgets.php is a genuine page (real SELECT/INSERT/
-// DELETE against llx_expense_budget), but unlike every other Expenses tab
-// it has NO JSON action at all — its create/delete forms are plain PHP POST
-// + redirect, gated by a real Dolibarr CSRF token minted server-side into
-// the page's own HTML on load. There's no fetchable API to wire against
-// without scraping that token out of a legacy page render, which this
-// app's standing rule rules out. It's also not in the SPA's own real nav
-// array (reachable only by direct URL even in the legacy app). Fields
-// below mirror the real form exactly; every control is inert.
+// expense/budgets.php: the budgets of a year and how much of each is used, and a form to add one. Reads and the create go through
+// expense/fapi/budgets.php (the create is a dry run until the call carries confirm: true, which this form sends). The classic page's
+// delete link has no documented body on the fapi, so none is offered here.
 export function ExpenseBudgetsPage() {
-  const currentYear = new Date().getFullYear()
-  const [year, setYear] = useState(String(currentYear))
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [label, setLabel] = useState('')
+  const [month, setMonth] = useState('')
+  const [amount, setAmount] = useState('')
+  const [department, setDepartment] = useState('')
+  const [branch, setBranch] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+  const { data, isLoading, isError, error, refetch } = useExpenseBudgets(year)
+  const create = useCreateBudget()
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!label.trim()) return setProblem('Enter the budget label.')
+    if (!(Number(amount.replace(/,/g, '')) > 0)) return setProblem('Enter a budget amount greater than zero.')
+    setProblem(null)
+    try {
+      await create.mutateAsync({ label, amount, year, month, department, branch })
+      setLabel('')
+      setAmount('')
+      setMonth('')
+      setDepartment('')
+      setBranch('')
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : 'Could not add the budget.')
+    }
+  }
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
@@ -26,64 +56,92 @@ export function ExpenseBudgetsPage() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 -mx-6 px-6 py-4 space-y-4">
-        <div className="flex items-start gap-2 rounded-lg border border-info-bg bg-info-bg/40 px-3 py-2 text-xs text-info-fg">
-          <Info size={14} className="shrink-0 mt-0.5" />
-          
-        </div>
-
         <Card className="!h-auto">
-          <h3 className="font-semibold text-text! mb-3">New Budget Entry</h3>
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-            <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-text-muted mb-1">Label</label>
-              <input disabled placeholder="Budget label" className={`${inputCls} w-full`} />
+          <form onSubmit={submit} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+              <Field label="Label *" className="md:col-span-2">
+                <input value={label} onChange={(e) => setLabel(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Year *">
+                <input value={year} onChange={(e) => setYear(e.target.value)} inputMode="numeric" className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Month">
+                <select value={month} onChange={(e) => setMonth(e.target.value)} className={`${controlCls} w-full`}>
+                  <option value="">All year</option>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={String(i + 1)}>
+                      {new Date(2000, i, 1).toLocaleString('en', { month: 'short' })}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Budget Amount *">
+                <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Department">
+                <input value={department} onChange={(e) => setDepartment(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
+              <Field label="Branch">
+                <input value={branch} onChange={(e) => setBranch(e.target.value)} className={`${controlCls} w-full`} />
+              </Field>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Year</label>
-              <input disabled value={year} onChange={(e) => setYear(e.target.value)} className={`${inputCls} w-full`} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Month</label>
-              <input disabled placeholder="1-12" className={`${inputCls} w-full`} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Budget Amount</label>
-              <input disabled placeholder="0.00" className={`${inputCls} w-full`} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-text-muted mb-1">Department</label>
-              <input disabled className={`${inputCls} w-full`} />
-            </div>
-          </div>
-          <button type="button" disabled className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand/40 px-4 py-2 text-sm font-medium text-white cursor-not-allowed">
-            Create Budget
-          </button>
+            <FormProblem message={problem} />
+            <button type="submit" disabled={create.isPending} className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
+              <Plus size={14} /> {create.isPending ? 'Adding…' : 'Add'}
+            </button>
+          </form>
         </Card>
 
-        <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-          <div className="flex-1 min-h-0 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-                  <th className="font-medium px-4 py-2.5">Label</th>
-                  <th className="font-medium px-4 py-2.5">Period</th>
-                  <th className="font-medium px-4 py-2.5">Budget Amount</th>
-                  <th className="font-medium px-4 py-2.5">Used Amount</th>
-                  <th className="font-medium px-4 py-2.5">Department</th>
-                  <th className="font-medium px-4 py-2.5">Branch</th>
-                  <th className="font-medium px-4 py-2.5">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={7} className="px-4 py-6 text-text-faint italic text-center">
-                    No live listing API on this backend for existing budgets — budgets.php renders its table as server-side HTML with no JSON source.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        {isLoading && <LegacyLoadingCard label="Loading budgets…" />}
+        {isError && <LegacyErrorCard title="Couldn't load the budgets" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+        {data && (
+          <Card className="!p-0 overflow-hidden flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+                    <th className="font-medium px-4 py-2.5">Label</th>
+                    <th className="font-medium px-4 py-2.5">Period</th>
+                    <th className="font-medium px-4 py-2.5">Department</th>
+                    <th className="font-medium px-4 py-2.5">Branch</th>
+                    <th className="font-medium px-4 py-2.5 text-right">Budget</th>
+                    <th className="font-medium px-4 py-2.5 text-right">Used</th>
+                    <th className="font-medium px-4 py-2.5">Progress</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-6 text-text-faint italic text-center">
+                        No budgets for {data.year}.
+                      </td>
+                    </tr>
+                  ) : (
+                    data.rows.map((b) => (
+                      <tr key={b.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-2 text-text!">{b.label}</td>
+                        <td className="px-4 py-2 text-text-muted">{b.period}</td>
+                        <td className="px-4 py-2 text-text-muted">{b.department || '-'}</td>
+                        <td className="px-4 py-2 text-text-muted">{b.branch || '-'}</td>
+                        <td className="px-4 py-2 text-right text-text-muted">{b.budget}</td>
+                        <td className="px-4 py-2 text-right text-text-muted">{b.used}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-28 overflow-hidden rounded-full bg-neutral-bg">
+                              <div className={`h-full ${BAR_CLS[b.tone]}`} style={{ width: `${Math.min(100, Math.max(0, b.pct))}%` }} />
+                            </div>
+                            <span className="text-xs text-text-muted">{b.pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   )

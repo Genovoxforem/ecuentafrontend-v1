@@ -1,4 +1,7 @@
-import type { FormOption } from '../zra/createProduct.queries'
+export interface FormOption {
+  value: string
+  label: string
+}
 
 // Dolibarr's "Nature of product" (llx_product.finished column) — 1=Raw
 // Material, 2=Finished Product, 3=Service. Confirmed against live DB

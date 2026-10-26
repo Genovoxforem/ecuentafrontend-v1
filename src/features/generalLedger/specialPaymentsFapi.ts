@@ -100,7 +100,7 @@ export function mapVariousPayments(d: FapiVariousPayments, params: Record<string
   return {
     headers: ['Ref', 'Label', 'Payment date', 'Value date', 'Payment type', 'Number', 'Bank account', 'Account', 'Subledger account', 'Debit', 'Credit'],
     filters: [textFilter('search_ref', params), textFilter('search_label', params), null, null, null, null, null, textFilter('search_accountancy_account', params), textFilter('search_accountancy_subledger', params), textFilter('search_amount_deb', params), textFilter('search_amount_cred', params)],
-    rows: d.items.map((v) => [cell(v.ref), cell(v.label), cell(v.date_payment), cell(v.date_value), cell(v.payment_type_code), cell(v.num_payment), cell(bank(v.bank_account)), cell(v.accountancy_code), cell(v.subledger_account), cell(v.debit ? money(v.debit) : ''), cell(v.credit ? money(v.credit) : '')]),
+    rows: d.items.map((v) => [{ ...cell(v.ref), href: `/compta/bank/various_payment/card.php?id=${v.id}` }, cell(v.label), cell(v.date_payment), cell(v.date_value), cell(v.payment_type_code), cell(v.num_payment), cell(bank(v.bank_account)), cell(v.accountancy_code), cell(v.subledger_account), cell(v.debit ? money(v.debit) : ''), cell(v.credit ? money(v.credit) : '')]),
     totals: d.items.length ? [[cell('Total'), ...Array(8).fill(cell('')), cell(money(d.totals.debit)), cell(money(d.totals.credit))]] : [],
     fields: {},
   }

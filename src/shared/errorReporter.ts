@@ -33,5 +33,7 @@ export function setErrorReporter(reporter: ErrorReporterFn): void {
 
 // Main entry point — call from any error path.
 export function reportError(error: Error, context: ErrorContext): void {
+  // An aborted request (AbortSignal / axios cancel) is the app's own doing, not a fault worth reporting.
+  if (error?.name === 'CanceledError' || error?.name === 'AbortError') return
   activeReporter(error, context)
 }

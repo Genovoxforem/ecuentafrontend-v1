@@ -88,10 +88,10 @@ export function toCustomerListRow(item: CustomerListApiRow): ThirdPartyRow {
 export function useCustomersSummary() {
   return useQuery({
     queryKey: ['customers', 'summary'],
-    queryFn: async (): Promise<CustomersSummary> => {
+    queryFn: async ({ signal }): Promise<CustomersSummary> => {
       const [items, summary] = await Promise.all([
-        fetchAllPages((page) => fetchThirdParties({ type: 'customer', limit: 100, page, sort: 'name', direction: 'asc' })),
-        fetchThirdPartySummary('customer'),
+        fetchAllPages((page) => fetchThirdParties({ type: 'customer', limit: 100, page, sort: 'name', direction: 'asc' }, signal)),
+        fetchThirdPartySummary('customer', signal),
       ])
       const rows: ThirdPartyRow[] = items.map(toThirdPartyRow)
       return {

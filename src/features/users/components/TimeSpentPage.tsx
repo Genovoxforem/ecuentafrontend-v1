@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Hourglass, UserPlus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useTimeSpent, type TimeSpentPeriod } from '../timeSpentFapi'
 
-type ViewMode = 'month' | 'week' | 'day'
-const VIEWS: { id: ViewMode; label: string }[] = [
+const VIEWS: { id: TimeSpentPeriod; label: string }[] = [
   { id: 'month', label: 'Input Per Month' },
   { id: 'week', label: 'Input Per Week' },
   { id: 'day', label: 'Input Per Day' },
@@ -11,13 +12,8 @@ const VIEWS: { id: ViewMode; label: string }[] = [
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-// Monday-start week containing `d`.
-function startOfWeek(d: Date) {
-  const day = (d.getDay() + 6) % 7
-  const start = new Date(d)
-  start.setDate(d.getDate() - day)
-  return start
-}
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const fromIso = (value: string) => new Date(`${value}T00:00:00`)
 
 function fmtLabel(d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: '2-digit', day: '2-digit', year: 'numeric' })
@@ -27,20 +23,13 @@ function fmtShort(d: Date) {
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`
 }
 
-// No task/project time-tracking endpoint exists on this backend — same gap
-// as agenda/leave. The real reference app's own demo account shows this
-// exact "no assigned tasks" empty state too (nothing to fabricate), so this
-// reproduces that honestly rather than inventing task rows.
+// The classic "Time Spent Details" (the HRM timesheet): the tasks assigned to the user with the time spent on each day of the chosen day,
+// week or month, from userprofile/fapi/time_spent.php. Choosing a task, assigning one to yourself and saving time have no fapi writer, so those
+// controls stay disabled and the time boxes only show what is recorded.
 export function TimeSpentPage() {
-  const [view, setView] = useState<ViewMode>('week')
+  const [view, setView] = useState<TimeSpentPeriod>('week')
   const [anchor, setAnchor] = useState(new Date())
-
-  const weekStart = startOfWeek(anchor)
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
-    return d
-  })
+  const { data, isLoading, isError, error, refetch } = useTimeSpent(view, iso(anchor))
 
   function shift(delta: number) {
     const d = new Date(anchor)
@@ -82,13 +71,13 @@ export function TimeSpentPage() {
           <select disabled className={`text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-2 py-1.5 flex-1 min-w-40`}>
             <option>-- Choose a task… --</option>
           </select>
-          <button type="button" disabled title="No tasks assigned yet" className="text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-3 py-1.5">
+          <button type="button" disabled title="Not available: the timesheet API has no writer" className="text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-3 py-1.5">
             Task executive
           </button>
           <button
             type="button"
             disabled
-            title="No project/task backend exists yet"
+            title="Not available: the timesheet API has no writer"
             className="flex items-center gap-1.5 rounded-md bg-brand/60 px-3 py-1.5 text-sm font-medium text-white cursor-not-allowed"
           >
             <UserPlus size={14} /> Assign task to me
@@ -97,14 +86,17 @@ export function TimeSpentPage() {
             <button type="button" onClick={() => shift(-1)} className="p-1 rounded hover:bg-surface-hover">
               <ChevronLeft size={16} />
             </button>
-            <span className="font-medium text-text!">{view === 'week' ? fmtLabel(weekDays[0]) : fmtLabel(anchor)}</span>
+            <span className="font-medium text-text!">{fmtLabel(data && view === 'week' ? fromIso(data.start) : anchor)}</span>
             <button type="button" onClick={() => shift(1)} className="p-1 rounded hover:bg-surface-hover">
               <ChevronRight size={16} />
             </button>
           </div>
         </div>
 
-        {view === 'week' ? (
+        {isLoading && <LegacyLoadingCard label="Loading the timesheet…" />}
+        {isError && <LegacyErrorCard title="Couldn't load the timesheet" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
+        {data && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -114,37 +106,60 @@ export function TimeSpentPage() {
                   <th className="font-medium px-3 py-2.5">Declared Real Progress</th>
                   <th className="font-medium px-3 py-2.5">Time Spent Everybody</th>
                   <th className="font-medium px-3 py-2.5">Time Spent (you)</th>
-                  {weekDays.map((d) => (
-                    <th key={d.toISOString()} className="font-medium px-3 py-2.5 text-center whitespace-nowrap">
-                      {DAY_NAMES[(d.getDay() + 6) % 7]} <br /> {fmtShort(d)}
-                    </th>
-                  ))}
+                  {data.dayColumns.map((day) => {
+                    const d = fromIso(day)
+                    return (
+                      <th key={day} className="font-medium px-3 py-2.5 text-center whitespace-nowrap">
+                        {DAY_NAMES[(d.getDay() + 6) % 7]} <br /> {fmtShort(d)}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-border font-semibold">
-                  <td className="px-3 py-2.5 text-text!" colSpan={5}>
-                    Total – Expected Worked Hours Per Week: 0
+                  <td className="px-3 py-2.5 text-text!" colSpan={3}>
+                    Total
                   </td>
-                  {weekDays.map((d) => (
-                    <td key={d.toISOString()} className="px-3 py-2.5 text-center">
-                      <input disabled value="00:00" className="w-16 text-center rounded border border-input-border bg-input-bg text-text-faint text-xs py-1" />
+                  <td className="px-3 py-2.5 text-text!">{data.everybody}</td>
+                  <td className="px-3 py-2.5 text-text!">{data.you}</td>
+                  {data.dayColumns.map((day) => (
+                    <td key={day} className="px-3 py-2.5 text-center">
+                      <input disabled value={data.dayTotals[day] ?? '00:00'} className="w-16 text-center rounded border border-input-border bg-input-bg text-text-faint text-xs py-1" />
                     </td>
                   ))}
                 </tr>
-                <tr>
-                  <td className="px-3 py-3 text-text-faint italic" colSpan={5 + 7}>
-                    No Assigned Tasks Found (assign a project/task to yourself above to enter time on it)
-                  </td>
-                </tr>
+                {data.rows.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-3 text-text-faint italic" colSpan={5 + data.dayColumns.length}>
+                      No Assigned Tasks Found (assign a project/task to yourself above to enter time on it)
+                    </td>
+                  </tr>
+                ) : (
+                  data.rows.map((r) => (
+                    <tr key={r.taskId} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2.5 text-text!">
+                        <p>{r.task}</p>
+                        {r.project && <p className="text-xs text-text-faint">{r.project}</p>}
+                      </td>
+                      <td className="px-3 py-2.5 text-text-muted">{r.planned}</td>
+                      <td className="px-3 py-2.5 text-text-muted">{r.progress}</td>
+                      <td className="px-3 py-2.5 text-text-muted">{r.everybody}</td>
+                      <td className="px-3 py-2.5 text-text-muted">{r.you}</td>
+                      {data.dayColumns.map((day) => (
+                        <td key={day} className="px-3 py-2.5 text-center">
+                          <input disabled value={r.days[day] ?? '00:00'} className="w-16 text-center rounded border border-input-border bg-input-bg text-text-faint text-xs py-1" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        ) : (
-          <p className="text-sm text-text-faint italic py-8 text-center">No Assigned Tasks Found for this {view === 'month' ? 'month' : 'day'}.</p>
         )}
 
-        <button type="button" disabled className="mt-4 rounded-lg bg-brand/60 px-4 py-2 text-sm font-medium text-white cursor-not-allowed">
+        <button type="button" disabled title="Not available: the timesheet API has no writer" className="mt-4 rounded-lg bg-brand/60 px-4 py-2 text-sm font-medium text-white cursor-not-allowed">
           Save
         </button>
       </Card>

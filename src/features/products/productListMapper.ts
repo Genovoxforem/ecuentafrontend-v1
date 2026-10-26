@@ -32,6 +32,7 @@ export function richRowFromListItem(item: ProductListItem): RichProductRow {
     productUrl: `/product/card.php?id=${item.id}`,
     category: item.categories.map((c) => c.label).join(', '),
     price: Number.isFinite(Number(shownPrice)) ? Number(shownPrice).toFixed(2) : '',
+    priceBaseType: item.price_base_type === 'TTC' ? 'TTC' : 'HT',
     stockDesired: Number(item.desired_stock) || 0,
     stockReserved: Number(item.total_reserved) || 0,
     stockPhysical: Number(item.stock) || 0,

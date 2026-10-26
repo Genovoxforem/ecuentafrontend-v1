@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { parseApprovals, parseExpenseCreateForm, parseExpenseDashboard, parsePayments, type ApprovalRow, type ExpenseCreateForm, type ExpenseDashboard, type PaymentRow } from './expensePagesParser'
+import { parseExpenseCreateForm, type ApprovalRow, type ExpenseCreateForm, type ExpenseDashboard, type PaymentRow } from './expensePagesParser'
+import { loadApprovals, loadOverview, loadPayments } from './expenseFapi'
 
-// The expense module's own tabs are PHP pages the backend serves as `{ success, html }` from
-// expense/api/expense_content.php?action=<tab>&ajax=1 (the same call its own tab bar makes).
+// The dashboard, approvals and payments come from expense/fapi/content.php (expenseFapi.ts). The New Expense form's own dropdowns (VAT
+// rates, products, projects, ...) and the card are still the PHP pages the backend serves as `{ success, html }` from
+// expense/api/expense_content.php?action=<tab>&ajax=1 (the same call its own tab bar makes): the fapi has no feed for them.
 export type Tab = 'overview' | 'approvals' | 'payments' | 'create' | 'card' | 'advances' | 'reimbursements' | 'repayments' | 'recurring' | 'reports' | 'analytics'
 
 export async function fetchExpenseFragment(tab: Tab, id?: string, params?: Record<string, string>): Promise<string> {
@@ -26,21 +28,21 @@ export async function fetchExpenseFragment(tab: Tab, id?: string, params?: Recor
 export function useExpenseDashboard() {
   return useQuery({
     queryKey: ['expenses', 'page', 'overview'],
-    queryFn: async (): Promise<ExpenseDashboard> => parseExpenseDashboard(await fetchExpenseFragment('overview')),
+    queryFn: (): Promise<ExpenseDashboard> => loadOverview(),
   })
 }
 
 export function useExpenseApprovals() {
   return useQuery({
     queryKey: ['expenses', 'page', 'approvals'],
-    queryFn: async (): Promise<ApprovalRow[]> => parseApprovals(await fetchExpenseFragment('approvals')),
+    queryFn: (): Promise<ApprovalRow[]> => loadApprovals(),
   })
 }
 
 export function useExpensePayments() {
   return useQuery({
     queryKey: ['expenses', 'page', 'payments'],
-    queryFn: async (): Promise<{ rows: PaymentRow[]; note: string }> => parsePayments(await fetchExpenseFragment('payments')),
+    queryFn: (): Promise<{ rows: PaymentRow[]; note: string }> => loadPayments(),
   })
 }
 

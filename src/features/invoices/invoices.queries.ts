@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapiGet } from '../../api/fapiEnvelope'
 import { api } from '../../api/axios'
+import { loadRemainingPages } from '../../api/paging'
 import { fetchInvoices, type InvoiceListParams, type InvoiceRow as FapiInvoiceRow } from '../../api/invoices'
 import { fapiInvoiceToRow, type InvoiceListLookups } from './invoiceListMapper'
 
@@ -59,22 +60,21 @@ export interface InvoicesSummary {
 //
 // Credit notes are a separate query (`type=2`): the default list leaves them
 // out, while the classic list shows them with the other invoices.
-async function fetchEveryInvoice(params: InvoiceListParams): Promise<FapiInvoiceRow[]> {
-  const items: FapiInvoiceRow[] = []
-  for (let page = 1; ; page++) {
-    const result = await fetchInvoices({ ...params, page, limit: 1000 })
-    items.push(...result.items)
-    if (result.items.length === 0 || page >= result.pagination.pages) return items
-  }
+// The first page carries the page count; the rest load a few at a time, in page order.
+async function fetchEveryInvoice(params: InvoiceListParams, signal?: AbortSignal): Promise<FapiInvoiceRow[]> {
+  const first = await fetchInvoices({ ...params, page: 1, limit: 1000 }, signal)
+  if (first.items.length === 0) return first.items
+  const rest = await loadRemainingPages(first.pagination.pages, async (page) => (await fetchInvoices({ ...params, page, limit: 1000 }, signal)).items)
+  return first.items.concat(...rest)
 }
 
 // Payment-type names and user ids/photos are not in the invoice rows. A lookup
 // that fails only blanks that column (payment type) or the author's link and
 // photo — it never fails the list.
-async function fetchListLookups(): Promise<InvoiceListLookups> {
+async function fetchListLookups(signal?: AbortSignal): Promise<InvoiceListLookups> {
   const [modes, users] = await Promise.allSettled([
-    fapiGet<{ mode_options: Array<{ id: number; label: string }> }>('/compta/facture/fapi/form_settings.php'),
-    fapiGet<{ items?: Array<{ id: number; login: string; photo?: string }> }>('/core/fapi/users.php', { limit: 500 }),
+    fapiGet<{ mode_options: Array<{ id: number; label: string }> }>('/compta/facture/fapi/form_settings.php', undefined, signal),
+    fapiGet<{ items?: Array<{ id: number; login: string; photo?: string }> }>('/core/fapi/users.php', { limit: 500 }, signal),
   ])
   const paymentModes = new Map<number, string>()
   if (modes.status === 'fulfilled') for (const m of modes.value.mode_options) paymentModes.set(m.id, m.label)
@@ -88,8 +88,8 @@ async function fetchListLookups(): Promise<InvoiceListLookups> {
 // third parties; Paid / Unpaid are the sums of the paid rows and the
 // validated-but-owing rows — on 172.16.5.10 that gives 113,654.00 and 1,425.00,
 // exactly the classic screen's own cards.
-export async function fetchInvoicesSummary(): Promise<InvoicesSummary> {
-  const [invoices, creditNotes, lookups] = await Promise.all([fetchEveryInvoice({}), fetchEveryInvoice({ type: 2 }), fetchListLookups()])
+export async function fetchInvoicesSummary(signal?: AbortSignal): Promise<InvoicesSummary> {
+  const [invoices, creditNotes, lookups] = await Promise.all([fetchEveryInvoice({}, signal), fetchEveryInvoice({ type: 2 }, signal), fetchListLookups(signal)])
   const rows = [...invoices, ...creditNotes]
     .map((item) => fapiInvoiceToRow(item, lookups))
     .sort((a, b) => (a.invoiceDate === b.invoiceDate ? b.id - a.id : a.invoiceDate < b.invoiceDate ? 1 : -1))
@@ -104,7 +104,7 @@ export async function fetchInvoicesSummary(): Promise<InvoicesSummary> {
 }
 
 export function useInvoicesSummary() {
-  return useQuery({ queryKey: ['invoices', 'summary'], queryFn: fetchInvoicesSummary, staleTime: 1000 * 60 })
+  return useQuery({ queryKey: ['invoices', 'summary'], queryFn: ({ signal }) => fetchInvoicesSummary(signal), staleTime: 1000 * 60 })
 }
 
 // POST /api/invoices/mark_paid.php — real, confirmed endpoint (read

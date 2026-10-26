@@ -1064,13 +1064,7 @@ export function useHotelSaveFeatureFull() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'features'] }),
   })
 }
-export function useHotelSaveService() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ token, ...fields }: SaveServiceInput) => hotelPost('saveservice', fields, token),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'features'] }),
-  })
-}
+
 export function useHotelDelFeature() {
   const qc = useQueryClient()
   return useMutation({

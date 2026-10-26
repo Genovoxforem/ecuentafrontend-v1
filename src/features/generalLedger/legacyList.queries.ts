@@ -24,18 +24,3 @@ export function useLegacyList(path: string, firstHeader: RegExp, params: Record<
     placeholderData: keepPreviousData,
   })
 }
-
-// Same, for pages that print several tables under the same header (dashboards).
-export function useLegacyTables(path: string, firstHeader: RegExp, params: Record<string, string>, hasHeader?: RegExp) {
-  return useQuery({
-    queryKey: ['generalLedger', 'legacyTables', path, firstHeader.source, hasHeader?.source, params],
-    queryFn: async (): Promise<LegacyTable[]> => {
-      const doc = await fetchLegacyDocument(path, new URLSearchParams(params))
-      const tables = readAllLegacyTables(doc, firstHeader, Infinity, hasHeader)
-      if (tables.length === 0) throw legacyMissingContentError(doc, 'The tables on this backend page were not recognised.')
-      return tables
-    },
-    staleTime: 0,
-    placeholderData: keepPreviousData,
-  })
-}

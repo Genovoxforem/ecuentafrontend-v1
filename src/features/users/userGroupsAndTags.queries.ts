@@ -1,18 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { loadUserGroup, loadUserGroups } from './userGroupsFapi'
 
 // Real, live-verified endpoints — read directly from user/group/list.php,
 // user/group/ajax_group.php, and categories/tag-sidebarlist-ajax.php (all
 // read-only, per this app's frontend-only scope):
 //
-// - user/group/list.php itself (the reference "List of Groups" card grid)
-//   has NO JSON API at all — it's server-rendered HTML computing a real
-//   per-group member count + avatar stack via a llx_usergroup_user join
-//   that exists nowhere else as JSON. Per this app's "only integrate real
-//   APIs, never scrape HTML" rule, that specific number isn't reproduced
-//   here — the list below shows real id/name/creation-date instead (from
-//   user-groups-sidebarlist-ajax.php, a real DataTables JSON endpoint) and
-//   honestly omits the per-group user count rather than fabricating or
-//   scraping it.
+// - The group list and one group (members and permission matrix) come from user/group/fapi (userGroupsFapi.ts).
 // - user/group/ajax_group.php's create_group action IS a real, complete
 //   JSON create endpoint (confirmed by reading its source): it calls the
 //   same UserGroup->create($user) the legacy "New Group" modal/page use,
@@ -32,30 +25,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 //   a JSON API, so tag creation stays a "create in legacy system" link
 //   rather than a fabricated in-app form.
 
-export interface UserGroupRow {
-  id: number
-  name: string
-  createdAt: string
-}
+export type { UserGroupRow } from './userGroupsFapi'
 
-interface RawSidebarListResponse {
-  recordsTotal: string
-  recordsFiltered: string
-  data: Array<{ rowid: string; nom: string; label: string | null; phone: string | null }>
-}
-
+// user/group/fapi/list.php: every group with its member count (the older user-groups-sidebarlist-ajax.php had none).
 export function useUserGroupsList() {
   return useQuery({
     queryKey: ['users', 'groups', 'list'],
-    queryFn: async (): Promise<UserGroupRow[]> => {
-      const res = await fetch('/user/group/user-groups-sidebarlist-ajax.php?draw=1&start=0', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawSidebarListResponse = await res.json()
-      return data.data
-        .map((r) => ({ id: Number(r.rowid), name: r.nom, createdAt: r.phone ?? '' }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-    },
+    queryFn: () => loadUserGroups(),
     staleTime: 1000 * 30,
+  })
+}
+
+// user/group/fapi/group.php: one group with its members and the permission matrix.
+export function useUserGroup(id: string | undefined) {
+  return useQuery({
+    queryKey: ['users', 'groups', 'detail', id],
+    queryFn: () => loadUserGroup(id as string),
+    enabled: !!id,
   })
 }
 

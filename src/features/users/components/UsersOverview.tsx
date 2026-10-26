@@ -185,7 +185,7 @@ export function UsersOverview({ summary }: { summary: UsersSummary }) {
       <div className="flex-1 flex flex-col min-h-0 space-y-3 px-6 py-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2">
           <StatCard label="Total Users" value={summary.totalUsers} caption="All user records" icon={Users} color="blue" />
-          <StatCard label="Admins" value={summary.admins} caption="Admin users" icon={Crown} color="indigo" />
+          <StatCard label="Admins" value={summary.posUsers === undefined || summary.kotUsers === undefined ? summary.admins : `${summary.admins} | POS: ${summary.posUsers} | KOT: ${summary.kotUsers}`} caption="Admin users" icon={Crown} color="indigo" />
           <StatCard label="Super Admin" value={summary.superAdmins} caption="Top-level admins" icon={Crown} color="amber" />
           <StatCard label="Active Users" value={summary.activeUsers} caption="Enabled accounts" icon={UserCheck} color="green" />
           <StatCard label="Today Login Users" value={summary.todayLoginUsers} caption="Logged in today" icon={CalendarCheck} color="cyan" />

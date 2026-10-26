@@ -8,6 +8,8 @@ export interface RichProductRow {
   productUrl: string | null
   category: string
   price: string
+  // Which price `price` is: the product's own base (the list shows it as "45.00 Inc. Tax" like the classic list).
+  priceBaseType: 'HT' | 'TTC'
   stockDesired: number
   stockReserved: number
   stockPhysical: number

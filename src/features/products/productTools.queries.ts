@@ -32,6 +32,7 @@ import {
   type StockAtDateParams,
   type UnixTime,
 } from '../../api/products'
+import { loadRemainingPages } from '../../api/paging'
 import { formatDate } from '../../utils/format'
 import type { ProductStatSeries, StockByLotRow } from './productTypes'
 
@@ -181,9 +182,8 @@ export function useStockByLotRows() {
     queryFn: () =>
       (async () => {
           const first = await listStockByLot({ page: 1, limit: 500 })
-          const items = [...first.items]
-          for (let page = 2; page <= first.pagination.pages; page++) items.push(...(await listStockByLot({ page, limit: 500 })).items)
-          return items.map(lotStockRowFromApi)
+          const rest = await loadRemainingPages(first.pagination.pages, async (page) => (await listStockByLot({ page, limit: 500 })).items)
+          return first.items.concat(...rest).map(lotStockRowFromApi)
         })(),
     staleTime: 1000 * 30,
     retry: false,

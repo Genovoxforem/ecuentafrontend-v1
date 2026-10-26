@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Eye, FileDown, LoaderCircle } from 'lucide-react'
+import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useHotelInvoices, useHotelCreditNotes, useHotelInvZraSync, useHotelToken, fetchHotelInvoicePdfUrl } from '../hotel.queries'
@@ -8,7 +9,7 @@ const STATUS_TAG: Record<number, string> = { 0: 'bg-neutral-bg text-neutral-fg',
 const STATUS_LABEL: Record<number, string> = { 0: 'Draft', 1: 'Unpaid', 3: 'Void' }
 
 function openInvoiceCard(id: string) {
-  window.open(`/compta/facture/card.php?facid=${id}&save_lastsearch_values=1`, '_blank', 'noopener')
+  window.open(ROUTES.invoiceDetail.replace(':id', id), '_blank', 'noopener')
 }
 // r=invoicepdf&booking=X — keyed by booking number, not invoice id.
 async function viewInvoicePdf(bnum: string | null) {
@@ -24,7 +25,7 @@ async function viewInvoicePdf(bnum: string | null) {
   }
 }
 
-// Real Invoices & Folios / Credit Notes view. "View invoice" opens the real Dolibarr invoice card.
+// Real Invoices & Folios / Credit Notes view. "View invoice" opens the invoice page of this app.
 export function HotelInvoices() {
   const { data: token } = useHotelToken()
   const [tab, setTab] = useState<'inv' | 'cn'>('inv')

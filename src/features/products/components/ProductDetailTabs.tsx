@@ -39,6 +39,7 @@ import {
   UserRound,
   DollarSign,
 } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, ICON_STYLES } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
@@ -46,9 +47,12 @@ import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/fo
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
 import { isBackendUnavailable, isBackendActionUnavailable, BackendUnavailableCard } from '../../../shared/components/BackendUnavailable'
 import {
+  useProductDetail,
   useProductDocuments,
   useUploadProductDocument,
   useDeleteProductDocument,
+  useLinkProductDocument,
+  useDeleteProductDocumentLink,
   useProductMargins,
   useProductStockOverview,
   useSetStockField,
@@ -94,6 +98,7 @@ import {
   ModalShell,
   ModalField,
   modalInputCls,
+  sameOriginPath,
   type Tab,
 } from './ProductDetailShared'
 
@@ -117,16 +122,6 @@ function BatchTrackingButton({ id, enabled }: { id: string; enabled: boolean }) 
       {error && <span role="alert" className="text-xs text-danger">{error}</span>}
     </span>
   )
-}
-
-// The backend returns document links as a path (or a full backend address). Both are
-// served through this app's own origin (the dev proxy / the deployed site), so the file
-// downloads in place with the user's session instead of opening the backend's address
-// in another tab.
-function sameOriginPath(url: string): string {
-  if (!/^https?:\/\//i.test(url)) return url.startsWith('/') ? url : `/${url}`
-  const u = new URL(url)
-  return `${u.pathname}${u.search}${u.hash}`
 }
 
 function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPriceOverview; onClose: () => void }) {
@@ -782,7 +777,7 @@ function StockTab({ id }: { id: string | undefined }) {
             </thead>
             <tbody>
               {data.warehouses.length === 0 ? (
-                <EmptyRow span={6} label="No warehouse stock." />
+                <EmptyRow span={6} label="No Warehouse Stock Data" />
               ) : (
                 data.warehouses.map((w) => (
                   <tr key={w.id} className="border-b border-border last:border-0">
@@ -807,8 +802,7 @@ function StockTab({ id }: { id: string | undefined }) {
                 ))
               )}
             </tbody>
-            {data.warehouses.length > 0 && (
-              <tfoot>
+            <tfoot>
                 <tr className="border-t border-border">
                   <Td>Total:</Td>
                   <Td right>{formatNumber(data.totals.totalQty)}</Td>
@@ -825,8 +819,7 @@ function StockTab({ id }: { id: string | undefined }) {
                     {data.totals.totalValueSell || '—'}
                   </Td>
                 </tr>
-              </tfoot>
-            )}
+            </tfoot>
           </table>
         </div>
       </Card>
@@ -848,7 +841,7 @@ function StockTab({ id }: { id: string | undefined }) {
             </thead>
             <tbody>
               {data.movements.length === 0 ? (
-                <EmptyRow span={5} label="No recent movements." />
+                <EmptyRow span={5} label="No Recent Movements" />
               ) : (
                 data.movements.map((m) => (
                   <tr key={m.id} className="border-b border-border last:border-0">
@@ -961,12 +954,18 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <MetricTile icon={Layers} color="blue" label="Attributes" value={data.attributes.length} />
+        <MetricTile icon={Boxes} color="green" label="Variants" value={data.combinations.length} />
+        <MetricTile icon={Shapes} color="amber" label="Total Values" value={data.totalValues} />
+      </div>
+
       <Card className="!h-auto">
         <SectionHeader icon={Shapes} color="violet">
           Attributes ({data.totalValues} values)
         </SectionHeader>
         {data.attributes.length === 0 ? (
-          <p className="text-sm text-text-faint">No variant attributes defined for this product.</p>
+          <p className="text-sm text-text-faint">No attributes defined for this product.</p>
         ) : (
           <div className="space-y-3">
             {data.attributes.map((a) => (
@@ -985,8 +984,14 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
         )}
       </Card>
 
-      {data.canEdit && data.attributes.length > 0 && (
-        <button type="button" onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand/40 text-brand text-sm font-medium hover:bg-brand/10">
+      {data.canEdit && (
+        <button
+          type="button"
+          onClick={() => setShowNew(true)}
+          disabled={data.attributes.length === 0}
+          title={data.attributes.length === 0 ? 'Define a variant attribute first' : undefined}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand/40 text-brand text-sm font-medium hover:bg-brand/10 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus size={14} /> New Combination
         </button>
       )}
@@ -999,39 +1004,38 @@ function ProductCombinationsTab({ id }: { id: string | undefined }) {
         <TabTable>
           <thead>
             <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <Th>Ref</Th>
-              <Th>Label</Th>
+              <Th>Product</Th>
               <Th>Attributes</Th>
-              <Th right>Price</Th>
-              <Th right>Variation</Th>
-              <Th right>Stock</Th>
-              <Th>Status</Th>
+              <Th right>Price Impact</Th>
+              <Th right>Weight Impact</Th>
+              <Th>On Sell</Th>
+              <Th>On Buy</Th>
               {data.canDelete && <Th right>Actions</Th>}
             </tr>
           </thead>
           <tbody>
             {data.combinations.length === 0 ? (
-              <EmptyRow span={data.canDelete ? 8 : 7} label="No variant combinations for this product." />
+              <EmptyRow span={data.canDelete ? 7 : 6} label="None" />
             ) : (
               data.combinations.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
-                  <Td muted>{c.ref}</Td>
-                  <Td>{c.label}</Td>
+                  <Td>
+                    {c.ref} <span className="text-text-faint">{c.label}</span>
+                  </Td>
                   <Td muted>{c.attributes.map((a) => `${a.label}: ${a.value}`).join(', ')}</Td>
-                  <Td right>{formatMoney(c.priceTtc)}</Td>
                   <Td right muted>
                     {c.variationPrice >= 0 ? '+' : ''}
                     {formatMoney(c.variationPrice)}
+                    {c.variationIsPercent ? ' %' : ''}
                   </Td>
                   <Td right muted>
-                    {formatNumber(c.stock)}
+                    {c.weightImpact >= 0 ? '+' : ''}
+                    {formatNumber(c.weightImpact)}
                   </Td>
                   <Td>
-                    <div className="flex items-center gap-1">
-                      <StatusPill active={c.forSale} activeLabel="Sell" inactiveLabel="Sell" tone="success" />
-                      {c.forPurchase !== null && <StatusPill active={c.forPurchase} activeLabel="Buy" inactiveLabel="Buy" tone="info" />}
-                    </div>
+                    <StatusPill active={c.forSale} activeLabel="Yes" inactiveLabel="No" tone="success" />
                   </Td>
+                  <Td>{c.forPurchase === null ? '—' : <StatusPill active={c.forPurchase} activeLabel="Yes" inactiveLabel="No" tone="info" />}</Td>
                   {data.canDelete && (
                     <Td right>
                       <button type="button" onClick={() => handleDelete(c.id, c.label)} className="p-1.5 rounded-md text-danger hover:bg-danger-bg" title="Delete combination">
@@ -1069,6 +1073,25 @@ function StatisticsTab({ id }: { id: string | undefined }) {
       </div>
 
       <Card className="!h-auto">
+        <SectionHeader icon={TrendingUp} color="indigo">
+          Monthly Sales &amp; Purchases (12 months)
+        </SectionHeader>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data.monthly.map((m) => ({ month: m.month, Sales: m.sales, Purchase: m.purchase ?? 0 }))}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="Sales" fill="#22c55e" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="Purchase" fill="#ef4444" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      <Card className="!h-auto">
         <SectionHeader icon={ChartPie} color="indigo">
           Monthly Breakdown
         </SectionHeader>
@@ -1076,9 +1099,9 @@ function StatisticsTab({ id }: { id: string | undefined }) {
           <thead>
             <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
               <Th>Month</Th>
-              <Th right>Qty Sold</Th>
               <Th right>Sales</Th>
-              <Th right>Purchases</Th>
+              <Th right>Purchase</Th>
+              <Th right>Qty</Th>
             </tr>
           </thead>
           <tbody>
@@ -1088,12 +1111,12 @@ function StatisticsTab({ id }: { id: string | undefined }) {
               data.monthly.map((m) => (
                 <tr key={m.month} className="border-b border-border last:border-0">
                   <Td muted>{m.month}</Td>
-                  <Td right muted>
-                    {formatNumber(m.qty)}
-                  </Td>
                   <Td right>{formatMoney(m.sales)}</Td>
                   <Td right muted>
                     {m.purchase === null ? '—' : formatMoney(m.purchase)}
+                  </Td>
+                  <Td right muted>
+                    {formatNumber(m.qty)}
                   </Td>
                 </tr>
               ))
@@ -1137,52 +1160,76 @@ function StatisticsTab({ id }: { id: string | undefined }) {
 
 // Notes tab (note_api.php) - real llx_product.note_public/note fields,
 // replaces the old (unrouted on this backend) api/products/?action=update-note.
+function NoteCard({ title, icon, color, value, empty, onSave, saving, error }: { title: string; icon: typeof StickyNote; color: 'blue' | 'amber'; value: string; empty: string; onSave: (v: string) => void; saving: boolean; error: boolean }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const inputCls = 'w-full rounded-md border border-input-border bg-input-bg text-text text-sm p-3 outline-none focus:ring-2 focus:ring-brand/30'
+  return (
+    <Card className="!h-auto">
+      <div className="flex items-center justify-between gap-3">
+        <SectionHeader icon={icon} color={color}>
+          {title}
+        </SectionHeader>
+        {!editing && (
+          <button type="button" onClick={() => setEditing(true)} title={`Edit ${title.toLowerCase()}`} className="p-1.5 rounded-md border border-border text-text-muted hover:bg-surface-hover">
+            <Pencil size={14} />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={6} className={inputCls} />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                onSave(draft)
+                setEditing(false)
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            >
+              <Save size={14} /> {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(value)
+                setEditing(false)
+              }}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : value.trim() ? (
+        <p className="whitespace-pre-wrap text-sm text-text!">{value}</p>
+      ) : (
+        <p className="py-6 text-center text-sm text-text-faint">{empty}</p>
+      )}
+      {error && <p className="mt-2 text-xs text-danger">Could not save please try again.</p>}
+    </Card>
+  )
+}
+
 function NotesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductNotesOverview(id)
-  const [notePublic, setNotePublic] = useState('')
-  const [notePrivate, setNotePrivate] = useState('')
   const saveNotes = useSaveProductNotes()
-  const inputCls = 'w-full rounded-md border border-input-border bg-input-bg text-text text-sm p-3 outline-none focus:ring-2 focus:ring-brand/30'
-
-  useEffect(() => {
-    setNotePublic(data?.notePublic ?? '')
-    setNotePrivate(data?.notePrivate ?? '')
-  }, [data])
 
   if (isLoading) return <LegacyLoadingCard label="Loading notes..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Notes" />
   if (isError) return <LegacyErrorCard title="Couldn't load notes" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
+  // Each card saves only the note it shows: product/fapi/notes.php writes only what it is sent.
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card className="!h-auto">
-        <SectionHeader icon={StickyNote} color="blue">
-          Public Note
-        </SectionHeader>
-        <textarea value={notePublic} onChange={(e) => setNotePublic(e.target.value)} rows={8} className={inputCls} placeholder="Visible to customers on documents..." />
-      </Card>
-      <Card className="!h-auto">
-        <SectionHeader icon={StickyNote} color="amber">
-          Private Note
-        </SectionHeader>
-        <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={8} className={inputCls} placeholder="Internal only..." />
-      </Card>
-      <div className="lg:col-span-2 flex items-center gap-3">
-        <button
-          type="button"
-          disabled={!id || saveNotes.isPending}
-          onClick={() => id && saveNotes.mutate({ id, notePublic, notePrivate })}
-          className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
-        >
-          <Save size={14} /> {saveNotes.isPending ? 'Saving...' : 'Save notes'}
-        </button>
-        {saveNotes.isSuccess && <p className="text-xs text-success">Saved.</p>}
-        {saveNotes.isError && <p className="text-xs text-danger">Could not save please try again.</p>}
-      </div>
+      <NoteCard title="Public Note" icon={StickyNote} color="blue" value={data?.notePublic ?? ''} empty="No public note" saving={saveNotes.isPending} error={saveNotes.isError} onSave={(v) => id && saveNotes.mutate({ id, notePublic: v })} />
+      <NoteCard title="Private Note" icon={StickyNote} color="amber" value={data?.notePrivate ?? ''} empty="No private note" saving={saveNotes.isPending} error={saveNotes.isError} onSave={(v) => id && saveNotes.mutate({ id, notePrivate: v })} />
     </div>
   )
 }
-
 
 function UomConversionModal({
   id,
@@ -1302,7 +1349,7 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricTile icon={Ruler} color="blue" label="Base Unit" value={data.baseUnitLabel} caption="Base Unit" />
         <MetricTile icon={Layers} color="green" label="Conversions" value={data.conversionsCount} caption="Total Conversions" />
-        <MetricTile icon={Boxes} color="indigo" label="Available Units" value={data.availableUnitsCount} caption="Unit types in system" />
+        <MetricTile icon={Boxes} color="indigo" label="Available Stock" value={data.availableStock} caption="On hand, in the base unit" />
       </div>
 
       <Card className="!h-auto">
@@ -1327,6 +1374,8 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
                 <Th>Packing Unit</Th>
                 <Th>Base UOM</Th>
                 <Th right>Factor</Th>
+                <Th right>Purchase Price TTC</Th>
+                <Th right>Selling Price TTC</Th>
                 <Th right>Price Override TTC</Th>
                 <Th>Barcode</Th>
                 <Th>Note</Th>
@@ -1336,13 +1385,19 @@ function UomSettingsTab({ id }: { id: string | undefined }) {
             </thead>
             <tbody>
               {data.conversions.length === 0 ? (
-                <EmptyRow span={data.canEdit ? 8 : 7} label="No UOM conversions configured." />
+                <EmptyRow span={data.canEdit ? 10 : 9} label="No UOM Conversions Defined" />
               ) : (
                 data.conversions.map((c) => (
                   <tr key={c.id} className="border-b border-border last:border-0">
                     <Td>{c.packingLabel}</Td>
                     <Td muted>{c.uomLabel}</Td>
                     <Td right>{c.factor}</Td>
+                    <Td right muted>
+                      {c.purchasePriceTtc ? formatMoney(c.purchasePriceTtc) : '—'}
+                    </Td>
+                    <Td right muted>
+                      {c.sellingPriceTtc ? formatMoney(c.sellingPriceTtc) : '—'}
+                    </Td>
                     <Td right muted>
                       {c.priceOverrideTtc ? formatMoney(c.priceOverrideTtc) : '—'}
                     </Td>
@@ -1467,6 +1522,19 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
         <MetricTile icon={Star} color="violet" label="Avg Price" value={data.avgUnitPrice !== null ? formatMoney(data.avgUnitPrice) : '—'} caption={data.avgUnitPrice !== null ? 'Across all suppliers' : 'Not available'} />
       </div>
 
+      <div className="flex items-center gap-3">
+        {/* The legacy tab's "Add Supplier Price". product/fapi/suppliers.php answers 405 to every write (GET only), so there is nothing to post yet:
+            the button stays off until the endpoint can create, change and delete a supplier price (report row). */}
+        <button
+          type="button"
+          disabled
+          title="Needs a supplier-price write endpoint (suppliers.php only reads)"
+          className="px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-not-allowed"
+        >
+          Add Supplier Price
+        </button>
+      </div>
+
       <Card className="!h-auto">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-3 mb-1 border-b border-border">
           <div>
@@ -1494,14 +1562,16 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
                 <Th>Ref Supplier</Th>
                 <Th right>Qty Min</Th>
                 <Th right>VAT</Th>
-                <Th right>Unit Price</Th>
+                <Th right>Price HT</Th>
+                <Th right>Unit Price HT</Th>
+                <Th>Currency</Th>
                 <Th>Delivery (Days)</Th>
                 <Th>Reputation</Th>
               </tr>
             </thead>
             <tbody>
               {data.suppliers.length === 0 ? (
-                <EmptyRow span={7} label="No Supplier Prices Found add supplier prices to see them listed here." />
+                <EmptyRow span={9} label="No Supplier Prices Found add supplier prices to see them listed here." />
               ) : (
                 data.suppliers.map((row) => (
                   <tr key={row.rowid} className="border-b border-border last:border-0">
@@ -1513,7 +1583,9 @@ function BuyingPricesTab({ id }: { id: string | undefined }) {
                     <Td right muted>
                       {row.vatRate}
                     </Td>
+                    <Td right>{formatMoney(row.priceHt)}</Td>
                     <Td right>{formatMoney(row.unitPrice)}</Td>
+                    <Td muted>{row.currency || '—'}</Td>
                     <Td muted>{row.deliveryDays ?? '—'}</Td>
                     <Td muted>{row.reputation || '—'}</Td>
                   </tr>
@@ -1624,6 +1696,8 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
   const deleteSubproduct = useDeleteSubproduct()
   const confirm = useConfirm()
   const [showAdd, setShowAdd] = useState(false)
+  const { data: product } = useProductDetail(id)
+  const currency = product?.currency ?? ''
 
   if (isLoading) return <LegacyLoadingCard label="Loading composition..." />
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Composition" />
@@ -1645,67 +1719,98 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricTile icon={Layers} color="blue" label="Nature" value={data.natureLabel || '—'} />
-        <MetricTile icon={DollarSign} color="green" label="Total Buy" value={formatMoney(data.totalBuy)} />
-        <MetricTile icon={Tag} color="violet" label="Total Sell" value={formatMoney(data.totalSell)} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricTile icon={Boxes} color="blue" label="Subproducts" value={data.compositions.length} />
+        <MetricTile icon={Link2} color="green" label="Parent Products" value={data.parents.length} />
+        <MetricTile icon={DollarSign} color="amber" label="Total Of Subproducts Buying Prices" value={`${formatMoney(data.totalBuy)} ${currency}`.trim()} />
+        <MetricTile icon={Tag} color="violet" label="Total Of Subproducts Selling Prices" value={`${formatMoney(data.totalSell)} ${currency}`.trim()} />
       </div>
 
-      {data.parents.length > 0 && (
-        <Card className="!h-auto">
-          <SectionHeader icon={Link2} color="amber">
-            Used As Component In
-          </SectionHeader>
-          <div className="flex flex-wrap gap-1.5">
-            {data.parents.map((p) => (
-              <span key={p.id} className="px-2 py-1 rounded-md border border-border bg-surface-alt text-xs text-text!">
-                {p.ref} - {p.label} (Ã— {formatNumber(p.qty)})
-              </span>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {data.canEdit && !showAdd && (
-        <button type="button" onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand/40 text-brand text-sm font-medium hover:bg-brand/10">
-          <Plus size={14} /> Add Sub-Product
-        </button>
-      )}
-      {showAdd && <AddSubproductPanel id={id!} onClose={() => setShowAdd(false)} />}
+      <p className="text-xs text-text-faint px-1">
+        Nature of product (raw/manufactured): <strong className="text-text!">{data.natureLabel || '—'}</strong>
+        {product && product.priceInclTax > 0 && (
+          <>
+            {' '}· Selling price: <strong className="text-text!">{formatMoney(product.priceBaseType === 'TTC' ? product.priceInclTax : product.priceExclTax)} {product.priceBaseType === 'TTC' ? 'TTC' : 'HT'}</strong>
+          </>
+        )}
+      </p>
 
       <Card className="!h-auto">
-        <SectionHeader icon={Boxes} color="indigo">
-          Composition ({data.compositions.length})
+        <SectionHeader icon={Link2} color="amber">
+          Parent products
         </SectionHeader>
         <TabTable>
           <thead>
             <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <Th>Ref</Th>
+              <Th>Ref.</Th>
               <Th>Label</Th>
               <Th right>Qty</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.parents.length === 0 ? (
+              <EmptyRow span={3} label="None" />
+            ) : (
+              data.parents.map((p) => (
+                <tr key={p.id} className="border-b border-border last:border-0">
+                  <Td muted>{p.ref}</Td>
+                  <Td>{p.label}</Td>
+                  <Td right>{formatNumber(p.qty)}</Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </TabTable>
+      </Card>
+
+      {showAdd && <AddSubproductPanel id={id!} onClose={() => setShowAdd(false)} />}
+
+      <Card className="!h-auto">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <SectionHeader icon={Boxes} color="indigo">
+            List of products/services that are component(s) of this kit ({data.compositions.length})
+          </SectionHeader>
+          {data.canEdit && !showAdd && (
+            <button type="button" onClick={() => setShowAdd(true)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:opacity-90">
+              <Plus size={14} /> Search product to add
+            </button>
+          )}
+        </div>
+        <TabTable>
+          <thead>
+            <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <Th>Child Products</Th>
+              <Th>Label</Th>
+              <Th right>Minimum Buying Price</Th>
+              <Th right>Minimum Selling Price</Th>
               <Th right>Stock</Th>
-              <Th right>Buy Price</Th>
-              <Th right>Sell Price</Th>
+              <Th right>Qty</Th>
+              <Th>Increase/Decrease Stock On Parent Change</Th>
+              <Th>Status</Th>
               {data.canEdit && <Th right>Actions</Th>}
             </tr>
           </thead>
           <tbody>
             {data.compositions.length === 0 ? (
-              <EmptyRow span={data.canEdit ? 7 : 6} label="No sub-products (this product isn't a kit/bundle)." />
+              <EmptyRow span={data.canEdit ? 9 : 8} label="None" />
             ) : (
               data.compositions.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
                   <Td muted>{c.ref}</Td>
                   <Td>{c.label}</Td>
-                  <Td right>{formatNumber(c.qty)}</Td>
-                  <Td right muted>
-                    {formatNumber(c.stock)}
-                  </Td>
                   <Td right muted>
                     {c.buyDefined ? formatMoney(c.buyPrice) : '—'}
                   </Td>
                   <Td right muted>
                     {c.sellPrice !== null ? formatMoney(c.sellPrice) : '—'}
+                  </Td>
+                  <Td right muted>
+                    {formatNumber(c.stock)}
+                  </Td>
+                  <Td right>{formatNumber(c.qty)}</Td>
+                  <Td muted>{c.incdec ? 'Yes' : 'No'}</Td>
+                  <Td>
+                    <StatusPill active={c.forSale} activeLabel="On Sell" inactiveLabel="Not for sale" tone="success" />
                   </Td>
                   {data.canEdit && (
                     <Td right>
@@ -1733,6 +1838,17 @@ function AssociatedProductsTab({ id }: { id: string | undefined }) {
 // by keyword rather than exact string since the API's referer labels aren't
 // a fixed enum (confirmed live: "Purchase orders" is lowercase "orders"
 // unlike its siblings).
+// The names the classic Related Items table prints.
+const CLASSIC_RELATED: Record<string, string> = {
+  quotations: 'Quotations',
+  'sales orders': 'Sales Orders',
+  'purchase orders': 'Purchase Orders',
+  'customer invoices': 'Customers Invoices',
+  'vendor invoices': 'Vendors Invoices',
+  contracts: 'Contracts',
+}
+const classicRelatedName = (label: string) => CLASSIC_RELATED[label.trim().toLowerCase()] ?? label
+
 function refererListRoute(label: string): string | null {
   const l = label.toLowerCase()
   if (l.includes('quotation')) return ROUTES.quotationList
@@ -1763,7 +1879,6 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
 
   const pageStart = page * pageSize + 1
   const pageEnd = Math.min((page + 1) * pageSize, data.totalRecords)
-  const referersTotalQty = data.referers.reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0)
 
   return (
     <div className="space-y-4">
@@ -1797,10 +1912,10 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                     <Td>
                       {route ? (
                         <Link to={route} className="text-brand hover:underline">
-                          {r.label}
+                          {classicRelatedName(r.label)}
                         </Link>
                       ) : (
-                        r.label
+                        classicRelatedName(r.label)
                       )}
                     </Td>
                     <Td right muted>
@@ -1815,16 +1930,6 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
               })
             )}
           </tbody>
-          {data.referers.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-border font-semibold">
-                <Td>Total</Td>
-                <Td right muted>-</Td>
-                <Td right muted>-</Td>
-                <Td right>{formatNumber(referersTotalQty)}</Td>
-              </tr>
-            </tfoot>
-          )}
         </TabTable>
       </Card>
 
@@ -1877,6 +1982,18 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                 <option value="50">50 rows</option>
                 <option value="100">100 rows</option>
               </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setMonth(0)
+                  setYear(0)
+                  setPageSize(20)
+                  setPage(0)
+                }}
+                className="px-3 py-1.5 rounded-md border border-border text-sm text-text-muted hover:bg-surface-hover"
+              >
+                Remove filter
+              </button>
             </div>
           </div>
 
@@ -1885,18 +2002,18 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-surface z-10">
                   <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                    <Th>Invoice</Th>
-                    <Th>Date</Th>
-                    <Th>Customer</Th>
-                    <Th>Code</Th>
+                    <Th>Ref.</Th>
+                    <Th>Company</Th>
+                    <Th>Customer Code</Th>
+                    <Th>Invoice Date</Th>
                     <Th right>Qty</Th>
-                    <Th right>Total (Excl.)</Th>
+                    <Th right>Amount (Excl. Tax)</Th>
                     <Th right>Status</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {!data.invoices || data.invoices.length === 0 ? (
-                    <EmptyRow span={7} label="No invoices found for this product." />
+                    <EmptyRow span={7} label="No Record Found" />
                   ) : (
                     data.invoices.map((inv) => (
                       <tr key={inv.id} className="border-b border-border last:border-0">
@@ -1910,13 +2027,13 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                             {inv.ref}
                           </Link>
                         </Td>
-                        <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
                         <Td>
                           <Link to={ROUTES.customerList} className="text-brand hover:underline">
                             {inv.company}
                           </Link>
                         </Td>
                         <Td muted>{inv.customerCode}</Td>
+                        <Td muted>{formatDateTimeAmPm(inv.date)}</Td>
                         <Td right muted>
                           {formatNumber(inv.qty)}
                         </Td>
@@ -1930,6 +2047,18 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
                     ))
                   )}
                 </tbody>
+                {data.totalRecords > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-border font-semibold text-text!">
+                      <td colSpan={4} className="px-3 py-2">
+                        Total
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(data.totalQty)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(data.totalHT)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 
@@ -1971,6 +2100,12 @@ function InvoiceStatsTab({ id }: { id: string | undefined }) {
 // Documents tab (document_api.php) - real filesystem listing under
 // documents/produit/<ref>/, replaces the old product/document.php scrape.
 // Upload/delete both write through the real endpoint, no legacy link-out.
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Bytes`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Kilobytes`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Megabytes`
+}
+
 function LinkedFilesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductDocuments(id)
   const uploadDocument = useUploadProductDocument()
@@ -1978,6 +2113,11 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
   const confirm = useConfirm()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadError, setUploadError] = useState('')
+  const linkDocument = useLinkProductDocument()
+  const deleteLink = useDeleteProductDocumentLink()
+  const [showLink, setShowLink] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkLabel, setLinkLabel] = useState('')
 
   if (isLoading) return <LegacyLoadingCard label="Loading documents..." />
   if (isError) return <LegacyErrorCard title="Couldn't load documents" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
@@ -2006,9 +2146,13 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
 
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <MetricTile icon={Boxes} color="blue" label="Number Of Attached Files/Documents" value={data?.count ?? 0} />
+        <MetricTile icon={Layers} color="green" label="Total Size Of Attached Files" value={formatBytes((data?.documents ?? []).reduce((sum, d) => sum + (d.sizeBytes ?? (Number(d.size) || 0)), 0))} />
+      </div>
       <div className="flex items-center justify-between">
         <p className="text-xs text-text-faint">{data?.count ?? 0} file(s)</p>
-        <div>
+        <div className="flex items-center gap-2">
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
           <button
             type="button"
@@ -2018,8 +2162,50 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
           >
             <Upload size={14} /> {uploadDocument.isPending ? 'Uploading...' : 'Upload'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowLink((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-white text-sm font-medium hover:opacity-90"
+          >
+            <Link2 size={14} /> Link a new file/document
+          </button>
         </div>
       </div>
+      {showLink && (
+        <Card className="!h-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <div>
+              <p className="mb-1 text-xs font-medium text-text-faint">Link (URL)</p>
+              <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://" className={modalInputCls} />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-text-faint">Label</p>
+              <input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} className={modalInputCls} />
+            </div>
+            <button
+              type="button"
+              disabled={!linkUrl.trim() || linkDocument.isPending}
+              onClick={() =>
+                id &&
+                linkDocument.mutate(
+                  { id, link: linkUrl.trim(), label: linkLabel.trim() },
+                  {
+                    onSuccess: () => {
+                      setLinkUrl('')
+                      setLinkLabel('')
+                      setShowLink(false)
+                    },
+                  },
+                )
+              }
+              className="h-9 px-4 rounded-md bg-brand text-white text-sm font-medium disabled:opacity-50"
+            >
+              {linkDocument.isPending ? 'Adding...' : 'Add link'}
+            </button>
+          </div>
+          {linkDocument.isError && <p className="mt-2 text-sm text-danger">{linkDocument.error instanceof Error ? linkDocument.error.message : 'Could not add the link.'}</p>}
+        </Card>
+      )}
       {uploadError && <p className="text-sm font-medium text-danger">{uploadError}</p>}
       <TabTable>
         <thead>
@@ -2032,7 +2218,7 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
         </thead>
         <tbody>
           {!data || data.documents.length === 0 ? (
-            <EmptyRow span={4} label="No attached files or documents." />
+            <EmptyRow span={4} label="No documents found" />
           ) : (
             data.documents.map((d, i) => (
               <tr key={i} className="border-b border-border last:border-0">
@@ -2059,6 +2245,40 @@ function LinkedFilesTab({ id }: { id: string | undefined }) {
           )}
         </tbody>
       </TabTable>
+      {data && data.links.length > 0 && (
+        <TabTable>
+          <thead>
+            <tr className="text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+              <Th>Link</Th>
+              <Th>Date</Th>
+              <Th right>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.links.map((l) => (
+              <tr key={l.id} className="border-b border-border last:border-0">
+                <Td>
+                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-brand hover:underline">
+                    <Link2 size={14} /> {l.label || l.url}
+                  </a>
+                </Td>
+                <Td muted>{l.date}</Td>
+                <Td right>
+                  <button
+                    type="button"
+                    onClick={() => id && deleteLink.mutate({ id, linkId: l.id })}
+                    disabled={deleteLink.isPending}
+                    className="p-1.5 rounded-md text-danger hover:bg-danger-bg disabled:opacity-60"
+                    title="Remove link"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </TabTable>
+      )}
     </div>
   )
 }
@@ -2073,41 +2293,69 @@ function EventsTab({ id }: { id: string | undefined }) {
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Events/Agenda" />
   if (isError) return <LegacyErrorCard title="Couldn't load events" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
+  // product/fapi/agenda.php answers one list; an event of type AC_PRODUCT_MODIFY is a recorded modification of the product, every other type is an
+  // event. That split into the classic tab's two cards comes from the type code and has not been compared with the classic tab on a product that has
+  // modifications (report row).
+  const all = data?.events ?? []
+  const modifications = all.filter((e) => e.typeCode === 'AC_PRODUCT_MODIFY')
+  const events = all.filter((e) => e.typeCode !== 'AC_PRODUCT_MODIFY')
   const statusTone: Record<string, 'success' | 'info'> = { success: 'success', info: 'info', warning: 'info', secondary: 'info' }
 
-  return (
-    <Card className="!h-auto">
-      <SectionHeader icon={CalendarClock} color="indigo">
-        Events ({data?.length ?? 0})
-      </SectionHeader>
-      {!data || data.length === 0 ? (
-        <p className="text-sm text-text-faint text-center py-6">No events logged for this product.</p>
-      ) : (
-        <ul>
-          {data.map((e, i) => (
-            <li key={e.id} className={`flex items-start gap-3 py-3 ${i !== data.length - 1 ? 'border-b border-border' : ''}`}>
-              <span className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${ICON_STYLES.indigo}`}>
-                <Clock size={14} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-text! truncate">{e.label}</p>
-                  <StatusPill active activeLabel={e.typeLabel} inactiveLabel={e.typeLabel} tone={statusTone[e.status] ?? 'info'} />
-                </div>
-                <p className="text-xs text-text-faint mt-0.5">
-                  {e.date}
-                  {e.dateEnd && e.dateEnd !== e.date ? ` - ${e.dateEnd}` : ''}
-                  {e.userName && ` Â· ${e.userName}`}
-                  {e.percent > 0 && ` Â· ${e.percent}%`}
-                </p>
+  const list = (rows: typeof all, empty: string) =>
+    rows.length === 0 ? (
+      <p className="text-sm text-text-faint text-center py-6">{empty}</p>
+    ) : (
+      <ul>
+        {rows.map((e, i) => (
+          <li key={e.id} className={`flex items-start gap-3 py-3 ${i !== rows.length - 1 ? 'border-b border-border' : ''}`}>
+            <span className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${ICON_STYLES.indigo}`}>
+              <Clock size={14} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-text! truncate">{e.label}</p>
+                <StatusPill active activeLabel={e.typeLabel} inactiveLabel={e.typeLabel} tone={statusTone[e.status] ?? 'info'} />
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+              <p className="text-xs text-text-faint mt-0.5">
+                {e.date}
+                {e.dateEnd && e.dateEnd !== e.date ? ` - ${e.dateEnd}` : ''}
+                {e.userName && ` · ${e.userName}`}
+                {e.percent > 0 && ` · ${e.percent}%`}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <MetricTile icon={CalendarClock} color="blue" label="Events" value={events.length} />
+        <MetricTile icon={History} color="green" label="Modifications" value={modifications.length} />
+        <MetricTile icon={Clock} color="amber" label="Latest Event" value={events[0]?.date || '-'} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="!h-auto">
+          <SectionHeader icon={CalendarClock} color="indigo">
+            Events Timeline
+          </SectionHeader>
+          {list(events, 'No events found')}
+        </Card>
+        <Card className="!h-auto">
+          <SectionHeader icon={History} color="green">
+            Modification History
+          </SectionHeader>
+          {list(modifications, 'No modifications found')}
+        </Card>
+      </div>
+    </div>
   )
 }
+
+// The classic margins page prints amounts to up to 4 decimals (0.8621, 13.7505) and the quantity with 2.
+const marginAmount = (v: number | null | undefined) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(v ?? 0))
 
 // Margins tab (margin/tabs/productMargins.php) - per-invoice selling vs
 // buying price breakdown. No Margin Rate/Mark Rate columns: both
@@ -2125,12 +2373,12 @@ function MarginsTab({ id }: { id: string | undefined }) {
   return (
     <div>
       <p className="text-sm mb-4">
-        <span className="text-text-faint">Total Margin</span> <span className="text-text! font-medium">{formatMoney(data?.totals.margin ?? 0)}</span>
+        <span className="text-text-faint">Total Margin</span> <span className="text-text! font-medium">{marginAmount(data?.totals.margin ?? 0)}</span>
       </p>
       {basis && estimatedLines > 0 && (
         <p className="text-xs text-warning mb-3 flex items-center gap-1.5">
           <AlertTriangle size={13} />
-          {estimatedLines} of {basis.linesTotal} lines have no buying price recorded at the time of sale; they use the current average cost ({formatMoney(basis.currentPmp)})
+          {estimatedLines} of {basis.linesTotal} lines have no buying price recorded at the time of sale; they use the current average cost ({marginAmount(basis.currentPmp)})
           {basis.currentPmp === 0 ? ', which is 0, so their margin is unknown rather than 100%.' : '.'}
         </p>
       )}
@@ -2160,15 +2408,15 @@ function MarginsTab({ id }: { id: string | undefined }) {
                 <Td muted>{l.customerCode || '—'}</Td>
                 <Td muted>{l.date}</Td>
                 <Td right muted>
-                  {formatMoney(l.sellingPrice)}
+                  {marginAmount(l.sellingPrice)}
                 </Td>
                 <Td right muted>
-                  {formatMoney(l.buyingPrice)}
+                  {marginAmount(l.buyingPrice)}
                 </Td>
                 <Td right muted>
-                  {formatNumber(l.qty)}
+                  {l.qty.toFixed(2)}
                 </Td>
-                <Td right>{formatMoney(l.margin)}</Td>
+                <Td right>{marginAmount(l.margin)}</Td>
                 <Td muted>{l.paid === null ? '—' : l.paid ? 'Paid' : 'Unpaid'}</Td>
               </tr>
             ))
@@ -2180,10 +2428,10 @@ function MarginsTab({ id }: { id: string | undefined }) {
               <td colSpan={4} className="px-3 py-2 font-semibold text-text! text-right">
                 Total:
               </td>
-              <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{formatMoney(data.totals.sellingPrice)}</td>
-              <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{formatMoney(data.totals.buyingPrice)}</td>
+              <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{marginAmount(data.totals.sellingPrice)}</td>
+              <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{marginAmount(data.totals.buyingPrice)}</td>
               <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{formatNumber(data.totals.qty)}</td>
-              <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{formatMoney(data.totals.margin)}</td>
+              <td className="px-3 py-2 font-semibold text-text! text-right tabular-nums">{marginAmount(data.totals.margin)}</td>
               <td />
             </tr>
           </tfoot>

@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { hrmGet } from './hrm.api'
 import { parsePayrollTable, type PayrollLegacyTable } from './payrollLegacyTable'
-import { parseSalaryFeeTypes, type SalaryFeeType } from './salaryTemplateParser'
-import { parseYtdEarningsDeductions, type YtdEarningsDeductionsReport } from './ytdEarningsDeductionsParser'
+import type { YtdEarningsDeductionsReport } from './ytdEarningsDeductions.types'
 import {
   parseOverallAttendanceGroupOptions,
   parseOverallAttendanceEmployeeOptions,
@@ -71,26 +71,10 @@ export function usePayrollLegacyList(key: PayrollListKey) {
   })
 }
 
-// Real via payroll/salary_temp.php's own Allowances/Deductions fee-type
-// dropdowns — see salaryTemplateParser.ts's own top comment. Genuine
-// llx_c_type_fees rows (not fabricated placeholders), even though the
-// Save flow above them stays session-local (see SalaryTemplateForm.tsx's
-// own comment on why the write itself can't be wired safely).
-export function useSalaryFeeTypes() {
-  return useQuery({
-    queryKey: ['payroll', 'salary-template', 'fee-types'],
-    queryFn: async (): Promise<SalaryFeeType[]> => {
-      const doc = await fetchLegacyDocument('/payroll/salary_temp.php')
-      return parseSalaryFeeTypes(doc)
-    },
-    staleTime: 1000 * 60 * 10,
-  })
-}
-
 // Real via payroll/earn_dedu.php — confirmed live to be a plain GET-able
 // classic report (its own <form> is POST-only and CSRF-blocked when called
 // from this app's origin, but the same search_type/monthPic/y_calnd params
-// work fine as a GET) — see ytdEarningsDeductionsParser.ts's own top
+// work fine as a GET) — see ytdEarningsDeductions.types.ts's own top
 // comment for the full real behavior of each search type. searchType/value
 // blank means "default" (today's month), matching the real page's own
 // no-params load.
@@ -98,14 +82,16 @@ export type YtdEarningsDeductionsSearchType = '' | 'month' | 'year'
 export function useYtdEarningsDeductions(searchType: YtdEarningsDeductionsSearchType, value: string) {
   return useQuery({
     queryKey: ['payroll', 'ytd-earnings-deductions', searchType, value],
+    // payroll/fapi/ytd_earnings_deductions.php: the same heading, header groups, columns and one row per employee as the
+    // classic report (heading and employee rows checked live on newecuenta; no employee has figures there, so the values
+    // are not checked). For the fiscal-year view it answers the right report, where the classic GET returned the month one.
     queryFn: async (): Promise<YtdEarningsDeductionsReport> => {
-      const params = new URLSearchParams()
-      if (searchType === 'month') params.set('monthPic', value)
-      if (searchType === 'year') params.set('y_calnd', value)
-      if (searchType) params.set('search_type', searchType)
-      const qs = params.toString()
-      const html = await fetchLegacyText(`/payroll/earn_dedu.php${qs ? `?${qs}` : ''}`)
-      return parseYtdEarningsDeductions(html)
+      const params: Record<string, string> = {}
+      if (searchType === 'month') params.monthPic = value
+      if (searchType === 'year') params.y_calnd = value
+      if (searchType) params.search_type = searchType
+      const d = await hrmGet<{ heading: string; groups: YtdEarningsDeductionsReport['groups']; columns: string[]; rows: Array<{ employee_name: string; values: string[] }> }>('ytd_earnings_deductions', params)
+      return { heading: d.heading, groups: d.groups, columns: d.columns, rows: d.rows.map((r) => ({ employeeName: r.employee_name, values: r.values })) }
     },
   })
 }
@@ -323,5 +309,30 @@ export function useShiftSalaryReport(shift: ShiftSalaryType, monthLabel: string,
       return parseShiftSalaryReport(html)
     },
     enabled: !!monthLabel && !!entity && !!employee,
+  })
+}
+
+// payroll/fapi/ytd_summary.php: one row per active employee with the net salary and the amount paid over the period
+// (null where nothing was paid). Month takes monthPic=YYYY-MM (default: the current month); a fiscal year needs y_calnd
+// (checked live on newecuenta: without it the call answers "y_calnd is required").
+export interface YtdSummaryRow {
+  employeeId: number
+  employeeName: string
+  netSalary: number | null
+  paidAmount: number | null
+}
+export type YtdSummaryPeriod = { type: 'month'; month: string } | { type: 'year'; year: string } | null
+
+export function useYtdSummary(period: YtdSummaryPeriod) {
+  return useQuery({
+    queryKey: ['payroll', 'ytd-summary', period],
+    queryFn: async (): Promise<YtdSummaryRow[]> => {
+      const params: Record<string, string> = {}
+      if (period?.type === 'month') Object.assign(params, { search_type: 'month', monthPic: period.month })
+      if (period?.type === 'year') Object.assign(params, { search_type: 'year', y_calnd: period.year })
+      const d = await hrmGet<{ items: Array<{ employee_id: number; employee_name: string; net_salary: number | string | null; paid_amount: number | string | null }> }>('ytd_summary', params)
+      const amount = (v: number | string | null) => (v === null || v === undefined ? null : Number(v))
+      return d.items.map((r) => ({ employeeId: r.employee_id, employeeName: r.employee_name, netSalary: amount(r.net_salary), paidAmount: amount(r.paid_amount) }))
+    },
   })
 }

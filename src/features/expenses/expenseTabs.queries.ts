@@ -1,34 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExpenseFragment } from './expensePages.queries'
 import { postExpenseAction } from './expenses.queries'
-import {
-  parseAdvances,
-  parseAnalytics,
-  parseRecurring,
-  parseReimbursements,
-  parseReports,
-  parseRepayments,
-  type AdvancesPage,
-  type AnalyticsPage,
-  type RecurringPage,
-  type ReimbursementsPage,
-  type ReportsPage,
-  type RepaymentsPage,
-} from './expenseTabsParser'
+import { createBudget, loadAdvances, loadAnalytics, loadBudgets, loadRecurring, loadReimbursements, loadReports, loadRepayments, toggleRecurring, type BudgetsPage, type NewBudgetInput } from './expenseFapi'
+import type { AdvancesPage, AnalyticsPage, RecurringPage, ReimbursementsPage, ReportsPage, RepaymentsPage } from './expenseTabsParser'
 
-// Reads of the expense module's Advances / Reimbursements / Repayments / Recurring / Reports / Analytics
-// pages. Every key starts with 'expenses' so a mutation's invalidateQueries(['expenses']) refreshes them.
+// Reads of the expense module's Advances / Reimbursements / Repayments / Recurring / Reports / Analytics / Budgets pages, from
+// expense/fapi (expenseFapi.ts). Every key starts with 'expenses' so a mutation's invalidateQueries(['expenses']) refreshes them.
 export function useAdvances() {
-  return useQuery({ queryKey: ['expenses', 'page', 'advances'], queryFn: async (): Promise<AdvancesPage> => parseAdvances(await fetchExpenseFragment('advances')) })
+  return useQuery({ queryKey: ['expenses', 'page', 'advances'], queryFn: (): Promise<AdvancesPage> => loadAdvances() })
 }
 export function useReimbursements() {
-  return useQuery({ queryKey: ['expenses', 'page', 'reimbursements'], queryFn: async (): Promise<ReimbursementsPage> => parseReimbursements(await fetchExpenseFragment('reimbursements')) })
+  return useQuery({ queryKey: ['expenses', 'page', 'reimbursements'], queryFn: (): Promise<ReimbursementsPage> => loadReimbursements() })
 }
 export function useRepayments() {
-  return useQuery({ queryKey: ['expenses', 'page', 'repayments'], queryFn: async (): Promise<RepaymentsPage> => parseRepayments(await fetchExpenseFragment('repayments')) })
+  return useQuery({ queryKey: ['expenses', 'page', 'repayments'], queryFn: (): Promise<RepaymentsPage> => loadRepayments() })
 }
 export function useRecurring() {
-  return useQuery({ queryKey: ['expenses', 'page', 'recurring'], queryFn: async (): Promise<RecurringPage> => parseRecurring(await fetchExpenseFragment('recurring')) })
+  return useQuery({ queryKey: ['expenses', 'page', 'recurring'], queryFn: (): Promise<RecurringPage> => loadRecurring() })
 }
 
 export interface ReportsFilters {
@@ -43,19 +30,18 @@ export interface ReportsFilters {
 export function useExpenseReportsPage(filters: ReportsFilters | null) {
   return useQuery({
     queryKey: ['expenses', 'page', 'reports', filters],
-    queryFn: async (): Promise<ReportsPage> => {
-      const params = filters
-        ? { year_from: filters.yearFrom, month_from: filters.monthFrom, year_to: filters.yearTo, month_to: filters.monthTo, dept: filters.dept, branch: filters.branch }
-        : undefined
-      return parseReports(await fetchExpenseFragment('reports', undefined, params))
-    },
+    queryFn: (): Promise<ReportsPage> => loadReports(filters),
   })
 }
 export function useExpenseAnalytics(year: string | null) {
   return useQuery({
     queryKey: ['expenses', 'page', 'analytics', year],
-    queryFn: async (): Promise<AnalyticsPage> => parseAnalytics(await fetchExpenseFragment('analytics', undefined, year ? { year } : undefined)),
+    queryFn: (): Promise<AnalyticsPage> => loadAnalytics(year),
   })
+}
+
+export function useExpenseBudgets(year: string) {
+  return useQuery({ queryKey: ['expenses', 'page', 'budgets', year], queryFn: (): Promise<BudgetsPage> => loadBudgets(year) })
 }
 
 // ── Writes (expense/api/expense.php) ────────────────────────────────────────────────────────────────
@@ -143,9 +129,8 @@ export const useCreateRecurring = () =>
     ),
   )
 
-// Pause / Resume is the page's own link (recurring.php?action=toggle_active&rid=…&active=…), a plain GET.
-export const useToggleRecurring = () =>
-  useExpenseWrite(async (i: { rid: string; active: string }) => {
-    const res = await fetch(`/expense/recurring.php?${new URLSearchParams({ action: 'toggle_active', rid: i.rid, active: i.active })}`, { credentials: 'same-origin' })
-    if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  })
+// Pause / Resume: expense/fapi/recurring.php?action=toggle_active (`active` is the state the schedule switches to, '1' or '0').
+export const useToggleRecurring = () => useExpenseWrite(async (i: { rid: string; active: string }) => void (await toggleRecurring(i.rid, i.active === '1')))
+
+// A new budget line: expense/fapi/budgets.php?action=create.
+export const useCreateBudget = () => useExpenseWrite(async (i: NewBudgetInput) => void (await createBudget(i)))

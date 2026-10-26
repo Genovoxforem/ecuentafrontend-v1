@@ -78,6 +78,8 @@ export function notifyUnauthorized() {
 }
 
 function handleApiError(error: unknown) {
+  // A request aborted through its AbortSignal (the page was left, the search changed) is not a failure: no logout, no rewritten message.
+  if (axios.isCancel(error)) return Promise.reject(error)
   if (axios.isAxiosError(error) && error.response?.status === 401) {
     setStoredToken(null)
     onUnauthorized?.()

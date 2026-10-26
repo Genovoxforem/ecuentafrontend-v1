@@ -211,11 +211,11 @@ export interface InvoiceListParams {
   type?: number
 }
 
-export async function fetchInvoices(params: InvoiceListParams = {}): Promise<{
+export async function fetchInvoices(params: InvoiceListParams = {}, signal?: AbortSignal): Promise<{
   items: InvoiceRow[]
   pagination: Pagination
 }> {
-  const res = await fapi.get<FapiListResponse<InvoiceRow>>('/compta/facture/fapi/list.php', { params })
+  const res = await fapi.get<FapiListResponse<InvoiceRow>>('/compta/facture/fapi/list.php', { params, signal })
   return res.data.data
 }
 

@@ -69,7 +69,7 @@ export function HrmArea() {
               { icon: CalendarDays, label: 'List Leave', path: ROUTES.leaveList },
               { icon: Receipt, label: 'New Expense reports' },
               { icon: Receipt, label: 'List Expense reports' },
-              { icon: FileText, label: 'Monthly statement' },
+              { icon: FileText, label: 'Monthly statement', path: ROUTES.hrmMonthlyStatement },
             ]}
           />
           <ActionGroupCard

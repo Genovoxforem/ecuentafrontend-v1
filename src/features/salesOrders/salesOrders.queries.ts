@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fapi } from '../../api/axios'
+import { loadRemainingPages } from '../../api/paging'
 
 export interface OrderRow {
   id: number
@@ -62,20 +63,20 @@ function toDisplayDate(iso: string | null): string {
 export function useSalesOrdersSummary() {
   return useQuery({
     queryKey: ['salesOrders', 'summary'],
-    queryFn: async (): Promise<SalesOrdersSummary> => {
+    queryFn: async ({ signal }): Promise<SalesOrdersSummary> => {
       // The UI does its own client-side search/pagination over the full
       // array — pull up to the endpoint's max page size, then follow pages.
       const first = await fapi.get<{ success: boolean; data: { items: FapiOrderRow[]; pagination: { total: number; pages: number } } }>(
         '/commande/fapi/list.php?limit=500&sort=date_commande&direction=desc',
+        { signal },
       )
-      let items = first.data.data.items ?? []
       const { total, pages } = first.data.data.pagination
-      for (let p = 2; p <= pages; p++) {
-        const next = await fapi.get<{ success: boolean; data: { items: FapiOrderRow[] } }>(
-          `/commande/fapi/list.php?limit=500&page=${p}&sort=date_commande&direction=desc`,
-        )
-        items = items.concat(next.data.data.items ?? [])
-      }
+      // The remaining pages load a few at a time and are joined in page order, so the list keeps its date sort.
+      const rest = await loadRemainingPages(pages, async (p) => {
+        const next = await fapi.get<{ success: boolean; data: { items: FapiOrderRow[] } }>(`/commande/fapi/list.php?limit=500&page=${p}&sort=date_commande&direction=desc`, { signal })
+        return next.data.data.items ?? []
+      })
+      const items = (first.data.data.items ?? []).concat(...rest)
 
       const orders: OrderRow[] = items.map((o) => ({
         id: o.id,

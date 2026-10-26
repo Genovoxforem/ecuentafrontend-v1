@@ -1,47 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { loadExpenseList, loadExpenseTypes, searchEntities } from './expenseFapi'
+import type { ExpenseParty } from './expensePagesParser'
 
-// The real backend at expense/ is a custom-built SPA — 11 tabs, each its own PHP page, routed client-side
-// via expense/js/expense-spa.js's hash router and fetched through
-// expense/api/expense_content.php (action=<tab>&ajax=1 → {success, html}).
-// Most tabs are server-rendered PHP+SQL with no JSON read endpoint. The ones this app shows natively
-// (Dashboard, Approvals, Payments and the New Expense form's dropdowns) are read from those fragments —
-// see expensePagesParser.ts / expensePages.queries.ts. The others (Advances, Reimbursements, Repayments,
-// Recurring, Reports, Analytics) still build on the JSON below.
-//
-// What IS real and JSON: (1) expense/ajax/expense_list.php — a genuine,
-// permission-checked (hasRight('expensereport','lire')), filterable,
-// sortable, real-child-user-scoped DataTables endpoint against
-// llx_expensereport, confirmed to return every matching row unpaginated
-// when `length=-1` (`if ($rowperpage > 0) plimit(...)`) — reused below by
-// several screens (Reports/Analytics, the List, plus
-// the Create/Reimbursement/Repayment/Recurring forms' own report-picker
-// dropdowns) instead of scraping each tab's own broken/absent list.
-// (2) expense/api/expense_types.php + expense/ajax/entity_search.php —
-// real Select2-style dropdown feeds (expense types, users, customers,
-// vendors) against llx_c_type_fees/llx_user/llx_societe.
-// (3) expense/api/lines.php and expense/api/expense.php — real, genuine
-// mutating JSON actions (create draft, add/save lines, submit for
-// validation, approve/refuse, create payment, create advance, reconcile
-// advance, create reimbursement, create repayment, approve repayment,
-// create recurring template) — every one confirmed by reading its handler
-// function directly (exact GETPOST param names, exact SQL writes), not
-// guessed. Wired below and consumed by the rebuilt screens.
-//
-// Two real, confirmed-live quirks worth knowing when reading the screens
-// built against this file: (a) the Dashboard's own real "Pending Approval"
-// KPI counts fk_statut=1, a status value nothing in this module ever
-// actually sets (submissions go 0→2 directly) — this app's Overview page
-// instead counts fk_statut=2 ("Submitted"), which is what a user actually
-// means by that label; (b) llx_expensereport's `repay_status`/
-// `advance_amount` columns (Repayments) and llx_expense_advance/
-// llx_expense_reimbursement (Advances/Reimbursements) have real create/
-// approve JSON actions but no real JSON list endpoint at all, so those 3
-// screens' own history tables have no live data source and say so rather
-// than being invented or scraped.
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
+// The expense module (expense/) is a custom SPA. Its reads now come from the key-authenticated expense/fapi (see expenseFapi.ts): the
+// dashboard, approvals, payments, the report list, the types and entity pickers, advances, reimbursements, repayments, recurring,
+// reports, analytics and budgets. The writes below still go to the module's own session endpoints, because the fapi writers
+// (expense.php, lines.php, documents.php) only answer a plan ({executed: false, would_execute: [...]}) and write nothing: the New
+// Expense form (lines.php createDraft / saveCachedLines / submitForValidation), approve / refuse (expense.php changeStatus), the payment
+// (create_payment) and the advance / reimbursement / repayment / recurring creates. Those handlers were read directly (exact GETPOST
+// parameter names, exact SQL writes).
 
 export interface ExpenseReportRow {
   id: number
@@ -57,38 +24,16 @@ export interface ExpenseReportRow {
   status: string
   paid: boolean
   notes: string
-  // The user / linked-to cells as the backend prints them (link, photo, hover card); parse with parseParty.
-  userHtml: string
-  linkedHtml: string
-}
-interface RawExpenseListResponse {
-  draw: number
-  recordsTotal: number
-  recordsFiltered: number
-  aaData: Array<{
-    ref: string
-    rowid: number
-    linked_to: string
-    user: string
-    date_debut: string
-    date_fin: string
-    date_create: string
-    total_ht: string
-    total_tva: string
-    total_ttc: string
-    status: string
-    paid: string
-    notes: string
-  }>
-  error?: string
+  // Who the report belongs to and who it is linked to, for the party links (null when not linked to anyone).
+  userParty: ExpenseParty | null
+  linkedParty: ExpenseParty | null
 }
 
 export interface ExpenseListFilters {
   status: string
   dateFrom: string
   dateTo: string
-  // Server-side, like the backend's own table: the search box, and one sortable column (a key of the
-  // endpoint's `columns[].data`, e.g. 'date_create') with its direction.
+  // Server-side: the search box, and one sortable column (named like the item's field, e.g. 'date_create') with its direction.
   search?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'
@@ -97,79 +42,24 @@ export interface ExpenseListFilters {
 export function useExpenseReportsList(filters: ExpenseListFilters, page: number, length: number) {
   return useQuery({
     queryKey: ['expenses', 'list', filters, page, length],
-    queryFn: async (): Promise<{ rows: ExpenseReportRow[]; total: number; filtered: number }> => {
-      const body = new URLSearchParams({ draw: '1', start: String(page * length), length: String(length) })
-      if (filters.status) body.set('filter_status', filters.status)
-      if (filters.dateFrom) body.set('filter_date_from', filters.dateFrom)
-      if (filters.dateTo) body.set('filter_date_to', filters.dateTo)
-      if (filters.search) body.set('search[value]', filters.search)
-      if (filters.orderBy) {
-        body.set('order[0][column]', '0')
-        body.set('order[0][dir]', filters.orderDir ?? 'desc')
-        body.set('columns[0][data]', filters.orderBy)
-      }
-      const res = await fetch('/expense/ajax/expense_list.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawExpenseListResponse = await res.json()
-      if (data.error) throw new Error(data.error)
-      return {
-        rows: data.aaData.map((r) => ({
-          id: r.rowid,
-          ref: stripTags(r.ref),
-          linkedTo: stripTags(r.linked_to),
-          user: stripTags(r.user),
-          dateStart: r.date_debut,
-          dateEnd: r.date_fin,
-          dateCreate: r.date_create,
-          totalHt: r.total_ht,
-          totalTva: r.total_tva,
-          totalTtc: r.total_ttc,
-          status: stripTags(r.status),
-          paid: stripTags(r.paid).toLowerCase() === 'paid',
-          notes: r.notes,
-          userHtml: r.user,
-          linkedHtml: r.linked_to,
-        })),
-        total: data.recordsTotal,
-        filtered: data.recordsFiltered,
-      }
-    },
+    // expense/fapi/list.php: searched, sorted and paged by the backend, own + subordinates' reports unless the user may read all
+    queryFn: (): Promise<{ rows: ExpenseReportRow[]; total: number; filtered: number }> => loadExpenseList(filters, page, length),
   })
-}
-
-// Thin convenience wrapper over the same real endpoint with length=-1 (see
-// header comment) — used by every screen below that needs the full real
-// row set to compute its own view (Dashboard KPIs/trend, Approvals list,
-// Payments list, Reports "By Employee", Analytics charts, and the report-
-// picker dropdowns on the Reimbursement/Repayment/Recurring forms).
-export function useAllExpenseReports(status = '') {
-  return useExpenseReportsList({ status, dateFrom: '', dateTo: '' }, 0, -1)
 }
 
 export interface ExpenseTypeOption {
   id: number
   label: string
 }
-interface RawExpenseTypesResponse {
-  success: boolean
-  results: Array<{ id: number; text: string }>
-}
 export function useExpenseTypes() {
   return useQuery({
     queryKey: ['expenses', 'types'],
-    queryFn: async (): Promise<ExpenseTypeOption[]> => {
-      const res = await fetch('/expense/api/expense_types.php', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawExpenseTypesResponse = await res.json()
-      if (!data.success) throw new Error('Legacy backend rejected the request.')
-      return data.results.map((r) => ({ id: r.id, label: r.text }))
-    },
+    queryFn: (): Promise<ExpenseTypeOption[]> => loadExpenseTypes(),
     staleTime: 1000 * 60 * 10,
   })
 }
 
-// Real via expense/ajax/entity_search.php — Select2-style search feeds for
-// the Create/Advance/Reimbursement forms' user/customer/vendor pickers.
+// expense/fapi/entity_search.php: the user / customer / vendor pickers of the Create, Advance and Reimbursement forms.
 export interface EntityOption {
   id: number
   text: string
@@ -177,13 +67,7 @@ export interface EntityOption {
 export function useEntitySearch(type: 'user' | 'customer' | 'vendor', q: string, enabled = true) {
   return useQuery({
     queryKey: ['expenses', 'entitySearch', type, q],
-    queryFn: async (): Promise<EntityOption[]> => {
-      const body = new URLSearchParams({ type, q })
-      const res = await fetch('/expense/ajax/entity_search.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: { results: EntityOption[] } = await res.json()
-      return data.results
-    },
+    queryFn: (): Promise<EntityOption[]> => searchEntities(type, q),
     enabled,
     staleTime: 30_000,
   })

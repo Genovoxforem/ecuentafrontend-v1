@@ -8,33 +8,34 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
-import { useAllProductsRich, type ProductRow, type ProductsSummary, type RichProductRow } from '../products.queries'
+import { useAllProductsRich, useZraEnabled, type ProductRow, type ProductsSummary, type RichProductRow } from '../products.queries'
 import { useProductFormOptions } from '../../zra/createProduct.queries'
 import { ProductAvatar } from './ProductAvatar'
 import { ProductFilterModal } from './ProductFilterModal'
 import { ProductDetailPanel } from './ProductDetailPanel'
 import { DEFAULT_PRODUCT_FILTERS, activeFilterCount, matchesProductFilters, type ProductFilters } from '../productFilters'
 
-type SortKey = 'product' | 'category' | 'vatCode' | 'priceExcl' | 'priceIncl' | 'stock' | 'classification' | 'zraStatus' | 'lotStatus' | 'country' | 'created'
+type SortKey = 'product' | 'category' | 'vatCode' | 'price' | 'stock' | 'classification' | 'zraStatus' | 'lotStatus' | 'country' | 'created'
 
 // Extra columns beyond the base /api/products/ fields mirror the legacy
 // "All Products" report (product/allproducts.php) — see useAllProductsRich.
 // Best-effort enrichment: falls back to "—" per row when that fetch hasn't
 // resolved yet or a ref isn't found in it, rather than blocking the table.
-const COLUMNS: { label: string; key: SortKey }[] = [
+// The classic list has one Selling Price column in the product's own base ("45.00 Inc. Tax") and no ZRA column while ZRA is
+// switched off, so the list is built the same way (see useZraEnabled).
+const ALL_COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Product', key: 'product' },
   { label: 'Category', key: 'category' },
   { label: 'VAT Code', key: 'vatCode' },
-  { label: 'Price (Excl. Tax)', key: 'priceExcl' },
-  { label: 'Price (Incl. Tax)', key: 'priceIncl' },
+  { label: 'Selling Price', key: 'price' },
   { label: 'Stock', key: 'stock' },
   { label: 'Classification', key: 'classification' },
   { label: 'ZRA Status', key: 'zraStatus' },
   { label: 'Lot Status', key: 'lotStatus' },
   { label: 'Country', key: 'country' },
-  { label: 'Created', key: 'created' },
+  { label: 'Created Date', key: 'created' },
 ]
-const COLUMN_LABELS = COLUMNS.map((c) => c.label)
+const priceSuffix = (base: 'HT' | 'TTC') => (base === 'TTC' ? 'Inc. Tax' : 'Excl. Tax')
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
 function matchesSearch(product: ProductRow, query: string) {
@@ -65,6 +66,8 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const { data: richRows } = useAllProductsRich(0)
   const { data: formOptions } = useProductFormOptions()
+  const { data: zraEnabled = false } = useZraEnabled(summary.products[0]?.id)
+  const columns = useMemo(() => ALL_COLUMNS.filter((c) => c.key !== 'zraStatus' || zraEnabled), [zraEnabled])
 
   const richByRef = useMemo(() => {
     const map = new Map<string, RichProductRow>()
@@ -96,10 +99,8 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
           return rich?.category ?? ''
         case 'vatCode':
           return rich?.vatCode ?? ''
-        case 'priceExcl':
-          return p.priceExclTax
-        case 'priceIncl':
-          return p.priceInclTax
+        case 'price':
+          return Number(rich?.price ?? p.priceInclTax)
         case 'stock':
           return rich?.stockPhysical ?? p.stock
         case 'classification':
@@ -140,17 +141,16 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
         `${p.label} (Ref: ${p.ref})`,
         rich?.category ?? '',
         rich?.vatCode ?? '',
-        `${formatMoney(p.priceExclTax)} ${summary.currency}`,
-        `${formatMoney(p.priceInclTax)} ${summary.currency}`,
+        rich ? `${formatMoney(Number(rich.price))} ${priceSuffix(rich.priceBaseType)}` : '',
         String(p.stock),
         rich?.classification ?? '',
-        rich?.zraStatus ?? '',
+        ...(zraEnabled ? [rich?.zraStatus ?? ''] : []),
         rich?.lotStatus ?? '',
         rich?.country ?? '',
         rich?.createdDate ?? '',
       ]
     })
-    return { headers: COLUMN_LABELS, rows }
+    return { headers: columns.map((c) => c.label), rows }
   }
 
   return (
@@ -226,7 +226,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <TheadRow>
-                  {COLUMNS.map((col) => (
+                  {columns.map((col) => (
                     <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
                       {col.label}
                     </Th>
@@ -236,13 +236,13 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
               <tbody>
                 {summary.products.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={columns.length}>
                       No Data Available In Table
                     </td>
                   </tr>
                 ) : filteredProducts.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length}>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={columns.length}>
                       No products match "{search}".
                     </td>
                   </tr>
@@ -277,8 +277,9 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                         <td className="px-4 py-3 text-text-muted">
                           <RichCell value={rich?.vatCode} />
                         </td>
-                        <td className="px-4 py-3 text-text-muted text-right tabular-nums">{formatMoney(p.priceExclTax)} {summary.currency}</td>
-                        <td className="px-4 py-3 text-text! text-right tabular-nums">{formatMoney(p.priceInclTax)} {summary.currency}</td>
+                        <td className="px-4 py-3 text-text! tabular-nums whitespace-nowrap">
+                          {rich ? `${formatMoney(Number(rich.price))} ${priceSuffix(rich.priceBaseType)}` : <span className="text-text-faint">—</span>}
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {rich ? (
                             // Matches allproducts_ajax.php's own stockInfo markup exactly: Desired/Reserved
@@ -304,9 +305,11 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                         <td className="px-4 py-3 text-text-muted whitespace-nowrap">
                           <RichCell value={rich?.classification ?? undefined} />
                         </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge value={rich?.zraStatus} />
-                        </td>
+                        {zraEnabled && (
+                          <td className="px-4 py-3">
+                            <StatusBadge value={rich?.zraStatus} />
+                          </td>
+                        )}
                         <td className="px-4 py-3">
                           <StatusBadge value={rich?.lotStatus} />
                         </td>

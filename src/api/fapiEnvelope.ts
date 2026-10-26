@@ -34,14 +34,15 @@ function errorText(body: { message?: unknown; errors?: unknown } | undefined, fa
 }
 
 function rethrow(e: unknown): never {
-  if (isMissingRoute(e)) throw e
+  if (axios.isCancel(e) || isMissingRoute(e)) throw e
   if (axios.isAxiosError(e)) throw new Error(errorText(e.response?.data, `Backend returned ${e.response?.status ?? 'no response'}.`))
   throw e
 }
 
-export async function fapiGet<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+// `signal` is React Query's query signal: pass it so a query that is no longer wanted cancels its request.
+export async function fapiGet<T>(path: string, params?: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<T> {
   try {
-    const res = requireJson(await fapi.get<FapiEnvelope<T>>(path, { params }))
+    const res = requireJson(await fapi.get<FapiEnvelope<T>>(path, { params, signal }))
     if (res.data.success === false) throw new Error(errorText(res.data, 'Request failed.'))
     return res.data.data
   } catch (e) {

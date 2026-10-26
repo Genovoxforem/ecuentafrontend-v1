@@ -213,6 +213,20 @@ function RecentActivity() {
   )
 }
 
+function OperationCard({ label, value, validated, listPath, newPath }: { label: string; value: number; validated?: number; listPath: string; newPath?: string }) {
+  return (
+    <Card className="!h-auto !p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+      <p className="mt-1 text-lg font-bold tabular-nums text-text!">{value}</p>
+      {validated !== undefined && <p className="text-[11px] text-text-faint">{validated} Validated</p>}
+      <div className="mt-2 flex gap-3 text-xs font-medium">
+        <Link to={listPath} className="text-brand hover:underline">List</Link>
+        {newPath && <Link to={newPath} className="text-brand hover:underline">New</Link>}
+      </div>
+    </Card>
+  )
+}
+
 export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
   const { data: products = [] } = useProductOptions()
   const { data: richProducts, isLoading: categoriesLoading, isError: categoriesError } = useAllProductsRich(0)
@@ -268,6 +282,29 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           icon={AlertTriangle}
           color="rose"
           alert={summary.productsOutOfStock > 0}
+        />
+      </div>
+
+      {/* The classic warehouse dashboard's counts for inventories, shipments and receptions (product/stock/fapi/dashboard.php). */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <OperationCard
+          label="Inventories"
+          value={summary.inventories}
+          listPath={ROUTES.inventoryList}
+          newPath={ROUTES.inventoryCreate}
+        />
+        <OperationCard
+          label="Shipments"
+          value={summary.shipments.total}
+          validated={summary.shipments.validated}
+          listPath={ROUTES.shipmentList}
+        />
+        <OperationCard
+          label="Receptions"
+          value={summary.receptions.total}
+          validated={summary.receptions.validated}
+          listPath={ROUTES.receptionList}
+          newPath={ROUTES.receptionCreate}
         />
       </div>
 

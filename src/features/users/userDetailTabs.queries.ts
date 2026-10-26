@@ -1,22 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchSocieteFormContext } from '../customers/thirdPartyOptions.queries'
+import { num, periodLabel, pv2Get } from '../payrollV2/payrollV2.api'
+import {
+  loadActivities,
+  loadActivityDetail,
+  loadActivityMeta,
+  loadActivityTimeline,
+  loadUserAgenda,
+  loadUserBank,
+  loadUserDocuments,
+  loadUserNotes,
+  loadUserNotify,
+} from './userProfileFapi'
 
-// Every hook in this file is real, confirmed by reading userprofile/api/
-// {bank,notes,documents,agenda,notify}.php directly — a complete, working
-// "User Profile SPA" backend (its own file headers literally say "Phase
-// 4/6/7/8/9") that was sitting there fully built and simply never wired
-// into this app's React pages. Session-cookie authenticated, same
-// session-wide Dolibarr CSRF token as userprofile/api/users.php's own
-// create action (fetchSocieteFormContext() — confirmed this checks the
-// identical currentToken()/newToken() pair).
-
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data = (await res.json()) as T & { ok?: boolean; error?: string }
-  if (data.ok === false) throw new Error(data.error ?? 'Legacy backend rejected the request.')
-  return data
-}
+// The tabs of the user card. Their reads go through the key-authenticated userprofile/fapi (userProfileFapi.ts). Their writes (save a note, add
+// a bank account, add / delete a notification, upload / delete a file, create / update / close an activity, enable / disable the user) still
+// go to the older session endpoints userprofile/api/*.php with the session-wide Dolibarr CSRF token (fetchSocieteFormContext()): the fapi
+// writers only answer a plan ({executed: false, would_execute}) and change nothing.
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   return methodJson<T>('POST', url, body)
@@ -61,28 +61,10 @@ export interface UserBankProfile {
   leaveTypes: Array<{ id: number; name: string; daysEntitled: string }>
   assignedLeaves: number[]
 }
-interface RawBankResponse {
-  ok: boolean
-  can_edit: boolean
-  personal_email: string | null
-  personal_mobile: string | null
-  accounts: Array<{ id: number; label: string; bank: string; number: string; iban: string; bic: string }>
-  payroll: { leave_types: Array<{ id: number; name: string; days_entitled: string }>; assigned_leaves: number[] }
-}
 export function useUserBankProfile(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'bank'],
-    queryFn: async (): Promise<UserBankProfile> => {
-      const data = await getJson<RawBankResponse>(`/userprofile/api/bank.php?id=${userId}`)
-      return {
-        canEdit: data.can_edit,
-        personalEmail: data.personal_email ?? '',
-        personalMobile: data.personal_mobile ?? '',
-        accounts: data.accounts.map((a) => ({ id: a.id, label: a.label, bank: a.bank, number: a.number, iban: a.iban, bic: a.bic })),
-        leaveTypes: data.payroll.leave_types.map((t) => ({ id: t.id, name: t.name, daysEntitled: t.days_entitled })),
-        assignedLeaves: data.payroll.assigned_leaves,
-      }
-    },
+    queryFn: (): Promise<UserBankProfile> => loadUserBank(userId as string),
     enabled: !!userId,
   })
 }
@@ -248,13 +230,8 @@ export function useShiftScheduleList() {
   })
 }
 
-// The one payroll_v2 endpoint confirmed genuinely live and NOT
-// permission-gated for this account: /payroll_v2/api/payrun.php?action=list
-// (confirmed: {"status":"ok","data":[],"message":""} — real success, just
-// no payrun records exist yet on this install). Every other payroll_v2
-// page/action returns a blanket "Permission denied." — see PayrollTab's own
-// comment for the full picture. Shown here as the real (currently empty)
-// "Payslip history" — not fabricated demo rows.
+// The "Payslip history" list: Payroll V2 pay runs from payroll_v2/fapi/payrun.php?action=list. Real records
+// only - the list is empty on installs where no pay run has been run.
 export interface PayrunRow {
   id: number
   period: string
@@ -267,11 +244,16 @@ export function usePayrunHistory() {
   return useQuery({
     queryKey: ['payroll', 'payrunHistory'],
     queryFn: async (): Promise<PayrunRow[]> => {
-      const res = await fetch('/payroll_v2/api/payrun.php?action=list', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: { status: string; data: PayrunRow[]; message?: string } = await res.json()
-      if (data.status !== 'ok') throw new Error(data.message || 'Legacy backend rejected the request.')
-      return data.data ?? []
+      // payroll_v2/fapi/payrun.php?action=list rows: id, period_month, period_year, pay_date, status, employee_count, total_gross, total_net.
+      const rows = await pv2Get<Array<Record<string, unknown>>>('payrun.php', 'list')
+      return (rows ?? []).map((r) => ({
+        id: Number(r.id),
+        period: periodLabel(r.period_month, r.period_year),
+        ref: typeof r.ref === 'string' ? r.ref : '',
+        gross: num(r.total_gross),
+        net: num(r.total_net),
+        status: String(r.status ?? ''),
+      }))
     },
     staleTime: 1000 * 60,
   })
@@ -295,7 +277,7 @@ export function useToggleUserStatus(userId: string | undefined) {
 export function useUserNotes(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'notes'],
-    queryFn: () => getJson<{ ok: boolean; can_edit: boolean; note: string }>(`/userprofile/api/notes.php?id=${userId}`),
+    queryFn: () => loadUserNotes(userId as string),
     enabled: !!userId,
   })
 }
@@ -317,12 +299,7 @@ export interface UserDocumentRow {
 export function useUserDocuments(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'documents'],
-    queryFn: async () => {
-      const data = await getJson<{ ok: boolean; can_edit: boolean; documents: Array<{ name: string; size: string; date: string; download_url: string }> }>(
-        `/userprofile/api/documents.php?id=${userId}`,
-      )
-      return { canEdit: data.can_edit, documents: data.documents.map((d) => ({ name: d.name, size: d.size, date: d.date, downloadUrl: d.download_url })) }
-    },
+    queryFn: () => loadUserDocuments(userId as string),
     enabled: !!userId,
   })
 }
@@ -371,38 +348,10 @@ export interface UserAgendaEvent {
   priority: number
   type: UserAgendaType
 }
-function agendaTypeFromCode(code: string): UserAgendaType {
-  if (code === 'AC_RDV') return 'meeting'
-  if (code === 'AC_TEL') return 'call'
-  return 'task'
-}
-// The real note field is literally prefixed "Author: <login>\n<message>" —
-// confirmed live — so the author is parsed out of it rather than guessed.
-function parseAgendaAuthor(note: string): string {
-  return note.match(/^Author:\s*(.+)$/m)?.[1]?.trim() ?? ''
-}
 export function useUserAgenda(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'agenda'],
-    queryFn: async () => {
-      const data = await getJson<{
-        ok: boolean
-        events: Array<{ id: number; label: string; note: string; date: string; date_raw: string; date_end: string; percent: number; code?: string; priority?: number }>
-      }>(`/userprofile/api/agenda.php?id=${userId}`)
-      return data.events.map((e) => ({
-        id: e.id,
-        label: e.label,
-        note: e.note,
-        author: parseAgendaAuthor(e.note),
-        date: e.date,
-        dateRaw: e.date_raw,
-        dateEnd: e.date_end,
-        percent: e.percent,
-        code: e.code ?? '',
-        priority: e.priority ?? 0,
-        type: agendaTypeFromCode(e.code ?? ''),
-      }))
-    },
+    queryFn: () => loadUserAgenda(userId as string),
     enabled: !!userId,
   })
 }
@@ -429,19 +378,7 @@ export interface AssignedNotify {
 export function useUserNotifications(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'notifications'],
-    queryFn: async () => {
-      const data = await getJson<{
-        ok: boolean
-        can_edit: boolean
-        assigned: Array<{ id: number; action_id: number; code: string; label: string }>
-        available: Array<{ id: number; code: string; label: string }>
-      }>(`/userprofile/api/notify.php?id=${userId}`)
-      return {
-        canEdit: data.can_edit,
-        assigned: data.assigned.map((a) => ({ id: a.id, actionId: a.action_id, code: a.code, label: a.label })),
-        available: data.available.map((a) => ({ id: a.id, code: a.code, label: a.label })),
-      }
-    },
+    queryFn: () => loadUserNotify(userId as string),
     enabled: !!userId,
   })
 }
@@ -579,7 +516,7 @@ interface RawActivityItem {
   creator_name: string
 }
 
-function mapActivity(r: RawActivityItem): ActivityItem {
+export function mapActivity(r: RawActivityItem): ActivityItem {
   return {
     id: r.id,
     subject: r.subject,
@@ -625,33 +562,12 @@ function mapActivity(r: RawActivityItem): ActivityItem {
   }
 }
 
+const mapActivityRow = (r: Record<string, unknown>) => mapActivity(r as unknown as RawActivityItem)
+
 export function useActivitiesMeta(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'activities', 'meta'],
-    queryFn: async () => {
-      const data = await getJson<{
-        ok: boolean
-        users: Array<{ id: number; name: string; login: string }>
-        parents: Array<{ id: number; subject: string }>
-        accounting_needs: Array<{ value: string; label: string }>
-        priorities: string[]
-        call_statuses: string[]
-        call_purposes: string[]
-        followup_types: Record<string, string>
-        lead_types: string[]
-      }>(`/userprofile/api/activities.php?id=${userId}&action=meta`)
-      const meta: ActivityMeta = {
-        users: data.users,
-        parents: data.parents,
-        accountingNeeds: data.accounting_needs,
-        priorities: data.priorities,
-        callStatuses: data.call_statuses,
-        callPurposes: data.call_purposes,
-        followupTypes: data.followup_types,
-        leadTypes: data.lead_types,
-      }
-      return meta
-    },
+    queryFn: (): Promise<ActivityMeta> => loadActivityMeta(userId as string),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   })
@@ -660,12 +576,7 @@ export function useActivitiesMeta(userId: string | undefined) {
 export function useActivities(userId: string | undefined, type: ActivitySubtabKey, enabled = true) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'activities', 'list', type],
-    queryFn: async () => {
-      const data = await getJson<{ ok: boolean; open: RawActivityItem[]; closed: RawActivityItem[] }>(
-        `/userprofile/api/activities.php?id=${userId}&type=${type}`,
-      )
-      return { open: data.open.map(mapActivity), closed: data.closed.map(mapActivity) }
-    },
+    queryFn: () => loadActivities(userId as string, type, mapActivityRow),
     enabled: !!userId && enabled,
   })
 }
@@ -673,10 +584,7 @@ export function useActivities(userId: string | undefined, type: ActivitySubtabKe
 export function useActivityTimeline(userId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'activities', 'timeline'],
-    queryFn: async () => {
-      const data = await getJson<{ ok: boolean; items: RawActivityItem[] }>(`/userprofile/api/activities.php?id=${userId}&type=timeline`)
-      return data.items.map(mapActivity)
-    },
+    queryFn: () => loadActivityTimeline(userId as string, mapActivityRow),
     enabled: !!userId && enabled,
   })
 }
@@ -684,12 +592,7 @@ export function useActivityTimeline(userId: string | undefined, enabled = true) 
 export function useActivityDetail(userId: string | undefined, activityId: number | null) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'activities', 'detail', activityId],
-    queryFn: async () => {
-      const data = await getJson<{ ok: boolean; activity: RawActivityItem }>(
-        `/userprofile/api/activities.php?id=${userId}&action=detail&activity_id=${activityId}`,
-      )
-      return mapActivity(data.activity)
-    },
+    queryFn: () => loadActivityDetail(userId as string, activityId as number, mapActivityRow),
     enabled: !!userId && activityId != null,
   })
 }

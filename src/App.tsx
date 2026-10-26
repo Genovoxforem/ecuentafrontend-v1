@@ -16,7 +16,6 @@ import { RouteFallback } from './shared/components/RouteFallback'
 import { LoginModule } from './modules/auth/LoginModule'
 import { ROUTES } from './routes'
 import { PAYROLL_PLACEHOLDERS } from './features/payroll/payrollPlaceholders'
-import { BANKING_PLACEHOLDERS } from './features/banking/bankingPlaceholders'
 import { MEMBER_PLACEHOLDERS } from './features/members/membersPlaceholders'
 
 // Everything below is route-level code-splitting: each of these ~45 modules
@@ -216,7 +215,14 @@ const CheckDepositCreateModule = lazy(() => import('./modules/banking/CheckDepos
 const CheckDepositListModule = lazy(() => import('./modules/banking/CheckDepositListModule').then((m) => ({ default: m.CheckDepositListModule })))
 const CheckDepositsAreaModule = lazy(() => import('./modules/banking/CheckDepositsAreaModule').then((m) => ({ default: m.CheckDepositsAreaModule })))
 const RevolutModule = lazy(() => import('./modules/banking/RevolutModule').then((m) => ({ default: m.RevolutModule })))
-const BankingPlaceholderModule = lazy(() => import('./modules/banking/BankingPlaceholderModule').then((m) => ({ default: m.BankingPlaceholderModule })))
+const DirectDebitAreaModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitAreaModule })))
+const DirectDebitNewModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitNewModule })))
+const DirectDebitOrdersModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitOrdersModule })))
+const DirectDebitRequestsModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitRequestsModule })))
+const DirectDebitRejectsModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitRejectsModule })))
+const DirectDebitStatsModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitStatsModule })))
+const StripeTransactionsModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.StripeTransactionsModule })))
+const StripePayoutsModule = lazy(() => import('./modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.StripePayoutsModule })))
 const AllLoansListModule = lazy(() => import('./modules/loans/AllLoansListModule').then((m) => ({ default: m.AllLoansListModule })))
 const LoanCalculatorModule = lazy(() => import('./modules/loans/LoanCalculatorModule').then((m) => ({ default: m.LoanCalculatorModule })))
 const LoanProductsModule = lazy(() => import('./modules/loans/LoanProductsModule').then((m) => ({ default: m.LoanProductsModule })))
@@ -300,6 +306,7 @@ const SalaryStatisticsModule = lazy(() => import('./modules/ledger/SalaryStatist
 const EmployeeLoansListModule = lazy(() => import('./modules/ledger/EmployeeLoansListModule').then((m) => ({ default: m.EmployeeLoansListModule })))
 const LedgerLoanCreateModule = lazy(() => import('./modules/ledger/LedgerLoanCreateModule').then((m) => ({ default: m.LedgerLoanCreateModule })))
 const MiscPaymentsListModule = lazy(() => import('./modules/ledger/MiscPaymentsListModule').then((m) => ({ default: m.MiscPaymentsListModule })))
+const MiscPaymentDetailModule = lazy(() => import('./modules/ledger/MiscPaymentDetailModule').then((m) => ({ default: m.MiscPaymentDetailModule })))
 const MiscPaymentCreateModule = lazy(() => import('./modules/ledger/MiscPaymentCreateModule').then((m) => ({ default: m.MiscPaymentCreateModule })))
 const CustomerBindingIndexModule = lazy(() => import('./modules/ledger/CustomerBindingIndexModule').then((m) => ({ default: m.CustomerBindingIndexModule })))
 const CustomerToDispatchModule = lazy(() => import('./modules/ledger/CustomerToDispatchModule').then((m) => ({ default: m.CustomerToDispatchModule })))
@@ -381,6 +388,7 @@ const LeaveListModule = lazy(() => import('./modules/usersDashboard/LeaveListMod
 const LeaveDetailModule = lazy(() => import('./modules/usersDashboard/LeaveRequestModule').then((m) => ({ default: m.LeaveDetailModule })))
 const LeaveRequestModule = lazy(() => import('./modules/usersDashboard/LeaveRequestModule').then((m) => ({ default: m.LeaveRequestModule })))
 const TimeSpentModule = lazy(() => import('./modules/usersDashboard/TimeSpentModule').then((m) => ({ default: m.TimeSpentModule })))
+const MonthlyStatementModule = lazy(() => import('./modules/usersDashboard/MonthlyStatementModule').then((m) => ({ default: m.MonthlyStatementModule })))
 const ActivitiesDetailModule = lazy(() => import('./modules/usersDashboard/ActivitiesDetailModule').then((m) => ({ default: m.ActivitiesDetailModule })))
 const LinkedFilesAreaModule = lazy(() => import('./modules/usersDashboard/LinkedFilesAreaModule').then((m) => ({ default: m.LinkedFilesAreaModule })))
 const LinkedFilesManualTreeModule = lazy(() => import('./modules/usersDashboard/LinkedFilesAreaModule').then((m) => ({ default: m.LinkedFilesManualTreeModule })))
@@ -1927,17 +1935,70 @@ function App() {
                             </RouteBoundary>
                           }
                         />
-                        {BANKING_PLACEHOLDERS.map((p) => (
-                          <Route
-                            key={p.path}
-                            path={p.path}
-                            element={
-                              <RouteBoundary>
-                                <BankingPlaceholderModule />
-                              </RouteBoundary>
-                            }
-                          />
-                        ))}
+                        <Route
+                          path={ROUTES.bankingStripeTransactions}
+                          element={
+                            <RouteBoundary>
+                              <StripeTransactionsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingStripePayouts}
+                          element={
+                            <RouteBoundary>
+                              <StripePayoutsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingDirectDebitArea}
+                          element={
+                            <RouteBoundary>
+                              <DirectDebitAreaModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingNewDirectDebit}
+                          element={
+                            <RouteBoundary>
+                              <DirectDebitNewModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingDirectDebitOrders}
+                          element={
+                            <RouteBoundary>
+                              <DirectDebitOrdersModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingDirectDebitLines}
+                          element={
+                            <RouteBoundary>
+                              <DirectDebitRequestsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingAccountRejects}
+                          element={
+                            <RouteBoundary>
+                              <DirectDebitRejectsModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.bankingDirectDebitStats}
+                          element={
+                            <RouteBoundary>
+                              <DirectDebitStatsModule />
+                            </RouteBoundary>
+                          }
+                        />
                         <Route
                           path={ROUTES.loanManagementList}
                           element={
@@ -2611,6 +2672,14 @@ function App() {
                           }
                         />
                         <Route
+                          path={ROUTES.ledgerMiscPaymentDetail}
+                          element={
+                            <RouteBoundary>
+                              <MiscPaymentDetailModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
                           path={ROUTES.ledgerCustomerBindingIndex}
                           element={
                             <RouteBoundary>
@@ -3146,6 +3215,14 @@ function App() {
                           element={
                             <RouteBoundary>
                               <TimeSpentModule />
+                            </RouteBoundary>
+                          }
+                        />
+                        <Route
+                          path={ROUTES.hrmMonthlyStatement}
+                          element={
+                            <RouteBoundary>
+                              <MonthlyStatementModule />
                             </RouteBoundary>
                           }
                         />

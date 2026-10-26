@@ -1,14 +1,6 @@
-// compta/bank/card.php?action=create has no JSON API, but — same technique
-// already established for Sales Orders/Quotations' own create-form dropdowns
-// (see orderFormOptionsParser.ts) — its dropdowns aren't loaded via a
-// separate AJAX call either: Country, State/Province, Accounting Account and
-// Accounting Code Journal are all rendered as plain, fully-populated
-// <option> lists directly in the page's own HTML (confirmed live), so they
-// can be parsed straight out of the same page fetch that also supplies the
-// CSRF token for the real POST this unlocks (see useCreateBankAccount in
-// banking.queries.ts). Account type and Status are NOT scraped — Dolibarr
-// hardcodes those 3/2-option sets inline in the PHP source itself, so
-// there's nothing more "real" to gain by parsing them out of HTML.
+// The option lists of the New Financial Account form (filled from compta/bank/fapi/account.php?action=form_options, see bankingFapi.ts).
+// extractSelectOptions is still used by bankEntryDetailParser.ts for the old line.php page.
+
 export interface BankAccountFormOption {
   value: string
   label: string
@@ -21,6 +13,8 @@ export interface BankAccountFormContext {
   states: BankAccountFormOption[]
   accountingAccounts: BankAccountFormOption[]
   accountingJournals: BankAccountFormOption[]
+  // the currency the form starts on (compta/bank/fapi/account.php names it; the classic page pre-selects it)
+  defaultCurrencyValue?: string
 }
 
 // Exported for reuse by bankEntryDetailParser.ts — same <select name="..."><option value="..." selected>...
@@ -42,33 +36,4 @@ export function extractSelectOptions(formHtml: string, name: string): { options:
     if (/\bselected\b/.test(m[2])) selected = value
   }
   return { options, selected }
-}
-
-export function parseBankAccountFormPage(html: string): BankAccountFormContext {
-  const formStart = html.indexOf('name="formsoc"')
-  const formEnd = html.indexOf('</form>', formStart)
-  const formHtml = formStart >= 0 ? html.slice(formStart, formEnd > -1 ? formEnd : undefined) : html
-
-  const tokenMatch = formHtml.match(/name="token"\s+value="([a-f0-9]+)"/)
-  if (!tokenMatch) throw new Error('Could not find a CSRF token on the legacy page.')
-
-  const currency = extractSelectOptions(formHtml, 'account_currency_code')
-  const country = extractSelectOptions(formHtml, 'account_country_id')
-  const state = extractSelectOptions(formHtml, 'account_state_id')
-  const accountingAccount = extractSelectOptions(formHtml, 'account_number')
-  const journal = extractSelectOptions(formHtml, 'fk_accountancy_journal')
-
-  return {
-    token: tokenMatch[1],
-    currencies: currency.options,
-    countries: country.options.filter((o) => o.value !== '0'),
-    defaultCountryValue: country.selected,
-    // Zambian provinces as rendered for the page's default (Zambia) country
-    // selection — Dolibarr reloads this list via its own AJAX call when the
-    // Country field changes, which this form doesn't reproduce, so picking a
-    // different country leaves this list as-is rather than empty/wrong.
-    states: state.options.filter((o) => o.value !== '0'),
-    accountingAccounts: accountingAccount.options.filter((o) => o.value !== '-1'),
-    accountingJournals: journal.options.filter((o) => o.value !== '-1'),
-  }
 }

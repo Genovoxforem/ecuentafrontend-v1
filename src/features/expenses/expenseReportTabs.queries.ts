@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseExpenseReportDocuments, parseExpenseReportNotes, parseExpenseReportEvents, parseExpenseReportLedger } from './expenseReportTabsParser'
+import { parseExpenseReportDocuments, parseExpenseReportNotes } from './expenseReportTabsParser'
+import { loadExpenseReportEvents, loadExpenseReportLedger } from './expenseReportFapi'
 
 export function useExpenseReportDocuments(id: string | undefined) {
   return useQuery({
@@ -92,7 +93,8 @@ export function useSaveExpenseReportNote(id: string | undefined) {
 export function useExpenseReportEvents(id: string | undefined) {
   return useQuery({
     queryKey: ['expenseReports', 'events', id],
-    queryFn: async () => parseExpenseReportEvents(await fetchLegacyDocument('/expensereport/info.php', new URLSearchParams({ id: id ?? '' }))),
+    // expensereport/fapi/events.php
+    queryFn: () => loadExpenseReportEvents(id ?? ''),
     enabled: Boolean(id),
   })
 }
@@ -100,7 +102,8 @@ export function useExpenseReportEvents(id: string | undefined) {
 export function useExpenseReportLedger(id: string | undefined) {
   return useQuery({
     queryKey: ['expenseReports', 'ledgerentry', id],
-    queryFn: async () => parseExpenseReportLedger(await fetchLegacyDocument('/expensereport/ledgerentry.php', new URLSearchParams({ id: id ?? '' }))),
+    // expensereport/fapi/ledgerentry.php
+    queryFn: () => loadExpenseReportLedger(id ?? ''),
     enabled: Boolean(id),
   })
 }

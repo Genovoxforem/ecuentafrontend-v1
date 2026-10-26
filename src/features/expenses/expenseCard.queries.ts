@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { parseExpenseCard, type ExpenseCardPage } from './expenseCardParser'
 import { postExpenseAction } from './expenses.queries'
+import { loadExpenseDocuments } from './expenseFapi'
 
 // expense/card.php as a fragment (expense/api/expense_content.php?action=card&id=N).
 export function useExpenseCard(id: string | undefined) {
@@ -115,13 +116,8 @@ export function useExpenseDocuments(id: string | undefined) {
   return useQuery({
     queryKey: ['expenses', 'documents', id],
     enabled: Boolean(id),
-    queryFn: async (): Promise<ExpenseDocuments> => {
-      const json = await documentsCall({ method: 'GET' }, `?action=list&id=${encodeURIComponent(id ?? '')}`)
-      return {
-        files: (json.data?.files ?? []).map((f) => ({ name: f.name, size: f.size_formatted, date: f.date, ext: f.ext, downloadUrl: f.download_url, thumbUrl: f.thumb_url })),
-        totalSize: json.data?.total_size_formatted ?? '',
-      }
-    },
+    // expense/fapi/documents.php lists the files; uploading and deleting stay on expense/api/documents.php (the fapi writers only answer a plan)
+    queryFn: (): Promise<ExpenseDocuments> => loadExpenseDocuments(id ?? ''),
   })
 }
 

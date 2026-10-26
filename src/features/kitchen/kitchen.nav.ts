@@ -10,11 +10,7 @@ import type { NavSection } from '../navTypes'
 // kitchenOrderManagement, matching the real kitchen/ordermanagement.php
 // page it's built from; kitchenDashboard is a genuinely different real
 // page, kitchen/dashboard.php, and must not alias this one). "Create
-// Orders" covers the real core ordering flow (tables, categories, products,
-// cart, place order) from takeposnew/waiter_order.php — see
-// WaiterOrderPage.tsx/waiterOrder.queries.ts; payment/checkout, cash
-// drawer, modifiers, barcode scanning and offline sync are separate, much
-// larger subsystems left out of this pass.
+// Orders" opens the POS waiter screen (pos2/WaiterOrderV2) through a redirect.
 // Kitchen Dashboard is the first item of this instance's real Kitchen menu
 // (llx_menu, mainmenu='Kitchen'), so it must be listed here too: the sidebar
 // resolves each real menu label to a React path through this file's items

@@ -10,10 +10,11 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { useUserGroupsList, type UserGroupRow } from '../userGroupsAndTags.queries'
 import { formatDate } from '../../../utils/format'
 
-type SortKey = 'name' | 'created'
+type SortKey = 'name' | 'users' | 'created'
 
 const COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Role Name', key: 'name' },
+  { label: 'Users', key: 'users' },
   { label: 'Created', key: 'created' },
 ]
 const COLUMN_LABELS = [...COLUMNS.map((c) => c.label), 'Actions']
@@ -23,6 +24,8 @@ function sortValue(g: UserGroupRow, key: SortKey): string | number {
   switch (key) {
     case 'name':
       return g.name
+    case 'users':
+      return g.memberCount
     case 'created':
       return g.createdAt ? new Date(g.createdAt).getTime() : 0
   }
@@ -34,12 +37,8 @@ function matchesSearch(g: UserGroupRow, query: string) {
   return g.name.toLowerCase().includes(q)
 }
 
-// Real via user/group/user-groups-sidebarlist-ajax.php (see
-// userGroupsAndTags.queries.ts's header comment for why the reference
-// page's "Total N users" count and avatar stack aren't reproduced here —
-// no JSON source for that number exists, only the legacy page's own HTML,
-// which this app's rules say not to scrape). "Edit Role"/"Duplicate role"
-// link out to the real legacy card.php, which isn't rebuilt in this pass.
+// The groups come from user/group/fapi/list.php, with the number of users of each. "Edit" opens the group page (members and permission
+// matrix, read-only: the fapi grant / revoke only answers a plan).
 export function GroupsList() {
   const { data: groups, isLoading, isError, error } = useUserGroupsList()
   const [page, setPage] = useState(1)
@@ -61,7 +60,7 @@ export function GroupsList() {
   }
 
   function getExportData() {
-    const rows = sortedRows.map((g) => [g.name, g.createdAt ? formatDate(g.createdAt) : '—'])
+    const rows = sortedRows.map((g) => [g.name, String(g.memberCount), g.createdAt ? formatDate(g.createdAt) : '—'])
     return { headers: COLUMNS.map((c) => c.label), rows }
   }
 
@@ -138,12 +137,13 @@ export function GroupsList() {
                   pageRows.map((group) => (
                     <tr key={group.id} className="border-b border-border">
                       <td className="px-4 py-3 text-text!">{group.name}</td>
+                      <td className="px-4 py-3 text-text-muted">{group.memberCount}</td>
                       <td className="px-4 py-3 text-text-muted">{group.createdAt ? formatDate(group.createdAt) : '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             to={ROUTES.userGroupEdit.replace(':id', String(group.id))}
-                            title="Permissions editing has no real API — read-only preview matching the legacy layout"
+                            title="Members and permissions of the role"
                             className="flex items-center gap-1 text-sm text-brand hover:underline"
                           >
                             <Pencil size={12} /> Edit

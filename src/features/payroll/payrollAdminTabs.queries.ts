@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { hrmGet } from './hrm.api'
 
 // The other 6 Payroll Setup tabs (EmpDesignation/Tax Deductions/Device
 // Setting/About/Add Expenses & Allowances/Payee Tax Slab) — each its own
@@ -33,16 +35,8 @@ export interface DesignationRow {
 export function useDesignations() {
   return useQuery({
     queryKey: ['payroll', 'designations'],
-    queryFn: async (): Promise<DesignationRow[]> => {
-      const doc = await fetchLegacyDocument('/custom/payroll/admin/designation.php')
-      const table = doc.querySelector('#example1')
-      if (!table) return []
-      return Array.from(table.querySelectorAll('tbody tr')).map((tr) => {
-        const cells = tr.querySelectorAll('td')
-        const idInput = tr.querySelector<HTMLInputElement>('input[id^="idd"]')
-        return { id: idInput?.value ?? '', name: textOf(cells[1]) }
-      })
-    },
+    // payroll/fapi/designations.php: [{id, name}], the same rows as the classic page (checked live on newecuenta).
+    queryFn: async (): Promise<DesignationRow[]> => (await hrmGet<Array<{ id: string | number; name: string }>>('designations')).map((d) => ({ id: String(d.id), name: d.name })),
     staleTime: 1000 * 30,
   })
 }
@@ -208,19 +202,11 @@ export interface ExpenseAllowanceRow {
 export function useExpenseAllowances() {
   return useQuery({
     queryKey: ['payroll', 'expenseAllowances'],
+    // payroll/fapi/expenses.php: items with the same fields as the classic table (checked live on newecuenta); the account
+    // label comes with stray spaces around it, so it is trimmed.
     queryFn: async (): Promise<ExpenseAllowanceRow[]> => {
-      const doc = await fetchLegacyDocument('/custom/payroll/admin/add_expense.php')
-      const table = doc.querySelector('#example1')
-      if (!table) return []
-      return Array.from(table.querySelectorAll('tbody tr[id^="row-"]')).map((tr) => {
-        const id = tr.id.replace(/^row-/, '')
-        const codeText = textOf(tr.querySelector('.label-code'))
-        const labelText = textOf(tr.querySelector('.label-text'))
-        const accountText = textOf(tr.querySelector('.label-account-code'))
-        const [accountNumber, ...rest] = accountText.split(' - ')
-        const toggle = tr.querySelector('.active-button .fa-toggle-on')
-        return { id, code: codeText, label: labelText, accountNumber: (accountNumber ?? '').trim(), accountLabel: rest.join(' - ').trim(), active: !!toggle }
-      })
+      const data = await hrmGet<{ items: Array<{ id: string | number; code: string; label: string; accountNumber: string; accountLabel: string; active: boolean }> }>('expenses')
+      return data.items.map((r) => ({ id: String(r.id), code: r.code, label: r.label, accountNumber: String(r.accountNumber ?? '').trim(), accountLabel: String(r.accountLabel ?? '').trim(), active: !!r.active }))
     },
     staleTime: 1000 * 30,
   })
@@ -309,16 +295,10 @@ export interface PayeeTaxSlabRow {
 export function usePayeeTaxSlab() {
   return useQuery({
     queryKey: ['payroll', 'payeeTaxSlab'],
+    // payroll/fapi/paye_tax.php (current year): the same bands, with the same field names, as the classic table.
     queryFn: async (): Promise<PayeeTaxSlabRow[]> => {
-      const doc = await fetchLegacyDocument('/custom/payroll/admin/paye_tax.php')
-      const table = doc.querySelector('#example1')
-      if (!table) return []
-      return Array.from(table.querySelectorAll('tbody tr[id^="row-"]')).map((tr) => ({
-        id: tr.id.replace(/^row-/, ''),
-        fromAmount: textOf(tr.querySelector('.label-from')),
-        toAmount: textOf(tr.querySelector('.label-to')),
-        deductionPercent: textOf(tr.querySelector('.label-deduc')),
-      }))
+      const data = await hrmGet<{ items: Array<{ id: string | number; fromAmount: string | number; toAmount: string | number; deductionPercent: string | number }> }>('paye_tax')
+      return data.items.map((r) => ({ id: String(r.id), fromAmount: String(r.fromAmount), toAmount: String(r.toAmount), deductionPercent: String(r.deductionPercent) }))
     },
     staleTime: 1000 * 30,
   })
@@ -469,17 +449,6 @@ export function useUpdateDevice() {
       const text = await res.text()
       if (looksLikeLegacyLoginPageText(text)) throw new Error(NOT_SIGNED_IN_MESSAGE)
       if (text.trim() !== '0') throw new Error('Could not update the device.')
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['payroll', 'devices'] }),
-  })
-}
-
-export function useDeleteDevice() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string): Promise<void> => {
-      const text = await legacyGet(`/custom/payroll/admin/save_ajax.php?deletedevice=${encodeURIComponent(id)}`)
-      if (text.trim() !== '0') throw new Error('Could not delete the device.')
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['payroll', 'devices'] }),
   })

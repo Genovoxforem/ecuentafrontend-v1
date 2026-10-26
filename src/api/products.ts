@@ -338,8 +338,8 @@ export function getProduct(id: number | string, options: { withStock?: boolean; 
   return call<ProductGetData>(fapi.get(`${BASE}/get.php`, { params }), 'Could not load the product.')
 }
 
-export function searchProducts(query: string, options: { warehouse?: number } = {}) {
-  return call<ProductSearchData>(fapi.get(`${BASE}/search.php`, { params: { q: query, warehouse: options.warehouse } }), 'Product search failed.')
+export function searchProducts(query: string, options: { warehouse?: number } = {}, signal?: AbortSignal) {
+  return call<ProductSearchData>(fapi.get(`${BASE}/search.php`, { params: { q: query, warehouse: options.warehouse }, signal }), 'Product search failed.')
 }
 
 export function findProductByBarcode(barcode: string) {
@@ -497,7 +497,9 @@ export interface ProductUomConversion {
   factor: number
   price_override_ttc: number
   purchase_price_ht: number | null
+  purchase_price_ttc?: number | null
   selling_price_ht: number | null
+  selling_price_ttc?: number | null
   allow_purchase: boolean
   allow_sale: boolean
   is_default: boolean
@@ -664,7 +666,7 @@ export interface ProductNotesData {
 
 export interface ProductDocumentsData {
   id: number
-  files: { name: string; size: number | string; date: string; is_image: boolean; url: string; image_url: string }[]
+  files: { name: string; size: number | string; size_raw?: number; date: string; is_image: boolean; url: string; image_url: string }[]
   links: { id: number; label: string; url: string; date: string }[]
   meta: { can_edit: boolean; modulepart: string; count: number }
 }
@@ -795,6 +797,15 @@ export function uploadProductDocument(id: number | string, file: File) {
 
 export function deleteProductDocumentFile(id: number | string, name: string) {
   return postTab<Record<string, unknown>>('documents.php', 'delete_file', { id: Number(id), name }, 'Could not delete this file.')
+}
+
+// documents.php?action=link { id, link, label } adds a URL link; action=delete_link { id, linkid } removes one.
+export function linkProductDocument(id: number | string, link: string, label: string) {
+  return postTab<Record<string, unknown>>('documents.php', 'link', { id: Number(id), link, label }, 'Could not add the link.')
+}
+
+export function deleteProductDocumentLink(id: number | string, linkId: number) {
+  return postTab<Record<string, unknown>>('documents.php', 'delete_link', { id: Number(id), linkid: linkId }, 'Could not remove the link.')
 }
 
 export function getProductAgenda(id: number | string) {

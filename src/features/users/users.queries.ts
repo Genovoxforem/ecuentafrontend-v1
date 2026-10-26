@@ -71,6 +71,9 @@ export interface UsersSummary {
   superAdmins: number
   activeUsers: number
   todayLoginUsers: number
+  // Split of the admin count shown by the classic card ("4 | POS: 1 | KOT: 2"); absent when the backend does not return them.
+  posUsers?: number
+  kotUsers?: number
   users: UserRow[]
 }
 
@@ -113,7 +116,7 @@ export function useUsersSummary() {
     queryKey: [...QUERY_KEY, 'fapi'],
     queryFn: async (): Promise<UsersSummary> => {
       const [stats, list] = await Promise.all([
-        fapiGet<{ stats: { total_users: number; admins: number; superadmins: number; active_users: number; today_login_users: number } }>('/core/fapi/user_meta.php', { action: 'stats' }),
+        fapiGet<{ stats: { total_users: number; admins: number; superadmins: number; active_users: number; today_login_users: number; pos_users?: number; kot_users?: number } }>('/core/fapi/user_meta.php', { action: 'stats' }),
         fapiGet<{ items: RawUserItem[] }>('/core/fapi/users.php', { limit: 500 }),
       ])
       return {
@@ -122,6 +125,8 @@ export function useUsersSummary() {
         superAdmins: stats.stats.superadmins,
         activeUsers: stats.stats.active_users,
         todayLoginUsers: stats.stats.today_login_users,
+        posUsers: stats.stats.pos_users,
+        kotUsers: stats.stats.kot_users,
         users: list.items.map(toRow),
       }
     },
@@ -225,6 +230,13 @@ interface RawUserProfileUser {
   dateemploymentend: string | null
   social_links: RawUserSocialLink[]
   work_profile: RawUserProfileWorkProfile
+  // userprofile/fapi/user.php fills these (the older core/fapi/user.php answered none of them)
+  country_label?: string | null
+  state_label?: string | null
+  created_at?: string | null
+  creator_login?: string | null
+  note?: string | null
+  salary?: number | null
 }
 
 interface RawUserProfileGroup {
@@ -262,8 +274,9 @@ function useUserProfileQuery(id: string | number | undefined) {
   return useQuery({
     queryKey: ['users', 'profile', numericId],
     queryFn: async (): Promise<RawUserProfileResponse> => {
-      // core/fapi/user.php?id= answers the same card the old userprofile/api/user.php did (captured 23 Oct 2026, tests/fixtures/user-fapi.json).
-      return { ok: true, ...(await fapiGet<Omit<RawUserProfileResponse, 'ok'>>('/core/fapi/user.php', { id: numericId })) }
+      // userprofile/fapi/user.php?id= is the card of core/fapi/user.php plus the country and state names, the creation date and creator, the
+      // note and the salary (captured 26 Oct 2026, tests/fixtures/users-profile.json).
+      return { ok: true, ...(await fapiGet<Omit<RawUserProfileResponse, 'ok'>>('/userprofile/fapi/user.php', { id: numericId })) }
     },
     enabled: numericId !== undefined && !Number.isNaN(numericId),
   })
@@ -368,12 +381,7 @@ function toBrief(brief: RawUserBrief | null): UserBriefRef | null {
   return brief ? { id: brief.id, name: brief.name, login: brief.login } : null
 }
 
-// countryLabel/stateLabel, createdAt/creatorLogin, and note aren't part of
-// userprofile/api/user.php's response (that endpoint has country_id/
-// state_id as bare numeric ids with no label, and creation metadata +
-// notes live on separate userprofile/api/* endpoints — notes now covered by
-// useUserNotes() in userDetailTabs.queries.ts) — null rather than a guess,
-// same honesty convention as the rest of this file.
+// countryLabel/stateLabel, createdAt/creatorLogin, note and salary come from userprofile/fapi/user.php (null when it has none).
 export function useUserDetail(id: string | number | undefined) {
   const { data: envelope, isLoading, isError, error } = useUserProfileQuery(id)
   const data = envelope?.user
@@ -391,17 +399,17 @@ export function useUserDetail(id: string | number | undefined) {
           address: data.work_profile.address || data.address,
           zip: data.work_profile.zip || data.zip,
           town: data.work_profile.town || data.town,
-          countryLabel: null,
-          stateLabel: null,
+          countryLabel: data.country_label || null,
+          stateLabel: data.state_label || null,
           mobile: data.user_mobile || data.personal_mobile,
           officePhone: data.work_profile.office_phone || data.office_phone,
           officeFax: data.work_profile.office_fax || data.office_fax,
           email: data.email,
           enabled: data.statut === 1,
           lastLogin: data.work_profile.datelastlogin,
-          createdAt: null,
-          creatorLogin: null,
-          note: null,
+          createdAt: data.created_at ?? null,
+          creatorLogin: data.creator_login ?? null,
+          note: data.note || null,
           dateEmployment: data.dateemployment || data.work_profile.dateemployment,
           dateEmploymentEnd: data.dateemploymentend || data.work_profile.dateemploymentend,
           dateStartValidity: data.work_profile.datestartvalidity,
@@ -411,7 +419,7 @@ export function useUserDetail(id: string | number | undefined) {
           expenseValidator: toBrief(data.expense_validator),
           holidayValidator: toBrief(data.holiday_validator),
           employeeNrc: data.employee_nrc,
-          salary: null,
+          salary: data.salary ?? null,
           hourlyCost: data.work_profile.thm,
           dailyCost: data.work_profile.tjm,
           weeklyHours: data.work_profile.weeklyhours,
