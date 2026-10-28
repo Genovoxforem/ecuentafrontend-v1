@@ -7,13 +7,12 @@ import { MonthYearPicker, monthIsoToLabel } from '../../../shared/components/for
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useEmployeeMonthlyReportEmployees, useEmployeeMonthlyReport } from '../payrollLists.queries'
 
-// Real via payroll/atten_emp_rip.php — confirmed live to be a plain
-// GET-able classic report page (its own <form> is POST-only and
-// CSRF-blocked cross-origin, same as earn_dedu.php's own form, but the
-// same monthPic/employee_li params work fine as a GET). Genuinely real,
-// live per-day data once an employee is picked — one row per calendar day
-// of the chosen month, real colored Status per day, plus a real trailing
-// "Total Working hours" row — see employeeMonthlyReportParser.ts.
+// Via payroll/atten_emp_rip.php — a plain GET-able classic report page (its
+// own <form> is POST-only and CSRF-blocked cross-origin, same as
+// earn_dedu.php's own form, but the same monthPic/employee_li params work
+// as a GET). One row per calendar day of the chosen month once an employee
+// is picked, a colored Status per day, plus a trailing "Total Working
+// hours" row — see employeeMonthlyReportParser.ts.
 export function EmployeeMonthlyReportForm() {
   const [monthValue, setMonthValue] = useState('')
   const [employeeValue, setEmployeeValue] = useState('')

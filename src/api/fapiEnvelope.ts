@@ -35,7 +35,8 @@ function errorText(body: { message?: unknown; errors?: unknown } | undefined, fa
 
 function rethrow(e: unknown): never {
   if (axios.isCancel(e) || isMissingRoute(e)) throw e
-  if (axios.isAxiosError(e)) throw new Error(errorText(e.response?.data, `Backend returned ${e.response?.status ?? 'no response'}.`))
+  // httpStatus keeps the answer's status so the query client does not retry a 4xx (queryClient.ts isPermanentHttpError).
+  if (axios.isAxiosError(e)) throw Object.assign(new Error(errorText(e.response?.data, `Backend returned ${e.response?.status ?? 'no response'}.`)), { httpStatus: e.response?.status })
   throw e
 }
 

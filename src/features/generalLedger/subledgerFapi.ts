@@ -1,4 +1,4 @@
-import type { LedgerMeta, LedgerRow, SubledgerGroup, SubledgerReportData } from './ledgerHtmlParser'
+import type { LedgerMeta, LedgerRow, SubledgerGroup, SubledgerReportData } from './ledgerReport'
 
 // accountancy/fapi/subledger.php (22 Oct 2026): the bookkeeping lines of the period already grouped by subledger account, with the
 // paging block, the period totals and per-line edit / delete flags. Field names below are the ones captured from newecuenta on

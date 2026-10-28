@@ -25,7 +25,7 @@ export function useBankAccountOptions() {
 
 // Payment terms (llx_c_payment_term) from societe/api/meta.php's
 // wizard_options, the same rows/ids/order as the legacy order-create page's
-// <select name="cond_reglement_id"> this used to download (1.7 MB) to read.
+// <select name="cond_reglement_id">.
 const toPaymentTermOptions = (lookups: CustomerLookups): DictionaryOption[] => lookups.paymentTerms.map((t) => ({ id: String(t.id), text: t.label }))
 
 export function usePaymentTerms() {

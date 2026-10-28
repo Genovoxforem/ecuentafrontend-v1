@@ -8,19 +8,11 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { useAccountingJournal, useWriteBookkeeping, downloadJournalCsv, type JournalConfig, type JournalFilters } from '../../accountingJournal.queries'
 import type { JournalWarning } from '../../accountingJournalParser'
+import { toIso, toUs } from '../../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
 // MM/dd/yyyy (the real form's own format) <-> yyyy-MM-dd (native date input).
-const toIso = (us: string) => {
-  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
-}
-const toUs = (iso: string) => {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
-}
-
 // The setup page a warning points at (the bold "Accounting-Setup-<entry>" phrase), when there is a
 // native one.
 const SETUP_ROUTES: [RegExp, string][] = [

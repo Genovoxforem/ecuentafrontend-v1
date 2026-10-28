@@ -22,15 +22,12 @@ import { QuickCustomerCreateModal } from './QuickCustomerCreateModal'
 import { QuickProductCreateModal } from './QuickProductCreateModal'
 
 
-// GET /api/projects.php — a real, working endpoint confirmed live on this
-// backend (queries llx_projet WHERE fk_statut = 1, no customer/socid filter
-// at all). The Project field isn't a per-customer relationship the way the
-// legacy /api/salesorder/?action=get_projects action treats it (that one
-// filters to a single customer's own linked projects, and stayed
-// permanently empty on this deployment since the only real project here
-// has no customer linked to it — confirmed live) — this shows every open
-// project regardless of customer, matching what this dropdown is actually
-// meant to offer.
+// GET /api/projects.php (queries llx_projet WHERE fk_statut = 1, no
+// customer/socid filter at all). The Project field isn't a per-customer
+// relationship the way the legacy /api/salesorder/?action=get_projects
+// action treats it (that one filters to a single customer's own linked
+// projects) — this shows every open project regardless of customer,
+// matching what this dropdown is meant to offer.
 
 interface DictionaryOption {
   id: string

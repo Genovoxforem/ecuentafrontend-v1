@@ -1,26 +1,25 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { stripTags } from '../../utils/text'
 
-// Real via kitchen/order_ajax_list.php — confirmed genuine JSON this
-// session, replacing the entirely fake/local-only implementation this file
-// used to have. "Kitchen order tracking" isn't a dedicated feature with its
-// own table — it's POS invoices (llx_facture with pos_source set) whose
-// lines carry a kotstatus column, and this endpoint queries that directly.
-// "Kitchen Orders" and "Beverage Orders" are the SAME real endpoint, just
-// filtered by btype=supplement for beverages (matching the real legacy
-// menu's own two URLs, /kitchen/ordermanagement.php vs
-// ?type=supplement) — not two different backends.
+// Via kitchen/order_ajax_list.php (JSON). "Kitchen order tracking" isn't a
+// dedicated feature with its own table — it's POS invoices (llx_facture
+// with pos_source set) whose lines carry a kotstatus column, and this
+// endpoint queries that directly. "Kitchen Orders" and "Beverage Orders"
+// are the SAME endpoint, just filtered by btype=supplement for beverages
+// (matching the legacy menu's own two URLs, /kitchen/ordermanagement.php
+// vs ?type=supplement) — not two different backends.
 //
 // The richer "Kitchen Order Management" screen (kitchen/ordermanagement.php)
-// posts to this SAME endpoint with 7 extra real filter params, all applied
-// as genuine SQL LIKE clauses (confirmed by reading order_ajax_list.php's
-// own WHERE-clause construction, not guessed):
+// posts to this SAME endpoint with 7 extra filter params, all applied as
+// SQL LIKE clauses (from order_ajax_list.php's own WHERE-clause
+// construction):
 //   filterDate         -> f.datef LIKE
 //   filterToken        -> f.tokenno LIKE
 //   filterCity         -> s.town LIKE
 //   filterThirdParty   -> s.nom LIKE
 //   filterPaymentType  -> f.fk_mode_reglement LIKE (matches the id, not a
-//                         label — a real legacy quirk; the real page's own
+//                         label — a legacy quirk; the classic page's own
 //                         "Search Payment Type" filter is a plain text
 //                         input despite this, so replicated as-is)
 //   filterOrderStatus  -> f.orderstatus LIKE (enum: pending/received/
@@ -28,9 +27,8 @@ import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 //   filterCompleted    -> f.ordercomplete LIKE ('0' or '1')
 //
 // Column names in the raw response are misleading leftovers from a
-// copy-pasted invoice-list template (same pattern already seen this
-// session in salesoredr_ajax_list.php) — verified directly against this
-// file's own $data[] assignment, not guessed:
+// copy-pasted invoice-list template (same pattern as
+// salesoredr_ajax_list.php), mapped from this file's own $data[] assignment:
 //   cust_name    -> order ref (HTML link)
 //   currency     -> order date, already formatted "MM/DD/YYYY"
 //   typent_code  -> customer name (HTML link)
@@ -40,37 +38,30 @@ import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 //   author       -> user login (HTML link)
 //   status       -> invoice status badge (HTML)
 //   orderstatus  -> "<total> (<pending>)" + an info icon whose data-geo
-//                   attribute holds the real per-item prep breakdown
+//                   attribute holds the per-item prep breakdown
 //                   ("Total Items: X<br>Pending Items: Y<br>Completed
-//                   Items: Z<br>Preparing Items: W") — this IS the real
+//                   Items: Z<br>Preparing Items: W") — this IS the classic
 //                   page's own "Order Status" column, parsed out below
-//   ordercomplete -> a real <select name="order_complete"> with the
+//   ordercomplete -> a <select name="order_complete"> with the
 //                   currently-selected Yes(1)/No(0) option marked via a
 //                   PHP ternary — parsed out below into a plain boolean
-//   tableno      -> real floor/table label (HTML), when the order has one
-//   dropdown     -> the real page's "Action" column: a "View" button that
+//   tableno      -> floor/table label (HTML), when the order has one
+//   dropdown     -> the classic page's "Action" column: a "View" button that
 //                   opens order_details.php in an offcanvas. That endpoint
 //                   returns an HTML fragment (not JSON) and, as a side
-//                   effect of its own GET handler, silently runs `UPDATE
-//                   facture SET orderstatus = 1` on every view — confirmed
-//                   by reading it directly. Per this app's real-API-only
-//                   integration rule, not wired here; left as a disabled
-//                   action (see KitchenOrdersList.tsx) rather than scraping
-//                   a mutating HTML endpoint.
+//                   effect of its own GET handler, runs `UPDATE facture SET
+//                   orderstatus = 1` on every view. Not wired here; left as
+//                   a disabled action (see KitchenOrdersList.tsx) rather
+//                   than scraping a mutating HTML endpoint.
 //
 // This endpoint's own iTotalRecords/iTotalDisplayRecords are swapped from
-// the usual DataTables convention — confirmed live: iTotalRecords is just
-// the current page's row count (from the LIMIT-ed query), while
-// iTotalDisplayRecords is the real filtered total (from the pre-LIMIT
-// count query) — same swapped-fields bug already found and fixed this
-// session on fourn/facture/facture_ajax_list.php's invtype=pending path.
+// the usual DataTables convention: iTotalRecords is just the current page's
+// row count (from the LIMIT-ed query), while iTotalDisplayRecords is the
+// filtered total (from the pre-LIMIT count query) — the same swapped-fields
+// bug as fourn/facture/facture_ajax_list.php's invtype=pending path.
 //
-// No permission check exists on this endpoint server-side (confirmed by
-// reading it directly) — reported, not fixed, per frontend-only scope.
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
+// No permission check exists on this endpoint server-side — reported, not
+// fixed, per frontend-only scope.
 
 function decodeEntities(text: string): string {
   return text

@@ -5,7 +5,7 @@ import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../../routes'
 import { useVatByRate, useVatRateDetail, type VatRateFilters } from '../../vatReportByRate.queries'
-import type { VatRateRow } from '../../vatReportByRateParser'
+import type { VatRateRow } from '../../vatReportByRate.types'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const th = 'font-medium px-3 py-2 text-xs uppercase tracking-wide text-text-faint'
@@ -116,7 +116,7 @@ function DetailDrawer({ row, filters, onClose }: { row: VatRateRow; filters: Vat
 }
 
 // compta/tva/quadri_detail.php — the real "SALE TAX REPORT BY RATES" (see
-// vatReportByRateParser.ts). Filters re-query the backend; search and page
+// vatReportByRate.types.ts). Filters re-query the backend; search and page
 // size work on the returned rows; "+" opens that rate's invoice lines.
 export function VatReportByRatePage() {
   const [applied, setApplied] = useState<VatRateFilters>({ period: '', invoiceType: 'customer', status: 'All' })

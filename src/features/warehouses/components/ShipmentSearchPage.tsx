@@ -383,10 +383,7 @@ function ShipmentCreatedTab() {
 // -m-6 + flex-1 flex-col + sticky header/footer: same shell every other list
 // page in this app uses (see InventoryListPage.tsx) — title left, primary
 // action(s) right in one sticky bar, content fills the remaining height, and
-// ListPagination sits as the sticky footer. Previously this page didn't use
-// that shell at all (a plain space-y-4 stack with the tab switch on its own
-// row and a fixed-height table), which is why it looked inconsistent with
-// every other list page in the app.
+// ListPagination sits as the sticky footer.
 export function ShipmentSearchPage() {
   const [tab, setTab] = useState<'pending' | 'created'>('pending')
 

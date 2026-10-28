@@ -9,7 +9,7 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { formatMoney } from '../../../utils/format'
 import { ROUTES } from '../../../routes'
 import { useAllProductsRich, useZraEnabled, type ProductRow, type ProductsSummary, type RichProductRow } from '../products.queries'
-import { useProductFormOptions } from '../../zra/createProduct.queries'
+import { useProductFormOptions } from '../productFormOptions.queries'
 import { ProductAvatar } from './ProductAvatar'
 import { ProductFilterModal } from './ProductFilterModal'
 import { ProductDetailPanel } from './ProductDetailPanel'

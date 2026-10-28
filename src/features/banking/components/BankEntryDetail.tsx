@@ -38,24 +38,17 @@ function toFormState(data: BankEntryDetailData): FormState {
   }
 }
 
-// compta/bank/line.php?rowid=N — no JSON API (confirmed live, same as
-// compta/bank/card.php?action=create — see bankAccountFormParser.ts), but a
-// genuine classic form-POST edit page, not read-only: "Bank entry"
-// (action=update) edits the transaction's own fields, and a second,
-// independent "Reconciliation" form (action=setreconcile) further down the
-// same page handles the statement number/reconciled flag. Both are wired
-// here for real — see useUpdateBankEntry/useReconcileBankEntry in
-// banking.queries.ts. The Voucher modal is pre-rendered server-side inside
-// this same page fetch (not a separate AJAX call), so its content is just
-// re-derived here from fields already parsed rather than re-scraped. Log
-// (compta/bank/info.php) and LedgerEntry (compta/bank/ledgerentry.php) are
-// real too — see useBankEntryLog/useBankEntryLedger — fetched only once
-// their tab is actually opened, not eagerly with the main detail.
+// Bank entry page (classic compta/bank/line.php?rowid=N): "Bank entry"
+// (action=update) edits the transaction's own fields, and the independent
+// "Reconciliation" form (action=setreconcile) handles the statement
+// number/reconciled flag — see useUpdateBankEntry/useReconcileBankEntry in
+// banking.queries.ts. The Voucher modal is built from the fields already
+// loaded. Log and LedgerEntry (useBankEntryLog/useBankEntryLedger) are
+// fetched only when their tab is opened.
 //
 // Header/tabs shell matches BankAccountDetail.tsx's own sticky-header +
 // pill-tab pattern (same -m-6/-mx-6 sticky trick, same rounded-full active
-// tab) instead of a one-off design, so this page reads as part of the same
-// Banking module rather than a visual outlier.
+// tab), so this page reads as part of the same Banking module.
 export function BankEntryDetail() {
   const { id } = useParams<{ id: string }>()
   const rowid = id ? Number(id) : undefined

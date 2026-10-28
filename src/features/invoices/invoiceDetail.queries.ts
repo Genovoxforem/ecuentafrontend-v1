@@ -155,14 +155,14 @@ export function useChangeInvoiceContact(id: string | undefined) {
   })
 }
 
-// Real ajax contract read verbatim from card.php's own inline
-// fnupdatezrainvoice(ref) script (POST /quicklinks_ajax.php,
-// type=getzraresponseinvoice&cisInvcNo=<ref>; the real success handler does
+// Ajax contract from card.php's own inline fnupdatezrainvoice(ref) script
+// (POST /quicklinks_ajax.php, type=getzraresponseinvoice&cisInvcNo=<ref>;
+// the classic success handler does
 // `window.location.href = '/compta/sales/card.php?facid=' + ref`, so `ref`
-// is this invoice's own facid, not a ZRA-side reference). Confirmed live:
-// the function is defined on every invoice's card.php but isn't wired to
-// any visible button on this backend build — refetching the invoice detail
-// query below is this app's equivalent of the real handler's page reload.
+// is this invoice's own facid, not a ZRA-side reference). The function is
+// defined on every invoice's card.php but isn't wired to any visible
+// button on the classic page — refetching the invoice detail query below
+// is this app's equivalent of the classic handler's page reload.
 export function useSyncZraInvoice(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({

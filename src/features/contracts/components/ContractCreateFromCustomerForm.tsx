@@ -113,13 +113,12 @@ export function ContractCreateFromCustomerForm() {
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
 
-  // Real userprofile/api/users.php roster (see users.queries.ts) — Enabled
-  // accounts only, matching who a real Dolibarr rep-select would offer.
-  // The reference form's own rep dropdown suffixes every name with its
-  // entity scope — "(All entities)" for the one true entity=0 superadmin,
-  // "(Master entity)" for every other real user (confirmed live: entity=0
-  // only ever coincides with isSuperAdmin's own admin&&entity===0 check —
-  // see users.queries.ts — across all 20 real accounts on this backend).
+  // userprofile/api/users.php roster (see users.queries.ts) — Enabled
+  // accounts only, matching who a Dolibarr rep-select would offer.
+  // The reference form's rep dropdown suffixes every name with its entity
+  // scope — "(All entities)" for the entity=0 superadmin, "(Master entity)"
+  // for every other user (entity=0 only coincides with isSuperAdmin's
+  // admin&&entity===0 check — see users.queries.ts).
   const userOptions: SearchableSelectOption[] = (usersSummary?.users ?? [])
     .filter((u) => u.status === 'Enabled')
     .map((u) => ({ value: String(u.id), label: `${u.name || u.login} (${u.isSuperAdmin ? 'All entities' : 'Master entity'})` }))

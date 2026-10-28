@@ -36,25 +36,15 @@ import {
   type BankEntryLog,
   type BankEntryLedger,
 } from './bankEntryDetailParser'
-import type { BankBudget } from './bankBudgetParser'
-import type { BankTransactionCategoryList } from './bankTransactionCategParser'
+import type { BankBudget } from './bankBudget.types'
+import type { BankTransactionCategoryList } from './bankTransactionCateg.types'
+import { stripTags } from '../../utils/text'
 
-// The 4 real JSON APIs found in the Banking module this session (confirmed
-// by reading each file's PHP directly) — everything else in this module is
-// a classic form-POST/HTML-only legacy page (see the module's other 18
-// pages, all NotBuiltPage placeholders).
-//
-// Two of these (bank-sidebar-list-ajax.php, loan-sidebar-list-ajax.php) are
-// the same generic *-sidebar-list-ajax.php template already seen elsewhere
-// in this app (Users Groups/Tags) — real, but with the same hardcoded
-// length=25 page-size cap and, per this session's audit, NO permission
-// check at all (any logged-in user can call them). categories/
-// tag-sidebarlist-ajax.php is the exact same generic tag list already used
-// for Users Tags, reused here with type_id=5 (Categorie::TYPE_ACCOUNT).
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
+// bank-sidebar-list-ajax.php and loan-sidebar-list-ajax.php are the generic
+// *-sidebar-list-ajax.php template (Users Groups/Tags use it too): a
+// hardcoded length=25 page size and no permission check (any logged-in user
+// can call them). categories/tag-sidebarlist-ajax.php is the generic tag
+// list used for Users Tags, here with type_id=5 (Categorie::TYPE_ACCOUNT).
 
 // Shared by BankAccountDetail.tsx and BankEntriesList.tsx to turn a
 // formatted amount cell (e.g. "1,234.56") from bankentries_list_ajax.php
@@ -226,9 +216,9 @@ export interface BankEntryRow {
   // the row has no third party or links to something other than a company
   // (e.g. an internal user for a salary/social-charge line).
   thirdPartySocid?: number
-  // The cell's own trailing <small> subtitle (confirmed live, e.g.
-  // "Voxforem Technologies" under a contact named "customer1") — the
-  // contact's parent company affiliation. Undefined when the cell has none.
+  // The cell's own trailing <small> subtitle (e.g. "Voxforem Technologies"
+  // under a contact named "customer1") — the contact's parent company
+  // affiliation. Undefined when the cell has none.
   thirdPartyCompany?: string
   bankAccount: string
   // Real llx_bank_account.rowid, parsed off the Bank Account cell's own
@@ -294,9 +284,9 @@ export function useReconcileCounts(accountIds: number[]) {
   })
 }
 
-// ── Categories (categories/tag-sidebarlist-ajax.php?type_id=5) — the exact
-// same generic llx_categorie list already used for Users Tags this session,
-// reused here for Categorie::TYPE_ACCOUNT (=5) ────────────────────────────
+// ── Categories (categories/tag-sidebarlist-ajax.php?type_id=5) — the
+// generic llx_categorie list also used for Users Tags, here for
+// Categorie::TYPE_ACCOUNT (=5) ────────────────────────────
 export interface BankAccountCategoryRow {
   id: number
   name: string
@@ -642,7 +632,7 @@ export function useCreateInternalTransfer() {
 // (categories/tag-sidebarlist-ajax.php?type_id=5, which already has a real
 // JSON API — see useBankAccountCategoriesList above). No JSON API here, but
 // a genuine classic form-POST list with real add/edit/delete — see
-// bankTransactionCategParser.ts.
+// bankTransactionCateg.types.ts.
 export function useBankTransactionCategories() {
   return useQuery({
     queryKey: ['banking', 'transactionCategories'],

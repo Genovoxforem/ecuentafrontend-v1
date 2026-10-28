@@ -16,6 +16,7 @@ import {
   type EmployeeDetail,
   type EmployeeRow,
 } from '../payrollV2.queries'
+import { todayIso } from '../../../utils/dates'
 import { EmptyRow, ErrorCard, LoadingRows, PayrollModal, TablePanel, Td, Th } from './PayrollV2Chrome'
 
 const FIELD = 'w-full rounded-md border border-input-border bg-input-bg px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
@@ -23,7 +24,6 @@ const PRIMARY = 'inline-flex items-center gap-1.5 rounded-md bg-brand px-4 py-2 
 const OUTLINE = 'inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover disabled:opacity-60'
 const ROW_BTN = 'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-text hover:bg-surface-hover'
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Request failed.')
-const todayIso = () => new Date().toISOString().slice(0, 10)
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 type Result = { ok: boolean; text: string } | null

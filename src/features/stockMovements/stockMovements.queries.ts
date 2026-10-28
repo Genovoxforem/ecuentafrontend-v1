@@ -64,15 +64,12 @@ interface RawResponse {
   }
 }
 
-// Real via product/stock/ajax/movement_list_api.php — the JSON backend for
-// product/stock/movement_list.php, which is itself a genuine custom-built
-// SPA shell for this instance (confirmed by its own "This file renders only
-// a minimal shell" comment), not a stock stub scraper. Real
+// Via product/stock/ajax/movement_list_api.php — the JSON backend for
+// product/stock/movement_list.php, itself a custom-built SPA shell for this
+// instance (its own "This file renders only a minimal shell" comment).
 // hasRight('stock','mouvement','lire') check. Only the read action
 // (get_page_data) is wired here — the API also exposes correct_stock/
-// transfer_stock/mass_action mutations, left unwired (frontend-only scope
-// plus this session's rule to never live-test mutations without explicit
-// per-instance approval).
+// transfer_stock/mass_action mutations, left unwired.
 export function useStockMovements(filters: { warehouseId?: number; productId?: number }, page: number, length: number) {
   return useQuery({
     queryKey: ['stockMovements', filters, page, length],

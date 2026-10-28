@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { postExpenseAction } from './expenses.queries'
 import { createBudget, loadAdvances, loadAnalytics, loadBudgets, loadRecurring, loadReimbursements, loadReports, loadRepayments, toggleRecurring, type BudgetsPage, type NewBudgetInput } from './expenseFapi'
-import type { AdvancesPage, AnalyticsPage, RecurringPage, ReimbursementsPage, ReportsPage, RepaymentsPage } from './expenseTabsParser'
+import type { AdvancesPage, AnalyticsPage, RecurringPage, ReimbursementsPage, ReportsPage, RepaymentsPage } from './expenseTabs.types'
 
 // Reads of the expense module's Advances / Reimbursements / Repayments / Recurring / Reports / Analytics / Budgets pages, from
 // expense/fapi (expenseFapi.ts). Every key starts with 'expenses' so a mutation's invalidateQueries(['expenses']) refreshes them.

@@ -1,14 +1,14 @@
-// Parses payroll/over_time.php — confirmed live to be a plain GET-able
-// classic report (its own <form method="POST"> has no `action`, and the
-// real PHP reads `nameIN`/`searchBydate` via $_REQUEST, so GET works fine).
-// Entity scoping is automatic server-side (the real WHERE clause adds
-// `AND lu.entity = $conf->entity` only for a non-master entity) — there's
-// no user-facing entity control on this page at all, unlike its sibling
-// reports. Real columns: Date/Employee/Attendance/Clock In/Clock Out/
-// Overtime, one real row per attendance record with `overtime > 0` on the
-// chosen date — genuinely server-rendered straight into <tbody>, not a
-// DataTables AJAX source (the search/pagination chrome visible on the real
-// page is a client-side enhancement over these same rows).
+// Parses payroll/over_time.php — a plain GET-able classic report (its own
+// <form method="POST"> has no `action`, and the PHP reads
+// `nameIN`/`searchBydate` via $_REQUEST, so GET works). Entity scoping is
+// automatic server-side (the WHERE clause adds `AND lu.entity =
+// $conf->entity` only for a non-master entity) — there's no user-facing
+// entity control on this page at all, unlike its sibling reports. Columns:
+// Date/Employee/Attendance/Clock In/Clock Out/Overtime, one row per
+// attendance record with `overtime > 0` on the chosen date —
+// server-rendered straight into <tbody>, not a DataTables AJAX source (the
+// search/pagination chrome on the classic page is a client-side
+// enhancement over these same rows).
 
 export interface OvertimeListRow {
   date: string

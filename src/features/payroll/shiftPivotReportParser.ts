@@ -1,20 +1,19 @@
-// Shared parser for the real "day-pivot" attendance report shape used by
-// three real backend pages — payroll/overtime_monthly.php, special_shift_report.php
-// and holiday_shift_report.php — confirmed live to share one identical real
-// template (even the page title bug: all three print the wrong subhead text
-// "OVERALL ATTENDANCE REPORT", a genuine copy-paste leftover in the real
-// PHP, reproduced here verbatim rather than silently corrected). Real shape,
-// confirmed by reading each page's own PHP and by live GET requests against
-// 172.16.5.55: for each Entity (real llx_entity row, shown as its own <h5>),
-// one real <table id="example2"> per user Group under that entity, each
-// with one column per calendar day of the selected month (so column count
-// varies 28–31) plus a trailing Total column, and one real <tr> per
-// employee in that group. All three pages are plain GET-able classic pages
-// (confirmed: "For The Month of X" echoes back exactly what was sent), but
-// one real per-page inconsistency: overtime_monthly.php and
-// holiday_shift_report.php both read the month from a `month` param,
-// special_shift_report.php instead reads `monthPic` — see each page's own
-// hook in payrollLists.queries.ts for which it sends.
+// Shared parser for the "day-pivot" attendance report shape used by three
+// backend pages — payroll/overtime_monthly.php, special_shift_report.php and
+// holiday_shift_report.php — which share one identical template (even the
+// page title bug: all three print the wrong subhead text "OVERALL
+// ATTENDANCE REPORT", a copy-paste leftover in the PHP, reproduced here
+// verbatim rather than silently corrected). Shape, from each page's own
+// PHP: for each Entity (an llx_entity row, shown as its own <h5>), one
+// <table id="example2"> per user Group under that entity, each with one
+// column per calendar day of the selected month (so column count varies
+// 28–31) plus a trailing Total column, and one <tr> per employee in that
+// group. All three pages are plain GET-able classic pages ("For The Month
+// of X" echoes back exactly what was sent), with one per-page
+// inconsistency: overtime_monthly.php and holiday_shift_report.php both
+// read the month from a `month` param, special_shift_report.php instead
+// reads `monthPic` — see each page's own hook in payrollLists.queries.ts
+// for which it sends.
 
 export interface ShiftPivotEntityOption {
   value: string

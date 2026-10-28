@@ -4,6 +4,7 @@ import { fapi } from '../../api/axios'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { fetchAllPages, usDate } from '../../api/fapiRow'
 import { fetchShipmentsFapi } from './shipmentListEnriched.queries'
+import { fetchWarehouseDashboard } from './warehouses.queries'
 import { customerLookupsQuery } from '../customers/thirdPartyOptions.queries'
 import { stockRowFromApi } from '../products/productTools.queries'
 import type { ReassortData } from '../../api/products'
@@ -32,10 +33,11 @@ export type { WarehouseListRow, InventoryListRow }
 const WAREHOUSE_LIST_KEY = ['warehouses', 'realList'] as const
 
 function useWarehouseListQuery() {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: WAREHOUSE_LIST_KEY,
     queryFn: async (): Promise<WarehouseListRow[]> => {
-      const [list, dash] = await Promise.all([fapiGet<any>('/product/stock/fapi/warehouses.php', { limit: 500 }), fapiGet<any>('/product/stock/fapi/dashboard.php')])
+      const [list, dash] = await Promise.all([fapiGet<any>('/product/stock/fapi/warehouses.php', { limit: 500 }), fetchWarehouseDashboard(queryClient)])
       const values = new Map<number, { cost: number; sale: number }>(((dash.by_warehouse ?? []) as any[]).map((w) => [Number(w.id), { cost: Number(w.value_at_cost) || 0, sale: Number(w.value_at_sale) || 0 }]))
       return ((list.items ?? []) as any[]).map(
         (w): WarehouseListRow => ({
@@ -376,11 +378,6 @@ function useInventoryListQuery() {
     },
     staleTime: 1000 * 30,
   })
-}
-
-export function useInventories(): InventoryListRow[] {
-  const { data } = useInventoryListQuery()
-  return data ?? []
 }
 
 export function useInventoryList() {

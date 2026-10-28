@@ -1,3 +1,4 @@
+import { parseAmount } from '../../utils/text'
 // Parses custom/zra/getpurchases_ajax.php's own DataTables rows (real,
 // confirmed by reading that file directly against llx_zrapurchases,
 // purchasestatus='0' hardcoded — only "not yet actioned" rows, matching
@@ -14,11 +15,6 @@ function cellText(html: string): string {
 function afterLabel(text: string, label: string): string {
   const m = text.match(new RegExp(label + ':\\s*([^|]*?)(?:\\s*(?:Item Count|Branch|Payment Type|Remark):|$)', 'i'))
   return m ? m[1].trim() : ''
-}
-
-function parseAmount(text: string): number {
-  const n = Number(text.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
 }
 
 export type RawAutomaticPurchaseRow = [string, string, string, string, string, string]

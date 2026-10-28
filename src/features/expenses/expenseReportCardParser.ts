@@ -1,17 +1,17 @@
-// expensereport/card.php?id=N — Dolibarr's real Expense Report detail page
+// expensereport/card.php?id=N — Dolibarr's Expense Report detail page
 // (distinct backend module from expense/, see expenseReportsList.queries.ts's
-// own header comment). Confirmed live against 172.16.5.10 (id=7): header
-// banner (Ref/Project/status badge/ledger-accounted text), a 2-column field
-// table (User, optionally ThirdParty + Vendor invoice once validated/bound,
-// Period, Validation date, User responsible for approval), an amount
-// summary table (Amount excl./VAT/Amount inc. tax), the "Item Table" line
-// editor (#tablelines — every sample fetched this session had zero
-// persisted lines, just the always-present add-line input row; lines are
-// parsed generically below in case a populated one exists, but that markup
-// wasn't confirmed live), a Payments summary table (Already paid/Amount
-// claimed/Remaining unpaid), and the standard builddoc "Linked files" doc
-// generator. No JSON API for this page as a whole (expense_report_lines_api.php
-// backs the line editor's own save/delete actions only, not read here).
+// header comment): header banner (Ref/Project/status badge/ledger-accounted
+// text), a 2-column field table (User, optionally ThirdParty + Vendor
+// invoice once validated/bound, Period, Validation date, User responsible
+// for approval), an amount summary table (Amount excl./VAT/Amount inc.
+// tax), the "Item Table" line editor (#tablelines — lines are parsed
+// generically below; the markup of a populated line is not verified), a
+// Payments summary table (Already paid/Amount claimed/Remaining unpaid),
+// and the standard builddoc "Linked files" doc generator. No JSON API for
+// this page as a whole (expense_report_lines_api.php backs the line
+// editor's own save/delete actions only, not read here).
+
+import { htmlToText } from '../../utils/text'
 
 export interface ExpenseReportField {
   label: string
@@ -57,19 +57,16 @@ export interface ExpenseReportCard {
   payments: { alreadyPaid: string; amountClaimed: string; remainingUnpaid: string }
   docTemplateOptions: string[]
   tabs: ExpenseReportTab[]
-  // Real add-line form fields, scraped from the always-present input row
-  // (#fk_c_type_fees / #line_fk_project / #vatrate) — confirmed live
-  // (id=6/7): 77 real expense types, real VAT rate codes ("16 (A)" etc,
-  // not plain numbers — the code suffix is significant, see
-  // expense_manager.js's own addLineFromInline), and 0+ real projects
-  // (empty beyond the placeholder when the record has none, which was
-  // every sample fetched this session).
+  // Add-line form fields, scraped from the always-present input row
+  // (#fk_c_type_fees / #line_fk_project / #vatrate): expense types, VAT
+  // rate codes ("16 (A)" etc, not plain numbers — the code suffix is
+  // significant, see expense_manager.js's own addLineFromInline), and 0+
+  // projects (empty beyond the placeholder when the record has none).
   expenseTypeOptions: { value: string; label: string }[]
   projectOptions: { value: string; label: string }[]
   vatRateOptions: { value: string; label: string }[]
-  // The real "Choose the data you want to clone" modal's own user select
-  // (#userid) — confirmed live: cloning genuinely requires picking which
-  // user to clone the report for, real field, not optional.
+  // The "Choose the data you want to clone" modal's own user select
+  // (#userid) — cloning requires picking which user to clone the report for.
   cloneUserOptions: { value: string; label: string }[]
 }
 
@@ -82,12 +79,11 @@ function text(el: Element | null): string {
   return (el?.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
-// Strips the real avatar-initials badge ("AP", "WI", ...) some field values
-// carry before the actual name — confirmed live it's real rendered text (a
-// generated-avatar div, not decorative-only), so a plain textContent read
-// runs it straight into the name ("APApex") with no separating whitespace
-// in the source markup. Same fix as expenseReportsList.queries.ts's own
-// cellText helper.
+// Strips the avatar-initials badge ("AP", "WI", ...) some field values
+// carry before the actual name — it's rendered text (a generated-avatar
+// div), so a plain textContent read runs it straight into the name
+// ("APApex") with no separating whitespace in the source markup. Same fix
+// as expenseReportsList.queries.ts's own cellText helper.
 function textStripAvatar(el: Element | null): string {
   if (!el) return ''
   const clone = el.cloneNode(true) as Element
@@ -110,11 +106,7 @@ export function parseExpenseReportCard(doc: Document): ExpenseReportCard {
   const refBlock = doc.querySelector('.refidno-sub')
   const refLines = (refBlock?.innerHTML ?? '')
     .split(/<br\s*\/?>/i)
-    .map((chunk) => {
-      const tmp = document.createElement('div')
-      tmp.innerHTML = chunk
-      return (tmp.textContent ?? '').replace(/\s+/g, ' ').trim()
-    })
+    .map((chunk) => htmlToText(chunk).replace(/\s+/g, ' ').trim())
   const ref = (refLines[0] ?? '').replace(/^Ref No\s*:\s*/i, '')
   const projectLabel = (refLines[1] ?? '').replace(/^Project\s*:\s*/i, '')
   const projectEditUrl = doc.querySelector<HTMLAnchorElement>('.refidno-sub a.editfielda')?.getAttribute('href') ?? null
@@ -132,23 +124,20 @@ export function parseExpenseReportCard(doc: Document): ExpenseReportCard {
 
   // On Approved/Validated records, this same table also carries the
   // builddoc "Doc template" row and its trailing "None" (linked-files)
-  // row — real markup, not a parser miss, confirmed live (id=6, Approved
-  // status). Those rows contain a real <select>/inline <script>, which a
-  // plain textContent read runs straight into the field's displayed value
-  // as raw JS source — every genuine field row here is plain text/a link/a
-  // badge, never a form control, so a row containing one is excluded
-  // rather than trying to strip script text out of it.
+  // row. Those rows contain a <select>/inline <script>, which a plain
+  // textContent read runs straight into the field's displayed value as raw
+  // JS source — every field row here is plain text/a link/a badge, never a
+  // form control, so a row containing one is excluded rather than trying
+  // to strip script text out of it.
   const allFieldRows = Array.from(doc.querySelectorAll('.fichehalfleft table.newCustomUItable > tbody > tr, .fichehalfleft table.newCustomUItable > tr'))
   // The builddoc "Doc template" row (tr.tbold) marks where this same table
   // starts carrying unrelated foster-parented content on records with
-  // attachments/approvals — confirmed live (id=2, Approved + 1 real
-  // attachment): everything from that row on is the doc-generator form and
-  // its own attached-files listing, not a real card field, including plain
-  // <a> download-link rows with no form control at all (so a "does this
-  // row contain a form control" filter alone doesn't catch it). Slicing at
-  // that boundary is what actually reflects the real page's own section
-  // split, rather than trying to pattern-match every kind of row that can
-  // follow it.
+  // attachments/approvals: everything from that row on is the doc-generator
+  // form and its own attached-files listing, not a card field, including
+  // plain <a> download-link rows with no form control at all (so a "does
+  // this row contain a form control" filter alone doesn't catch it).
+  // Slicing at that boundary reflects the page's own section split, rather
+  // than trying to pattern-match every kind of row that can follow it.
   const docTemplateIdx = allFieldRows.findIndex((tr) => tr.classList.contains('tbold'))
   const realFieldRows = docTemplateIdx === -1 ? allFieldRows : allFieldRows.slice(0, docTemplateIdx)
   const fields: ExpenseReportField[] = realFieldRows
@@ -191,14 +180,14 @@ export function parseExpenseReportCard(doc: Document): ExpenseReportCard {
 
   const docTemplateOptions = Array.from(doc.querySelectorAll('#model option')).map((o) => text(o))
 
-  // The real tab bar (Expense report / Linked files / Notes / Events /
-  // LedgerEntry) — each a genuinely separate backend page (document.php,
-  // note.php, info.php, ledgerentry.php), all now rendered natively (see
-  // ExpenseReportDetailTabs.tsx). A tab with real content carries a real
-  // count badge (<span class="badge">N</span>, e.g. "Linked files" with 1
-  // attachment) — confirmed live (id=2) a plain textContent read runs that
-  // count straight into the label with no separator ("Linked files1"), so
-  // the badge is stripped from a clone before reading the label text.
+  // The tab bar (Expense report / Linked files / Notes / Events /
+  // LedgerEntry) — each a separate backend page (document.php, note.php,
+  // info.php, ledgerentry.php), all rendered natively (see
+  // ExpenseReportDetailTabs.tsx). A tab with content carries a count badge
+  // (<span class="badge">N</span>, e.g. "Linked files" with 1 attachment);
+  // a plain textContent read runs that count straight into the label with
+  // no separator ("Linked files1"), so the badge is stripped from a clone
+  // before reading the label text.
   const tabs: ExpenseReportTab[] = Array.from(doc.querySelectorAll('.ecnta-new-product-tabs a.tab')).map((a) => {
     const labelClone = a.cloneNode(true) as Element
     labelClone.querySelectorAll('.badge').forEach((n) => n.remove())

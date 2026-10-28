@@ -1,19 +1,17 @@
 // Parses payroll/special_shift_salary_report.php?shift=manual|holidayshift —
-// one real backend file powering both "Special Shift Salary Report" and
-// "Holiday Shift Salary Report" (confirmed by reading the PHP directly:
-// `$shift_Type = GETPOST('shift')` just switches a couple of labels and the
-// llx_payroll_manual_shifts.shift_id filter). Plain GET-able classic report
-// (`isset($_REQUEST['submitt'])`). Real filters: Month (`monthPic`, matched
-// with exact string equality against the stored `month` column — this
-// backend has zero rows in that table right now so the real stored format
-// couldn't be confirmed live; sent as this app's own established
-// "Month Year" text, the same convention proved on 3 other real Payroll
+// one backend file powering both "Special Shift Salary Report" and
+// "Holiday Shift Salary Report" (`$shift_Type = GETPOST('shift')` just
+// switches a couple of labels and the llx_payroll_manual_shifts.shift_id
+// filter). Plain GET-able classic report (`isset($_REQUEST['submitt'])`).
+// Filters: Month (`monthPic`, matched with exact string equality against
+// the stored `month` column — the stored format is not verified; sent as
+// this app's own "Month Year" text, the same convention as 3 other Payroll
 // report pages — see MonthYearPicker.tsx), Entity (`TypesOfEntity`, "All
-// Entity" + one option per real llx_entity row), Employee (`employee_li`,
-// grouped by entity, each option's value a real composite "userId--entityId"
-// string, not a plain user id). Real columns: Month/Employee Name/
+// Entity" + one option per llx_entity row), Employee (`employee_li`,
+// grouped by entity, each option's value a composite "userId--entityId"
+// string, not a plain user id). Columns: Month/Employee Name/
 // Designation/Amount-Percentage Method/Amount (Per day)/Salaried Amount —
-// the real 7th column, Action, is a bare <a> straight to
+// the 7th column, Action, is a bare <a> straight to
 // payroll/shiftsmanual_amount.php (a legacy page with no React route), so
 // it's read here but deliberately not rendered as a link.
 

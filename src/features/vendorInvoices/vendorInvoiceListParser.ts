@@ -1,3 +1,4 @@
+import { parseAmount } from '../../utils/text'
 // Parses fourn/facture/facture_ajax_list.php's own DataTables rows — every
 // cell is server-built HTML (FactureFournisseur::getNomUrl()/LibStatut(),
 // Societe::getNomUrl(), hand-built <div>/<small> blocks), not a clean value,
@@ -15,16 +16,11 @@ function cellText(html: string): string {
   return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
-function parseAmount(text: string): number {
-  const n = Number(text.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
-}
-
-// This endpoint's invoice_date cell is "MM/DD/YYYY" (confirmed live), unlike
-// the customer invoice list's own cell which invoices.queries.ts already
-// normalizes to ISO — same conversion applied here so invoiceDate sorts/
-// compares as a plain string and slices into a real year/month everywhere
-// it's consumed (VendorInvoiceStatisticsPage's by-year/by-month grouping,
+// This endpoint's invoice_date cell is "MM/DD/YYYY", unlike the customer
+// invoice list's own cell which invoices.queries.ts normalizes to ISO —
+// same conversion applied here so invoiceDate sorts/compares as a plain
+// string and slices into a year/month everywhere it's consumed
+// (VendorInvoiceStatisticsPage's by-year/by-month grouping,
 // home.queries.ts's today/yesterday/monthly purchase totals).
 function toIsoDate(us: string): string {
   const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)

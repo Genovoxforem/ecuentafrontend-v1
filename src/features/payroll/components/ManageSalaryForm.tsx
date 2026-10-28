@@ -290,13 +290,12 @@ function AssignSalaryModal({ row, onClose, onSaved }: { row: ManageSalaryRow; on
   )
 }
 
-// Real via payroll/manage_salary.php: pick an entity, "Go" loads every
-// employee in it with their current Assigned Salary Grade / Assigned Shift
-// (see payrollActions.queries.ts's useManageSalaryEmployees), and each
-// row's "Assign Details" opens the real modal above to create or update
-// that employee's assignment — confirmed live, this deployment has exactly
-// one entity ("Master entity", id 1), same convention already used on
-// Mark Attendance's own Entity dropdown.
+// Via payroll/manage_salary.php: pick an entity, "Go" loads every employee
+// in it with their current Assigned Salary Grade / Assigned Shift (see
+// payrollActions.queries.ts's useManageSalaryEmployees), and each row's
+// "Assign Details" opens the modal above to create or update that
+// employee's assignment. Entity dropdown: same convention as Mark
+// Attendance's own Entity dropdown.
 export function ManageSalaryForm() {
   const [entityId, setEntityId] = useState('')
   const [searchedEntity, setSearchedEntity] = useState('')

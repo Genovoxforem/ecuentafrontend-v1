@@ -1,5 +1,5 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
-import type { SubaccountRow } from './components/setup/chartOfIndividualAccountsParser'
+import type { SubaccountRow } from './components/setup/chartOfIndividualAccounts.types'
 
 // accountancy/fapi/subaccounts.php (23 Oct 2026): the customer, supplier and employee accounting codes. The answer was captured from
 // newecuenta on 23 Oct 2026 (tests/fixtures/accountancy-subaccounts.json). `reconcilable` lives only on the chart account whose number equals

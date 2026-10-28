@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { LedgerReport, LedgerAccountGroup, LedgerMeta, SubledgerReportData } from './ledgerHtmlParser'
+import type { LedgerReport, LedgerAccountGroup, LedgerMeta, SubledgerReportData } from './ledgerReport'
 import { fapiGet } from '../../api/fapiEnvelope'
 import { mapSubledgerFapi, type FapiSubledger } from './subledgerFapi'
 import { deletePiece, pieceNumFromDeleteUrl } from './pieceFapi'
@@ -135,16 +135,15 @@ interface RawLedgerApiEntry {
   credit: number
   lettering_code: string
   date_export: string | null
-  // Real field, confirmed live in the raw JSON, just never typed/used here
-  // before — e.g. "bank" for a bank-payment-sourced entry, "expense_report"
-  // for one from an expense report. Matches the real card.php piece-detail
-  // page's own "Type Of Document" field.
+  // e.g. "bank" for a bank-payment-sourced entry, "expense_report" for one
+  // from an expense report. Matches the card.php piece-detail page's own
+  // "Type Of Document" field.
   doc_type: string
-  // Real fields, confirmed live — fk_doc is the source object's own id
-  // (e.g. a customer invoice's facid), doc_url a real link to that source
-  // object's classic card page (/compta/facture/card.php?facid=X for
-  // doc_type "customer_invoice") when one exists, or an empty string when
-  // the source has no card page of its own (e.g. doc_type "bank").
+  // fk_doc is the source object's own id (e.g. a customer invoice's facid),
+  // doc_url a link to that source object's classic card page
+  // (/compta/facture/card.php?facid=X for doc_type "customer_invoice") when
+  // one exists, or an empty string when the source has no card page of its
+  // own (e.g. doc_type "bank").
   fk_doc: number
   doc_url: string
   can_edit: boolean
@@ -286,7 +285,7 @@ export function useSubledgerReport(filters: LedgerFilters) {
 
 // Real per-entry delete_url (accountancy/bookkeeping/listbyaccount.php?
 // action=delmouv&mvt_num=X) — matches the real page's own trash-icon
-// action per row (see ledgerHtmlParser.ts's LedgerRow comment). A bare GET
+// action per row (see ledgerReport.ts's LedgerRow comment). A bare GET
 // that deletes that one movement server-side immediately, same convention
 // as useDeleteDictRow in dolibarrDict.queries.ts.
 export function useDeleteLedgerEntry() {
@@ -302,4 +301,4 @@ export function useDeleteLedgerEntry() {
   })
 }
 
-export type { LedgerReport, LedgerAccountGroup, LedgerRow, LedgerMovement, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerHtmlParser'
+export type { LedgerReport, LedgerAccountGroup, LedgerRow, LedgerMovement, LedgerMeta, SubledgerReportData, SubledgerGroup } from './ledgerReport'

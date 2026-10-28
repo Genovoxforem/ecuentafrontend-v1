@@ -47,7 +47,7 @@ interface InvoiceLineState extends NewInvoiceLine {
 }
 
 // The product's cost price (product/fapi/get.php: cost_price, else the weighted average cost). The picker's own
-// list (/api/products/) carries no cost column, which is why this used to read 0.00 for every product.
+// list (/api/products/) carries no cost column.
 function LineCost({ productId }: { productId?: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ['products', 'cost', productId],

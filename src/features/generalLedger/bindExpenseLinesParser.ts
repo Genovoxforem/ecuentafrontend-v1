@@ -1,8 +1,7 @@
 // accountancy/expensereport/list.php — "Lines of expense reports to bind" (the
-// expense report "ToDispatch" screen). Confirmed live against 172.16.5.10
-// (form, header and six real lines: 11 cells per row, the description cell
-// keeps its full text in a tooltip): one POST form (hidden
-// action=ventil + token, a Bind mass action) whose header is
+// expense report "ToDispatch" screen; 11 cells per row, the description cell
+// keeps its full text in a tooltip): one POST form (hidden action=ventil +
+// token, a Bind mass action) whose header is
 //   Employee | Id line | Expense report | Date of line | Types of fees |
 //   Description | Amount | Tax Rate | Accounting account suggested |
 //   Bind line with the accounting account | [checkbox]

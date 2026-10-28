@@ -14,13 +14,10 @@ export const nav: NavSection = {
   label: 'General Ledger',
   icon: BookText,
   items: [
-    // A real standalone leaf on the live menu (confirmed live: this is the
-    // exact item that's active/bulleted while sitting on
-    // accountancy/bookkeeping/listbyaccount_ajax.php — the same page
-    // "Ledger" under Accounting below also points at), not nested under
-    // Default Accounting/Accounting — was missing here entirely, which is
-    // why it rendered as an unmapped/disabled placeholder instead of a
-    // real link.
+    // A standalone leaf on the live menu (the item that's active while
+    // sitting on accountancy/bookkeeping/listbyaccount_ajax.php — the same
+    // page "Ledger" under Accounting below also points at), not nested
+    // under Default Accounting/Accounting.
     { label: 'Ledger Entry', path: ROUTES.ledgerDashboard },
     {
       label: 'Default Accounting',
@@ -49,12 +46,10 @@ export const nav: NavSection = {
         { label: 'Create Financial Closure', path: ROUTES.ledgerCreateFinancialClosure },
         { label: 'Financial Closure List', path: ROUTES.ledgerFinancialClosureList },
         { label: 'Journals', path: ROUTES.ledgerList },
-        // Real label + real file — same page as "Export Accounting Documents"
-        // under the Accounting group below (compta/accounting-files.php),
-        // reached via a 2nd real menu node. "Accountant Files"/"Reportings"
-        // (previously here) don't exist verbatim on the live menu — replaced
-        // with the 3 real labels found instead (Export source documents,
-        // Reporting, MenuReportInOut, ReportTurnover).
+        // Same page as "Export Accounting Documents" under the Accounting
+        // group below (compta/accounting-files.php), reached via a 2nd menu
+        // node. The labels are the ones on the live menu (Export source
+        // documents, Reporting, MenuReportInOut, ReportTurnover).
         { label: 'Export source documents', path: ROUTES.ledgerExportAccountingDocuments },
         { label: 'Reporting', path: ROUTES.ledgerReportingArea },
         { label: 'MenuReportInOut', path: ROUTES.ledgerReportingArea },

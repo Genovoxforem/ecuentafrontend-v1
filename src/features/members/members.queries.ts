@@ -1,30 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { stripTags } from '../../utils/text'
 import { parseReportTable } from '../../shared/legacyReportTableParser'
 
-// Real via adherents/ajax/ajax_adherents_list.php — confirmed genuine JSON
-// DataTables handler with a real permission check (restrictedArea($user,
-// 'adherent')). This module is enabled (MAIN_MODULE_ADHERENT=1) across
-// every entity on this instance but has zero real data (0 rows in
-// llx_adherent/llx_adherent_type) — confirmed live below returns an
-// honestly empty list, not a fabricated one.
+// Via adherents/ajax/ajax_adherents_list.php — a JSON DataTables handler
+// with a permission check (restrictedArea($user, 'adherent')).
 //
-// Two sibling real JSON endpoints exist (members-sidebar-list-ajax.php,
-// member_types-sidebar-list-ajax.php) but are NOT used here — confirmed to
-// have zero permission checks at all, a live PII-leak (member names/
-// logins/status readable by any authenticated user regardless of module
-// rights). Reported, not fixed, per frontend-only scope.
+// Two sibling JSON endpoints exist (members-sidebar-list-ajax.php,
+// member_types-sidebar-list-ajax.php) but are NOT used here — they have no
+// permission checks at all, a PII leak (member names/logins/status
+// readable by any authenticated user regardless of module rights).
+// Reported, not fixed, per frontend-only scope.
 //
 // Response rows are POSITIONAL arrays whose column set depends on the
-// endpoint's own server-side "checked" column config — read directly from
-// the PHP's $arrayfields defaults and the exact row-building order (not
-// guessed): ref, firstname, lastname, company, login, morphy, type, email,
-// datefin (end of subscription), statut. MAIN_SHOW_TECHNICAL_ID (which
-// would prepend a raw id column) is confirmed unset on this instance.
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
+// endpoint's own server-side "checked" column config — from the PHP's
+// $arrayfields defaults and the row-building order: ref, firstname,
+// lastname, company, login, morphy, type, email, datefin (end of
+// subscription), statut. MAIN_SHOW_TECHNICAL_ID (which would prepend a raw
+// id column) is assumed unset.
 
 export interface MemberRow {
   ref: string
@@ -58,12 +51,12 @@ function mapRows(data: RawMemberListResponse): MemberRow[] {
   }))
 }
 
-// Fetches every member. Prefers the real JSON handler above; some deployed
+// Fetches every member. Prefers the JSON handler above; some deployed
 // backends (e.g. demo.ecuenta.online) don't ship that file and answer 404, so
 // the same rows are then scraped from adherents/list.php, whose <table
 // id="example"> prints every member with the same 10 columns in the same
 // order (ref, firstname, lastname, company, login, nature, type, email, end of
-// subscription, status) — confirmed live on both backends.
+// subscription, status).
 async function fetchAllMembers(): Promise<{ rows: MemberRow[]; total: number }> {
   const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
   const res = await fetch('/adherents/ajax/ajax_adherents_list.php', { method: 'POST', credentials: 'same-origin', body })

@@ -35,11 +35,10 @@ function sortValue(c: BankAccountCategoryRow, key: SortKey): string | number {
   }
 }
 
-// Real via categories/tag-sidebarlist-ajax.php?type_id=5 (Categorie::
-// TYPE_ACCOUNT) — the exact same generic llx_categorie list already used
-// for Users Tags this session. Create has no real API (classic
-// categories/card.php?action=create&type=bank_account form-POST), so this
-// stays read-only, same convention as Users Tags.
+// Via categories/tag-sidebarlist-ajax.php?type_id=5 (Categorie::
+// TYPE_ACCOUNT) — the generic llx_categorie list also used for Users Tags.
+// Create has no API (classic categories/card.php?action=create&type=bank_account
+// form-POST), so this stays read-only, same as Users Tags.
 export function BankAccountCategoriesList() {
   const { data: categories, isLoading, isError, error, refetch } = useBankAccountCategoriesList()
   const [page, setPage] = useState(1)

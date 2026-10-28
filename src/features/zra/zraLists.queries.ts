@@ -5,13 +5,8 @@ import { parsePendingSalesRow, type RawPendingSalesRow } from './pendingSalesPar
 import { parseAutomaticPurchaseRow, type RawAutomaticPurchaseRow } from './automaticPurchaseParser'
 import { parseUnuploadedProductRow, type RawUnuploadedProductRow } from './unuploadedProductsParser'
 
-// The /api/zra/* endpoints this whole file used to call (api/zra/purchases/,
-// api/zra/customers/unuploaded/, api/zra/invoices/pending-sales/, etc.) do
-// not exist on the active backend — their own header comments said "real,
-// on the ecnta10 backend", a different WAMP instance than the one actually
-// running (ecuenta9). Confirmed live: /api/zra/ 404s entirely, no such
-// folder on disk. Real sources found instead by reading the backend
-// directly, one per list — see each hook's own comment below.
+// There is no /api/zra/ on the active backend (it 404s entirely); each list
+// below reads its own backend source — see each hook's own comment.
 
 interface ListParams {
   page: number
@@ -19,10 +14,10 @@ interface ListParams {
   search?: string
 }
 
-// custom/zra/getpurchases_ajax.php — real, confirmed live (matches the
-// "ZRA Purchases" page exactly: llx_zrapurchases WHERE purchasestatus='0',
-// same "not yet actioned" filter as before). Rows are positional arrays of
-// pre-formatted HTML, not keyed objects — see automaticPurchaseParser.ts.
+// custom/zra/getpurchases_ajax.php — the "ZRA Purchases" page's source:
+// llx_zrapurchases WHERE purchasestatus='0' ("not yet actioned"). Rows are
+// positional arrays of pre-formatted HTML, not keyed objects — see
+// automaticPurchaseParser.ts.
 export type { AutomaticPurchaseRow } from './automaticPurchaseParser'
 export function useAutomaticPurchaseList(params: ListParams) {
   return useQuery({
@@ -97,9 +92,9 @@ export function usePendingPurchasesList(params: ListParams) {
         zraStatusMessage: r.zraStatus ?? '',
       }))
       // This endpoint's own iTotalRecords is just the count of rows in this
-      // page's aaData (confirmed live: always equals the requested `length`,
-      // e.g. 25 when 77 real pending rows exist across 4 pages) — the real
-      // filtered total pagination must be built from is iTotalDisplayRecords.
+      // page's aaData (always equals the requested `length`, e.g. 25 when 77
+      // pending rows exist across 4 pages) — the filtered total pagination
+      // must be built from is iTotalDisplayRecords.
       return { items, total: Number(data.iTotalDisplayRecords) || 0 }
     },
     placeholderData: keepPreviousData,

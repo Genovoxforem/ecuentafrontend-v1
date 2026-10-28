@@ -134,16 +134,13 @@ export function useUsersSummary() {
   })
 }
 
-// GET /api/users/:id equivalent doesn't exist (confirmed live: /api/users/
-// and /api/users/detail/ both 404 on the currently-active backend — the
-// same dead-old-REST-namespace pattern already found for /api/orders/
-// elsewhere in this app) — but userprofile/api/user.php?id=X is real: it's
-// the JSON API behind the newer userprofile/index.php SPA page (found by
-// watching that page's own network traffic while checking its Permissions
-// tab — see userPermissions.queries.ts). It returns everything useUser and
-// useUserDetail below need for one arbitrary user id, in one call, so both
-// hooks share a single query instead of firing two separate requests for
-// data that comes from the same real endpoint.
+// There is no GET /api/users/:id (/api/users/ and /api/users/detail/ both
+// 404 on the active backend, the same dead-old-REST-namespace pattern as
+// /api/orders/), but userprofile/api/user.php?id=X is the JSON API behind
+// the newer userprofile/index.php SPA page (see userPermissions.queries.ts).
+// It returns everything useUser and useUserDetail below need for one
+// arbitrary user id, in one call, so both hooks share a single query
+// instead of firing two separate requests for data from the same endpoint.
 interface RawUserProfileWorkProfile {
   office_phone: string | null
   office_fax: string | null
@@ -467,11 +464,11 @@ export function useUserIdByName(name: string | undefined) {
   return matches.length === 1 ? matches[0].id : undefined
 }
 
-// Used by payroll.queries.ts — count of real users flagged as employees.
-// Doesn't include the real logged-in admin (they're not a UserRow at all,
-// just the account this session is authenticated as); callers that want
-// that counted too add 1 themselves. 0 while the summary is still loading,
-// same "honest placeholder" reasoning as payroll's own money fields.
+// Used by payroll.queries.ts — count of users flagged as employees.
+// Doesn't include the logged-in admin (they're not a UserRow at all, just
+// the account the app is authenticated as); callers that want that counted
+// too add 1 themselves. 0 while the summary is still loading, same
+// placeholder reasoning as payroll's own money fields.
 export function useEmployeeCount() {
   const { data } = useUsersSummary()
   return data?.users.filter((u) => u.employee).length ?? 0

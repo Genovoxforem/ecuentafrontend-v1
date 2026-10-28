@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Search, X as XIcon, Loader2, Plus, ChevronLeft, ChevronRight, Rows3, ListTree, Layers } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import type { LedgerFilters } from '../generalLedger.queries'
-import type { LedgerMeta } from '../ledgerHtmlParser'
+import type { LedgerMeta } from '../ledgerReport'
 
 // The real page's own "View Flat List" / "Group By General Ledger Account" /
 // "Group By Subledger Account" buttons are three separate legacy pages

@@ -3,9 +3,9 @@ import { HelpCircle } from 'lucide-react'
 import { NotBuiltPage } from '../../shared/components/dashboard/NotBuiltPage'
 import { PAYROLL_PLACEHOLDERS } from '../../features/payroll/payrollPlaceholders'
 
-// One shared module for all 51 Payroll nav items confirmed this session to
-// have a real legacy page but no JSON API — looks itself up by path rather
-// than needing 51 near-identical wrapper files.
+// One shared module for all Payroll nav items that have a legacy page but
+// no JSON API — looks itself up by path rather than needing near-identical
+// wrapper files.
 export function PayrollPlaceholderModule() {
   const { pathname } = useLocation()
   const entry = PAYROLL_PLACEHOLDERS.find((p) => p.path === pathname)

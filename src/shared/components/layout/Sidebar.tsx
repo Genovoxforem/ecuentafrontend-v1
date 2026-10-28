@@ -13,8 +13,8 @@ import { CurrentNavItem, navContains, pickCurrentItem, rememberNavClick } from '
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
-const RAIL_WIDTH_CLASS = 'w-[65px]'
-const RAIL_WIDTH_OFFSET_CLASS = 'left-[65px]'
+const RAIL_WIDTH_CLASS = 'w-[72px]'
+const RAIL_WIDTH_OFFSET_CLASS = 'left-[72px]'
 
 // "Soft view": leaf items get a gentler, slower hover than a flat bg-swap —
 // a soft tint + a barely-there rightward nudge + soft shadow, eased over a
@@ -224,7 +224,7 @@ function SidebarNavItem({
               <ItemIcon size={14} strokeWidth={2} />
             </span>
           )}
-          <span className="truncate">{item.label}</span>
+          <span className="truncate" title={item.label}>{item.label}</span>
         </button>
         <button
           type="button"
@@ -400,7 +400,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
                   if (!open && onOpen) onOpen()
                   if (section.items.length === 0 && EMPTY_SECTION_HOME_PATH[section.key]) navigate(EMPTY_SECTION_HOME_PATH[section.key])
                 }}
-                className={`cursor-pointer group/rail flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
+                className={`cursor-pointer group/rail flex w-[68px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] leading-3 transition-colors ${
                   isActive ? 'text-brand' : 'text-text-faint hover:text-brand'
                 }`}
               >
@@ -417,7 +417,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
                 >
                   <Icon size={20} strokeWidth={1.8} />
                 </span>
-                <span className="w-full truncate text-center">{section.label}</span>
+                <span className="line-clamp-2 w-full break-words text-center">{section.label}</span>
               </button>
             )
           })}

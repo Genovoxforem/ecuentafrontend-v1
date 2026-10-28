@@ -1,6 +1,6 @@
 // Parses admin/boxes.php (Setup > Widgets) — the page that lists the available
 // widgets ("boxes"), the activated ones with their order, and two settings.
-// Verified against the dev backend and the page's own PHP:
+// Per the page's own PHP:
 //   - available rows carry a `select[name="boxid[<id>][pos]"]` (the page to activate
 //     on) and a hidden `boxid[<id>][value]`;
 //   - activated rows carry the delete link `boxes.php?rowid=<rowid>&action=delete&token=…`

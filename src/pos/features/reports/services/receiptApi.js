@@ -18,20 +18,17 @@ const formatUnixDate = (value) => {
     return new Date(num * 1000).toISOString().split("T")[0];
 };
 
-// Reshapes api/invoices/index.php's ?id= detail response (already live and
-// working everywhere Reports works) into the shape InvoiceReceipt.jsx's
-// buildReceiptHtml expects. Only used when api/pos/receipt/index.php itself
-// is unavailable on the configured server — verified live 2026-07-17 on
-// both demo.ecuenta.online and a local WAMP instance (ecnta10), where that
-// endpoint returns HTTP 200 with the raw PHP failure text "Include of main
-// fails" (a broken include path, not fixable from this project — see
-// [[pos_standalone_no_backend_changes]]). This fallback endpoint has no
-// module_source/pos_source/terminal/sales-associate/change data (see
-// [[pos_standalone_reports_rebuilt_on_invoices_api]]) and no `company`
-// object of its own either — fetchReceipt below fills that gap in from
-// fetchCompanyBranding instead, so a receipt built this way is missing
-// terminal number, sales associate, and any change amount, but no longer
-// missing the shop's letterhead the way it used to.
+// Reshapes api/invoices/index.php's ?id= detail response into the shape
+// InvoiceReceipt.jsx's buildReceiptHtml expects. Only used when
+// api/pos/receipt/index.php itself is unavailable on the configured server
+// — on some deployments that endpoint returns HTTP 200 with the raw PHP
+// failure text "Include of main fails" (a broken include path, not
+// fixable from this project). This fallback endpoint has no
+// module_source/pos_source/terminal/sales-associate/change data and no
+// `company` object of its own either — fetchReceipt below fills that gap
+// in from fetchCompanyBranding instead, so a receipt built this way is
+// missing terminal number, sales associate, and any change amount, but not
+// the shop's letterhead.
 const receiptFromInvoiceDetail = (invoice) => ({
     invoice_ref: invoice.ref,
     invoice_date: formatUnixDate(invoice.date),
@@ -56,31 +53,27 @@ const receiptFromInvoiceDetail = (invoice) => ({
     })),
     // ZRA (Zambia Revenue Authority) fiscal e-invoicing data — unlike the
     // rest of this fallback, api/invoices/index.php's detail response
-    // actually already includes this (confirmed live: id=405 on
-    // demo.ecuenta.online returns a populated zra_sdc block), api/pos/
-    // receipt/index.php does NOT. So this is the one piece where the
-    // fallback path is strictly more complete than the primary endpoint.
+    // includes this (a populated zra_sdc block), api/pos/receipt/index.php
+    // does NOT. So this is the one piece where the fallback path is
+    // strictly more complete than the primary endpoint.
     zra_sdc: invoice.zra_sdc || null,
 });
 
 // api/invoices/details.php — a third, separate api/invoices/ file (not the
-// same as api/invoices/index.php's own ?id= detail action, confirmed by
-// diff) that happens to carry fields the other two paths don't reliably
-// have between them: a zra_sdc block, and — the reason this is also relied
-// on for company info now — a full company name/address/zip/town/phone/tpin
-// block, same shape as api/pos/receipt/index.php's own. X-API-Key auth,
-// proper CORS headers, same as every other api/* endpoint — confirmed live
-// 2026-07-17: reachable (401 without a key, i.e. the file exists and runs)
-// cross-origin on all three test backends with no same-origin trick
-// needed. Best-effort and non-fatal: a receipt is still usable without any
-// of this, so a failure here just means it's missing, same as before this
-// existed.
+// same as api/invoices/index.php's own ?id= detail action) that carries
+// fields the other two paths don't reliably have between them: a zra_sdc
+// block, and a full company name/address/zip/town/phone/tpin block, same
+// shape as api/pos/receipt/index.php's own. X-API-Key auth, proper CORS
+// headers, same as every other api/* endpoint, reachable cross-origin with
+// no same-origin trick needed. Best-effort and non-fatal: a receipt is
+// still usable without any of this, so a failure here just means it's
+// missing.
 //
 // This also returns a `company.logo` (built server-side from Dolibarr's
 // MAIN_INFO_SOCIETE_LOGO config), deliberately dropped here rather than
-// merged in — InvoiceReceipt.jsx now always renders this app's own bundled
+// merged in — InvoiceReceipt.jsx always renders this app's own bundled
 // logo instead (see that file's comment), so there's nothing to do with a
-// per-merchant logo URL even when the backend has a real one configured.
+// per-merchant logo URL even when the backend has one configured.
 const fetchCompanyBranding = async (invoiceId) => {
     try {
         const data = await get(`/api/invoices/details.php?id=${invoiceId}`);
@@ -118,7 +111,7 @@ const withQrDataUri = async (zra) => {
 };
 
 // api/pos/receipt/index.php returns full invoice detail (company, customer,
-// line items, payments) needed to render a real receipt — distinct from the
+// line items, payments) needed to render a receipt — distinct from the
 // reports list endpoint, which only has one summary row per invoice.
 // Network-first: always tries the live endpoint (an invoice's payments/
 // change can update after the fact). On failure, tries reshaping
@@ -135,13 +128,12 @@ const withQrDataUri = async (zra) => {
 //
 // Company info merge order is branding's fields first, then receipt's own
 // spread on top — receiptFromInvoiceDetail (the "Include of main fails"
-// fallback path, confirmed live 2026-07-17 on ecnta10 for at least one real
-// invoice, not just demo.ecuenta.online as previously thought) never sets
-// `company` at all, so without this a receipt built that way rendered a
-// completely blank letterhead — no company name, address, phone, or tpin —
-// even though api/invoices/details.php had all of it the whole time. When
-// the primary endpoint *did* succeed, its own company fields still win
-// (spread last), branding's copy of the same fields just goes unused.
+// fallback path) never sets `company` at all, so without this a receipt
+// built that way would render a blank letterhead — no company name,
+// address, phone, or tpin — even though api/invoices/details.php has all
+// of it. When the primary endpoint *did* succeed, its own company fields
+// still win (spread last), branding's copy of the same fields just goes
+// unused.
 //
 // order_type/table_label come from getCachedOrderMeta (see posCache.js) —
 // neither backend path ever sets these at all (no api/pos/* endpoint reads

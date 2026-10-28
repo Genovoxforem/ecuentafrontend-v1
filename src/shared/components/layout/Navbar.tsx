@@ -90,11 +90,9 @@ function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
 
 // Icon row ported from the legacy htdocs/main.inc.php navbar, left to
 // right: Daily Summary, POS, Kitchen, Settings, Notifications, Events
-// (agenda), Clock In/Out. POS used to be a separate standalone app
-// (pos_standalone - v1, its own repo/build/dev server), opened in a new tab
-// with a bearer-token/backend/returnTo handoff — it's now merged into this
-// app as an in-app route (src/pos/**, mounted at /pos in src/App.tsx), so it
-// shares this session directly and just needs an SPA navigation.
+// (agenda), Clock In/Out. POS is an in-app route (src/pos/**, mounted at
+// /pos in src/App.tsx), so it shares this session and just needs an SPA
+// navigation.
 export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen: boolean; onToggleSidebar: () => void; onLogout: () => void }) {
   const navigate = useNavigate()
   const { data: notificationCount = 0 } = useNotificationCount()

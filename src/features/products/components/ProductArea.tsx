@@ -97,10 +97,10 @@ function DashboardTab() {
   const totalProducts = productsSummary?.totalProducts ?? 0
   const totalServices = servicesSummary?.totalServices ?? 0
 
-  // Real `tosell` field (see products.queries.ts's ProductRow.forSale) —
-  // there's no matching `tobuy` field on this backend's /api/products/
-  // (confirmed live), so this splits by sale-status only rather than
-  // faking the legacy page's full for-sale/for-purchase/neither breakdown.
+  // `tosell` field (see products.queries.ts's ProductRow.forSale) — there's
+  // no matching `tobuy` field on this backend's /api/products/, so this
+  // splits by sale-status only rather than faking the legacy page's full
+  // for-sale/for-purchase/neither breakdown.
   const productRows = (allRows?.rows ?? []).filter((r) => r.type === 'product')
   const serviceRows = (allRows?.rows ?? []).filter((r) => r.type === 'service')
   const donutData = [

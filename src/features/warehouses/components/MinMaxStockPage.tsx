@@ -99,15 +99,13 @@ interface PendingEdit {
   maxStock: number
 }
 
-// Real reference page: product/stock/uom/minmax_stock.php ("Min/Max Stock
-// Level Management"). See minmaxStock.queries.ts's header comment: genuinely
-// classic Dolibarr (no JSON, no companion SPA) — every KPI tile, the Stock
-// Status breakdown, and every row here is real, live-verified data. The
-// entire product table is one real <form id="bulkForm">; there is no
-// per-row save button in the reference app, only the one "Save All Changes"
-// bar, reproduced here the same way. Selling Price is shown read-only
-// because the real bulkupdate/update handlers never persist edits to it —
-// see the queries file for the exact reasoning.
+// Reference page: product/stock/uom/minmax_stock.php ("Min/Max Stock Level
+// Management"). See minmaxStock.queries.ts's header comment: classic
+// Dolibarr (no JSON, no companion SPA). The entire product table is one
+// <form id="bulkForm">; there is no per-row save button in the reference
+// app, only the one "Save All Changes" bar, reproduced here the same way.
+// Selling Price is shown read-only because the bulkupdate/update handlers
+// never persist edits to it — see the queries file for the exact reasoning.
 export function MinMaxStockPage() {
   const [searchDraft, setSearchDraft] = useState('')
   const [statusDraft, setStatusDraft] = useState<'' | 'no_min' | 'has_min'>('')

@@ -31,16 +31,16 @@ export interface TerminalSetup {
   noDecreaseStock: '0' | '1'
   keycodeForEnter: string
   enablePasscode: '0' | '1'
-  // Real quirk: the passcode <input> is write-only — its own real value=""
-  // placeholder="Saved - enter new passcode to change" (confirmed live),
-  // so a saved passcode is never echoed back. Leaving this blank on save
-  // means "keep the existing one", matching the real form's own behavior.
+  // Quirk: the passcode <input> is write-only — value=""
+  // placeholder="Saved - enter new passcode to change", so a saved passcode
+  // is never echoed back. Leaving this blank on save means "keep the
+  // existing one", matching the classic form's own behavior.
   connectorUrl: string
   scaleComPort: string
   scaleBaudRate: string
-  // Two genuinely separate real fields (confirmed live: distinct <select>
-  // ids/names, search_user vs admin_user) — "Assign User Login" and
-  // "Admin/supervisor User Login" are not the same setting.
+  // Two separate fields (distinct <select> ids/names, search_user vs
+  // admin_user) — "Assign User Login" and "Admin/supervisor User Login" are
+  // not the same setting.
   assignUserId: string
   adminUserId: string
   header: string

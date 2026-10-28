@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { parseAmount, type PieceCard, type PieceCardOption } from './pieceCardParser'
+import { parseAmount } from '../../utils/text'
+import type { PieceCard, PieceCardOption } from './pieceCard.types'
 import { addPieceLine, deletePieceLine, loadCurrencyRate, loadJournalChoices, loadPiece, updatePieceHeader, updatePieceLine, validateDraft, type PieceLineBody } from './pieceFapi'
 
 // accountancy/fapi/piece.php — see pieceFapi.ts. Every write is judged by re-reading the transaction, so a refusal or a silent no-op shows up.

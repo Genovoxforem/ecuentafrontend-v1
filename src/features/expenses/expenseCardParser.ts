@@ -1,4 +1,4 @@
-import { stripPhpWarnings } from '../generalLedger/accountingFilesParser'
+import { stripPhpWarnings } from '../../utils/text'
 import type { FormOption } from './expensePagesParser'
 
 // The expense module's own card page (expense/card.php, served as a fragment by

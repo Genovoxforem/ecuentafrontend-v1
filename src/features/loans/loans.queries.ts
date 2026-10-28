@@ -8,39 +8,29 @@ import {
   type LoanProductInfo,
 } from './loanManagementParser'
 
-// Full audit this session of the real custom "Loan Management" Dolibarr
-// plugin (custom/loanmanagement/ — a genuine ~6,100-line third-party
-// module, distinct from the unrelated core Dolibarr "Loan" tracker already
-// wired for real under Banking). Every one of its own pages
-// (loanmanagementlist.php, loan_product.php, repayment.php,
-// loans_customer_list.php) is 100% server-rendered HTML with no JSON/AJAX
-// list endpoint of its own — confirmed by reading each file directly, not
-// guessed. Two things ARE genuinely real and reused here:
+// The custom "Loan Management" Dolibarr plugin (custom/loanmanagement/, a
+// third-party module distinct from the core Dolibarr "Loan" tracker under
+// Banking). Its pages (loanmanagementlist.php, loan_product.php,
+// repayment.php, loans_customer_list.php) are server-rendered HTML with no
+// JSON/AJAX list endpoint of their own. Two things are reused here:
 //
-// 1. "Loan Type" (categories/loans.php) is the same generic Dolibarr
-//    categories system already used elsewhere in this app (Users Tags,
-//    Agenda Categories) — confirmed real type id 23 (Categorie::TYPE_LOANS)
-//    via categories/class/categorie.class.php's own MAP_CODE_TO_ID array,
-//    and categories/tag-sidebarlist-ajax.php works generically for any
-//    type_id including this one (confirmed: no loans-specific branching in
-//    that file at all).
+// 1. "Loan Type" (categories/loans.php) is the generic Dolibarr categories
+//    system also used for Users Tags and Agenda Categories — type id 23
+//    (Categorie::TYPE_LOANS, from categories/class/categorie.class.php's
+//    MAP_CODE_TO_ID array); categories/tag-sidebarlist-ajax.php works for
+//    any type_id, with no loans-specific branching.
 // 2. "Loan Customer" (loans_customer_list.php) tries to load its table via
-//    societe/customer_ajax_list.php?type=c — confirmed absent from disk on
-//    this backend (only exists under the dead societe_old/ tree), so the
-//    real page's own DataTable 404s and shows nothing. The genuine,
-//    working replacement for that exact same real llx_societe data is
-//    societe/api/list.php (already wired for the main Customers module —
-//    see customers.queries.ts's useCustomersSummary()), reused as-is here
-//    rather than duplicated, since "loan customer" has no separate table:
-//    creating one really just creates a real llx_societe row (confirmed by
-//    reading loans_customer.php: it IS Dolibarr's own societe/card.php).
+//    societe/customer_ajax_list.php?type=c, which is absent from disk on
+//    this backend (only under the dead societe_old/ tree), so the classic
+//    page's DataTable 404s and shows nothing. The same llx_societe data
+//    comes from societe/api/list.php (wired for the main Customers module —
+//    see customers.queries.ts's useCustomersSummary()), reused as-is, since
+//    "loan customer" has no separate table: loans_customer.php IS
+//    Dolibarr's own societe/card.php.
 //
-// Loan Management's own list+create page (loanmanagementlist.php) is now
-// scraped for real too — see useLoanManagementForm/useCreateLoanManagement
-// below — now that HTML-scraping (real form field names/CSRF tokens/option
-// lists read straight off the page, not guessed) is an accepted technique
-// for pages confirmed to have no JSON API of their own. Repayment schedules
-// remain not scraped (out of scope this pass, not re-audited).
+// Loan Management's own list+create page (loanmanagementlist.php) is
+// scraped — see useLoanManagementForm/useCreateLoanManagement below.
+// Repayment schedules are not scraped.
 
 export interface LoanTypeRow {
   id: number
@@ -155,9 +145,9 @@ export function useCreateLoanType() {
 // exact same math with no other DB read).
 export type LoanInterestType = 'flat_rate' | 'fixed_rate' | 'mortgage' | 'one_time' | 'reducing_amount'
 
-// Real: the live Term Period <select> posts PHP strtotime()-style relative
-// strings ("+1 day"/"+1 week"/"+1 month"/"+1 year"), not a fixed day count —
-// confirmed live (loan_calculator.php, reducing_amount, term=5, +1 month,
+// The Term Period <select> posts PHP strtotime()-style relative strings
+// ("+1 day"/"+1 week"/"+1 month"/"+1 year"), not a fixed day count
+// (loan_calculator.php, reducing_amount, term=5, +1 month,
 // first_payment_date=2026-09-15 returns 09-15/10-15/11-15/12-15/2027-01-15,
 // i.e. calendar-month steps, not flat +30-day steps that would drift).
 export type LoanTermPeriod = 'day' | 'week' | 'month' | 'year'
@@ -230,10 +220,10 @@ export function calculateLoanSchedule(input: LoanCalculatorInput): LoanCalculato
     const amountToPay = principleAmount + (interestRate / 100) * principleAmount
     const interest = (interestRate / 100) * applyAmount / term
     const payableAmount = (interestRate / 100) * applyAmount + applyAmount
-    // Real: the displayed "Balance" is the remaining total obligation
-    // (principal + interest still owed), so it starts at payableAmount, not
-    // applyAmount — confirmed live (flat_rate, 12000 @ 12%, term=3: row 1
-    // balance is 8,960 = 13,440 payable - 4,480 paid, not 12,000 - 4,480).
+    // The displayed "Balance" is the remaining total obligation (principal +
+    // interest still owed), so it starts at payableAmount, not applyAmount
+    // (flat_rate, 12000 @ 12%, term=3: row 1 balance is 8,960 = 13,440
+    // payable - 4,480 paid, not 12,000 - 4,480).
     let balance = payableAmount
     for (let i = 0; i < term; i++) {
       balance -= amountToPay
@@ -249,8 +239,8 @@ export function calculateLoanSchedule(input: LoanCalculatorInput): LoanCalculato
     const interest = (interestRate / 100) * applyAmount
     const payableAmount = (interestRate / 100) * applyAmount * term + applyAmount
     // Same "remaining total obligation" balance semantics as flat_rate above
-    // — confirmed live (fixed_rate, 12000 @ 12%, term=3: row 1 balance is
-    // 10,880 = 16,320 payable - 5,440 paid).
+    // (fixed_rate, 12000 @ 12%, term=3: row 1 balance is 10,880 = 16,320
+    // payable - 5,440 paid).
     let balance = payableAmount
     for (let i = 0; i < term; i++) {
       balance -= amountToPay
@@ -314,8 +304,8 @@ async function postLoadSubtypes(body: URLSearchParams): Promise<Response> {
 }
 
 // Auto-fills Late Payment Penalties (and the Term/Min/Max blurb) when a
-// Loan Product is picked — genuinely real JSON (confirmed live), not a
-// scraped HTML fragment like the rest of this file.
+// Loan Product is picked — JSON, not a scraped HTML fragment like the rest
+// of this file.
 export function useLoanProductInfo(productId: string | undefined) {
   return useQuery({
     queryKey: ['loans', 'management', 'productInfo', productId],
@@ -328,12 +318,12 @@ export function useLoanProductInfo(productId: string | undefined) {
   })
 }
 
-// The Borrower-dependent Customer Account dropdown — confirmed live this
-// currently comes back broken (a PHP "Undefined array key 'sel_id'"
-// warning, no real options) because the real page's own JS never sends the
-// sel_id param that endpoint's PHP expects. Reproduced faithfully — this
-// hook calls the exact same two params the real page does, so it inherits
-// the same real (empty) result rather than working around the bug.
+// The Borrower-dependent Customer Account dropdown comes back broken (a PHP
+// "Undefined array key 'sel_id'" warning, no options) because the classic
+// page's own JS never sends the sel_id param that endpoint's PHP expects.
+// Reproduced faithfully — this hook sends the same two params the classic
+// page does, so it inherits the same (empty) result rather than working
+// around the bug.
 export function useCustomerAccountOptions(borrowerId: string | undefined) {
   return useQuery({
     queryKey: ['loans', 'management', 'customerAccounts', borrowerId],
@@ -364,11 +354,11 @@ export interface NewLoanManagementInput {
   remarks: string
 }
 
-// No CSRF token in this POST — confirmed live the real form has none either
-// (see this file's own top comment). The real submit button is
-// type="button" (not type="submit"); its onclick just client-side validates
-// then calls the plain <form>'s own .submit() — so this mirrors a normal
-// form-POST, no extra AJAX wrapper.
+// No CSRF token in this POST — the classic form has none either (see this
+// file's own top comment). The submit button is type="button" (not
+// type="submit"); its onclick just client-side validates then calls the
+// plain <form>'s own .submit() — so this mirrors a normal form-POST, no
+// extra AJAX wrapper.
 export function useCreateLoanManagement() {
   const queryClient = useQueryClient()
   return useMutation({

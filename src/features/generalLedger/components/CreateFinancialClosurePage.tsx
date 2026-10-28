@@ -12,18 +12,11 @@ import {
   type FinancialClosureForm,
   type FinancialClosureMonth,
 } from '../financialClosure.queries'
+import { toIso, toUs } from '../../../utils/dates'
 import { useClosureDocuments, useUploadClosureDocuments } from '../financialClosureDocuments.queries'
 
 const inputCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
-const toIso = (us: string) => {
-  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
-}
-const toUs = (iso: string) => {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
-}
 const todayUs = () => {
   const d = new Date()
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`

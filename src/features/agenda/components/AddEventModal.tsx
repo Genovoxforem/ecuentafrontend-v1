@@ -99,33 +99,24 @@ function ChipMultiSelect({
   )
 }
 
-// Real form backed by comm/action/ajax/calendar_api.php — see
-// calendarApi.queries.ts for the full endpoint-by-endpoint evidence. Every
-// field below (type, label, all-day, status, start/end date, location,
-// priority, related company/contact/project, assigned users, categories,
-// description, busy) posts straight to the real createEvent action; none of
-// it is fabricated. elementtype/fkElement stay optional so this same modal
-// works both linked to an origin record (existing callers: CustomerDetail,
+// Form backed by comm/action/ajax/calendar_api.php — see
+// calendarApi.queries.ts for the endpoints. Every field below (type, label,
+// all-day, status, start/end date, location, priority, related
+// company/contact/project, assigned users, categories, description, busy)
+// posts to the createEvent action. elementtype/fkElement stay optional so
+// this same modal works both linked to an origin record (CustomerDetail,
 // ContractDetail, InvoiceDetail, OrderDetail, QuotationDetail,
 // PurchaseOrderDetail, ContactDetail, WarehouseDetail) and standalone from
-// the Agenda page itself (a real "direct event" per the backend's own
-// family classification when elementtype/fk_element/socid are all empty).
+// the Agenda page (a "direct event" when elementtype/fk_element/socid are
+// all empty).
 //
-// Confirmed live against the real classic create form (comm/action/card.php
-// ?action=create&origin=X&originid=Y) for two different origins (stock,
-// propal): whenever it's invoked with an origin, Dolibarr hides its own
-// "Type" selector entirely and hardcodes a fixed default instead, and shows
-// a read-only "Linked object" line pointing back at the origin record. This
-// modal mirrors both: the Type field is skipped (defaulting to the real
-// 'AC_OTH' — "Other (manually inserted events)" — code from the live type
-// list) whenever a caller passes elementtype+fkElement, and a "Linked
-// object" row shows when the caller also passes linkedObjectLabel. The
-// classic form's own "Once only / Every week / Every month" recurrence
-// picker and its "Task" selector are NOT reproduced here — read directly:
-// comm/action/ajax/calendar_api.php's createEvent() has no recurrence
-// handling at all, and no api_action exists anywhere in that file for
-// listing a project's tasks, so wiring either would mean a fake field with
-// no real backend behind it.
+// Like the classic create form (comm/action/card.php?action=create&origin=X
+// &originid=Y): when invoked with an origin, the Type selector is hidden and
+// defaults to 'AC_OTH' ("Other (manually inserted events)"), and a read-only
+// "Linked object" row shows when the caller passes linkedObjectLabel. The
+// classic form's recurrence picker ("Once only / Every week / Every month")
+// and "Task" selector are not reproduced: createEvent() has no recurrence
+// handling, and calendar_api.php has no action for listing a project's tasks.
 export function AddEventModal({
   elementtype,
   fkElement,

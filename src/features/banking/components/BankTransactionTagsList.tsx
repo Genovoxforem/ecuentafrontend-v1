@@ -10,7 +10,7 @@ import { useBankTransactionCategories, useAddBankTransactionCategory, useUpdateB
 // distinct from the account-level Categories page — see
 // BankAccountCategoriesList.tsx). No JSON API, but a genuine classic
 // form-POST list with real add/edit/delete — see
-// bankTransactionCategParser.ts / banking.queries.ts.
+// bankTransactionCateg.types.ts / banking.queries.ts.
 export function BankTransactionTagsList() {
   const { data, isLoading, isError, error, refetch } = useBankTransactionCategories()
   const addCategory = useAddBankTransactionCategory()

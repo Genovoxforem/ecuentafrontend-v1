@@ -40,13 +40,12 @@ export function isBackendActionUnavailable(error: unknown): boolean {
 // so a resumed session (page reload, a tab left open) that never went
 // through a fresh login has no way to redo it. The endpoint doesn't error
 // when that cookie is stale or missing; it silently 200s with Dolibarr's
-// own login page HTML instead of JSON (confirmed live by calling
-// societe/api/list.php with no session cookie), which looks nothing like a
-// clean 404 or a thrown network error. Callers that scrape/parse a legacy
+// own login page HTML instead of JSON, which looks nothing like a clean
+// 404 or a thrown network error. Callers that scrape/parse a legacy
 // response should check for this (e.g. the raw body starting with '<'
 // instead of parsing as JSON) and throw an Error whose message starts with
 // this marker so isLegacySessionExpired() can catch it and point the user
-// at the one real fix: sign out and back in.
+// at the one fix: sign out and back in.
 export const LEGACY_SESSION_EXPIRED_PREFIX = 'LEGACY_SESSION_EXPIRED:'
 export function isLegacySessionExpired(error: unknown): boolean {
   return error instanceof Error && error.message.startsWith(LEGACY_SESSION_EXPIRED_PREFIX)

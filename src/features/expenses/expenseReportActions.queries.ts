@@ -1,13 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 
-// expensereport/card.php's real header actions (Modify/Validate/Clone/
-// Delete) — confirmed live against 172.16.5.10 by reading the real page's
-// own #confirmModal / #cloneConfirmModal markup directly (not the plain
-// href each button shows, which just opens that modal client-side): both
-// are real 2-step POSTs to card.php?id=N with token + action=confirm_* +
-// confirm=yes. Delete needs nothing else; Clone genuinely requires picking
-// which user to clone the report for (its own #userid select — see
+// expensereport/card.php's header actions (Modify/Validate/Clone/Delete),
+// from the page's own #confirmModal / #cloneConfirmModal markup (not the
+// plain href each button shows, which just opens that modal client-side):
+// both are 2-step POSTs to card.php?id=N with token + action=confirm_* +
+// confirm=yes. Delete needs nothing else; Clone requires picking which user
+// to clone the report for (its own #userid select — see
 // expenseReportCardParser.ts's cloneUserOptions).
 async function postCardAction(id: string, token: string, fields: Record<string, string>): Promise<void> {
   const body = new URLSearchParams({ token, confirm: 'yes', ...fields })

@@ -1,19 +1,17 @@
-// Parses payroll/ajax_search.php?entityEmp=<entityId> — the real backend
-// fragment behind payroll/manage_salary.php's own "Go" button (POST,
-// confirmed live: client does `$("#ajaxContents").html(msg)`). Each row
-// carries the current Assigned Salary Grade / Assigned Shift display text
-// (either literal "Not Set" in red, or e.g. "New Template (Monthly)" /
-// "Voxforem shift (15-09-2026)") plus a full per-employee "Assign Details"
-// modal already server-rendered, real option lists and pre-selected values
-// included — nothing here is guessed, every field below maps 1:1 to an id
-// in that modal's real markup (confirmed by reading several employees live,
-// both unassigned and already-assigned).
+// Parses payroll/ajax_search.php?entityEmp=<entityId> — the backend fragment
+// behind payroll/manage_salary.php's own "Go" button (POST; the client does
+// `$("#ajaxContents").html(msg)`). Each row carries the current Assigned
+// Salary Grade / Assigned Shift display text (either literal "Not Set" in
+// red, or e.g. "New Template (Monthly)" / "Voxforem shift (15-09-2026)")
+// plus a full per-employee "Assign Details" modal already server-rendered,
+// option lists and pre-selected values included — every field below maps
+// 1:1 to an id in that modal's markup.
 //
 // One markup quirk to know: the Hourly/Monthly Grade <select>s always carry
 // a literal `selected` attribute on their disabled placeholder option *in
-// addition to* the real selected option when one exists (both attributes
-// present in the raw HTML at once) — an attribute-selector query would find
-// the placeholder first and misreport "nothing selected". Reading
+// addition to* the selected option when one exists (both attributes present
+// in the raw HTML at once) — an attribute-selector query would find the
+// placeholder first and misreport "nothing selected". Reading
 // `select.selectedOptions[0]` instead is correct here: per the HTML parsing
 // spec, a non-multiple <select> keeps selectedness only on the *last*
 // option that had the `selected` attribute, which resolves this correctly

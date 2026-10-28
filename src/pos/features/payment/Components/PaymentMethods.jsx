@@ -30,17 +30,17 @@ export const PAYMENT_METHODS = [
     { code: "08", label: "Bank transfer", icon: Landmark },
 ];
 
-// Mirrors takeposnew/index.php's own $standardPaymentMap — the actual PHP
-// that decides whether this button shows enabled on the legacy screen this
-// app is standing in for (verified live: 02/Credit checks CB, not a
-// "CREDIT" constant that doesn't exist; 03/Cash-Credit checks CHEQUE, not
-// "CASHCREDIT"; 04/05 have no named entry at all and fall straight to the
-// generic per-code constant, not CHEQUE/CB). Note this is a *different*
-// mapping than api/pos/payment/index.php's own $code_map, which the actual
-// payment submission uses — the two legacy files disagree with each other
-// for 02-05. This one is deliberately chosen to match what the cashier sees
-// as clickable; a mismatched submission at that point is a pre-existing
-// backend inconsistency, not something the frontend can paper over.
+// Mirrors takeposnew/index.php's own $standardPaymentMap — the PHP that
+// decides whether this button shows enabled on the legacy screen this app
+// is standing in for (02/Credit checks CB, not a "CREDIT" constant that
+// doesn't exist; 03/Cash-Credit checks CHEQUE, not "CASHCREDIT"; 04/05 have
+// no named entry at all and fall straight to the generic per-code constant,
+// not CHEQUE/CB). Note this is a *different* mapping than
+// api/pos/payment/index.php's own $code_map, which the actual payment
+// submission uses — the two legacy files disagree with each other for
+// 02-05. This one is deliberately chosen to match what the cashier sees as
+// clickable; a mismatched submission at that point is a backend
+// inconsistency, not something the frontend can paper over.
 const PRIMARY_BANK_ACCOUNT_KEY = { "01": "cash", "02": "card", "03": "cheque" };
 
 const getBankAccountId = (code, terminalConfig) => {

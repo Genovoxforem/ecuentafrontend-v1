@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Wrench, ImageUp } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useGeneralSettings, useEntities } from '../settings.queries'
-import { useProductFormOptions } from '../../zra/createProduct.queries'
+import { useProductFormOptions } from '../../products/productFormOptions.queries'
 import { SetupShell } from './SetupShell'
 
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
@@ -85,12 +85,11 @@ export function CompanyOrganizationSetup() {
 
   const [tab, setTab] = useState<Tab>('Company')
 
-  // Real fields — backed by GET /api/general/ (see AccountPanel's own use of
-  // this same hook). Everything else on this page has no matching column on
-  // that endpoint (confirmed against its real field list: app_name, tpin,
-  // branch_code, country, currency, timezone, entity — nothing else), so
-  // it's local-only state, same "demo only" convention as the rest of this
-  // app's forms.
+  // Fields backed by GET /api/general/ (see AccountPanel's own use of this
+  // same hook). Everything else on this page has no matching column on
+  // that endpoint (its field list: app_name, tpin, branch_code, country,
+  // currency, timezone, entity — nothing else), so it's local-only state,
+  // same "demo only" convention as the rest of this app's forms.
   const [name, setName] = useState('')
   const [countryId, setCountryId] = useState('')
   const [currencyCode, setCurrencyCode] = useState('')

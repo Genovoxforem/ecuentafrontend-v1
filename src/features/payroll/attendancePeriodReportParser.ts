@@ -1,23 +1,17 @@
-// Parses payroll/atten_period_rip.php — confirmed live to be a plain
-// GET-able classic report page (its own <form method="POST"> has no
-// `action`, so it posts back to itself; the same employee_li/stdate/
-// enddate/searchBydate params work fine as a GET, confirmed by reading the
-// "For The Period of X To Y" subhead echo back exactly what was sent).
-// Real backend quirk, confirmed by reading atten_period_rip.php directly:
-// `stdate`/`enddate` MUST be sent as MM/DD/YYYY — the SQL WHERE clause
-// parses them with `DateTime::createFromFormat('m/d/Y', ...)`, unlike
-// absent_list.php's own WHERE clause (see employeeAbsentListParser.ts),
+// Parses payroll/atten_period_rip.php — a plain GET-able classic report page
+// (its own <form method="POST"> has no `action`, so it posts back to itself;
+// the same employee_li/stdate/enddate/searchBydate params work as a GET).
+// Backend quirk: `stdate`/`enddate` MUST be sent as MM/DD/YYYY — the SQL
+// WHERE clause parses them with `DateTime::createFromFormat('m/d/Y', ...)`,
+// unlike absent_list.php's own WHERE clause (see employeeAbsentListParser.ts),
 // which needs YYYY-MM-DD instead. Each row's own ACTION cell embeds a full
-// real login-history modal (IN DATE/CLOCK IN/OUT DATE/CLOCK OUT/Clock In
+// login-history modal (IN DATE/CLOCK IN/OUT DATE/CLOCK OUT/Clock In
 // Note/Clock Out Note/Working Hour/Device), server-rendered inline — same
 // per-row-modal pattern as Date Wise Attendance's own History button (see
 // payrollAttendance.queries.ts's parseLoginHistory), but this page's modal
 // table has 2 extra date columns (IN DATE/OUT DATE alongside CLOCK IN/OUT),
-// so it needs its own parser rather than reusing that one directly. This
-// backend has no attendance records at all right now (every employee, every
-// recent date — confirmed via payroll/attendance_rip_ajax.php returning "-"
-// for every field), so the modal parsing below is built from the PHP
-// source's own markup, not exercised against a real populated row yet.
+// so it needs its own parser. The modal parsing below is built from the PHP
+// source's own markup; not verified against a populated row.
 
 export interface AttendancePeriodEmployeeOption {
   value: string

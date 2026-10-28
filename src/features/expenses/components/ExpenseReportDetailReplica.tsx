@@ -167,9 +167,9 @@ function DetailsPanel({ data, id }: { data: ExpenseReportCard; id: string | unde
   )
 }
 
-// Small confirm modal for the real "Choose the data you want to clone"
-// step — confirmed live the real backend genuinely requires picking which
-// user to clone the report for (its own #userid select, not optional).
+// Small confirm modal for the "Choose the data you want to clone" step —
+// the backend requires picking which user to clone the report for (its own
+// #userid select, not optional).
 function CloneModal({ data, id, onClose }: { data: ExpenseReportCard; id: string | undefined; onClose: () => void }) {
   const [userid, setUserid] = useState(data.cloneUserOptions.find((o) => o.value)?.value ?? '')
   const clone = useCloneExpenseReport(id)
@@ -243,18 +243,16 @@ function vatRatePercent(vatValue: string): number {
   return Number(vatValue.match(/-?\d+(\.\d+)?/)?.[0] ?? 0)
 }
 
-// The real add-line row (#fk_c_type_fees/#line_fk_project/#vatrate, all
-// real options — see expenseReportCardParser.ts) is functional here: type/
-// project/VAT/date/qty/price validate and add a line to this component's
-// own local state, same first step the real page's own JS does (caches the
-// line client-side before any server round-trip — see expense_manager.js's
+// The add-line row (#fk_c_type_fees/#line_fk_project/#vatrate — see
+// expenseReportCardParser.ts) is functional here: type/project/VAT/date/
+// qty/price validate and add a line to this component's own local state,
+// the same first step the classic page's JS does (caches the line
+// client-side before any server round-trip — see expense_manager.js's
 // addLineFromInline). What's NOT wired: persisting that line server-side.
-// The real save endpoint (expensereport/api/expense_report_lines_api.php,
-// action=saveCachedLines) was tested live against 172.16.5.10 under a real
-// authenticated session and returned a bare 500 with no error detail —
-// a genuine server-side fault, not a request-format issue on this end — so
-// rather than ship something that silently fails, lines added here stay
-// local to this browser tab (clearly labeled) instead of claiming to save.
+// The save endpoint (expensereport/api/expense_report_lines_api.php,
+// action=saveCachedLines) returns a bare 500 with no error detail, so lines
+// added here stay local to this browser tab (clearly labeled) instead of
+// claiming to save.
 function ItemTableEditor({
   data,
   itemColumns,
@@ -444,19 +442,17 @@ function ItemTableEditor({
 }
 
 // Native replacement for linking out to expensereport/card.php?id=X — this
-// is Dolibarr's real, distinct Expense Report module (see
-// expenseReportsList.queries.ts's own header comment for how it differs
-// from the expense/ SPA module this route previously replicated). Laid out
-// flat (no card boxes) to match the real page's own single-column layout —
-// header banner, tab bar, User/Period/Validation/Amount summary, Item
-// Table, Payments, Linked files — rather than the boxed-card treatment used
-// elsewhere in this app. Every action button and every field link routes
-// in-app or performs a real backend call — no external links left (see
-// resolveInAppLink, expenseReportActions.queries.ts,
-// expenseReportUpdate.queries.ts). The Item Table's own Add-line editor and
-// the doc generator stay disabled (see their own tooltips): the former's
-// real save endpoint 500s live (see ItemTableEditor's own comment), the
-// latter streams a real file, not JSON.
+// is Dolibarr's distinct Expense Report module (see
+// expenseReportsList.queries.ts's header comment for how it differs from
+// the expense/ SPA module). Laid out flat (no card boxes) to match the
+// classic page's single-column layout — header banner, tab bar,
+// User/Period/Validation/Amount summary, Item Table, Payments, Linked
+// files. Every action button and every field link routes in-app or
+// performs a backend call (see resolveInAppLink,
+// expenseReportActions.queries.ts, expenseReportUpdate.queries.ts). The
+// Item Table's Add-line editor and the doc generator stay disabled (see
+// their tooltips): the former's save endpoint returns 500 (see
+// ItemTableEditor's comment), the latter streams a file, not JSON.
 export function ExpenseReportDetailReplica() {
   const { id } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useExpenseReportCard(id)

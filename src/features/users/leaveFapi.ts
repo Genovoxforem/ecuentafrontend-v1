@@ -1,5 +1,5 @@
 import { fapiGet } from '../../api/fapiEnvelope'
-import type { HolidayRequestRow, HolidayStats } from './holidayParser'
+import type { HolidayRequestRow, HolidayStats } from './holiday.types'
 
 // The leave list and its stat cards on payroll/fapi/leave_list.php (26 Oct 2026), replacing the scraped holiday/list.php cards and the
 // holiday/ajax_holiday_list.php DataTables rows. newecuenta holds no leave request, so the item is the document's own shape ("from code"). The

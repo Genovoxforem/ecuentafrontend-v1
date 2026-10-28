@@ -15,6 +15,7 @@ import {
   type TimetableDay,
   type TimetableResult,
 } from '../payrollV2.queries'
+import { todayIso } from '../../../utils/dates'
 import { EmptyRow, ErrorCard, LoadingRows, PanelCard, PayrollModal, TablePanel, Td, Th } from './PayrollV2Chrome'
 
 const FIELD = 'rounded-md border border-input-border bg-input-bg px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
@@ -24,7 +25,6 @@ const ICON_BTN = 'rounded p-1.5 text-text-muted hover:bg-surface-hover hover:tex
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Request failed.')
 const isOn = (v: unknown) => v === true || Number(v) === 1
 const fullName = (e: { firstname: string | null; lastname: string | null }) => `${e.firstname ?? ''} ${e.lastname ?? ''}`.trim()
-const todayIso = () => new Date().toISOString().slice(0, 10)
 const shiftOption = (s: ShiftRow) => `${s.shift_name} (${isOn(s.is_night_shift) ? 'Night' : 'Day'})`
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -3,15 +3,11 @@ import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { fapi } from '../../api/axios'
 import { updateThirdParty } from '../../api/customers'
 
-// GET societe/api/societe.php?id=X — a real, working endpoint discovered by
-// probing the same societe/api/* namespace the Customer List (list.php) and
-// Create Customer (societes.php) features already use. Confirmed live: `tab`/
-// `action` query params are silently ignored — this always returns the SAME
-// full profile regardless, so there's exactly one call for this whole page,
-// not one per tab. Response also carries `tabs` (the legacy page's full tab
-// list) and `urls` (real legacy card.php links, kept only for reference —
-// this app routes internally instead of following them, per the standing
-// rule against linking back to legacy pages).
+// GET societe/api/societe.php?id=X. `tab`/`action` query params are ignored —
+// this always returns the same full profile, so there's exactly one call for
+// this whole page, not one per tab. The response also carries `tabs` (the
+// legacy page's tab list) and `urls` (legacy card.php links, kept only for
+// reference — this app routes internally instead of following them).
 export interface CustomerProfile {
   id: number
   name: string

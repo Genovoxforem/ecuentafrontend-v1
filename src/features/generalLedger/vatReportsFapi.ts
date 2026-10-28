@@ -1,17 +1,13 @@
 import { fapiGet } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
 import type { VatByCustomerPage, VatCustomerGroup, VatCustomerLine } from './vatByCustomerParser'
-import type { VatMonthRow, VatReportByMonth } from './vatReportByMonthParser'
-import type { VatByRatePage, VatRateDetail } from './vatReportByRateParser'
+import type { VatMonthRow, VatReportByMonth } from './vatReportByMonth.types'
+import { usDateFromIso as usDate } from '../../utils/dates'
+import type { VatByRatePage, VatRateDetail } from './vatReportByRate.types'
 
 // The three VAT reports on compta/tva/fapi (22 Oct 2026), in the shapes the report pages already render. The answers were captured from
 // newecuenta on 22 Oct 2026 (tests/fixtures/accountancy-vat-*.json). The vendor ("paid") side is empty there, so its line shape is the
 // customer one by assumption and has not been seen with live rows.
-
-const usDate = (iso: string) => {
-  const [y, m, d] = iso.split('-')
-  return y && m && d ? `${m}/${d}/${y}` : ''
-}
 
 // ---- By month: report_by_month.php -------------------------------------------------------------------------------------------------
 

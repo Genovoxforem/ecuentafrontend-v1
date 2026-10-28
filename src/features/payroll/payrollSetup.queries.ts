@@ -2,17 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { hrmGet } from './hrm.api'
 
-// custom/payroll/admin/setup.php — real, confirmed by reading that file
-// directly
-// (it was previously assumed to have no JSON API and shown as an inert,
-// read-only placeholder — that assumption was wrong: it's a plain classic
-// form, no CSRF token, POSTing back to itself). Each accounting-code row is
-// a real `<select name="acc_code[]">` populated from `llx_accounting_account`
-// (reused here via the same real /accountancy/admin/fetch.php endpoint the
-// General Ledger chart-of-accounts tree already uses), the bank field is a
-// real `<select name="fk_account">` (the same accounts useBankAccountsList
-// already fetches), and Update posts every row + the 3 constants back in one
-// classic multi-value form submit.
+// custom/payroll/admin/setup.php — a plain classic form, no CSRF token,
+// POSTing back to itself. Each accounting-code row is a `<select
+// name="acc_code[]">` populated from `llx_accounting_account` (reused here
+// via the same /accountancy/admin/fetch.php endpoint the General Ledger
+// chart-of-accounts tree uses), the bank field is a `<select
+// name="fk_account">` (the same accounts useBankAccountsList fetches), and
+// Update posts every row + the 3 constants back in one classic multi-value
+// form submit.
 export interface PayrollSetupRow {
   key: string // name="key[]" — the llx_c_type_fees.code, e.g. "Basic001"
   label: string // name="idd[]" — llx_c_type_fees.label, e.g. "Basic Salary"

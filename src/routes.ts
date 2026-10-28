@@ -230,6 +230,7 @@ export const ROUTES = {
   ledgerChartOfAccountsModels: '/ledger/setup/chart-of-accounts-models',
   ledgerChartOfIndividualAccounts: '/ledger/setup/chart-of-individual-accounts',
   ledgerPersonalizedGroups: '/ledger/setup/personalized-groups',
+  ledgerPersonalizedGroupAccounts: '/ledger/setup/personalized-groups/:id/accounts',
   ledgerDefaultAccounts: '/ledger/setup/default-accounts',
   ledgerBankAccountsSetup: '/ledger/setup/bank-accounts',
   ledgerVatAccounts: '/ledger/setup/vat-accounts',

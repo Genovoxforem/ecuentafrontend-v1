@@ -304,11 +304,11 @@ function NameField({
   )
 }
 
-// Real response shape from societe/api/societes.php?action=create,
-// confirmed live: {"ok":true,"message":"Third party created","id":2071,
+// Response shape from societe/api/societes.php?action=create:
+// {"ok":true,"message":"Third party created","id":2071,
 // "societe":{...},"redirect":"/.../societe/card.php?socid=2071"}. Errors
-// use `error` in place of `ok:true` (not directly captured live, but
-// matches this endpoint's list.php sibling's own {ok, error} convention).
+// use `error` in place of `ok:true` (not verified; matches this endpoint's
+// list.php sibling's own {ok, error} convention).
 interface CreateThirdPartyResponse {
   ok: boolean
   id?: number
@@ -721,16 +721,6 @@ export function ThirdPartyCreateForm({ variant, cancelPath, profile, extra }: { 
       headerClassName="pt-1.5 pb-2.5"
       header={
         <>
-          {/* Vendor/Prospect used to show a warning banner here explaining that
-              /api/customer/?action=create always saved a plain customer
-              regardless of variant. That's no longer true — this form now
-              submits to societe/api/societes.php, the real endpoint the
-              legacy wizard itself uses, which correctly reads client/
-              fournisseur (confirmed live per-variant: Customer client=1,
-              Prospect client=2, Vendor client=0+fournisseur=1). No banner
-              needed since the save is now correct. */}
-
-
           <WizardStepper steps={steps} step={step} onStep={setStep} />
         </>
       }

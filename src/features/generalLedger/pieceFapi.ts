@@ -2,7 +2,8 @@ import { fapi } from '../../api/axios'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
 import { loadBindableAccounts } from './bindingFapi'
-import type { PieceCard, PieceCardAddRow, PieceCardLine, PieceCardOption } from './pieceCardParser'
+import { usDateFromIso as usDate } from '../../utils/dates'
+import type { PieceCard, PieceCardAddRow, PieceCardLine, PieceCardOption } from './pieceCard.types'
 
 // accountancy/fapi/piece.php?piece_num=N&action=delete: removes every line of the transaction. The endpoint answers 409 when the transaction is
 // exported or validated, 403 without the delete right and 404 for an unknown piece, each with its own message.
@@ -55,11 +56,6 @@ export interface FapiFormOptions {
   journals: Array<{ id: number; code: string; label: string }>
   currencies: Array<{ code: string; rate: number; is_base: boolean }>
   base_currency: string
-}
-
-const usDate = (iso: string) => {
-  const [y, m, d] = iso.slice(0, 10).split('-')
-  return y && m && d ? `${m}/${d}/${y}` : ''
 }
 
 export function mapPiece(d: FapiPiece, accounts: PieceCardOption[], options: FapiFormOptions): PieceCard {

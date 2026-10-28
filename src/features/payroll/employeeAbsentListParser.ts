@@ -1,13 +1,13 @@
-// Parses payroll/absent_list.php — confirmed live to be a plain GET-able
-// classic report page, same shape as atten_period_rip.php's own page (see
-// attendancePeriodReportParser.ts), but with one real backend-confirmed
-// difference: its SQL WHERE clause uses `stdate`/`enddate` directly against
-// a `date` column with no reformatting (absent_list.php line ~161-163), so
-// — unlike the period report — these need to be sent as YYYY-MM-DD, not
-// MM/DD/YYYY. The Employee select also really does carry an "All Employee"
-// option here (value="All"), which the period report's own select doesn't
-// have. Status text/color is real, read straight off each row's own <span>
-// (Full Day / Fore Noon / After Noon, each with a real distinct color).
+// Parses payroll/absent_list.php — a plain GET-able classic report page,
+// same shape as atten_period_rip.php's own page (see
+// attendancePeriodReportParser.ts), with one difference: its SQL WHERE
+// clause uses `stdate`/`enddate` directly against a `date` column with no
+// reformatting (absent_list.php line ~161-163), so — unlike the period
+// report — these need to be sent as YYYY-MM-DD, not MM/DD/YYYY. The Employee
+// select also carries an "All Employee" option here (value="All"), which the
+// period report's own select doesn't have. Status text/color is read
+// straight off each row's own <span> (Full Day / Fore Noon / After Noon,
+// each with a distinct color).
 
 export interface AbsentListEmployeeOption {
   value: string

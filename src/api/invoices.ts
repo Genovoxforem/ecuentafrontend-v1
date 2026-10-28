@@ -299,8 +299,7 @@ export async function fetchInvoiceDocumentModels(id?: number): Promise<InvoiceDo
   return res.data.data
 }
 
-// compta/facture/fapi/form_settings.php: the install-level settings the draft invoice
-// screen used to read out of 1.4-1.7 MB of compta/sales/card.php HTML.
+// compta/facture/fapi/form_settings.php: the install-level settings of the draft invoice screen.
 export interface InvoiceFormSettings {
   debit_note_enabled: number
   default_warehouse_id: number

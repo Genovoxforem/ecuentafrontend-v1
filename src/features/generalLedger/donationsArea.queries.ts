@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { fapiGet } from '../../api/fapiEnvelope'
 
-// don/fapi/list.php: the totals by status (count and amount) for the statistics table, and the newest donations for the "Latest" block.
+// don/fapi/list.php: the totals by status (count and amount) for the statistics table, and the ten most recently modified donations
+// (sort=modified, on the date_modification each item carries) for the "Latest 10 Modified Donations" block.
 // by_status rows were seen on newecuenta with two draft donations: { status, label, count, amount }.
 interface FapiDonationList {
   items: Array<{ id: number; ref: string; date: string | null; amount: number; company: string; name: string; status: number; status_label: string }>
@@ -38,6 +39,6 @@ export function mapDonationStats(d: FapiDonationList) {
 export function useDonationsArea() {
   return useQuery({
     queryKey: ['ledger', 'donations-area'],
-    queryFn: async ({ signal }) => mapDonationStats(await fapiGet<FapiDonationList>('/don/fapi/list.php', { limit: 10, sort: 'date', direction: 'DESC' }, signal)),
+    queryFn: async ({ signal }) => mapDonationStats(await fapiGet<FapiDonationList>('/don/fapi/list.php', { limit: 10, sort: 'modified', direction: 'DESC' }, signal)),
   })
 }

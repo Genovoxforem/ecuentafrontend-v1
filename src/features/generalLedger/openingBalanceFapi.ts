@@ -1,4 +1,19 @@
-import type { OpeningBalanceForm } from './openingBalanceParser'
+export interface OpeningBalanceOption {
+  value: string
+  label: string
+}
+
+// The "Opening Balances" wizard (classic accountancy/admin/openingbalance.php): the rows are saved together with an
+// adjustment row on the fixed account (ACCOUNTING_ACCOUNT_LEDGER_OPENING) that receives the difference between the
+// debit and credit totals.
+export interface OpeningBalanceForm {
+  token: string
+  // Currency of the debit / credit columns.
+  currency: string
+  accounts: OpeningBalanceOption[]
+  // The account that holds the difference, with the backend's own note about it.
+  adjustment: { account: string; label: string; note: string }
+}
 
 // accountancy/fapi/opening_balance.php (22 Oct 2026): the wizard's data (currency, the account that holds the difference, the whole chart for
 // the account picker, and any existing "Opening Balance" rows) and, on POST, the save under one new transaction number. Field names are the

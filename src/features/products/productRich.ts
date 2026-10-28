@@ -22,6 +22,8 @@ export interface RichProductRow {
   // — 0 when unparseable, never fabricated.
   createdAt: number
   lotStatus: string
+  // llx_product.tobatch (0 off, 1 lot, 2 serial); null when the backend does not send it.
+  toBatch: number | null
   // The legacy row's own colored circular icon badge (background + icon
   // color, e.g. "#e8f0fe" / "#397db9") — carried through as-is so the React
   // list can render the same per-product avatar instead of a flat icon.

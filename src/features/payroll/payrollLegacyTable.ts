@@ -1,9 +1,9 @@
 // Parses the list table (`table#example`) that every Payroll HR / shift / salary
 // page (payroll/holiday.php, award.php, transfers.php, shifts.php, loan.php, …)
-// renders server-side — verified against the dev backend. The page's own script
-// turns it into a DataTable in the browser, so the HTML itself is a plain table:
-// a `thead` of column names and one `tbody tr` per record, the last cell holding
-// the row's edit/delete buttons (and, for some pages, a hidden edit form).
+// renders server-side. The page's own script turns it into a DataTable in the
+// browser, so the HTML itself is a plain table: a `thead` of column names and one
+// `tbody tr` per record, the last cell holding the row's edit/delete buttons (and,
+// for some pages, a hidden edit form).
 
 export interface PayrollLegacyRow {
   // The record's id, read off the row (see rowId) — what the delete action needs.

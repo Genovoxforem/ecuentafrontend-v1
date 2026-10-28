@@ -1,28 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { loadUserGroup, loadUserGroups } from './userGroupsFapi'
 
-// Real, live-verified endpoints — read directly from user/group/list.php,
-// user/group/ajax_group.php, and categories/tag-sidebarlist-ajax.php (all
-// read-only, per this app's frontend-only scope):
+// Endpoints read from user/group/list.php, user/group/ajax_group.php, and
+// categories/tag-sidebarlist-ajax.php:
 //
 // - The group list and one group (members and permission matrix) come from user/group/fapi (userGroupsFapi.ts).
-// - user/group/ajax_group.php's create_group action IS a real, complete
-//   JSON create endpoint (confirmed by reading its source): it calls the
-//   same UserGroup->create($user) the legacy "New Group" modal/page use,
-//   duplicate-name-checks server-side, and returns the new {id,name,
-//   editUrl}. Notably it never validates the `token` it's sent — verified
-//   in the PHP itself, not assumed — so no CSRF token is sent here either.
+// - user/group/ajax_group.php's create_group action is a complete JSON
+//   create endpoint: it calls the same UserGroup->create($user) the legacy
+//   "New Group" modal/page use, duplicate-name-checks server-side, and
+//   returns the new {id,name,editUrl}. It never validates the `token` it's
+//   sent (per the PHP itself), so no CSRF token is sent here either.
 // - categories/index.php?type=7 (Users Tags/Categories) is likewise a
 //   stock server-rendered tree page with no JSON API of its own, and its
 //   per-tag member-count badge comes from a PHP class method
 //   (getObjectsInCateg) with no JSON equivalent. But
-//   categories/tag-sidebarlist-ajax.php?type_id=7 IS a real JSON list of
-//   the underlying llx_categorie rows (confirmed live: returned the same
-//   "Indian Employees" tag visible in the reference screenshot) — used
-//   for the list here, again honestly omitting the per-tag count.
-//   categories/card.php's own create action is a classic Dolibarr
-//   form-POST-and-redirect page (checked: uses newToken()/action=add), not
-//   a JSON API, so tag creation stays a "create in legacy system" link
+//   categories/tag-sidebarlist-ajax.php?type_id=7 IS a JSON list of the
+//   underlying llx_categorie rows — used for the list here, omitting the
+//   per-tag count. categories/card.php's own create action is a classic
+//   Dolibarr form-POST-and-redirect page (newToken()/action=add), not a
+//   JSON API, so tag creation stays a "create in legacy system" link
 //   rather than a fabricated in-app form.
 
 export type { UserGroupRow } from './userGroupsFapi'

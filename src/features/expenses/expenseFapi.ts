@@ -2,10 +2,10 @@ import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
 import type { EntityOption, ExpenseListFilters, ExpenseReportRow, ExpenseTypeOption } from './expenses.queries'
 import type { ApprovalRow, ExpenseDashboard, ExpenseParty, FormOption, PaymentAction, PaymentRow } from './expensePagesParser'
-import type { AdvanceRow, AdvancesPage, AnalyticsPage, RecurringPage, RecurringRow, ReimbursementRow, ReimbursementsPage, ReportsPage, RepaymentRow, RepaymentsPage, Tone } from './expenseTabsParser'
+import type { AdvanceRow, AdvancesPage, AnalyticsPage, RecurringPage, RecurringRow, ReimbursementRow, ReimbursementsPage, ReportsPage, RepaymentRow, RepaymentsPage, Tone } from './expenseTabs.types'
 
 // The expense module on expense/fapi (26 Oct 2026), replacing the {success, html} fragments of expense/api/expense_content.php (read by the
-// parsers in expensePagesParser.ts / expenseTabsParser.ts) and the DataTables endpoints expense/ajax/*. The answers are mapped to the
+// parsers in expensePagesParser.ts / expenseTabs.types.ts) and the DataTables endpoints expense/ajax/*. The answers are mapped to the
 // types those parsers produced, so the pages are unchanged. newecuenta holds no expense report, so every list there is empty: the rows
 // the document gives a shape for ("from code") are typed exactly below; for the rows it gives none, the field names the document uses
 // for the same thing elsewhere are read and a cell stays blank when its field is absent. None of these rows has been seen live.

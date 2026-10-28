@@ -66,8 +66,7 @@ export function PurchaseOrdersList({ summary }: { summary: PurchaseOrdersSummary
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
-  // Real vendor-scoping filter — reads PurchaseOrderRow.socid (already
-  // parsed from the row's own third-party link, see purchaseOrderListParser.ts).
+  // Vendor-scoping filter — reads PurchaseOrderRow.socid (the list row's supplier.id).
   // Lets a vendor's own Related Items tab ("View all" on Supplier orders)
   // link here instead of the legacy backend's own filtered list.php.
   const customerIdParam = searchParams.get('customerId')

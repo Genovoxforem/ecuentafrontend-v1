@@ -14,15 +14,10 @@ const TYPE_BADGE_CLS: Record<string, string> = {
   Employee: 'text-violet-500',
 }
 
-// accountancy/admin/subaccount.php — real, read-only union of customer/
-// supplier/employee subsidiary-ledger accounts (see
-// chartOfIndividualAccountsParser.ts's own header comment for the real
-// row shape). The Reconcilable toggle is wired to the exact already-
-// tokened GET link scraped off each row — not fabricated. Type/Action both
-// route to this app's own native CustomerDetail page (by the real socid
-// parsed off each row) instead of linking out to the legacy third-party
-// card — that page already has a real, working Edit mode
-// (useUpdateCustomer), so there was no need to leave the app at all.
+// Chart of individual accounts (classic accountancy/admin/subaccount.php): the customer, supplier and employee
+// subsidiary-ledger accounts from accountancy/fapi/subaccounts.php (see chartOfIndividualAccounts.types.ts). The
+// Reconcilable toggle posts subaccounts.php?action=toggle_reconcilable. Type/Action route to this app's own
+// CustomerDetail page by the row's socid instead of linking out to the legacy third-party card.
 export function ChartOfIndividualAccountsList() {
   const { data: rows, isLoading, isError, error, refetch } = useSubaccounts()
   const toggle = useToggleSubaccountReconcilable()

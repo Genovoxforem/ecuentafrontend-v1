@@ -1,103 +1,131 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from './bindLines.queries'
-import { cellText } from './legacyTable'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 
-// accountancy/admin/index.php — "Configuration of the module accounting".
-// Two kinds of setting on one page, both confirmed live against 172.16.5.10:
-//   - on/off switches: a link `index.php?token=…&action=set<NAME>&value=0|1`
-//     whose icon (fa-toggle-on / fa-toggle-off) is the current state and whose
-//     `value` is the state a click switches to;
-//   - values (account lengths, start-binding date, default transfer period):
-//     inputs of one POST form (token, action=update) sent together by "Modify".
+// accountancy/admin/index.php — "Configuration of the module accounting", read and saved through
+// accountancy/fapi/setup_general.php: `fields` describes every setting (key, label, type yesno / int /
+// date / select, current value), and a POST of { values: { KEY: value } } writes the ones it is given.
+// The classic page shows 16 of the 17 fields; ACCOUNTING_ENABLE_EXPORT_DRAFT_JOURNAL is not on it and is left out here too.
 
 export type SettingKind = 'toggle' | 'text' | 'date' | 'select'
 
 export interface SettingRow {
   kind: SettingKind
   label: string
-  name: string
-  value: string // current value ('1'/'0' for a toggle)
-  href: string // toggle: the backend link that flips it
+  name: string // the setting's constant, e.g. ACCOUNTING_LENGTH_GACCOUNT
+  value: string // current value ('1'/'0' for a toggle, mm/dd/yyyy for a date)
   options: { value: string; label: string }[]
 }
 
 export interface GeneralSettings {
-  token: string
   rows: SettingRow[]
 }
 
-const PATH = '/accountancy/admin/index.php'
-
-export function parseGeneralSettings(doc: Document): GeneralSettings {
-  const rows: SettingRow[] = []
-  for (const tr of Array.from(doc.querySelectorAll('tr.oddeven'))) {
-    if (tr.children.length !== 2) continue
-    const label = cellText(tr.children[0])
-    const control = tr.children[1]
-
-    const link = control.querySelector<HTMLAnchorElement>('a[href*="action=set"]')
-    if (link && control.querySelector('.fa-toggle-on, .fa-toggle-off')) {
-      const href = link.getAttribute('href') ?? ''
-      const params = new URLSearchParams(href.split('?')[1] ?? '')
-      rows.push({ kind: 'toggle', label, name: params.get('action') ?? '', value: control.querySelector('.fa-toggle-on') ? '1' : '0', href, options: [] })
-      continue
-    }
-    const select = control.querySelector<HTMLSelectElement>('select[name]')
-    if (select) {
-      rows.push({ kind: 'select', label, name: select.name, value: select.value, href: '', options: Array.from(select.options).map((o) => ({ value: o.value, label: cellText(o) })) })
-      continue
-    }
-    const input = control.querySelector<HTMLInputElement>('input[type="text"][name]')
-    if (input) rows.push({ kind: /date/i.test(input.name) ? 'date' : 'text', label, name: input.name, value: input.value, href: '', options: [] })
-  }
-  return { token: doc.querySelector<HTMLInputElement>('input[name="token"]')?.value ?? '', rows }
+interface FapiField {
+  key: string
+  label: string
+  group: string
+  type: 'yesno' | 'int' | 'date' | 'select'
+  value: number | string | null
+  options?: { value: number | string; label: string }[]
 }
+export interface FapiSetupGeneral {
+  fields: FapiField[]
+  values: Record<string, number | string | null>
+}
+
+// The order of the classic page: the first five settings are the general options, the rest the binding options.
+const CLASSIC_ORDER = [
+  'BANK_DISABLE_DIRECT_INPUT',
+  'ACCOUNTANCY_COMBO_FOR_AUX',
+  'ACCOUNTING_MANAGE_ZERO',
+  'ACCOUNTING_LENGTH_GACCOUNT',
+  'ACCOUNTING_LENGTH_AACCOUNT',
+  'ACCOUNTING_LIST_SORT_VENTILATION_TODO',
+  'ACCOUNTING_LIST_SORT_VENTILATION_DONE',
+  'ACCOUNTING_DATE_START_BINDING',
+  'ACCOUNTING_DEFAULT_PERIOD_ON_TRANSFER',
+  'ACCOUNTING_DISABLE_BINDING_ON_SALES',
+  'ACCOUNTING_DISABLE_BINDING_ON_PURCHASES',
+  'ACCOUNTING_DISABLE_BINDING_ON_EXPENSEREPORTS',
+  'ACCOUNTING_AUTOMATION_BINDING_ON_SALES',
+  'ACCOUNTING_AUTOMATION_BINDING_ON_PURCHASES',
+  'ACCOUNTING_AUTOMATION_BINDING_ON_EXPENSEREPORTS',
+  'ACCOUNTING_AUTOMATION_BINDING_ON_BANKPAYMENT',
+]
+
+// The endpoint prints a few labels with their HTML entities ("binding &amp; transfer").
+const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+
+// YYYY-MM-DD <-> MM/DD/YYYY (the page's own date format)
+const usFromIso = (iso: string | number | null | undefined) => {
+  const m = typeof iso === 'string' ? iso.match(/^(\d{4})-(\d{2})-(\d{2})/) : null
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
+}
+const isoFromUs = (us: string) => {
+  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : null
+}
+
+export function mapGeneralSettings(d: FapiSetupGeneral): GeneralSettings {
+  const byKey = new Map(d.fields.map((f) => [f.key, f]))
+  const rows: SettingRow[] = []
+  for (const key of CLASSIC_ORDER) {
+    const f = byKey.get(key)
+    if (!f) continue
+    const value = d.values[key] ?? f.value
+    const base = { label: decode(f.label), name: key, options: [] as SettingRow['options'] }
+    if (f.type === 'yesno') rows.push({ ...base, kind: 'toggle', value: Number(value) ? '1' : '0' })
+    else if (f.type === 'date') rows.push({ ...base, kind: 'date', value: usFromIso(value) })
+    else if (f.type === 'select') rows.push({ ...base, kind: 'select', value: String(value ?? ''), options: (f.options ?? []).map((o) => ({ value: String(o.value), label: o.label })) })
+    // an account length of 0 means "not set"; the classic page shows an empty box
+    else rows.push({ ...base, kind: 'text', value: Number(value) ? String(value) : '' })
+  }
+  return { rows }
+}
+
+// What the endpoint expects for each setting when a value box is saved.
+export function settingsPayload(rows: SettingRow[], values: Record<string, string>): Record<string, number | string | null> {
+  const out: Record<string, number | string | null> = {}
+  for (const row of rows) {
+    if (row.kind === 'toggle') continue
+    const v = values[row.name] ?? row.value
+    if (row.kind === 'date') out[row.name] = isoFromUs(v)
+    else if (row.kind === 'select') out[row.name] = Number(v)
+    else out[row.name] = v.trim() === '' ? 0 : Number(v)
+  }
+  return out
+}
+
+const PATH = '/accountancy/fapi/setup_general.php'
+const KEY = ['generalLedger', 'generalSettings'] as const
 
 export function useGeneralSettings() {
   return useQuery({
-    queryKey: ['generalLedger', 'generalSettings'],
-    queryFn: async () => parseGeneralSettings(await fetchLegacyDocument(PATH)),
+    queryKey: KEY,
+    queryFn: async ({ signal }) => mapGeneralSettings(await fapiGet<FapiSetupGeneral>(PATH, undefined, signal)),
     staleTime: 0,
   })
 }
 
-async function send(url: string, init?: RequestInit): Promise<string> {
-  const res = await fetch(url, { credentials: 'same-origin', ...init })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const html = await res.text()
-  if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-  const msgs = toastMessages(html)
-  const err = msgs.find((m) => m.type === 'error')
-  if (err) throw new Error(err.message)
-  return msgs.map((m) => m.message).join('\n')
-}
-
-// Flip one on/off setting by following the backend's own link.
+// Flip one on/off setting.
 export function useToggleSetting() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (row: SettingRow) => send(row.href),
+    mutationFn: async (row: SettingRow) => {
+      await fapiPost(PATH, { values: { [row.name]: row.value === '1' ? 0 : 1 } })
+      return ''
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })
 }
 
-// The "Modify" button: posts the value settings together, as the page does.
+// The "Save Changes" button: the account lengths, the start-binding date and the default transfer period.
 export function useSaveSettingValues() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ token, values }: { token: string; values: Record<string, string> }) => {
-      const body = new URLSearchParams({ token, action: 'update' })
-      for (const [name, value] of Object.entries(values)) {
-        body.set(name, value)
-        const m = name.match(/DATE/) ? value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/) : null
-        if (name.match(/DATE/)) {
-          body.set(`${name}day`, m?.[2] ?? '')
-          body.set(`${name}month`, m?.[1] ?? '')
-          body.set(`${name}year`, m?.[3] ?? '')
-        }
-      }
-      return send(PATH, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+    mutationFn: async ({ rows, values }: { rows: SettingRow[]; values: Record<string, string> }) => {
+      await fapiPost(PATH, { values: settingsPayload(rows, values) })
+      return 'Setup saved.'
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })

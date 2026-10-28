@@ -176,13 +176,13 @@ function typeColor(label: string): string {
   return TYPE_PALETTE[hash % TYPE_PALETTE.length]
 }
 
-// Real via ticket/ticket_list_ajax.php (list + "My Assigned Tickets", same
+// Via ticket/ticket_list_ajax.php (list + "My Assigned Tickets", same
 // endpoint with mode=mine) and ticket/ticket_stats_ajax.php (stat cards +
-// per-status colors/icons/counts) — both confirmed genuine JSON with real
-// permission checks (hasRight('ticket','read')). Search, date-range and
-// assigned/created-by filters all POST straight to that same endpoint's own
-// real search_* / datefilter params (confirmed live), not client-side
-// guessing — see tickets.queries.ts's useTicketsList for the exact fields.
+// per-status colors/icons/counts) — both JSON with permission checks
+// (hasRight('ticket','read')). Search, date-range and assigned/created-by
+// filters all POST straight to that same endpoint's own search_* /
+// datefilter params, not client-side filtering — see tickets.queries.ts's
+// useTicketsList for the exact fields.
 export function TicketsList({ defaultMine = false, projectId, embedded = false }: { defaultMine?: boolean; projectId?: number; embedded?: boolean }) {
   // "Open (All)" first, as the classic Ticket / List / My Tickets menu entries open it.
   const [status, setStatus] = useState('openall')

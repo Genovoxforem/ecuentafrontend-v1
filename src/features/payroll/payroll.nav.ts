@@ -6,10 +6,6 @@ import type { NavSection } from '../navTypes'
 // These rows don't use the source's tree-relation column (fk_menu=-1, the
 // classic flat-list style), so the grouping below is inferred from item
 // naming/sequence rather than read directly off an explicit hierarchy field.
-// Every item now has a real path — confirmed this session (full module
-// audit): Date Wise Attendance and Mark Attendance are genuinely real JSON
-// APIs, every other item is a real legacy page with no JSON API, rendered
-// as an honest NotBuiltPage placeholder rather than a dead label.
 export const nav: NavSection = {
   key: 'payroll',
   label: 'Payroll',

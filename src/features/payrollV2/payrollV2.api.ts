@@ -1,13 +1,13 @@
 import axios from 'axios'
 import { fapi } from '../../api/axios'
 
-// Payroll V2 is served by payroll_v2/fapi/<file>.php?action=…: the same actions, params and data as the old
-// session-only payroll_v2/api/*, re-wrapped in the fapi envelope {success, data, message, errors} and
-// authenticated with the app's API key (X-API-Key, see api/axios.ts). Verified live on newecuenta: every read
-// the app makes answers identical data on both. A failure comes back as a 4xx/5xx with the reason in `message`.
-// Writes keep the form-encoded body (with PHP's name[] / name[0][field] arrays) the old API took: the fapi reads
-// both JSON and form bodies, but a JSON employee_id was refused by shift.php?action=swap_shift while the form
-// one worked, so the form body is the safe one.
+// Payroll V2 is served by payroll_v2/fapi/<file>.php?action=…: the same actions, params and data as the
+// session-only payroll_v2/api/*, wrapped in the fapi envelope {success, data, message, errors} and
+// authenticated with the app's API key (X-API-Key, see api/axios.ts). A failure comes back as a 4xx/5xx with
+// the reason in `message`.
+// Writes use a form-encoded body (with PHP's name[] / name[0][field] arrays): the fapi reads both JSON and form
+// bodies, but shift.php?action=swap_shift refuses a JSON employee_id while the form one works, so the form body
+// is the safe one.
 const PREFIX = '/payroll_v2/fapi/'
 const TIMEOUT = 20000
 

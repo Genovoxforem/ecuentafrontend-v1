@@ -1,3 +1,4 @@
+import { parseAmount } from '../../utils/text'
 // Parses product/allproducts_ajax.php's own DataTables rows (real,
 // confirmed by reading that file directly) with zrastatus=unupload —
 // filters WHERE p.zracode != '000' OR p.zracode IS NULL, matching the real
@@ -9,11 +10,6 @@
 function cellText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim()
-}
-
-function parseAmount(text: string): number {
-  const n = Number(text.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
 }
 
 export interface RawUnuploadedProductRow {

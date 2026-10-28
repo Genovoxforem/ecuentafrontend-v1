@@ -1,16 +1,15 @@
-// Parses compta/resultat/task_activity.php (the real "Task / Activities
+// Parses compta/resultat/task_activity.php (the "Task / Activities
 // Details" report) — no REST API exists for Dolibarr's agenda/actioncomm
-// records on this backend. Verified live against the real dev backend: a GET returns the
-// filter form (a fresh CSRF token + the "Customer Details" <select> this
-// report's own combo uses — every third party regardless of customer/
-// prospect/supplier type, unlike useCustomersSummary's customer-only list),
-// and POSTing the same 5 fields the real form does (token, modecompta,
-// newdatepicker, type, customerdet) re-renders the page with a
-// `<table id="example3">` of results appended — but ONLY when at least one
-// row matches; a 0-row search adds nothing at all (confirmed live:
-// byte-identical to the un-searched page — a real backend quirk this app
-// surfaces as an honest "no results" message rather than silently looking
-// unsearched).
+// records on this backend. A GET returns the filter form (a fresh CSRF
+// token + the "Customer Details" <select> this report's own combo uses —
+// every third party regardless of customer/prospect/supplier type, unlike
+// useCustomersSummary's customer-only list), and POSTing the same 5 fields
+// the classic form does (token, modecompta, newdatepicker, type,
+// customerdet) re-renders the page with a `<table id="example3">` of
+// results appended — but ONLY when at least one row matches; a 0-row
+// search adds nothing at all (byte-identical to the un-searched page — a
+// backend quirk this app surfaces as a "no results" message rather than
+// silently looking unsearched).
 
 export interface TaskActivityFormContext {
   token: string
@@ -60,8 +59,8 @@ function toIsoDate(ddmmyyyy: string): string {
 // User Related To / Created By cells render the display name inside a
 // nested `.usertext` span; Thirdparty Related To instead renders it as a
 // bare trailing text node right after an avatar-circle div with no such
-// class — both confirmed live against real rows for all 3 report types
-// (Tasks/Meetings/Calls all share this exact table markup).
+// class — the same for all 3 report types (Tasks/Meetings/Calls share this
+// exact table markup).
 function userCellName(cell: Element | undefined): string {
   return cell?.querySelector('.usertext')?.textContent?.trim() ?? ''
 }
@@ -116,14 +115,13 @@ export interface TaskActivityKanbanFormContext {
   token: string
   thirdPartyOptions: { value: string; label: string; description?: string }[]
   userOptions: { value: string; label: string }[]
-  // Real: unlike task_activity.php's plain list, this report's Statistics
-  // sidebar (and customer-card list) is computed and rendered on every page
-  // load — including the very first unsearched GET — using the same
-  // "this month" default the date field itself pre-fills, not gated behind
-  // an explicit "Search" click. Confirmed live: a fresh GET already showed
-  // non-zero Total Calls. Carried on the form context (not a separate
-  // query) so the Kanban view can show real numbers immediately on mount
-  // instead of an empty sidebar until the user clicks View Report.
+  // Unlike task_activity.php's plain list, this report's Statistics sidebar
+  // (and customer-card list) is computed and rendered on every page load —
+  // including the very first unsearched GET — using the same "this month"
+  // default the date field itself pre-fills, not gated behind an explicit
+  // "Search" click. Carried on the form context (not a separate query) so
+  // the Kanban view can show numbers immediately on mount instead of an
+  // empty sidebar until the user clicks View Report.
   initialStats: TaskActivityStats
   initialCards: TaskActivityKanbanCard[]
 }

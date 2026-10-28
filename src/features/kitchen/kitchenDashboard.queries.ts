@@ -1,21 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-// Real via kitchen/dashboard_ajax.php — a genuinely different real page
-// from kitchen/ordermanagement.php (which KitchenOrdersList.tsx already
-// covers). Confirmed live by reading it directly, not guessed:
+// Via kitchen/dashboard_ajax.php — a different page from
+// kitchen/ordermanagement.php (which KitchenOrdersList.tsx covers):
 //   - get_stats: only total_orders/pending/completed are ever computed —
 //     the response also carries received/preparing/ready_to_serve/served/
-//     cancelled keys, but the real page's own JS never reads them either
+//     cancelled keys, but the classic page's own JS never reads them either
 //     (dashboard.php's renderStats() only ever touches those 3 fields), so
 //     they're left out here rather than surfaced as permanently-zero,
 //     misleading stat cards.
-//   - get_tokens: real per-order cards for the selected date, optionally
+//   - get_tokens: per-order cards for the selected date, optionally
 //     filtered to ordercomplete=0 ("pending") or =1 ("completed") — there's
-//     no real per-KOT-status breakdown despite the "all" tab existing.
-//   - get_invoice_details: real order + line items (with kotstatus) for
-//     the "View" click.
-//   - delete_order: real, but self-guards server-side to draft invoices
-//     only (fk_statut = 0) — rejects anything else with a real message.
+//     no per-KOT-status breakdown despite the "all" tab existing.
+//   - get_invoice_details: order + line items (with kotstatus) for the
+//     "View" click.
+//   - delete_order: self-guards server-side to draft invoices only
+//     (fk_statut = 0) — rejects anything else with a message.
 async function postForm<T>(body: Record<string, string>): Promise<T> {
   const res = await fetch('/kitchen/dashboard_ajax.php', { method: 'POST', credentials: 'same-origin', body: new URLSearchParams(body) })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)

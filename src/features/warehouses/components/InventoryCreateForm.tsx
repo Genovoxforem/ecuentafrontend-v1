@@ -22,13 +22,10 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-// Submits to the real product/inventory/card.php?action=add (see
-// warehouseExtras.queries.ts) instead of the session-only local stub this
-// used to be. Product is a real optional field on the create form
-// (fk_product — "Inventory for a specific product") that an earlier pass
-// missed by reading two non-adjacent chunks of the real page's HTML and
-// skipping the section in between; confirmed live it sits right after
-// Warehouse.
+// Submits to product/inventory/card.php?action=add (see
+// warehouseExtras.queries.ts). Product is an optional field on the create
+// form (fk_product — "Inventory for a specific product"); it sits right
+// after Warehouse.
 export function InventoryCreateForm() {
   const navigate = useNavigate()
   const createInventory = useCreateInventoryReal()

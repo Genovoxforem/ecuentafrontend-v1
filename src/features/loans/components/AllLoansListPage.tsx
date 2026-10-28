@@ -50,8 +50,8 @@ export function AllLoansListPage() {
     if (showAddLoan && data && !form) setForm(emptyForm(data.nextLoanId))
   }, [showAddLoan, data, form])
 
-  // Real behavior (confirmed live): picking a Loan Product auto-fills Late
-  // Payment Penalties from the product's own real config.
+  // Picking a Loan Product auto-fills Late Payment Penalties from the
+  // product's own config.
   useEffect(() => {
     if (productInfo.data && form) setForm((f) => (f ? { ...f, latePaymentPenalties: productInfo.data!.penal } : f))
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { BookOpen, Database, CheckCircle2, Clock, Activity, Search, List, LayoutGrid, Eye, Pencil, Info, HelpCircle, Zap, Lightbulb, RefreshCw, ShieldCheck, Plus, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
-import { useProductFormOptions } from '../../zra/createProduct.queries'
+import { useProductFormOptions } from '../../products/productFormOptions.queries'
 import { useAuth } from '../../auth/AuthContext'
 
 // The reference app's own real dictionary catalog (its GET /admin/dict.php

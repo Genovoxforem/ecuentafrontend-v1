@@ -52,9 +52,8 @@ const BANNER_ACTIONS: Record<string, Array<{ label: string; path: string }>> = {
 }
 
 // The nav menu's own crumb for a route is sometimes too generic next to the
-// page's real name (the classic page's own title, which the page's merged
-// header used to show before it got hidden under the banner) — this wins
-// over that crumb for the routes listed here.
+// page's name (the classic page's own title) — this wins over that crumb
+// for the routes listed here.
 const TITLE_OVERRIDES: Record<string, string> = {
   invoiceList: 'Sales Invoices',
   productPriceList: 'Product Price List',

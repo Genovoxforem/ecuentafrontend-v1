@@ -1,23 +1,18 @@
 import { X, Package, Tag, ShoppingCart, Warehouse, Ruler, Shapes, Link2, ChartPie, FileText, StickyNote, Paperclip, CalendarClock, Percent } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 
-// Matches legacy's real primary/overflow tab split exactly (confirmed live
-// via product/card.php's own rendered tab bar for product id=123) — not a
-// guess at grouping, the actual 7 primary + 6 "More..." tabs shown there.
-// Icons are a redesign addition (legacy's own primary tab bar has none —
-// only the More... dropdown does) for visual consistency between the two.
-// Same set/order/labels as the real reference page's own tab bar
-// (productinfo/index.php, backed by productinfo/json/tabs.json on the
-// active backend — read directly, not guessed): Product Card, Selling
-// Prices, Supplier Prices, Stock, UOM, Variants, Composition, Statistics,
-// Invoice Stats, Notes, Documents, Events. Each renamed label maps to the
-// SAME underlying data/component as before (confirmed against that json's
-// own api file per tab, e.g. variant_api.php uses the same ProductCombination
-// class "Product Combinations" already used) — only the label changed.
-// "Margins" has no equivalent tab in that reference at all (selling-vs-
-// buying margin isn't one of its 12 tabs), so it's kept, appended at the
-// end, rather than dropped — real working functionality, not a guess this
-// app should lose just because the reference page doesn't happen to have it.
+// Matches legacy's primary/overflow tab split (product/card.php's own
+// rendered tab bar): 7 primary + 6 "More..." tabs. Icons are a redesign
+// addition (legacy's own primary tab bar has none — only the More...
+// dropdown does) for visual consistency between the two.
+// Same set/order/labels as the reference page's own tab bar
+// (productinfo/index.php, backed by productinfo/json/tabs.json): Product
+// Card, Selling Prices, Supplier Prices, Stock, UOM, Variants, Composition,
+// Statistics, Invoice Stats, Notes, Documents, Events. Each label maps to
+// the same underlying data/component (e.g. variant_api.php uses the same
+// ProductCombination class as "Product Combinations").
+// "Margins" has no equivalent tab in that reference (selling-vs-buying
+// margin isn't one of its 12 tabs), so it's kept, appended at the end.
 const TABS = [
   { label: 'Product Card', icon: Package },
   { label: 'Selling Prices', icon: Tag },

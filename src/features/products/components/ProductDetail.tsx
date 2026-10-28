@@ -56,34 +56,27 @@ import {
 // ProductTab stays inline (it's the default, always visible).
 const LazyTabRenderer = lazy(() => import('./ProductDetailTabs').then((m) => ({ default: m.LazyTabRenderer })))
 
-// Matches legacy's real primary/overflow tab split exactly (confirmed live
-// via product/card.php's own rendered tab bar for product id=123) - not a
-// guess at grouping, the actual 7 primary + 6 "More..." tabs shown there.
-// Icons are a redesign addition (legacy's own primary tab bar has none -
-// only the More... dropdown does) for visual consistency between the two.
-// Same set/order/labels as the real reference page's own tab bar
-// (productinfo/index.php, backed by productinfo/json/tabs.json on the
-// active backend - read directly, not guessed): Product Card, Selling
-// Prices, Supplier Prices, Stock, UOM, Variants, Composition, Statistics,
-// Invoice Stats, Notes, Documents, Events. Each renamed label maps to the
-// SAME underlying data/component as before (confirmed against that json's
-// own api file per tab, e.g. variant_api.php uses the same ProductCombination
-// class "Product Combinations" already used) - only the label changed.
-// "Margins" has no equivalent tab in that reference at all (selling-vs-
-// buying margin isn't one of its 12 tabs), so it's kept, appended at the
-// end, rather than dropped - real working functionality, not a guess this
-// app should lose just because the reference page doesn't happen to have it.
+// Matches legacy's primary/overflow tab split (product/card.php's own
+// rendered tab bar): 7 primary + 6 "More..." tabs. Icons are a redesign
+// addition (legacy's own primary tab bar has none - only the More...
+// dropdown does) for visual consistency between the two.
+// Same set/order/labels as the reference page's own tab bar
+// (productinfo/index.php, backed by productinfo/json/tabs.json): Product
+// Card, Selling Prices, Supplier Prices, Stock, UOM, Variants, Composition,
+// Statistics, Invoice Stats, Notes, Documents, Events. Each label maps to
+// the same underlying data/component (e.g. variant_api.php uses the same
+// ProductCombination class as "Product Combinations").
+// "Margins" has no equivalent tab in that reference (selling-vs-buying
+// margin isn't one of its 12 tabs), so it's kept, appended at the end.
 
-// Real scannable barcode, rendered client-side from the product's actual
-// barcode value via jsbarcode (CODE128 - matches product.barcodeType,
-// "Code 128", on every product checked live this session). lineColor:
-// 'currentColor' lets the SVG inherit the wrapper's text color so it stays
-// legible in both themes without a second color prop to keep in sync.
-// width is the bar-thickness multiplier, not a pixel target - jsbarcode
-// derives the SVG's actual rendered width from the encoded value's real
-// module count × this. Thinner bars (a lower value) read as a genuine
-// barcode at small sizes; the previous fixed 1.4 made bars chunky/blocky
-// relative to a compact height, closer to a stylized icon than a real one.
+// Scannable barcode, rendered client-side from the product's barcode value
+// via jsbarcode (CODE128 - matches product.barcodeType, "Code 128").
+// lineColor: 'currentColor' lets the SVG inherit the wrapper's text color so
+// it stays legible in both themes without a second color prop to keep in
+// sync. width is the bar-thickness multiplier, not a pixel target -
+// jsbarcode derives the SVG's rendered width from the encoded value's
+// module count × this. Thinner bars (a lower value) read as a barcode at
+// small sizes rather than chunky/blocky bars at a compact height.
 function ProductBarcodeGraphic({ value, height = 28, width = 1 }: { value: string; height?: number; width?: number }) {
   const ref = useRef<SVGSVGElement>(null)
   useEffect(() => {
@@ -376,11 +369,9 @@ export function ProductDetail() {
   )
 }
 
-// About + Pricing sections match legacy's product/card.php field-for-field
-// (verified live against product id=123, the same "Zktecho" product the
-// reference screenshots show - every value here cross-checked to match
-// exactly, including Total Sold Qty/Amount and the resolved
-// manufacturer/base-unit/packing-unit/barcode-type labels).
+// About + Pricing sections match legacy's product/card.php field-for-field,
+// including Total Sold Qty/Amount and the resolved manufacturer/base-unit/
+// packing-unit/barcode-type labels.
 function ProductTab({
   product,
   id,

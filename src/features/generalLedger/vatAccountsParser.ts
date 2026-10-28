@@ -1,5 +1,5 @@
-// admin/dict.php?id=10&from=accountancy — "Vat accounts" (the VAT rates dictionary, llx_c_tva).
-// Verified against the dev backend and dict.php's own source:
+// admin/dict.php?id=10&from=accountancy — "Vat accounts" (the VAT rates dictionary, llx_c_tva),
+// per dict.php's own source:
 //   - the add row is one form (`?id=10`, hidden token/from/id) with country, code, taux (rate),
 //     localtax1_type + localtax1 ("Include tax 2" / "Rate 2"), localtax2_type + localtax2
 //     ("Include tax 3" / "Rate 3"), recuperableonly (NPR), accountancy_code_sell/buy and note,

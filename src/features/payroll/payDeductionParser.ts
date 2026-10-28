@@ -1,11 +1,10 @@
 // payroll/pay_deduction.php's own list table (id="example_test") is
-// server-rendered directly in the page with every real row already present
-// (a plain client-side `new DataTable('#example_test')`, no ajax source) —
-// confirmed live this session. Its "Payment Details" column is the label of
-// whichever llx_c_type_fees-style expense category was picked on the real
-// Add panel's "payment Details" <select id="expense_id_1">, whose ~115
-// options are scraped from that same page load rather than hand-copied,
-// since transcribing that many labels by hand risks errors a scrape avoids.
+// server-rendered directly in the page with every row already present (a
+// plain client-side `new DataTable('#example_test')`, no ajax source). Its
+// "Payment Details" column is the label of whichever llx_c_type_fees-style
+// expense category was picked on the Add panel's "payment Details" <select
+// id="expense_id_1">, whose ~115 options are scraped from that same page
+// load rather than hand-copied.
 export interface PayDeductionRow {
   paymentDetails: string
   userName: string

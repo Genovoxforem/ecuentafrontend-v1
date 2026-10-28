@@ -13,11 +13,11 @@ import {
 
 // Shared by Employee Over Time Monthly Report (overtime_monthly.php),
 // Special Shift Attendance Report (special_shift_report.php) and Holiday
-// Shift Attendance Report (holiday_shift_report.php) — confirmed live to
-// share one identical real template (Entity/Groups/Employee/Month filters,
-// same payroll/ajax.php cascading endpoints, same per-day pivot result
-// table) — see shiftPivotReportParser.ts's own top comment for the one
-// real per-page inconsistency this works around (the month param name).
+// Shift Attendance Report (holiday_shift_report.php) — one identical
+// template (Entity/Groups/Employee/Month filters, same payroll/ajax.php
+// cascading endpoints, same per-day pivot result table) — see
+// shiftPivotReportParser.ts's own top comment for the one per-page
+// inconsistency this works around (the month param name).
 export function ShiftPivotReportForm({
   path,
   monthParam,

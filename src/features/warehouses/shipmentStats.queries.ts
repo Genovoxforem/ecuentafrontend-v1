@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fapiGet } from '../../api/fapiEnvelope'
-import { yearlyStatsFromBuckets, type YearlyBarChartStats } from './chartStatsParser'
+import { yearlyStatsFromBuckets, type YearlyBarChartStats } from './chartStats'
 
 export type ShipmentStats = YearlyBarChartStats
 

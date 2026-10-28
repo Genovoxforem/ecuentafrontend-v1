@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
-import { mapOpeningBalanceFapi, openingBalanceBody, type FapiOpeningBalance } from './openingBalanceFapi'
-import type { OpeningBalanceForm } from './openingBalanceParser'
+import { mapOpeningBalanceFapi, openingBalanceBody, type FapiOpeningBalance, type OpeningBalanceForm } from './openingBalanceFapi'
 
 // accountancy/fapi/opening_balance.php — see openingBalanceFapi.ts. GET gives the wizard's data; POST saves every line under one new
 // transaction number (journal AC for a debit, VT for a credit, doc ref "Opening Balance"), all or none.

@@ -1,9 +1,8 @@
 // accountancy/customer/lines.php — "Bound lines of invoices" (the customer
-// "Dispatched" screen). Confirmed live against 172.16.5.10 and in the PHP
-// source: one POST form (token) around a table where every bound invoice line
-// has a `changeaccount[]` checkbox (value = facturedet rowid). The bulk
-// "Change the binding" button posts the ticked ids plus `account_parent`
-// (an account option value, "0" = none) and runs
+// "Dispatched" screen): one POST form (token) around a table where every
+// bound invoice line has a `changeaccount[]` checkbox (value = facturedet
+// rowid). The bulk "Change the binding" button posts the ticked ids plus
+// `account_parent` (an account option value, "0" = none) and runs
 // UPDATE facturedet SET fk_code_ventilation=… — a single-line edit uses the
 // same request with one id. `limit` / `page` are plain GET params.
 

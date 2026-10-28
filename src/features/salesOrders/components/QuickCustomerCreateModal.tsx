@@ -13,14 +13,11 @@ const selectCls = inputCls + ' appearance-none'
 // code_client itself, same as the reference modal's own read-only display.
 //
 // Gender, Alias name, Customer Group, Sales tax used, VAT ID, Currency, Fax, and Sales
-// representative are deliberately NOT fields here, even though api/customer/index.php's
-// handleCreateCustomer() accepts all of them on ecnta10 (where this modal was originally
-// built and verified live) — the currently-active backend (ecuenta9) silently ignores
-// all 8 of those params on create (confirmed by reading its handler: no GETPOST() call
-// for any of them), so the POST would succeed with no error while quietly discarding
-// whatever the user typed. Rather than keep inputs that imply data is being saved when
-// it isn't, they're removed until the backend the app actually points at supports them
-// again — see [[feedback_frontend_only_scope]] on why the fix stops here (no backend edits).
+// representative are deliberately NOT fields here: the active backend's
+// api/customer/index.php handleCreateCustomer() has no GETPOST() call for any of them,
+// so the POST would succeed with no error while quietly discarding whatever the user
+// typed. Rather than keep inputs that imply data is being saved when it isn't, they're
+// left out until the backend supports them (no backend edits from this repo).
 export function QuickCustomerCreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (customer: { id: string; name: string }) => void }) {
   const queryClient = useQueryClient()
   const { data: options, isLoading: optionsLoading, optionsUnavailable } = useThirdPartyFormOptions()

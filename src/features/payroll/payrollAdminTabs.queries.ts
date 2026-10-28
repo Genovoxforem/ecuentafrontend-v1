@@ -5,9 +5,8 @@ import { hrmGet } from './hrm.api'
 
 // The other 6 Payroll Setup tabs (EmpDesignation/Tax Deductions/Device
 // Setting/About/Add Expenses & Allowances/Payee Tax Slab) — each its own
-// real backend page under custom/payroll/admin/, confirmed by reading every
-// one of them directly this session. About is pure static text (no data),
-// so it has no query here — see AboutPayrollTab.tsx.
+// backend page under custom/payroll/admin/. About is pure static text (no
+// data), so it has no query here — see AboutPayrollTab.tsx.
 
 function textOf(el: Element | null): string {
   return (el?.textContent ?? '').replace(/\s+/g, ' ').trim()

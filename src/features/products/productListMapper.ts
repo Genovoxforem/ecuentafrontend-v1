@@ -42,7 +42,8 @@ export function richRowFromListItem(item: ProductListItem): RichProductRow {
     country: item.country?.label ?? '',
     createdDate: created.text,
     createdAt: created.time,
-    lotStatus: '',
+    lotStatus: item.lot_status ?? '',
+    toBatch: item.tobatch ?? null,
     avatarBg: null,
     avatarColor: null,
   }

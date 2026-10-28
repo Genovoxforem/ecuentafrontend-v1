@@ -4,6 +4,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { formatMoney } from '../../../utils/format'
 import { useYtdSummary, type YtdSummaryPeriod } from '../payrollLists.queries'
+import { currentMonthIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -13,11 +14,6 @@ const SEARCH_TYPES: { value: SearchType; label: string }[] = [
   { value: 'month', label: 'By Month' },
   { value: 'year', label: 'By Fiscal Year' },
 ]
-
-function currentMonthIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
 
 function formatMonthLabel(value: string) {
   if (!value) return ''

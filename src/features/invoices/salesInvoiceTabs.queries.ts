@@ -294,15 +294,13 @@ export interface SalesShipmentData {
   shipment: SalesShipmentDetails
 }
 
-// Fields the real API omits entirely (rather than returning '') for an
-// empty/never-saved shipment record — confirmed live: submitting an
-// unguarded `undefined` through FormData.set() stringifies to the literal
-// text "undefined", which the backend then happily persists. Normalized
-// here so every consumer gets real empty strings, never a missing key.
-// Also strips the literal text "undefined"/"null" — real corrupted values
-// already written to some invoices by this exact bug before it was fixed
-// here (FormData.set() stringifies a JS undefined/null to that literal
-// text, which the backend then stores as-is).
+// Fields the API omits entirely (rather than returning '') for an
+// empty/never-saved shipment record. Submitting an unguarded `undefined`
+// through FormData.set() stringifies to the literal text "undefined",
+// which the backend then persists, so these are normalized here: every
+// consumer gets empty strings, never a missing key. The literal text
+// "undefined"/"null" is stripped too, since some invoices already hold
+// such stored values.
 function cleanShipmentField(v: string | undefined | null): string {
   if (!v || v === 'undefined' || v === 'null') return ''
   return v

@@ -54,9 +54,8 @@ export interface InvoicesSummary {
 
 // compta/facture/fapi/list.php — the JSON list of sales invoices (the classic
 // screen's own source, compta/facture/invoice_ajax_list.php, returns every cell
-// as HTML, 1.5 MB of it for ~300 invoices). Every field is mapped onto the row
-// the screens render by invoiceListMapper.ts, which was checked against all 294
-// invoices of 172.16.5.10.
+// as HTML). Every field is mapped onto the row the screens render by
+// invoiceListMapper.ts.
 //
 // Credit notes are a separate query (`type=2`): the default list leaves them
 // out, while the classic list shows them with the other invoices.
@@ -86,8 +85,7 @@ async function fetchListLookups(signal?: AbortSignal): Promise<InvoiceListLookup
 // One request fetches every row ("fetch once, page/filter client-side", same
 // convention as ThirdPartyList.tsx). Client count is derived from the distinct
 // third parties; Paid / Unpaid are the sums of the paid rows and the
-// validated-but-owing rows — on 172.16.5.10 that gives 113,654.00 and 1,425.00,
-// exactly the classic screen's own cards.
+// validated-but-owing rows — the same figures as the classic screen's own cards.
 export async function fetchInvoicesSummary(signal?: AbortSignal): Promise<InvoicesSummary> {
   const [invoices, creditNotes, lookups] = await Promise.all([fetchEveryInvoice({}, signal), fetchEveryInvoice({ type: 2 }, signal), fetchListLookups(signal)])
   const rows = [...invoices, ...creditNotes]
@@ -107,10 +105,8 @@ export function useInvoicesSummary() {
   return useQuery({ queryKey: ['invoices', 'summary'], queryFn: ({ signal }) => fetchInvoicesSummary(signal), staleTime: 1000 * 60 })
 }
 
-// POST /api/invoices/mark_paid.php — real, confirmed endpoint (read
-// directly, and its "Invoice not found" response verified live with a
-// bogus id, no side effects). Marks a validated, unpaid invoice as fully
-// paid by creating a payment for the full remaining balance.
+// POST /api/invoices/mark_paid.php. Marks a validated, unpaid invoice as
+// fully paid by creating a payment for the full remaining balance.
 export function useMarkInvoicePaid() {
   const queryClient = useQueryClient()
   return useMutation({

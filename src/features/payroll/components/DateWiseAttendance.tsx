@@ -6,10 +6,7 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { useDateWiseAttendance, parseLoginHistory, type AttendanceRow } from '../payrollAttendance.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [10, 15, 25, 50, 100]

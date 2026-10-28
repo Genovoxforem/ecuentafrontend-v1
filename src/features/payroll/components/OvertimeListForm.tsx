@@ -4,16 +4,15 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useOvertimeList } from '../payrollLists.queries'
+import { todayIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
-const today = () => new Date().toISOString().slice(0, 10)
-
 // Real via payroll/over_time.php — see overtimeListParser.ts's own top
 // comment. One real row per attendance record with overtime > 0 on the
 // chosen date; entity scoping is automatic server-side, no user control.
 export function OvertimeListForm() {
-  const [date, setDate] = useState(today())
-  const [applied, setApplied] = useState(today())
+  const [date, setDate] = useState(todayIso())
+  const [applied, setApplied] = useState(todayIso())
 
   const { data: rows, isLoading, isError, error, refetch } = useOvertimeList(applied)
 

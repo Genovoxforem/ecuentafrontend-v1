@@ -9,8 +9,7 @@ import { useDonationsArea } from '../donationsArea.queries'
 
 const money = (n: number, show: boolean) => (show ? formatMoney(n) : '')
 
-// don/index.php — Donations area: the statistics by status and the latest donations. The classic page says
-// "Latest 10 Modified Donations"; the endpoint has no modification date, so the ten newest by donation date are shown.
+// don/index.php — Donations area: the statistics by status and the ten most recently modified donations.
 export function DonationsAreaPage() {
   const { data, isLoading, isError, error, refetch } = useDonationsArea()
   if (isLoading) return <LegacyLoadingCard label="Loading the donations area..." />
@@ -62,7 +61,7 @@ export function DonationsAreaPage() {
       </Card>
 
       <Card className="!h-auto">
-        <h2 className="mb-2 text-sm font-semibold text-text!">Latest 10 donations</h2>
+        <h2 className="mb-2 text-sm font-semibold text-text!">Latest 10 Modified Donations</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>

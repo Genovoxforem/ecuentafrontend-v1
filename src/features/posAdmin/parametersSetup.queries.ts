@@ -2,17 +2,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
 import { selectValue, selectOptions, toggleChecked, csrfToken, type OptionRow } from './posAdminShared'
 
-// takepos/admin/setup.php — real page has 9 real toggles (CASHDESK_SERVICES
+// takepos/admin/setup.php — the page has 9 toggles (CASHDESK_SERVICES
 // "Selling services", ECUENTA_POS_ENABLED, TAKEPOS_CONTROL_CASH_OPENING,
 // TAKEPOS_DELAYED_PAYMENT, TAKEPOS_DIRECT_PAYMENT, TAKEPOS_GIFT_RECEIPT,
 // TAKEPOS_GROUP_SAME_PRODUCT, TAKEPOS_ONSCREEN_KEYBOARD,
 // TAKEPOS_QUICK_SYNCHRONIZE — all via core/ajax/constantonoff.php) plus 5
 // classic fields (no JSON equivalent, saved through <form
 // action="setup.php" method="post"> action=set) and the numbering module,
-// which is neither a toggle nor a form field — it's a real GET action link
+// which is neither a toggle nor a form field — it's a GET action link
 // (?action=setrefmod&value=mod_takepos_ref_simple) that only exists for
-// the currently-INACTIVE module (confirmed live: no link renders for
-// whichever module is already active).
+// the currently-INACTIVE module (no link renders for whichever module is
+// already active).
 export interface ParametersSetup {
   numTerminals: string
   rootCategoryId: string

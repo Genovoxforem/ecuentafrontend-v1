@@ -1,12 +1,10 @@
 import { PiggyBank } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 
-// Confirmed this session: llx_menu's real "Budget" top-level icon
-// (mainmenu='budget') points to /budget/listbudget.php, and no budget/
-// directory exists anywhere on this backend's filesystem. Not a "no JSON
-// API" case like most other modules audited this session — a genuinely
-// dead link even in the legacy PHP itself, so there's no real page to
-// redesign against or link out to at all.
+// llx_menu's "Budget" top-level icon (mainmenu='budget') points to
+// /budget/listbudget.php, and no budget/ directory exists on this backend's
+// filesystem — a dead link even in the legacy PHP itself, so there's no
+// page to redesign against or link out to.
 export function BudgetPlaceholder() {
   return (
     <div className="space-y-4">

@@ -95,12 +95,11 @@ interface CreatedQuotation {
 }
 
 // `fixedCustomerId` powers QuotationCreateFromCustomerForm.tsx (reached from
-// a specific customer's own Customer tab, "AddProp" button). Confirmed live
-// against the reference app (comm/propal/card.php?action=create&socid=X)
-// that this is genuinely the SAME create form, just with the customer field
-// locked instead of a free-pick dropdown — not a structurally different
-// page the way Contracts' customer-scoped create is — so this component is
-// generalized with a prop rather than duplicated.
+// a specific customer's own Customer tab, "AddProp" button). The reference
+// app's comm/propal/card.php?action=create&socid=X is the SAME create form,
+// just with the customer field locked instead of a free-pick dropdown — not
+// a structurally different page the way Contracts' customer-scoped create
+// is — so this component is generalized with a prop rather than duplicated.
 export function QuotationCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?: string; backTo?: string } = {}) {
   const today = new Date().toISOString().slice(0, 10)
   const defaultValidity = new Date()

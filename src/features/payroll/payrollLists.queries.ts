@@ -71,13 +71,12 @@ export function usePayrollLegacyList(key: PayrollListKey) {
   })
 }
 
-// Real via payroll/earn_dedu.php — confirmed live to be a plain GET-able
-// classic report (its own <form> is POST-only and CSRF-blocked when called
-// from this app's origin, but the same search_type/monthPic/y_calnd params
-// work fine as a GET) — see ytdEarningsDeductions.types.ts's own top
-// comment for the full real behavior of each search type. searchType/value
-// blank means "default" (today's month), matching the real page's own
-// no-params load.
+// Via payroll/earn_dedu.php — a plain GET-able classic report (its own
+// <form> is POST-only and CSRF-blocked when called from this app's origin,
+// but the same search_type/monthPic/y_calnd params work as a GET) — see
+// ytdEarningsDeductions.types.ts's own top comment for the behavior of each
+// search type. searchType/value blank means "default" (today's month),
+// matching the classic page's own no-params load.
 export type YtdEarningsDeductionsSearchType = '' | 'month' | 'year'
 export function useYtdEarningsDeductions(searchType: YtdEarningsDeductionsSearchType, value: string) {
   return useQuery({
@@ -123,12 +122,12 @@ export function useOverallAttendanceEmployees(entity: string, group: string) {
   })
 }
 
-// Real via payroll/atten_emp_rip.php — confirmed live to be a plain
-// GET-able classic report page (its own <form> is POST-only and
-// CSRF-blocked cross-origin, same as earn_dedu.php's own form, but the
-// same params work fine as a GET) — see employeeMonthlyReportParser.ts's
-// own top comment. Employee options are this same page's own #employee_li
-// select, so no separate request is needed to populate that dropdown.
+// Via payroll/atten_emp_rip.php — a plain GET-able classic report page (its
+// own <form> is POST-only and CSRF-blocked cross-origin, same as
+// earn_dedu.php's own form, but the same params work as a GET) — see
+// employeeMonthlyReportParser.ts's own top comment. Employee options are
+// this same page's own #employee_li select, so no separate request is
+// needed to populate that dropdown.
 export function useEmployeeMonthlyReportEmployees() {
   return useQuery({
     queryKey: ['payroll', 'employee-monthly-report', 'employees'],

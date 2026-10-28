@@ -96,8 +96,7 @@ export function StickyFormShell({
   // panel with its own overflow-auto): min-h-0 lets the wrapper shrink to the scrollport so
   // that card's own scrolling engages. Anything taller than the viewport then spills past
   // the wrapper's undersized box and the footer (laid out right after that box, not after
-  // the spillover) ends up stuck mid-content — which is why this used to be the default
-  // and showed up as a footer floating over half-hidden sections on the longer forms.
+  // the spillover) ends up stuck mid-content, floating over half-hidden sections.
   scrollsInternally?: boolean
   // Splits the form into steps: shows a step indicator in the header, Back/Next in the footer, and the page's own footerRight (the submit action) only on the last step.
   wizard?: WizardStepDef[]

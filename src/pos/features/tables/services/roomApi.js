@@ -1,7 +1,6 @@
 // No backend endpoint exists for POS rooms (only tables.php exists in
-// takeposnew/api/). Previously this returned hardcoded mock data — now it
-// throws so the UI can show an honest "not available" state instead of
-// fake rooms. If a real endpoint is added later, wire it in here.
+// takeposnew/api/), so this throws and the UI shows a "not available" state
+// instead of fake rooms. If an endpoint is added later, wire it in here.
 
 export const FLOOR_COUNT = 0;
 export const ROOMS_PER_ROW = 7;

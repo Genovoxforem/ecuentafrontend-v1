@@ -146,17 +146,15 @@ const mapInvoiceToEntry = (inv) => {
 };
 
 // Both entries sources below can include Draft invoices that were never
-// actually completed — reports_data.php's own SQL has no status filter at
-// all (unlike its sibling payment_summary.php, which excludes them via
+// completed — reports_data.php's own SQL has no status filter at all
+// (unlike its sibling payment_summary.php, which excludes them via
 // "AND f.fk_statut >= 1"), and isPosInvoice's client-side heuristic
 // (reportsApi.js) explicitly treats any Draft as a POS invoice for the same
-// reason. Confirmed live 2026-07-17: 6 real drafts worth ZMW 516.54 were
-// inflating this table's own totals row (and disagreeing with the Payment
-// Summary cards above it, which already exclude drafts) — so totals below
-// are still always computed with this filter applied. By later request,
-// though, the *rows themselves* stay visible (a cashier needs to be able to
-// see/track/resume a draft from Reports); only the summary numbers exclude
-// them, keeping those accurate without hiding the drafts that produced them.
+// reason. Drafts would inflate this table's own totals row (and disagree
+// with the Payment Summary cards above it, which exclude drafts), so totals
+// below are always computed with this filter applied. The *rows
+// themselves* stay visible (a cashier needs to be able to see/track/resume
+// a draft from Reports); only the summary numbers exclude them.
 const excludeDrafts = (entries) => entries.filter((e) => e.status !== "Draft");
 
 const sumTotals = (entries) =>
@@ -423,37 +421,33 @@ function ReportsModal({ open, onClose }) {
     // producing a spurious extra payment and a nonsense "change" amount.
     const isSettleable = (entry) => entry.status !== "Abandoned" && entry.pending > 0;
 
-    // Flags a specific backend data-integrity bug (not a legacy behavior to
-    // mirror — this is a real corruption, confirmed live 2026-07-17): an
-    // intermittent "Unknown column 'cost_price'" SQL error during payment
+    // Flags a backend data-integrity bug (not a legacy behavior to mirror):
+    // an intermittent "Unknown column 'cost_price'" SQL error during payment
     // validation can leave an invoice's own total_ht/total_tva/total_ttc
-    // columns at 0 even though its line items are real and non-empty —
-    // confirmed by cross-checking the same invoice via api/invoices/index.php
-    // (which recomputes totals from line items), which showed real values
-    // (e.g. total_ttc: 116) for an invoice reports_data.php reported as all
-    // zeros. A genuine "Validated (Unpaid)"/"Paid"/"Classified Paid"/
-    // "Abandoned" invoice always has real totals — only a Draft can
-    // legitimately still be 0 (an empty cart never had a chance to total
-    // anything). No frontend fix can repair the underlying row — this is
-    // surfaced as a visible warning rather than the equally-wrong default
-    // (rendering it as if the zero total were trustworthy, e.g. showing
-    // "ZMW 0.00" as an ordinary paid-in-full amount).
+    // columns at 0 even though its line items are non-empty —
+    // api/invoices/index.php (which recomputes totals from line items) shows
+    // the actual values for an invoice reports_data.php reports as all
+    // zeros. A "Validated (Unpaid)"/"Paid"/"Classified Paid"/"Abandoned"
+    // invoice always has totals — only a Draft can legitimately still be 0
+    // (an empty cart never had a chance to total anything). No frontend fix
+    // can repair the underlying row — this is surfaced as a visible warning
+    // rather than the equally-wrong default (rendering it as if the zero
+    // total were trustworthy, e.g. showing "ZMW 0.00" as an ordinary
+    // paid-in-full amount).
     const isDataIncomplete = (entry) => entry.status !== "Draft" && entry.total_ht === 0 && entry.total_tva === 0 && entry.total_ttc === 0;
 
-    // Deliberate departure from legacy here (confirmed live 2026-07-17 —
-    // legacy's own reports_data.php/pos-reports.js show the exact same thing):
-    // `payment_type` comes from the invoice's fk_mode_reglement field, which
-    // is a separate concept from whether a payment was actually ever
-    // recorded (paiement/paiement_facture) — Dolibarr can populate it from
-    // the customer's own default payment terms at validation time, even for
-    // an invoice with zero actual payments. A true Draft already correctly
-    // shows "Not Specified" (fk_mode_reglement is genuinely unset until
-    // validation), but a "Validated (Unpaid)" invoice showed "Cash" despite
-    // `received` being 0 — confusing on a real-world receipt/report, since
-    // it reads as "this was a cash sale" when no money has changed hands
-    // yet. Overridden here purely for display: any entry with nothing
-    // actually received shows "Not Specified" regardless of what
-    // fk_mode_reglement says, until a real payment exists to attribute a
+    // Deliberate departure from legacy here (legacy's own reports_data.php/
+    // pos-reports.js show the same thing): `payment_type` comes from the
+    // invoice's fk_mode_reglement field, which is a separate concept from
+    // whether a payment was ever recorded (paiement/paiement_facture) —
+    // Dolibarr can populate it from the customer's own default payment terms
+    // at validation time, even for an invoice with zero actual payments. A
+    // Draft already shows "Not Specified" (fk_mode_reglement is unset until
+    // validation), but a "Validated (Unpaid)" invoice would show "Cash"
+    // despite `received` being 0 — it reads as "this was a cash sale" when
+    // no money has changed hands yet. Overridden here purely for display:
+    // any entry with nothing received shows "Not Specified" regardless of
+    // what fk_mode_reglement says, until a payment exists to attribute a
     // method to.
     const displayPaymentType = (entry) => (entry.received === 0 ? "Not Specified" : entry.paymentType);
 

@@ -4,19 +4,11 @@ import { StickyFormShell } from '../../../../shared/components/layout/StickyForm
 import { InBanner } from '../../../../shared/components/layout/bannerSlot'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useGeneralSettings, useSaveSettingValues, useToggleSetting, type GeneralSettings, type SettingRow } from '../../generalSettings.queries'
+import { toIso, toUs } from '../../../../utils/dates'
 
 const inputCls = 'w-40 text-sm rounded-md border border-input-border bg-input-bg text-text px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-brand/30'
 
 // mm/dd/yyyy (the backend's own format) <-> yyyy-mm-dd (native date input).
-const toIso = (us: string) => {
-  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
-}
-const toUs = (iso: string) => {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
-}
-
 function Switch({ on, busy, onClick, label }: { on: boolean; busy: boolean; onClick: () => void; label: string }) {
   return (
     <button
@@ -84,7 +76,7 @@ function Settings_({ data }: { data: GeneralSettings }) {
   }
   const saveValues = () => {
     setSaved(null)
-    save.mutate({ token: data.token, values }, { onSuccess: (msg) => setSaved(msg || 'Setup saved.') })
+    save.mutate({ rows: data.rows, values }, { onSuccess: (msg) => setSaved(msg || 'Setup saved.') })
   }
 
   // The backend prints the first five settings under general options and the
@@ -170,9 +162,9 @@ function Settings_({ data }: { data: GeneralSettings }) {
 }
 
 // accountancy/admin/index.php — the real accounting module configuration:
-// every switch shows the backend's current state and flips through the page's
-// own link; the account lengths, start-binding date and default transfer
-// period are saved with the page's own update form.
+// every switch shows the backend's current state and flips it through
+// accountancy/fapi/setup_general.php; the account lengths, start-binding date
+// and default transfer period are saved together with the Save Changes button.
 export function GeneralSettingsPage() {
   const { data, isLoading, isError, error, refetch } = useGeneralSettings()
   if (isLoading) return <LegacyLoadingCard label="Loading accounting settings…" />

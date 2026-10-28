@@ -23,8 +23,8 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
 }
 
 // PUT/DELETE variants for userprofile/api/activities.php, the one endpoint
-// in this file with genuine update/delete actions (confirmed live — see
-// this file's Activities section below).
+// in this file with update/delete actions (see this file's Activities
+// section below).
 async function putJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   return methodJson<T>('PUT', url, body)
 }
@@ -84,19 +84,14 @@ export function useAddUserBankAccount(userId: string | undefined) {
   })
 }
 
-// Real leave-type assignment — NOT userprofile/api/bank.php's own
-// action=set_leavetypes (confirmed live: that one accepts any payload and
-// always reports success without ever actually changing
-// payroll.assigned_leaves, for any of several plausible field names tried —
-// a dead/stub duplicate). The genuine mechanism is the classic
-// user/salarydetails.php page's own `id="editform"` (a single form that
-// also carries this employee's salary-grade/shift/bank fields), submitted
-// with action=update and a real `leavetype[]` multi-select — confirmed
-// live end-to-end: selecting 2 leave types persisted (re-fetching the page
-// showed them marked `selected`), every other field on that same form
-// (bank details, shifts, salary grade, date range) came back byte-for-byte
-// unchanged, and reverting to zero selected leave types also verified
-// clean. FormData(form) (built from the freshly-fetched, real form's own
+// Leave-type assignment — NOT userprofile/api/bank.php's own
+// action=set_leavetypes (that one accepts any payload and always reports
+// success without ever changing payroll.assigned_leaves — a dead/stub
+// duplicate). The mechanism is the classic user/salarydetails.php page's
+// own `id="editform"` (a single form that also carries this employee's
+// salary-grade/shift/bank fields), submitted with action=update and a
+// `leavetype[]` multi-select; every other field on that form is sent back
+// unchanged. FormData(form) (built from the freshly-fetched form's own
 // current field values) is used instead of hand-listing every field name,
 // so this stays correct even if that form grows more fields later — only
 // leavetype[] is actually replaced.
@@ -127,22 +122,20 @@ export function useSaveUserLeaveTypes(userId: string | undefined) {
 }
 
 // ── Shift & Weekly Rotation ────────────────────────────────────────────
-// Same real user/salarydetails.php form as leave types above (confirmed
-// live: this is genuinely ONE form covering bank details, salary grade,
-// shift assignment, and leave types together) — the "Assign Shift" section
-// carries `shifts` (primary shift id), `shifts_b` (secondary shift id, used
-// when rotating), and `alternate_mode` (none/week/month/periodic). A
-// *separate*, real "Payroll V2" module (`payroll_v2/api/shift.php` etc.)
-// exists on this backend and is what the reference design's "Create New
-// Shift"/"Swap Shift"/"Override Shift"/"Shift History" actions and the
-// Template/Calculate/History wizard steps really belong to — but every
-// action on every payroll_v2 endpoint returns a blanket "Permission
-// denied." for this account (confirmed live, including deliberately bogus
-// action names, proving the permission check fires before any real logic
-// is reached) and the module has no visible rights entry on the standard
-// user/perms.php or admin/modules.php pages to grant it from. Those pieces
-// are therefore left honestly disabled rather than guessed at — see
-// PayrollTab's own comment.
+// Same user/salarydetails.php form as leave types above (ONE form covering
+// bank details, salary grade, shift assignment, and leave types together) —
+// the "Assign Shift" section carries `shifts` (primary shift id),
+// `shifts_b` (secondary shift id, used when rotating), and `alternate_mode`
+// (none/week/month/periodic). A *separate* "Payroll V2" module
+// (`payroll_v2/api/shift.php` etc.) exists on this backend and is what the
+// reference design's "Create New Shift"/"Swap Shift"/"Override Shift"/
+// "Shift History" actions and the Template/Calculate/History wizard steps
+// belong to — but every action on every payroll_v2 endpoint returns a
+// blanket "Permission denied." for this account (even bogus action names,
+// so the permission check fires before any logic is reached) and the module
+// has no visible rights entry on the standard user/perms.php or
+// admin/modules.php pages to grant it from. Those pieces are therefore left
+// disabled rather than guessed at — see PayrollTab's own comment.
 export interface UserShiftOption {
   id: number
   name: string
@@ -198,13 +191,12 @@ export function useSaveUserShiftAssignment(userId: string | undefined) {
   })
 }
 
-// Real, system-wide shift roster (not employee-specific) — payroll/shifts.php's
-// own real table (Shift Name/Shift Type/Created By columns — confirmed live;
-// "Shift Timing"/"Auto ClockOut" columns exist in the header markup but are
-// commented out of the actual rendered rows, so there is no simple
-// start/end-time or night-shift boolean available per shift, unlike what a
-// simplified summary might suggest — not fabricated here). This is the same
-// real shift roster `shifts`/`shifts_b` above picks from.
+// System-wide shift roster (not employee-specific) — payroll/shifts.php's
+// own table (Shift Name/Shift Type/Created By columns; "Shift Timing"/
+// "Auto ClockOut" columns exist in the header markup but are commented out
+// of the rendered rows, so there is no start/end-time or night-shift
+// boolean available per shift). This is the same shift roster
+// `shifts`/`shifts_b` above picks from.
 export interface ShiftScheduleRow {
   name: string
   type: string
@@ -289,13 +281,6 @@ export function useSaveUserNotes(userId: string | undefined) {
   })
 }
 
-// ── Documents ───────────────────────────────────────────────────────────
-export interface UserDocumentRow {
-  name: string
-  size: string
-  date: string
-  downloadUrl: string
-}
 export function useUserDocuments(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'detail', userId, 'documents'],
@@ -325,15 +310,14 @@ export function useDeleteUserDocument(userId: string | undefined) {
   })
 }
 
-// ── Agenda / Activities (same real actioncomm rows back both tabs) ──────
-// `code`/`priority` are real fields this endpoint already returns but
-// weren't mapped before (confirmed live: every row carries the real
-// llx_actioncomm.code type value, e.g. "AC_RDV"/"AC_TEL" for a genuine
-// meeting/call, or one of many auto-logged system codes like
-// "AC_ORDER_VALIDATE" for events this app itself creates elsewhere,
-// "AC_COMPANY_CREATE", etc.) — real Dolibarr convention: AC_RDV = Meeting,
-// AC_TEL = Call, everything else (including every auto-logged system code)
-// buckets as a generic Task/Other, same as Dolibarr's own agenda list does.
+// ── Agenda / Activities (the same actioncomm rows back both tabs) ──────
+// `code`/`priority`: every row carries the llx_actioncomm.code type value,
+// e.g. "AC_RDV"/"AC_TEL" for a meeting/call, or one of many auto-logged
+// system codes like "AC_ORDER_VALIDATE" for events this app itself creates
+// elsewhere, "AC_COMPANY_CREATE", etc. Dolibarr convention: AC_RDV =
+// Meeting, AC_TEL = Call, everything else (including every auto-logged
+// system code) buckets as a generic Task/Other, same as Dolibarr's own
+// agenda list does.
 export type UserAgendaType = 'meeting' | 'call' | 'task'
 export interface UserAgendaEvent {
   id: number
@@ -397,23 +381,18 @@ export function useDeleteUserNotification(userId: string | undefined) {
   })
 }
 
-// ── Activities (Tasks/Meetings/Calls/Timeline — the reference page's real
+// ── Activities (Tasks/Meetings/Calls/Timeline — the reference page's
 // "Activities" tab, distinct from the plain llx_actioncomm-backed "Agenda"
 // tab above) ────────────────────────────────────────────────────────────
-// The Agenda tab's userprofile/api/agenda.php has no real type/priority/
+// The Agenda tab's userprofile/api/agenda.php has no type/priority/
 // accounting-needs/company/assignee fields and no update or delete action
-// (all confirmed live by direct probing — every extra field is silently
-// dropped, and an "update"-shaped POST just creates a new row). The
-// reference page's own "Activities" tab, however, doesn't call agenda.php
-// at all — reading its actual front-end (userprofile/assets/js/components/
-// activities.js) shows it calls a completely different, fully-featured
-// endpoint: userprofile/api/activities.php, with real GET (by type or a
-// single detail), POST create, PUT update, DELETE, and POST
-// schedule/close actions. Every one of these was independently confirmed
-// live against this same backend (create → detail → update → detail →
-// close → detail → delete → detail-now-404, all fields round-tripping
-// exactly as sent) before being wired here — this is a genuinely complete
-// CRUD API, not a stub.
+// (every extra field is silently dropped, and an "update"-shaped POST just
+// creates a new row). The reference page's own "Activities" tab doesn't
+// call agenda.php at all — its front-end (userprofile/assets/js/components/
+// activities.js) calls a different, fully-featured endpoint:
+// userprofile/api/activities.php, with GET (by type or a single detail),
+// POST create, PUT update, DELETE, and POST schedule/close actions — a
+// complete CRUD API, not a stub.
 export type ActivityProcessType = 'task' | 'meeting' | 'calls'
 export type ActivitySubtabKey = 'tasks' | 'meetings' | 'calls'
 

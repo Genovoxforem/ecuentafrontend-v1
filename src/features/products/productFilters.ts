@@ -45,20 +45,6 @@ export const DEFAULT_PRODUCT_FILTERS: ProductFilters = {
   dateEnd: '',
 }
 
-export function hasActiveFilters(f: ProductFilters): boolean {
-  return (
-    f.categories.length > 0 ||
-    f.isRrp ||
-    f.finished !== '-1' ||
-    f.tobatch !== '-1' ||
-    f.tosell !== '-1' ||
-    f.tobuy !== '-1' ||
-    f.stockFilter !== '-1' ||
-    f.dateStart !== '' ||
-    f.dateEnd !== ''
-  )
-}
-
 export function activeFilterCount(f: ProductFilters): number {
   let n = 0
   if (f.categories.length > 0) n++
@@ -72,10 +58,6 @@ export function activeFilterCount(f: ProductFilters): number {
   return n
 }
 
-// Legacy's tobatch->badge-text mapping (allproducts_ajax.php's rowData
-// 'lotstatus'), reused here so the filter matches the same text
-// productAjax.ts already parsed off the real badge.
-const LOT_STATUS_BY_VALUE: Record<string, string> = { '0': 'Disabled', '1': 'Lot', '2': 'Serial' }
 
 export function matchesProductFilters(
   row: ProductRow,
@@ -97,7 +79,8 @@ export function matchesProductFilters(
 
   if (filters.finished !== '-1' && String(row.finished) !== filters.finished) return false
 
-  if (filters.tobatch !== '-1' && (rich?.lotStatus ?? '') !== LOT_STATUS_BY_VALUE[filters.tobatch]) return false
+  // The list's own tobatch value (0 off, 1 lot, 2 serial), compared as a number rather than by its label.
+  if (filters.tobatch !== '-1' && String(rich?.toBatch ?? '') !== filters.tobatch) return false
 
   if (filters.tosell !== '-1') {
     const wantsForSale = filters.tosell === '1'
@@ -109,13 +92,13 @@ export function matchesProductFilters(
     if (row.forPurchase !== wantsForPurchase) return false
   }
 
-  // Prefer the rich (AJAX-computed, real per-warehouse) stock figure over
+  // Prefer the rich (AJAX-computed, per-warehouse) stock figure over
   // row.stock (the REST endpoint's raw llx_product.stock column) — the two
   // can drift apart when that cached column goes stale with no backing
-  // llx_product_stock rows (confirmed live: two real products showing
-  // stock=-52/-9 in the cache with zero actual warehouse stock rows behind
-  // them, vs a correct computed 0). Matches the Stock column's own
-  // rich-first display so the filter never disagrees with what's shown.
+  // llx_product_stock rows (e.g. stock=-52 in the cache with zero warehouse
+  // stock rows behind it, vs a correct computed 0). Matches the Stock
+  // column's own rich-first display so the filter never disagrees with
+  // what's shown.
   const effectiveStock = rich ? rich.stockPhysical : row.stock
   if (filters.stockFilter === '1' && !(effectiveStock < 0)) return false
   if (filters.stockFilter === '2' && effectiveStock !== 0) return false

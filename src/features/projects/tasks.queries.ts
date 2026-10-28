@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 
-// Real GET/POST/PUT/DELETE /api/project-tasks/ (api/project-tasks/index.php)
-// — bridges to the real projet/class/task.class.php methods, same rationale
-// as projects.queries.ts (see that file's header comment). Confirmed live
-// end-to-end: create, list, update, add real time spent, delete.
+// GET/POST/PUT/DELETE /api/project-tasks/ (api/project-tasks/index.php) —
+// bridges to the projet/class/task.class.php methods: create, list,
+// update, add time spent, delete.
 
 export interface TaskRow {
   id: number
@@ -54,17 +53,6 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: async (input: NewTaskInput) => {
       const { data } = await api.post<WebEnvelope<{ id: number; ref: string }>>('/project-tasks/', input)
-      return data.data
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects', 'tasks'] }),
-  })
-}
-
-export function useUpdateTask() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ id, ...input }: Partial<NewTaskInput> & { id: number }) => {
-      const { data } = await api.put<WebEnvelope<{ id: number }>>('/project-tasks/', input, { params: { id } })
       return data.data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects', 'tasks'] }),

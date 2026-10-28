@@ -4,6 +4,7 @@ import { Landmark, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
+import { todayIso } from '../../../utils/dates'
 import { useBankAccountFormOptions, useCreateBankAccount } from '../banking.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -13,10 +14,6 @@ const ACCOUNT_TYPES = [
   { value: '1', label: 'Cash account' },
   { value: '2', label: 'Savings account' },
 ]
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (

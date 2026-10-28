@@ -27,9 +27,8 @@ import {
   useCancelInventoryReal,
 } from '../inventoryLines.queries'
 
-// Real "count entry" table from product/inventory/inventory.php — see
-// inventoryLines.ts's own header comment for the full real action/field
-// contract this is built from and what was live-verified vs. read-only.
+// "Count entry" table from product/inventory/inventory.php — see
+// inventoryLines.ts's own header comment.
 
 function EmptyLinesState() {
   return (
@@ -56,7 +55,7 @@ export function InventoryCountLines({ inventoryId }: { inventoryId: string }) {
   const cancelInventory = useCancelInventoryReal()
   const confirm = useConfirm()
 
-  // Real Qty edits only live in this page's own #formrecord until "Save" is
+  // Qty edits only live in this page's own #formrecord until "Save" is
   // submitted — reset the local draft whenever a fresh page of lines comes
   // in (new page number, or a refetch after add/delete/save) so drafts never
   // point at a line that no longer exists.

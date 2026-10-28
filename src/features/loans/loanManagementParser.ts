@@ -1,38 +1,31 @@
-// custom/loanmanagement/loanmanagementlist.php — the real custom "Loan
+import { stripTags } from '../../utils/text'
+// custom/loanmanagement/loanmanagementlist.php — the custom "Loan
 // Management" plugin's list+create page (distinct from the core Dolibarr
 // "Loan" tracker under Banking — see loans.queries.ts's own header comment).
-// No JSON API for the list itself (confirmed live: its DataTable has no
-// `ajax` option, just progressively-enhances whatever <tr> rows are already
-// in the initial HTML — currently none, this backend has 0 loans yet), but
-// its own "New Loan" panel is a genuine classic form-POST create — same
-// category as every other scraped create-form in this app. Two real
-// differences from those, both confirmed live:
-//  1. No CSRF token field at all on this form (checked — the only `token`
-//     inputs anywhere on this page belong to an unrelated currency-rate
-//     mini-form elsewhere in the page chrome). A real gap in this custom
-//     module, not something to paper over with a fabricated token.
-//  2. "Customer Account" is a genuinely dependent dropdown — empty until
-//     the Borrower is picked, then repopulated via a same-origin AJAX call
-//     to load_subtypes.php (fns=paymentbank). Confirmed live that call
-//     currently comes back broken server-side ("Undefined array key
-//     'sel_id'" PHP warning, empty options) because the page's own JS never
-//     actually sends a sel_id param that load_subtypes.php's PHP expects —
-//     a genuine bug in the real page, reproduced faithfully here rather
-//     than silently fixed.
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
-
+// No JSON API for the list itself (its DataTable has no `ajax` option, it
+// just progressively-enhances whatever <tr> rows are already in the
+// initial HTML), but its own "New Loan" panel is a classic form-POST
+// create — same category as every other scraped create-form in this app.
+// Two differences from those:
+//  1. No CSRF token field at all on this form (the only `token` inputs
+//     anywhere on this page belong to an unrelated currency-rate mini-form
+//     elsewhere in the page chrome). A gap in this custom module, not
+//     something to paper over with a fabricated token.
+//  2. "Customer Account" is a dependent dropdown — empty until the
+//     Borrower is picked, then repopulated via a same-origin AJAX call to
+//     load_subtypes.php (fns=paymentbank). That call comes back broken
+//     server-side ("Undefined array key 'sel_id'" PHP warning, empty
+//     options) because the page's own JS never sends the sel_id param
+//     load_subtypes.php's PHP expects — a bug in the classic page,
+//     reproduced faithfully here rather than silently fixed.
 export interface LoanManagementOption {
   value: string
   label: string
 }
 
-// Real row shape not confirmed against a populated example (0 loans exist
-// on this backend currently) — inferred from the list table's own <thead>
-// column order (Loan ID, Loan Product, Borrower, Contact No, Release Date,
-// Applied Amount, Status), same disclosed-but-unverified situation as
-// bankBudgetParser.ts's per-category rows.
+// Row shape not verified against a populated example — inferred from the
+// list table's own <thead> column order (Loan ID, Loan Product, Borrower,
+// Contact No, Release Date, Applied Amount, Status).
 export interface LoanManagementRow {
   loanId: string
   loanProduct: string
@@ -78,10 +71,10 @@ function extractOptions(html: string, name: string): { options: LoanManagementOp
   return { options, selected }
 }
 
-// The Borrower select's real option text (confirmed live) is two lines —
-// the customer's display name, then "CU code | Tpin : X | Country : Y" on
-// its own line — this keeps just the first (the name) as the option label,
-// matching what a plain native <select> would read as its primary text.
+// The Borrower select's option text is two lines — the customer's display
+// name, then "CU code | Tpin : X | Country : Y" on its own line — this
+// keeps just the first (the name) as the option label, matching what a
+// plain native <select> would read as its primary text.
 function extractBorrowerOptions(html: string): LoanManagementOption[] {
   const openIdx = html.indexOf('name="socid"')
   if (openIdx < 0) return []
@@ -131,9 +124,9 @@ export function parseLoanManagementListPage(html: string): LoanManagementForm {
   }
 }
 
-// load_subtypes.php?fns=productinfo — genuinely real JSON (confirmed live),
-// auto-fills Late Payment Penalties + shows the product's term/min/max when
-// a Loan Product is picked.
+// load_subtypes.php?fns=productinfo (JSON) auto-fills Late Payment
+// Penalties + shows the product's term/min/max when a Loan Product is
+// picked.
 export interface LoanProductInfo {
   penal: string
   des: string

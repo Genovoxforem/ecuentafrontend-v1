@@ -7,11 +7,9 @@ import { mapDefaultAccountsFapi, type FapiDefaultAccounts } from './defaultAccou
 
 // accountancy/admin/accountjstree.php's own page does no server-side query at
 // all — the Chart of Accounts tree is loaded entirely client-side from two
-// real, independent JSON endpoints: fetch.php (read) and updatecoa.php
-// (create/update/delete). Confirmed by reading both directly this session —
-// genuine `header('Content-Type: application/json')` + `json_encode(...)`,
-// not HTML fragments. Neither is referenced by any other page's own UI in
-// this legacy app, so this is the first real wiring of either.
+// independent JSON endpoints: fetch.php (read) and updatecoa.php
+// (create/update/delete), both `header('Content-Type: application/json')` +
+// `json_encode(...)`, not HTML fragments.
 
 export interface CoaNode {
   id: number
@@ -40,7 +38,7 @@ interface CoaSaveResult {
 }
 
 // coa.php?action=delete answers a bare [{ status }] array like updatecoa.php did: 300 means the account has children or ledger rows.
-async function deleteCoaAccount(id: number): Promise<CoaSaveResult> {
+export async function deleteCoaAccount(id: number): Promise<CoaSaveResult> {
   const data = requireJson(await fapi.post<CoaSaveResult[]>('/accountancy/fapi/coa.php', { id }, { params: { action: 'delete' } })).data
   return data[0] ?? { status: 500 }
 }

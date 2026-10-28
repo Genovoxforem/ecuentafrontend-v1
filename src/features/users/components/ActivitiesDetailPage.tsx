@@ -36,11 +36,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const ACTIVITY_TYPE_LABELS: Record<TaskActivityType, string> = { task: 'Task', meeting: 'Meeting', calls: 'Call' }
 
-// Real: task_activity-kanban.php's own <a href="/comm/action/card.php?action=create">
+// task_activity-kanban.php's own <a href="/comm/action/card.php?action=create">
 // equivalent doesn't exist inline on either scraped report page, but the
-// standard Dolibarr agenda "add event" page does (confirmed live, 200 OK) —
-// used the same "open the real legacy create page" convention as this app's
-// other create flows that have no confirmed JSON API.
+// standard Dolibarr agenda "add event" page does — same "open the legacy
+// create page" convention as this app's other create flows that have no
+// JSON API.
 const LEGACY_ADD_ACTIVITY_URL = '/comm/action/card.php?action=create'
 
 function useDefaultMonthRange() {

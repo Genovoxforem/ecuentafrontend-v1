@@ -14,6 +14,7 @@ import {
 import { ImageCropModal } from './ImageCropModal'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
+import { htmlToText } from '../../../utils/text'
 
 // Non-default Expense Report tabs — lazy-loaded from their own chunk (see
 // App.tsx's own comment for OrderDetailTabs/QuotationDetailTabs, the same
@@ -254,11 +255,7 @@ function NoteCard({ note, token, id }: { note: { label: string; html: string; fi
   // page) — a plain textContent read is what the real edit form's own
   // plain <textarea> works on too, so editing here trades formatting for
   // being able to genuinely save.
-  const [value, setValue] = useState(() => {
-    const tmp = document.createElement('div')
-    tmp.innerHTML = note.html
-    return tmp.textContent ?? ''
-  })
+  const [value, setValue] = useState(() => htmlToText(note.html))
   const save = useSaveExpenseReportNote(id)
 
   const handleSave = async () => {

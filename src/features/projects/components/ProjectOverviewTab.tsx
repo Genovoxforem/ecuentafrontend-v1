@@ -9,17 +9,14 @@ import { ROUTES } from '../../../routes'
 import type { ProjectRow } from '../projects.queries'
 import { ProjectInfoCards } from './ProjectInfoRecap'
 
-// Real "Related Items" widget from projet/element.php — a generic
-// Dolibarr overview that lists every object type possibly linked to a
-// project. Verified live against a real project (id=1): most of this app's
-// own list features (Purchase Orders, Invoices, Contracts, Supplier
-// Proposals — see the survey behind this file) have NO project-reference
-// field to filter by, only Sales Orders and Quotations do (their list rows
-// already carry a real `projectRef`, same field their own list pages
-// already use — not new scraping, just reusing an existing hook). Every
-// other section below is an honest empty state with the real column
-// headers; "Create X" links out to this app's own real create form where
-// one exists, and stays disabled where it doesn't.
+// "Related Items" widget from projet/element.php — a generic Dolibarr
+// overview that lists every object type possibly linked to a project. Most
+// of this app's own list features (Purchase Orders, Invoices, Contracts,
+// Supplier Proposals) have NO project-reference field to filter by, only
+// Sales Orders and Quotations do (their list rows carry a `projectRef`, the
+// same field their own list pages use). Every other section below is an
+// empty state with the column headers; "Create X" links out to this app's
+// own create form where one exists, and stays disabled where it doesn't.
 
 function RelatedSection({ title, createLabel, createHref, onCreateClick, children }: { title: string; createLabel?: string; createHref?: string; onCreateClick?: () => void; children: ReactNode }) {
   return (

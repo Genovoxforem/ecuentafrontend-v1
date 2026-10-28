@@ -66,15 +66,13 @@ function matchesSearch(p: ProjectRow, query: string) {
   return [p.ref, p.title, p.thirdPartyName || '', p.statusLabel].some((f) => f.toLowerCase().includes(q))
 }
 
-// Real data merged from two sources (see projects.queries.ts): POST
+// Data merged from two sources (see projects.queries.ts): POST
 // projet/projects-list-ajax.php (id/ref/title/company/status code) plus a
-// scrape of the genuinely-classic projet/list.php for Start Date/End Date/
-// Visibility/Budget/Creat. Date — exactly the columns this install's own
-// Projects list page renders, confirmed live. Validate/Clone/Delete row
-// actions from the old dead /api/projects/ are gone — no real API exists
-// for any of them any more (that module has no JSON create/update/delete
-// surface at all) — so this table is read-only, honestly, rather than
-// pretending buttons still work.
+// scrape of the classic projet/list.php for Start Date/End Date/
+// Visibility/Budget/Creat. Date — the columns this install's own Projects
+// list page renders. There is no API for Validate/Clone/Delete row actions
+// (the module has no JSON create/update/delete surface at all), so this
+// table is read-only.
 export function ProjectsListPage({ filter, title }: { filter: ProjectListFilter; title: string }) {
   const { data, isLoading, isError, error } = useProjectsList(filter)
   const [page, setPage] = useState(1)

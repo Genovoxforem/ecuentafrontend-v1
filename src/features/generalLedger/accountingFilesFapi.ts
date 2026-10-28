@@ -1,7 +1,8 @@
 import { fapi } from '../../api/axios'
 import { fapiGet } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
-import type { AccountingFileChoice, AccountingFileRow, AccountingFilesPage } from './accountingFilesParser'
+import type { AccountingFileChoice, AccountingFileRow, AccountingFilesPage } from './accountingFiles.types'
+import { usDateFromIso as usDate } from '../../utils/dates'
 
 // accountancy/fapi/accounting_files.php (22-23 Oct 2026): the accountant-export listing of source documents, and (action=zip) a real zip of
 // their files. The list answer was captured from newecuenta on 22 Oct 2026 (tests/fixtures/accountancy-accounting-files.json): twelve
@@ -42,11 +43,6 @@ export interface FapiAccountingFiles {
 }
 
 const HEADERS = ['Type', 'Date', 'Due date', 'Ref', 'Documents', 'Paid', 'Total (excl. tax)', 'Total (incl. tax)', 'VAT', 'Third party', 'Code', 'Country', 'VAT ID', 'Currency']
-const usDate = (iso: string | null) => {
-  const [y, m, d] = (iso ?? '').split('-')
-  return y && m && d ? `${m}/${d}/${y}` : ''
-}
-
 // The hrefs are keys for the app's route resolver (invoices only), never opened; the attached files are downloads.
 const refHref = (item: string, id: number) => (item === 'Invoice' ? `/compta/facture/card.php?facid=${id}` : /supplier/i.test(item) ? `/fourn/facture/card.php?facid=${id}` : null)
 

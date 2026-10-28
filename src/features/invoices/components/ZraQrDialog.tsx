@@ -7,11 +7,11 @@ import { Copy, FileText, Loader2, QrCode, X } from 'lucide-react'
 // ZRA's: it is generated on their server from the fiscal record (taxpayer name
 // and TPIN as registered with ZRA, the uploaded lines, SDC ID, receipt
 // signature, internal data), so its content cannot be rebuilt from eCuenta's
-// data alone. Confirmed live: the portal sends no CORS headers (a script can't
-// read it) but also no X-Frame-Options / frame-ancestors, so it can be shown
-// inside the app in a frame. This dialog therefore offers the real ZRA tax
-// invoice in-app ("Tax invoice") plus the QR code generated from the same URL
-// ("QR code") — nothing in the app itself navigates away.
+// data alone. The portal sends no CORS headers (a script can't read it) but
+// also no X-Frame-Options / frame-ancestors, so it can be shown inside the
+// app in a frame. This dialog therefore offers the ZRA tax invoice in-app
+// ("Tax invoice") plus the QR code generated from the same URL ("QR code") —
+// nothing in the app itself navigates away.
 type View = 'invoice' | 'qr'
 
 export function ZraQrDialog({ url, invoiceRef, onClose }: { url: string; invoiceRef: string; onClose: () => void }) {

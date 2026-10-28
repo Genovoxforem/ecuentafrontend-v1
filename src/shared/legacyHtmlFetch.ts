@@ -16,14 +16,11 @@ export function looksLikeLegacyLoginPageText(html: string): boolean {
   return html.includes('name="password"') && html.includes('actionlogin')
 }
 
-// Bug found live (Expense Report detail page, 172.16.5.10): a real session
-// expiry mid-testing made this silently return the login page's own HTML —
-// every selector in the caller's parser simply matched nothing, so the page
-// rendered with blank fields/tabs instead of a clear error, and nothing
-// here or in the caller could tell the difference. fetchLegacyText already
-// guards against this (looksLikeLegacyLoginPageText); this was the one gap
-// — every parser going through fetchLegacyDocument instead had no such
-// check.
+// When the legacy session has expired, the backend answers with the login
+// page's own HTML; every selector in the caller's parser would then match
+// nothing and the page would render blank fields/tabs instead of a clear
+// error. fetchLegacyText guards against this (looksLikeLegacyLoginPageText);
+// this gives fetchLegacyDocument the same check.
 export async function fetchLegacyDocument(path: string, params?: URLSearchParams): Promise<Document> {
   const url = params ? `${path}?${params.toString()}` : path
   const res = await fetch(url, { credentials: 'same-origin' })

@@ -1,5 +1,4 @@
-// Parses compta/bank/list.php (Bank Management Details). Verified against the dev backend and the
-// page's own PHP:
+// Parses compta/bank/list.php (Bank Management Details), per the page's own PHP:
 //   - `table#example`: one row per account, columns picked from the header `title`s — Bank accounts
 //     (link `card.php?id=N`), Label, Type, Number, Accounting account, Accounting code journal,
 //     Entries to reconcile, Status, Balance (further optional columns are ignored);

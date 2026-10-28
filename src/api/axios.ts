@@ -26,11 +26,9 @@ export function setStoredToken(token: string | null) {
 // the reverse-proxy variant if the frontend instead lives on its own
 // domain), so "/api" already resolves to the real backend with zero
 // cross-origin request involved. Either way every request stays
-// same-origin with the page, which is what avoids CORS entirely — this was
-// deliberately reverted from a direct-call version (see git history) once
-// that version confirmed live what the CORS-CSRF-Fix-Report.pdf diagnosis
-// predicted: the backend's incomplete CORS headers block the
-// authenticated follow-up calls when requests are genuinely cross-origin.
+// same-origin with the page, which is what avoids CORS entirely: the
+// backend's incomplete CORS headers block the authenticated follow-up
+// calls when requests are cross-origin.
 export const api = axios.create({
   baseURL: '/api',
   timeout: 15000,
@@ -85,25 +83,19 @@ function handleApiError(error: unknown) {
     onUnauthorized?.()
   } else if (axios.isAxiosError(error) && !error.response) {
       // The browser never got a response at all — this is either a real
-      // network failure, or the request was genuinely cross-origin and got
-      // CORS-blocked before reaching this code. Confirmed live against the
-      // active backend: every protected endpoint except api/login/ (which
-      // has its own early `if REQUEST_METHOD===OPTIONS exit` before
-      // anything else runs) hits main.inc.php's CSRF check first on an
-      // OPTIONS preflight, which returns a plain-text refusal page with
-      // zero Access-Control-* headers — so a real cross-origin caller's
-      // preflight fails and the actual request never fires. That's a
-      // backend response-ordering bug, not fixable here: browser CORS
-      // enforcement happens before any JS runs, so nothing in this
-      // interceptor (or anywhere else in React) can see or work around it.
-      // The actual mitigation is architectural — every request in this
-      // app stays same-origin (Vite's dev proxy, or same-origin production
-      // deployment — see this file's own top comment) specifically so the
-      // browser never needs to preflight a real cross-origin call at all.
-      // This branch only fires if that policy is ever broken (e.g. a
-      // hardcoded absolute backend URL sneaks into a future change), and
-      // exists purely so that shows up as a clear message instead of a
-      // bare, unexplained "Network Error".
+      // network failure, or the request was cross-origin and got
+      // CORS-blocked before reaching this code. Every protected endpoint
+      // except api/login/ (which has its own early `if REQUEST_METHOD===OPTIONS
+      // exit`) hits main.inc.php's CSRF check first on an OPTIONS preflight,
+      // which returns a plain-text refusal page with zero Access-Control-*
+      // headers — so a cross-origin caller's preflight fails and the actual
+      // request never fires. That's a backend response-ordering bug, not
+      // fixable here: browser CORS enforcement happens before any JS runs.
+      // The mitigation is architectural — every request in this app stays
+      // same-origin (Vite's dev proxy, or same-origin production deployment —
+      // see this file's top comment). This branch only fires if that policy
+      // is ever broken (e.g. a hardcoded absolute backend URL), and exists so
+      // that shows up as a clear message instead of a bare "Network Error".
       error.message =
         'Unable to reach the server — this may be a network issue, or a request went directly to a remote backend instead of through the app\'s same-origin proxy (check VITE_BACKEND_URL and that requests use relative /api paths).'
   }

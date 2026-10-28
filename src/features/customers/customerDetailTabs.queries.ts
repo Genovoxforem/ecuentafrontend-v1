@@ -82,13 +82,12 @@ export function useCustomerLedger(socid: string | undefined, dateFrom: string, d
 
 // --- Activities (Tasks / Meetings / Calls) -----------------------------
 //
-// Full real contract confirmed this session by reading
-// societe/api/activities.php directly (not guessed): sc_act_row() is the
-// exact field set both the list and the detail=X actions return, and the
+// Contract from societe/api/activities.php: sc_act_row() is the field set
+// both the list and the detail=X actions return, and the
 // meta/create/update/schedule/close/delete branches below name their own
-// accepted POST fields explicitly. Mirrors the same real 3-icon Actions
-// column (View/Edit/Schedule) and Schedule-follow-up flow the legacy JS
-// widget (societe/assets/js/components/activities.js) implements — Edit and
+// accepted POST fields. Mirrors the 3-icon Actions column
+// (View/Edit/Schedule) and Schedule-follow-up flow the legacy JS widget
+// (societe/assets/js/components/activities.js) implements — Edit and
 // Schedule only apply to OPEN items there, so the same restriction is kept
 // here.
 
@@ -578,20 +577,19 @@ export function useCustomerTab(socid: string | undefined) {
   })
 }
 
-// --- Vendor tab (fourn/card.php's real data, confirmed live) ------------
-// societe/api/supplier.php is a real, already-built sibling of customer.php
-// above — read directly and confirmed live (socid=6, "Vendor2"): real KPIs
-// (proposals_kpi/orders_kpi/supplier_outstanding), real payment-term/mode
-// labels, real category list, and real action-button URLs
-// (create_proposal/create_order/create_invoice point at the actual
+// --- Vendor tab (fourn/card.php's data) ------------
+// societe/api/supplier.php is the sibling of customer.php above: KPIs
+// (proposals_kpi/orders_kpi/supplier_outstanding), payment-term/mode
+// labels, category list, and action-button URLs
+// (create_proposal/create_order/create_invoice point at the
 // supplier_proposal/fourn.commande/fourn.purchase create pages). No
 // separate "invoices_kpi" bucket exists in the response the way
 // proposals/orders each have one — supplier_outstanding.total_ht is used
-// for the "Invoices" stat tile here since it's the only real invoiced-
-// amount figure this endpoint returns; the real page's "Current
-// Outstanding Bill"/"Advance" tiles map to supplier_outstanding.opened and
+// for the "Invoices" stat tile here since it's the only invoiced-amount
+// figure this endpoint returns; the page's "Current Outstanding
+// Bill"/"Advance" tiles map to supplier_outstanding.opened and
 // fields.advance respectively (no Used/Pending breakdown exists in this
-// response, so that real sub-line isn't reproduced).
+// response, so that sub-line isn't reproduced).
 export interface VendorTabResponse {
   fournisseur: number
   code_fournisseur: string

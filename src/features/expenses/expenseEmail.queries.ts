@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { parseOrderEmailDefaults, type OrderEmailDefaults } from '../salesOrders/orderEmail'
+import { htmlToText } from '../../utils/text'
 
 // The expense report's "Send Email" is Dolibarr's stock send-mail form on expensereport/card.php (the same
 // mechanism as the sales/purchase order composers): modelmail 'expensereport', trackid 'exp<id>'.
@@ -59,9 +60,7 @@ export function useSendExpenseEmail() {
       const html = await res.text()
       const errorMatch = html.match(/<div class="[^"]*\berror\b[^"]*">([\s\S]*?)<\/div>/)
       if (errorMatch) {
-        const div = document.createElement('div')
-        div.innerHTML = errorMatch[1]
-        throw new Error((div.textContent ?? 'The backend rejected this email.').trim())
+        throw new Error(htmlToText(errorMatch[1]).trim() || 'The backend rejected this email.')
       }
     },
   })

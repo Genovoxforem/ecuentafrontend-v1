@@ -3,10 +3,6 @@ import { ROUTES } from '../../routes'
 import type { NavSection } from '../navTypes'
 
 // Mirrors the real app's "Banking" left menu (llx_menu, mainmenu=cashmanagement).
-// Every item now has a real path — confirmed this session (full module
-// audit): Bank Accounts/Bank List, List Entries, Categories, and Loan List
-// are genuinely real JSON APIs; every other item is a real legacy page with
-// no JSON API, rendered as an honest NotBuiltPage placeholder.
 export const nav: NavSection = {
   key: 'banking',
   label: 'Banking',

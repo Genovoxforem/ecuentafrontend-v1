@@ -16,6 +16,8 @@
 // before showing our own compose UI reproduces that same session state, so
 // the same document still attaches automatically on send.
 
+import { htmlToText } from '../../utils/text'
+
 export interface SenderOption {
   value: string
   label: string
@@ -31,9 +33,7 @@ export interface OrderEmailDefaults {
 }
 
 function decodeEntities(s: string): string {
-  const div = document.createElement('div')
-  div.innerHTML = s
-  return div.textContent ?? ''
+  return htmlToText(s)
 }
 
 export function parseOrderEmailDefaults(html: string): OrderEmailDefaults {
@@ -46,11 +46,11 @@ export function parseOrderEmailDefaults(html: string): OrderEmailDefaults {
     const optionRe = /<option value="([^"]*)"[^>]*>([\s\S]*?)<\/option>/g
     let m: RegExpExecArray | null
     while ((m = optionRe.exec(fromtypeMatch[1]))) {
-      // The option's own text is double-entity-encoded in the real markup
-      // (e.g. "&amp;lt;" rather than "&lt;") — confirmed live: select2's own
-      // JS normally swaps this display for the (singly-encoded) data-html
-      // attribute instead, which we don't run here, so this decodes twice
-      // to reach the same plain "Name <email>" text a real user would see.
+      // The option's own text is double-entity-encoded in the markup (e.g.
+      // "&amp;lt;" rather than "&lt;") — select2's own JS normally swaps
+      // this display for the (singly-encoded) data-html attribute instead,
+      // which we don't run here, so this decodes twice to reach the same
+      // plain "Name <email>" text a user would see.
       senderOptions.push({ value: m[1], label: decodeEntities(decodeEntities(m[2])).replace(/\s+/g, ' ').trim() })
     }
   }

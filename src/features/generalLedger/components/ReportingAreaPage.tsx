@@ -3,7 +3,7 @@ import { FileSpreadsheet, Loader2, Printer, Scale } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { BASIS_OPTIONS, useIncomeExpenseByYear, type Basis } from '../incomeExpenseByYear.queries'
-import type { IncomeExpenseByYear } from '../incomeExpenseByYearParser'
+import type { IncomeExpenseByYear } from '../incomeExpenseByYear.types'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const btn = 'flex items-center justify-center h-9 w-9 rounded-md bg-brand text-white hover:bg-brand-hover'
@@ -31,7 +31,7 @@ function exportCsv(d: IncomeExpenseByYear) {
 }
 
 // compta/resultat/index.php — the real "Balance of income and expenses, by
-// year" report (see incomeExpenseByYearParser.ts). Read-only: the year picker
+// year" report (see incomeExpenseByYear.types.ts). Read-only: the year picker
 // sets the last of the four years shown and the basis picker switches the
 // backend's own accounting basis.
 export function ReportingAreaPage() {

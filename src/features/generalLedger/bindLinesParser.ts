@@ -1,11 +1,11 @@
 // accountancy/customer/list.php — "Lines of invoices to bind" (the customer
-// "ToDispatch" screen). Confirmed live against 172.16.5.10. One form (POST,
-// hidden action=ventil + token) around a table where every unbound invoice
-// line has: a select `codeventil<lineId>` pre-set to the suggested account,
-// and a checkbox `toselect[]` with value "<lineId>_0". Choosing massaction
-// "Bind" and pressing Confirm binds the ticked lines. `limit` and `page` are
-// plain GET params; the real page embeds all ~370 account options in every
-// row (megabytes per page), so the option list is read once from the first row.
+// "ToDispatch" screen). One form (POST, hidden action=ventil + token) around
+// a table where every unbound invoice line has: a select `codeventil<lineId>`
+// pre-set to the suggested account, and a checkbox `toselect[]` with value
+// "<lineId>_0". Choosing massaction "Bind" and pressing Confirm binds the
+// ticked lines. `limit` and `page` are plain GET params; the page embeds all
+// ~370 account options in every row (megabytes per page), so the option
+// list is read once from the first row.
 
 export interface BindLine {
   lineId: string

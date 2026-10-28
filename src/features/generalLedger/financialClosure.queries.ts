@@ -7,8 +7,7 @@ import { cellText } from './legacyTable'
 // One POST form (token, action=validate): a checkbox `toselect[]` per month
 // (value 1-12, each with a hidden `monthyear[]` = the year), a start date
 // (`date_debut` + hidden day/month/year parts), the author and validator user
-// selects (`fk_user_author`, `fk_user_validator`) and a public note. Confirmed
-// live against 172.16.5.55.
+// selects (`fk_user_author`, `fk_user_validator`) and a public note.
 
 // One line of a month's "pending" dialog, e.g. "Customer Invoice Binding" (2) or "Sales Journal" (0).
 export interface FinancialClosurePendingItem {

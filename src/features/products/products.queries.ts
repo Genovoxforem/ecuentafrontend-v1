@@ -75,8 +75,8 @@ export interface ProductRow {
   // vatRatePct for that.
   vatRate: string
   // Clean numeric rate for calculations (e.g. 16), from the API's separate
-  // tva_rate field — confirmed live to omit the " (A)" code suffix that
-  // tva_tx carries, unlike vatRate above.
+  // tva_rate field — it omits the " (A)" code suffix that tva_tx carries,
+  // unlike vatRate above.
   vatRatePct: number
   // Clean VAT code alone (e.g. "A"), from the API's vat_src_code field —
   // pair with vatRatePct to build a "16%(A)" display without parsing
@@ -103,17 +103,14 @@ export interface ProductRow {
   // Real `tobuy` field (added alongside finished/rrp below for the All
   // Products filter port — see productFilters.ts).
   forPurchase: boolean
-  // Real `finished` column (Dolibarr's "Nature of product" — 1=Raw
-  // Material, 2=Finished Product, 3=Service; see productConstants.ts's
-  // NATURE_OPTIONS, confirmed against live DB to be the complete set of
-  // distinct values actually used).
+  // `finished` column (Dolibarr's "Nature of product" — 1=Raw Material,
+  // 2=Finished Product, 3=Service; see productConstants.ts's NATURE_OPTIONS).
   finished: number
   // Real `rrp` column (Recommended Retail Price) — 0 when unset, same as
   // every other numeric field here.
   rrp: number
-  // Real `image_url`/`has_image` — already returned by the backend's
-  // buildProductRow() for every list/detail response, just not previously
-  // mapped on the frontend. Root-relative path; resolve with
+  // `image_url`/`has_image` — returned by the backend's buildProductRow()
+  // for every list/detail response. Root-relative path; resolve with
   // resolveBackendAsset() before use in an <img src>.
   imageUrl: string
   hasImage: boolean
@@ -132,7 +129,7 @@ export interface ServicesSummary {
   services: ProductRow[]
 }
 
-// GET /api/products/ response shape, confirmed live.
+// GET /api/products/ response shape.
 interface RawProduct {
   id: number | string
   ref: string
@@ -189,11 +186,11 @@ export function toRow(raw: RawProduct): ProductRow {
   }
 }
 
-// GET /api/products/ — confirmed live on this app's backend. Products and
-// services share this one endpoint (fk_product_type distinguishes them),
-// so both hooks below query the same cache key and split client-side
-// rather than each making their own request. `enabled` lets a picker that is
-// only sometimes shown skip the request until it opens.
+// GET /api/products/. Products and services share this one endpoint
+// (fk_product_type distinguishes them), so both hooks below query the same
+// cache key and split client-side rather than each making their own
+// request. `enabled` lets a picker that is only sometimes shown skip the
+// request until it opens.
 export function useProductRows(enabled = true) {
   return useQuery({
     queryKey: ['products', 'all'],
@@ -393,9 +390,8 @@ export function useServicesSummary() {
 // ProductDetail.tsx. Card/Stock/Statistics reuse hooks already defined
 // above; everything below is new for the remaining tabs.
 
-// GET /api/products/?action=detail&id=X — already-existing real endpoint
-// (handleProductDetail() in api/products/index.php), just not previously
-// wired to any React hook. Full field set for the Card tab, plus
+// GET /api/products/?action=detail&id=X (handleProductDetail() in
+// api/products/index.php). Full field set for the Card tab, plus
 // categories/note_public/note_private for their own tabs.
 export interface ProductDetail extends ProductRow {
   description: string
@@ -404,10 +400,8 @@ export interface ProductDetail extends ProductRow {
   notePublic: string
   notePrivate: string
   currency: string
-  // "About" section fields (product/card.php) — all confirmed live against
-  // a real product (id=123, matching the reference screenshots exactly:
-  // zraid/zrastatus/accountancy codes/base+packing units/barcode
-  // type/manufacturer/total sold all cross-checked field-by-field).
+  // "About" section fields (product/card.php): zraid/zrastatus/accountancy
+  // codes/base+packing units/barcode type/manufacturer/total sold.
   zraId: string
   zraStatus: string
   useLotSerial: boolean
@@ -428,12 +422,11 @@ export interface ProductDetail extends ProductRow {
   defaultWarehouse: string
   totalSoldQty: number
   // total_ttc-based (incl. tax), matching product/card.php's own
-  // soldAmountTotal query exactly — confirmed live against a non-zero-VAT
-  // product after an earlier 0%-VAT test product masked a total_ht mistake.
+  // soldAmountTotal query.
   totalSoldAmount: number
   // "Overview" section fields (product/card.php, the card right after
   // About) — all null/'' when unset, same as every other optional field
-  // here; confirmed live against product id=170 (Wooden Block).
+  // here.
   weight: number | null
   // Unit codes stay null when the product has none set (the classic page then shows the bare number); 0 is a real code (kg).
   weightUnits: number | null
@@ -614,12 +607,11 @@ function useProductDetailAction<T>(action: string, id: string | undefined, respo
     queryFn: async (): Promise<T> => {
       const { data } = await api.get<Record<string, unknown>>('/products/', { params: { action, id } })
       // Same unrouted-action fallthrough as useUpdateProductNote above —
-      // confirmed live against ecuenta9: combinations/associations/
-      // referers/events all come back 200 {success:true, products:[...]}
-      // with no key matching `responseKey` at all. Defaulting that to []
-      // would look identical to "this product genuinely has none" instead
-      // of "this backend doesn't support this action" — throw instead so
-      // the tab can show the real distinction.
+      // some backends answer combinations/associations/referers/events with
+      // 200 {success:true, products:[...]} and no key matching `responseKey`
+      // at all. Defaulting that to [] would look identical to "this product
+      // has none" instead of "this backend doesn't support this action" —
+      // throw instead so the tab can show the distinction.
       if (!(responseKey in data)) throw new Error(`${BACKEND_ACTION_UNAVAILABLE_PREFIX}${action}`)
       return (data[responseKey] ?? []) as T
     },
@@ -645,8 +637,8 @@ export function useProductReferers(id: string | undefined) {
 
 // Margins tab (margin/tabs/productMargins.php) — per-invoice
 // selling-vs-buying margin breakdown. DISPLAY_MARGIN_RATES/DISPLAY_MARK_RATES
-// are both unset on this install (confirmed live), so no rate fields here,
-// matching what legacy itself actually shows.
+// are both unset on this install, so no rate fields here, matching what
+// legacy itself shows.
 export interface ProductMarginLine {
   invoiceId: number
   ref: string
@@ -765,13 +757,10 @@ export function useDeleteProductDocument() {
 }
 
 // Product/Card page's own dashboard AJAX endpoint (product/ajax/product_dashboard.php)
-// — a real, already-JSON source for the Activity Timeline, Connections
-// (customers who bought this product, by invoice count), and Teams
-// (vendors who supply it, by supplier-invoice count) panels shown on the
-// Product tab, all in one call. Same same-origin session-cookie pattern as
-// UOM Settings above — no scraping, no new backend endpoint needed, this
-// already returns exactly what's needed. Confirmed live against product
-// id=170 (Wooden Block) matching the reference screenshots field-for-field.
+// — a JSON source for the Activity Timeline, Connections (customers who
+// bought this product, by invoice count), and Teams (vendors who supply it,
+// by supplier-invoice count) panels shown on the Product tab, all in one
+// call. Same same-origin session-cookie pattern as UOM Settings above.
 export interface ProductTimelineEntry {
   ref: string
   invoiceId: number

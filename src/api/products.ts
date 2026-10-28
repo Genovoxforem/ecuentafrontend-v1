@@ -106,6 +106,10 @@ export interface ProductListItem {
   stock_alert: number
   desired_stock: number
   total_reserved: number
+  /** Lot / serial tracking: 0 off, 1 lot, 2 serial (llx_product.tobatch). */
+  tobatch?: number
+  /** The backend's label for `tobatch`, e.g. "Disabled". */
+  lot_status?: string
   stock_state: string
   weight: number | null
   weight_units: string
@@ -414,9 +418,8 @@ export function assignProductCategories(product: number | string, categories: nu
   )
 }
 
-// ── Detail tabs (product/fapi, deployed 15 Oct 2026) ───────────
-// The tab calls that used to go to productinfo/api/*.php. Shapes checked against
-// newecuenta's live responses. Older backends answer 404 here (isMissingEndpoint).
+// ── Detail tabs (product/fapi) ───────────
+// Older backends answer 404 here (isMissingEndpoint).
 
 export interface ProductRef {
   id: number

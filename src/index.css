@@ -39,6 +39,29 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Visiting a POS screen (src/pos2/*, src/pos/layouts/DashboardLayout.jsx) loads src/pos/index.css, which starts with its own
+   `@import "tailwindcss"`. That file puts Tailwind's DEFAULT --spacing and --text-* values on :root after the scaled ones set in the
+   @theme above, and a stylesheet loaded by a route is never removed, so every page opened afterwards (the dashboard, lists, ...) came
+   back with bigger text and spacing. The POS screens keep the default sizes they are laid out for (all of them have a .pos-app or
+   .pos-v2-root root); everywhere else the scaled values are put back with a rule that beats :root. Keep these numbers equal to the
+   @theme block above. */
+html:not(:has(.pos-app, .pos-v2-root)) {
+  --spacing: 0.189rem;
+  --text-xs: 0.59535rem;
+  --text-sm: 0.69458rem;
+  --text-base: 0.7938rem;
+  --text-lg: 0.89303rem;
+  --text-xl: 0.99225rem;
+  --text-2xl: 1.1907rem;
+  --text-3xl: 1.48838rem;
+  --text-4xl: 1.78605rem;
+  --text-5xl: 2.3814rem;
+  --text-6xl: 2.97675rem;
+  --text-7xl: 3.5721rem;
+  --text-8xl: 4.7628rem;
+  --text-9xl: 6.3504rem;
+}
+
 /* Was hardcoded to the old pre-rebrand template's dark colors regardless of
    the app's actual light/dark theme (see ThemeContext.tsx) — every page
    load flashed that dark gradient before AppShell's own themed background
@@ -344,7 +367,8 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .b
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-search > input {
-  padding-left: 23px;
+  /* !important: the generic .blue-theme-shell input:not(...) rule below is more specific and put the text under the search icon */
+  padding-left: 23px !important;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-export {

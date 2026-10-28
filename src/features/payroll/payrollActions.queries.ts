@@ -404,13 +404,13 @@ export function useCreateShift() {
   })
 }
 
-// Real via payroll/ajax_search.php?entityEmp=<entityId> (payroll/
-// manage_salary.php's own "Go" button, POST, confirmed live). Returns every
-// employee in the entity with their current Assigned Salary Grade/Shift
-// display text plus a full "Assign Details" modal per row, options and
-// pre-selected values included — see manageSalaryParser.ts's own top
-// comment for the exact shape and the one markup quirk (duplicate
-// `selected` attributes) it works around.
+// Via payroll/ajax_search.php?entityEmp=<entityId> (payroll/
+// manage_salary.php's own "Go" button, POST). Returns every employee in the
+// entity with their current Assigned Salary Grade/Shift display text plus a
+// full "Assign Details" modal per row, options and pre-selected values
+// included — see manageSalaryParser.ts's own top comment for the exact
+// shape and the one markup quirk (duplicate `selected` attributes) it works
+// around.
 export function useManageSalaryEmployees(entityId: string) {
   return useQuery({
     queryKey: ['payroll', 'manage-salary', 'employees', entityId],
@@ -425,18 +425,16 @@ export function useManageSalaryEmployees(entityId: string) {
   })
 }
 
-// Real via payroll/ajax.php?saveSalaryList=1&user_id=... (payroll/
+// Via payroll/ajax.php?saveSalaryList=1&user_id=... (payroll/
 // manage_salary.php's per-employee "Assign Details" modal — its own
-// saveList() JS, read directly, gives the exact real POST contract below,
-// field for field). gradeTyy is the real llx_payroll_hourly_template /
-// llx_payroll_monthly_template row id, and shiftA/shiftB/alternate_mode/
-// stdate/enddate/leavetype are the real Assign Shift + Assign Leave Type
-// section values — all now backed by real option lists scraped per-row by
-// useManageSalaryEmployees above (no manual-id honesty workaround needed
-// anymore, unlike MarkAttendance's Shift ID). assId is always sent blank:
-// confirmed live, the real page's own hidden #assId field is never
-// populated by the backend either (its one non-blank use is commented out
-// in the source).
+// saveList() JS gives the POST contract below, field for field). gradeTyy
+// is the llx_payroll_hourly_template / llx_payroll_monthly_template row id,
+// and shiftA/shiftB/alternate_mode/stdate/enddate/leavetype are the Assign
+// Shift + Assign Leave Type section values — all backed by option lists
+// scraped per-row by useManageSalaryEmployees above. assId is always sent
+// blank: the classic page's own hidden #assId field is never populated by
+// the backend either (its one non-blank use is commented out in the
+// source).
 export interface NewSalaryAssignmentInput {
   employeeId: number
   userRole: string

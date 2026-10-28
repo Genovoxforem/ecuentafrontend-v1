@@ -98,10 +98,10 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-// Real via ticket_list_ajax.php (see useTicketDetail's own header comment
-// for exactly which classic-page fields that leaves unavailable) plus a
-// real, live-verified action set read straight from card.php/contact.php/
-// document.php/followup.php/chat.php — see ticketDetail.queries.ts.
+// Via ticket_list_ajax.php (see useTicketDetail's own header comment for
+// which classic-page fields that leaves unavailable) plus the action set
+// from card.php/contact.php/document.php/followup.php/chat.php — see
+// ticketDetail.queries.ts.
 export function TicketDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()

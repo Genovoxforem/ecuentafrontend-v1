@@ -1,14 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 
-// expensereport/card.php?action=edit's real "update" form — confirmed live
-// (172.16.5.10, id=1): POST to card.php with token/id/action=update/
-// date_debut/date_fin (plain MM/dd/yyyy text fields, not a day/month/year
-// triplet)/fk_user_validator, submit button name="bouton" value="Modify".
-// Scoped to just the fields this page's own Details panel already shows
-// (Period, User responsible for approval) rather than the full real edit
-// form's much larger field set (address/bank/multicurrency/etc., all
-// irrelevant to an expense report and not shown anywhere on this page).
+// expensereport/card.php?action=edit's "update" form: POST to card.php with
+// token/id/action=update/date_debut/date_fin (plain MM/dd/yyyy text fields,
+// not a day/month/year triplet)/fk_user_validator, submit button
+// name="bouton" value="Modify". Scoped to just the fields this page's own
+// Details panel shows (Period, User responsible for approval) rather than
+// the full edit form's much larger field set (address/bank/multicurrency/
+// etc., all irrelevant to an expense report and not shown on this page).
 export interface ExpenseReportUpdateInput {
   token: string
   dateDebut: string // MM/dd/yyyy, matching the real field's own format

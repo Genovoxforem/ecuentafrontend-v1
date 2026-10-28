@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { choicesFrom, downloadAccountingZip, loadAccountingFiles } from './accountingFilesFapi'
-import type { AccountingFilesPage } from './accountingFilesParser'
+import type { AccountingFilesPage } from './accountingFiles.types'
 
 // accountancy/fapi/accounting_files.php — see accountingFilesFapi.ts. Searching is read-only; the download only builds a zip.
 export interface AccountingFilesSearch {

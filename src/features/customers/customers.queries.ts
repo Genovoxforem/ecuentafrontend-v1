@@ -4,31 +4,6 @@ import { fetchThirdParties, fetchThirdPartySummary } from '../../api/customers'
 import { fetchAllPages } from '../../api/fapiRow'
 import type { ThirdPartyRow } from '../../shared/components/thirdParty/ThirdPartyList'
 
-export interface CustomerListApiRow {
-  id: number
-  name: string
-  is_supplier?: number
-  client?: number
-  code_client?: string | null
-  tracking?: string | null
-  tpin?: string | null
-  country?: string | null
-  country_code?: string | null
-  outstanding_balance?: number | string | null
-  sales_rep?: string | null
-  email?: string | null
-  phone?: string | null
-  type?: 'customer' | 'prospect' | 'customer_prospect'
-  date_creation?: string | null
-  creator_name?: string | null
-  status?: number
-}
-
-export interface CustomerListApiResponse {
-  customers: CustomerListApiRow[]
-  total_count?: number
-}
-
 export interface CustomersSummary {
   totalCustomers: number
   createdThisMonth: number | null
@@ -58,25 +33,6 @@ export function toThirdPartyRow(item: FapiThirdPartyRow): ThirdPartyRow {
     creationDate: item.date_creation ?? '',
     creatorName: item.creator_name || '',
     status: item.status === 1 ? 'Active' : 'Inactive',
-  }
-}
-
-export function toCustomerListRow(item: CustomerListApiRow): ThirdPartyRow {
-  return {
-    id: item.id,
-    name: item.name || '(unnamed)',
-    country: item.country || '',
-    countryCode: item.country_code || undefined,
-    outstandingBalance: Number(item.outstanding_balance) || 0,
-    tpin: item.tpin ?? '',
-    salesRep: item.sales_rep || '',
-    email: item.email || '',
-    phone: item.phone || '',
-    nature: item.is_supplier ? 'Customer, Vendor' : 'Customer',
-    trackingId: item.tracking || item.code_client || '',
-    creationDate: item.date_creation ?? '',
-    creatorName: item.creator_name || '',
-    status: item.status === 0 ? 'Inactive' : 'Active',
   }
 }
 

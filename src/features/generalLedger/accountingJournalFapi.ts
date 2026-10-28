@@ -1,5 +1,6 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
+import { usDateFromIso as usDate } from '../../utils/dates'
 import type { JournalPage, JournalRow } from './accountingJournalParser'
 
 // The four accounting journals on accountancy/fapi/journals.php (22 Oct 2026): a preview of what would be written to the ledger
@@ -33,10 +34,6 @@ export interface FapiJournal {
   totals: { documents: number; lines: number; debit: number; credit: number }
 }
 
-const usDate = (iso: string) => {
-  const [y, m, d] = iso.split('-')
-  return y && m && d ? `${m}/${d}/${y}` : ''
-}
 const isoDate = (us: string) => {
   const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
   return m ? `${m[3]}-${m[1]}-${m[2]}` : undefined

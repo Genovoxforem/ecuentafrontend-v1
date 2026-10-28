@@ -56,13 +56,6 @@ export function useAgendaFilterOptions() {
   })
 }
 
-// Kept as a thin selector over the same real endpoint for AddEventModal's
-// "Type" dropdown — avoids every caller re-deriving `.types` itself.
-export function useActionTypes() {
-  const { data, ...rest } = useAgendaFilterOptions()
-  return { ...rest, data: data?.types }
-}
-
 export type CalendarViewMode = 'show_month' | 'show_week' | 'show_day'
 
 export interface CalendarQueryParams {
@@ -255,11 +248,8 @@ interface RawEventDetail {
   url: string
 }
 
-// Real via api_action=getEventDetails&event_id=X — was already returned by
-// this same real endpoint (confirmed by reading calendar_api.php directly)
-// but never called: every event chip/row instead linked out to the legacy
-// card.php page via its own `url` field. Powers an in-app detail view
-// instead, so viewing an event no longer leaves the SPA.
+// api_action=getEventDetails&event_id=X: powers the in-app event detail view,
+// so viewing an event stays inside the SPA.
 export function useEventDetail(eventId: number | null) {
   return useQuery({
     queryKey: ['agenda', 'eventDetail', eventId],

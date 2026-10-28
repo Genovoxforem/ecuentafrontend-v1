@@ -1,12 +1,12 @@
-// Parses payroll/ajax.php's two real cascading-select fragments behind
+// Parses payroll/ajax.php's two cascading-select fragments behind
 // payroll/atten_overall_rip.php's own Entity → Groups → Employee filters
-// (confirmed live, both genuinely work with no CSRF issue — payroll/ajax.php
-// defines NOCSRFCHECK itself, same as every other write action there):
+// (no CSRF issue — payroll/ajax.php defines NOCSRFCHECK itself, same as
+// every other write action there):
 //   - ?overallreport=<entityId>   → raw <option> HTML for the Groups select
 //   - ?oallreport=1&entt=<e>&grup=<g> → raw HTML for the Employee select:
 //     one flat "All Employees" option plus one <optgroup> per user group
-//     (confirmed live — includes real blank-named users, kept as-is rather
-//     than invented a display name).
+//     (blank-named users are kept as-is rather than given an invented
+//     display name).
 // The report grid itself (payroll/ajax_get_attendance_rows.php) is a
 // different matter — see OverallAttendanceReportForm.tsx's own comment.
 

@@ -1,15 +1,13 @@
-// Parses payroll/atten_emp_rip.php — confirmed live to be a plain GET-able
-// classic report page (its own <form> is POST-only and CSRF-blocked when
-// called cross-origin from this app, same as payroll/earn_dedu.php's own
-// form, but the exact same monthPic/employee_li/submitt params work fine
-// as a GET, no CSRF check applied there — verified directly). Genuinely
-// real, per-day data once an employee is selected: one row per calendar
+// Parses payroll/atten_emp_rip.php — a plain GET-able classic report page
+// (its own <form> is POST-only and CSRF-blocked when called cross-origin
+// from this app, same as payroll/earn_dedu.php's own form, but the same
+// monthPic/employee_li/submitt params work as a GET, no CSRF check applied
+// there). Per-day data once an employee is selected: one row per calendar
 // day of the chosen month (Date/Day/IN Time/OUT Time/Working Hours/Status/
-// Details, Status real-colored per day — e.g. orange "Holiday" on
-// weekends), plus a real trailing "Total Working hours" summary row.
-// Employee options come from this same page's own #employee_li select —
-// real user ids, composite with the entity id ("103_1"), no separate
-// endpoint needed.
+// Details, Status colored per day — e.g. orange "Holiday" on weekends),
+// plus a trailing "Total Working hours" summary row. Employee options come
+// from this same page's own #employee_li select — user ids, composite with
+// the entity id ("103_1"), no separate endpoint needed.
 
 export interface EmployeeMonthlyReportOption {
   value: string

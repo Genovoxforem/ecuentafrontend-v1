@@ -33,10 +33,10 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-// The last verified user and permissions, kept with the token they belong to. A full page load used to show nothing until
-// GET /user/ answered (about 1 s, and every page waited behind it); now the app opens from this copy and re-checks in the
-// background. It is only the screen's view of who is signed in: every request is still checked by the server, and a failed
-// re-check signs the user out as before. Cleared on logout and on any token change.
+// The last verified user and permissions, kept with the token they belong to, so the app opens from this copy and
+// re-checks GET /user/ in the background instead of every page waiting about 1 s for it. It is only the screen's view
+// of who is signed in: every request is still checked by the server, and a failed re-check signs the user out.
+// Cleared on logout and on any token change.
 const ME_CACHE_KEY = 'ecuenta_me'
 type CachedMe = { token: string; user: AuthUser; rights: Record<string, Record<string, boolean>> }
 
@@ -70,7 +70,7 @@ function clearCachedMe() {
 }
 
 // Upper bound on how long sign-in waits for the legacy session (the backend's
-// login answer takes ~0.6 s on 172.16.5.10).
+// login answer takes about 0.6 s).
 const LEGACY_SESSION_WAIT_MS = 8000
 
 export function AuthProvider({ children }: { children: ReactNode }) {

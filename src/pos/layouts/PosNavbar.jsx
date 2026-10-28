@@ -33,7 +33,6 @@ function PosNavbar({ onToggleSidebar, onOpenCart }) {
 
             <div className="flex items-center gap-1.5 text-white font-bold tracking-wide shrink-0">
                 <img src={logo} alt="Ecuenta" className="w-[120px] h-[80px] object-contain" />
-                {/* <span className="text-lg">ECUENTA</span> */}
             </div>
 
             <div className="flex-1 flex items-center gap-2 max-w-xs bg-white rounded-lg px-3 py-1.5">

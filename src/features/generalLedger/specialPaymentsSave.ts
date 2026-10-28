@@ -2,8 +2,8 @@ import { fapiPost } from '../../api/fapiEnvelope'
 
 // The "new …" forms of the special payments, saved through their JSON endpoints. The forms still load their dropdowns from the legacy pages,
 // so the values arrive under the legacy field names; each body below renames them to the endpoint's own. Bodies and answers follow the
-// document (compta/sociales|bank/various_payment/fapi, salaries/fapi, loan/fapi); the miscellaneous-payment create and delete were tried live on newecuenta (26 Oct 2026, the test row removed again); the other
-// writes could not be, because those instances hold no rows, so they are "representative" in the document and unverified live.
+// document (compta/sociales|bank/various_payment/fapi, salaries/fapi, loan/fapi). Only the miscellaneous-payment create and delete are
+// verified against a live backend; the other writes are not verified.
 
 const str = (v: string | undefined) => (v && v.trim() !== '' ? v.trim() : null)
 const num = (v: string | undefined) => (v && v.trim() !== '' && !Number.isNaN(Number(v.replace(/,/g, ''))) ? Number(v.replace(/,/g, '')) : null)

@@ -1,13 +1,13 @@
 // admin/dict.php?id=7&from=accountancy — "Tax accounts" (the tax types
-// dictionary). Confirmed live against 172.16.5.10 and in the PHP source:
-// an Add row (code, libelle, country, decuctableper, module, modulecode,
-// accountancy_code, deductible + actionadd), a filter form (search_code,
-// search_country_id, search_rate, search_modulecode — plain GET params work,
-// and the literal "__MYCOUNTRYID__" resolves to the company's country) and
-// 11-cell rows: 8 td.tddict data cells, then status toggle / edit / delete
-// links that each carry a fresh CSRF token. Edit is a second real form
-// (actionmodify) rendered by the page itself, so the edit values are read from
-// that form rather than guessed from the list cells.
+// dictionary), per the page and its PHP source: an Add row (code, libelle,
+// country, decuctableper, module, modulecode, accountancy_code, deductible +
+// actionadd), a filter form (search_code, search_country_id, search_rate,
+// search_modulecode — plain GET params work, and the literal
+// "__MYCOUNTRYID__" resolves to the company's country) and 11-cell rows: 8
+// td.tddict data cells, then status toggle / edit / delete links that each
+// carry a fresh CSRF token. Edit is a second form (actionmodify) rendered by
+// the page itself, so the edit values are read from that form rather than
+// guessed from the list cells.
 
 export interface TaxAccountRow {
   rowid: string

@@ -1,11 +1,10 @@
-// Types for compta/sales/api/invoice.php — a complete, reliable JSON API for
-// the real "Sales Invoice Details" page (compta/sales/card.php?facid=X),
-// confirmed live on 172.16.5.55 across drafts and paid invoices (facid
-// 1057, 43, 1059, 1060). This is a separate, actively-maintained real page
-// from compta/facture/card.php (which the rest of this feature's other
-// tabs — Contacts, Notes, Documents, Agenda, LedgerEntry, StandingOrders —
-// still scrape); its own client logic lives in compta/sales/js/invoice.js.
-// Shapes below are read directly off real responses, not guessed.
+// Types for compta/sales/api/invoice.php — a complete JSON API for the
+// "Sales Invoice Details" page (compta/sales/card.php?facid=X), across
+// drafts and paid invoices. This is a separate page from
+// compta/facture/card.php (which the rest of this feature's other tabs —
+// Contacts, Notes, Documents, Agenda, LedgerEntry, StandingOrders — still
+// scrape); its own client logic lives in compta/sales/js/invoice.js.
+// Shapes below are read off actual responses.
 
 export interface SalesInvoiceLine {
   rowid: string

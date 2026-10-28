@@ -55,13 +55,10 @@ function sortValue(row: UnuploadedProductRow, key: SortKey): string | number {
   }
 }
 
-// Real POST product/allproducts_ajax.php?zrastatus=unupload data (see
-// zraLists.queries.ts) — confirmed live against llx_product WHERE
-// p.zracode != '000' OR p.zracode IS NULL, matching the real "Un-uploaded
-// Products/services" page. This page never had a backend wired at all
-// before (not even on the old ecnta10 instance), so this is a fresh build.
-// The real "Upload Products" action itself has not been traced/wired —
-// only the list is real here.
+// POST product/allproducts_ajax.php?zrastatus=unupload data (see
+// zraLists.queries.ts) — llx_product WHERE p.zracode != '000' OR p.zracode
+// IS NULL, matching the "Un-uploaded Products/services" page. The "Upload
+// Products" action itself is not wired — only the list is.
 export function UnuploadProductsList() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[2])

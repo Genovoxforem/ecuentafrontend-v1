@@ -1,30 +1,23 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-// Every write action below was read directly from the real PHP source
-// (D:\latest htdocs\htdocs\ticket\{card,contact,document,followup,chat}.php)
-// and, where the field contract was ambiguous, live-verified against the
-// dev backend (create → verify → revert) before being wired here — see the
-// session notes for the exact round-trips. None of these scrape a page's
-// rendered HTML for data; the one HTML read (scrapeTicketToken) only pulls
-// the hidden CSRF `token` field, the same technique already established
-// elsewhere in this app (customerDetailTabs.queries.ts's scrapeSocieteToken).
+// Every write action below follows the PHP source of
+// ticket/{card,contact,document,followup,chat}.php. None of these scrape a
+// page's rendered HTML for data; the one HTML read (scrapeTicketToken) only
+// pulls the hidden CSRF `token` field, the same technique used elsewhere in
+// this app (customerDetailTabs.queries.ts's scrapeSocieteToken).
 //
-// Three of card.php's 6 action buttons have NO real, confirmed backend
-// action behind their visible label and are therefore not implemented as
-// mutations here at all — see TicketDetail.tsx for how each is shown as
-// honestly disabled:
+// Three of card.php's 6 action buttons have no backend action behind their
+// visible label that this app can use, so they are not implemented as
+// mutations here — see TicketDetail.tsx for how each is shown disabled:
 //  - "Send Email" (presend_addmessage + send_email=1) triggers Dolibarr's
 //    full mail-compose flow (core/actions_sendmails.inc.php) — a much
-//    bigger, higher-risk form (to/cc/subject/attachments) not investigated
-//    to the same depth as everything else here.
-//  - "Create Job Card" is a plain link to fichinter/create.php — this app
-//    has no Job Card / Intervention feature built at all (confirmed
-//    earlier: only an inert list placeholder exists), so linking there
-//    would violate the standing "never route to a raw PHP page" rule.
+//    bigger, higher-risk form (to/cc/subject/attachments) not wired here.
+//  - "Create Job Card" is a plain link to fichinter/create.php, a raw PHP
+//    page this app must not route to.
 //  - "Modify" in the reference opens inline editors for Type/Ticket
 //    Group/Severity via change_property — those 3 dictionaries have no
 //    JSON API (same gap as TicketCreateForm.tsx), so only Subject
-//    (setsubject, wired below) is genuinely editable.
+//    (setsubject, wired below) is editable.
 
 async function scrapeTicketToken(id: string): Promise<string> {
   const res = await fetch(`/ticket/card.php?id=${id}`, { credentials: 'same-origin' })
@@ -49,10 +42,10 @@ function invalidateTicket(queryClient: ReturnType<typeof useQueryClient>, id: st
 
 // ── Status / assignment / subject (ticket tab) ──────────────────────────
 
-// Real, clean JSON (ticket-status-change-ajax.php) — confirmed live: powers
-// the 4 status pills (Read=1, Assigned=2, In Progress=3, "Waiting for
-// feedback"=5/NeedMoreInfo). Confirmed it CANNOT reopen a closed/cancelled
-// ticket (returns success:false) — that needs useReopenTicket below.
+// JSON (ticket-status-change-ajax.php): powers the 4 status pills (Read=1,
+// Assigned=2, In Progress=3, "Waiting for feedback"=5/NeedMoreInfo). It
+// CANNOT reopen a closed/cancelled ticket (returns success:false) — that
+// needs useReopenTicket below.
 export function useChangeTicketStatus(id: string | undefined, trackId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -71,9 +64,8 @@ export function useChangeTicketStatus(id: string | undefined, trackId: string | 
   })
 }
 
-// Classic card.php?action=confirm_reopen — live-verified (closed a test
-// ticket, reopened it with this exact action, confirmed status returned to
-// its real assigned/unread state depending on fk_user_assign).
+// Classic card.php?action=confirm_reopen: the status returns to its
+// assigned/unread state depending on fk_user_assign.
 export function useReopenTicket(id: string | undefined, trackId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -101,9 +93,8 @@ export function useDeleteTicket(id: string | undefined, trackId: string | undefi
   })
 }
 
-// Live-verified: assigning a user also flips status to Assigned server-side
-// (matches the same real behavior seen on ticket creation); fk_user_assign=0
-// unassigns.
+// Assigning a user also flips status to Assigned server-side (the same
+// behavior as on ticket creation); fk_user_assign=0 unassigns.
 export function useAssignTicketUser(id: string | undefined, trackId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -113,7 +104,6 @@ export function useAssignTicketUser(id: string | undefined, trackId: string | un
   })
 }
 
-// Live-verified round trip (set → confirm → revert).
 export function useUpdateTicketSubject(id: string | undefined, trackId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({

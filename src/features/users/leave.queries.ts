@@ -3,7 +3,7 @@ import { api } from '../../api/axios'
 import { fetchLegacyDocument, legacyMissingContentError, legacyRefusalMessages, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from '../generalLedger/bindLines.queries'
 import { parseLeaveCard, type LeaveCard } from './leaveCardParser'
-import type { HolidayStats, HolidayRequestRow } from './holidayParser'
+import type { HolidayStats, HolidayRequestRow } from './holiday.types'
 import { loadHolidayStats, loadLeaveRequests } from './leaveFapi'
 
 // Reused by the Payroll module (see modules/payroll/PayrollLeaveListModule.tsx

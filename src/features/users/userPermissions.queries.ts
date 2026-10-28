@@ -38,8 +38,8 @@ export function useUserPermissions(userId: string | undefined) {
 
 // The standard Dolibarr theme's own CSRF meta tag — present on every
 // authenticated page, scraped here from the same userprofile/index.php page
-// this tab already lives on (save_lastsearch_values=1 is required for this
-// route to resolve at all — confirmed live, omitting it 404s).
+// this tab lives on (save_lastsearch_values=1 is required for this route to
+// resolve at all — omitting it 404s).
 async function fetchUserProfileToken(userId: string): Promise<string> {
   const res = await fetch(`/userprofile/index.php?id=${userId}&save_lastsearch_values=1`, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status} fetching CSRF token.`)

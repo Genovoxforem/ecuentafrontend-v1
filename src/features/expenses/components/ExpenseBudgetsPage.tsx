@@ -4,7 +4,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import { useCreateBudget, useExpenseBudgets } from '../expenseTabs.queries'
 import { controlCls } from '../expenseTable'
-import type { Tone } from '../expenseTabsParser'
+import type { Tone } from '../expenseTabs.types'
 import { Field, FormProblem } from './expenseParts'
 
 const BAR_CLS: Record<Tone, string> = {

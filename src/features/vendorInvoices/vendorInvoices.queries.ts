@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { createVendorInvoice } from './vendorInvoiceFapi'
 import { fapiGet } from '../../api/fapiEnvelope'
-import { fetchThirdPartySummary } from '../../api/customers'
+import { fetchVendorSummary } from '../vendors/vendors.queries'
 
 // The Purchase Invoices views (All / Manual / Automatic / Expense / Imports) and the status filters of its menu,
 // each applied by the server (fourn/facture/fapi/list.php). The Expense view needs llx_facture_fourn.internal_exp,
@@ -100,7 +100,7 @@ function rowFromFapi(o: any): VendorInvoiceRow {
   }
 }
 
-async function fetchViaFapi(status: VendorInvoiceStatus, search: string, dateRange?: { from: string; to: string }): Promise<VendorInvoicesPayload> {
+async function fetchViaFapi(queryClient: QueryClient, status: VendorInvoiceStatus, search: string, dateRange?: { from: string; to: string }): Promise<VendorInvoicesPayload> {
   const base: Record<string, string | number | undefined> = {
     view: FAPI_VIEW[status] ?? 'all',
     status: FAPI_STATUS[status],
@@ -121,7 +121,7 @@ async function fetchViaFapi(status: VendorInvoiceStatus, search: string, dateRan
   }
   // The classic cards: how many vendors, how many invoices and the automatic / manual totals (the "all" view's own).
   const [vendors, automatic, manual] = await Promise.all([
-    fetchThirdPartySummary('vendor').catch(() => null),
+    fetchVendorSummary(queryClient).catch(() => null),
     status === 'all' ? fapiGet<any>('/fourn/facture/fapi/list.php', { view: 'automatic', limit: 1 }).catch(() => null) : null,
     status === 'all' ? fapiGet<any>('/fourn/facture/fapi/list.php', { view: 'manual', limit: 1 }).catch(() => null) : null,
   ])
@@ -139,10 +139,11 @@ async function fetchViaFapi(status: VendorInvoiceStatus, search: string, dateRan
 }
 
 export function useVendorInvoices(status: VendorInvoiceStatus, search = '', dateRange?: { from: string; to: string }) {
+  const queryClient = useQueryClient()
   const datefilter = dateRange?.from && dateRange.to ? `${dateRange.from} - ${dateRange.to}` : ''
   return useQuery({
     queryKey: ['vendor-invoices', status, search, datefilter],
-    queryFn: (): Promise<VendorInvoicesPayload> => fetchViaFapi(status, search, dateRange),
+    queryFn: (): Promise<VendorInvoicesPayload> => fetchViaFapi(queryClient, status, search, dateRange),
     placeholderData: (prev) => prev,
   })
 }

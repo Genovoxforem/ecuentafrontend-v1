@@ -1,10 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   changeQuotationContact,
-  createQuotationAgendaEvent,
   declareQuotationConsumption,
-  deleteQuotationDocument,
-  deleteQuotationDocumentLink,
   fetchQuotation,
   fetchQuotationAgenda,
   fetchQuotationConsumptionHistory,
@@ -213,14 +210,6 @@ export function useAddQuotationContact(id: string | undefined) {
   })
 }
 
-export function useChangeQuotationContact(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: { action: 'delete' | 'swap'; lineid: number }) => changeQuotationContact(Number(id), input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'contacts'] }),
-  })
-}
-
 export function useQuotationNotes(id: string | undefined) {
   return useQuery({
     queryKey: ['quotations', 'detail', id, 'notes'],
@@ -258,22 +247,6 @@ export function useLinkQuotationDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { link: string; label: string }) => linkQuotationDocument(Number(id), input.link, input.label),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
-  })
-}
-
-export function useDeleteQuotationDocument(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (name: string) => deleteQuotationDocument(Number(id), name),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
-  })
-}
-
-export function useDeleteQuotationDocumentLink(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (linkid: number) => deleteQuotationDocumentLink(Number(id), linkid),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'documents'] }),
   })
 }
@@ -319,13 +292,5 @@ export function useQuotationAgenda(id: string | undefined) {
     queryKey: ['quotations', 'detail', id, 'agenda'],
     queryFn: () => fetchQuotationAgenda(Number(id)),
     enabled: !!id,
-  })
-}
-
-export function useAddQuotationAgendaEvent(id: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: { label: string; start: string }) => createQuotationAgendaEvent(Number(id), input.label, input.start),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotations', 'detail', id, 'agenda'] }),
   })
 }

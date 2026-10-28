@@ -4,8 +4,8 @@ import type { InvoiceRow } from './invoices.queries'
 // Maps a row of compta/facture/fapi/list.php onto the row shape the Sales
 // Invoices screens render (they were built on the classic list's
 // invoice_ajax_list.php, whose cells are HTML). Every field is reproduced the
-// way that classic list prints it, so the screens look the same; the mapping was
-// checked against all 294 invoices of 172.16.5.10 (see invoiceListMapper.test.ts).
+// way that classic list prints it, so the screens look the same (see
+// invoiceListMapper.test.ts).
 
 export interface InvoiceListLookups {
   // c_paiement: fk_mode_reglement -> label ("Cash", "Credit", …).

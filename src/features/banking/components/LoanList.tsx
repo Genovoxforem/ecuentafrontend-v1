@@ -34,11 +34,10 @@ function sortValue(l: LoanRow, key: SortKey): string | number {
   }
 }
 
-// Real via loan/loan-sidebar-list-ajax.php — confirmed genuine JSON, but no
-// permission check at all server-side (any logged-in user can call it).
-// This is Dolibarr's core loan/ module (llx_loan), NOT the same feature as
-// Payroll's own "Employee Loan" (payroll/loan.php, a different table —
-// confirmed separately this session).
+// Via loan/loan-sidebar-list-ajax.php — JSON, but no permission check
+// server-side (any logged-in user can call it). This is Dolibarr's core
+// loan/ module (llx_loan), NOT the same feature as Payroll's "Employee
+// Loan" (payroll/loan.php, a different table).
 export function LoanList() {
   const { data: loans, isLoading, isError, error, refetch } = useLoanList()
   const [page, setPage] = useState(1)

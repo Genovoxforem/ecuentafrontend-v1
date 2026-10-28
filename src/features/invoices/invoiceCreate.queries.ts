@@ -179,15 +179,16 @@ export interface InvoiceCreateContext {
 
 // compta/facture/fapi/document_models.php reports the offered invoice types (`invoice_types`): the classic form only
 // offered Lpo and Export when the ZRA module is on, and so does this list.
+// Shares its query key with useInvoiceDocumentModels, so the create form makes one request for both.
 export function useInvoiceCreateContext() {
   return useQuery({
-    queryKey: ['invoices', 'createContext'],
-    queryFn: async (): Promise<InvoiceCreateContext> => {
-      const models = await fetchInvoiceDocumentModels()
-      const types = models.invoice_types ?? []
+    queryKey: ['invoices', 'documentModels'],
+    queryFn: () => fetchInvoiceDocumentModels(),
+    staleTime: 5 * 60_000,
+    select: (d): InvoiceCreateContext => {
+      const types = d.invoice_types ?? []
       return { hasLpo: types.some((t) => t.value === 6), hasExport: types.some((t) => t.value === 7) }
     },
-    staleTime: 5 * 60_000,
   })
 }
 

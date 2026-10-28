@@ -6,11 +6,10 @@ import type { JournalCell, JournalColumn, JournalRow, JournalsList } from './jou
 import type { JournalsRequest } from './journalsList.queries'
 
 // The ledger list on accountancy/fapi/list.php (one row per ledger line) with its per-user column picker (action=columns) and export
-// (action=export), 22-23 Oct 2026. The list and the columns answers were captured from newecuenta on 23 Oct 2026
-// (tests/fixtures/accountancy-ledger-list.json, accountancy-list-columns.json). Filters checked live: the date range, journal, document,
+// (action=export). Fixtures: tests/fixtures/accountancy-ledger-list.json, accountancy-list-columns.json. The date range, journal, document,
 // account range, subledger range (search_accountancy_aux_code_start / _end), label (search_mvt_label is accepted for search_label_operation),
 // debit, credit and transaction number all narrow the list; the creation, modification and export date ranges and "not reconciled" do not
-// (BUG-23), so the page no longer offers them.
+// (BUG-23), so the page doesn't offer them.
 
 export interface FapiLedgerLine {
   id: number

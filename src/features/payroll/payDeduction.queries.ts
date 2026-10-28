@@ -38,13 +38,11 @@ export interface NewPayDeductionInput {
   rows: PayDeductionRowInput[]
 }
 
-// Real via payroll/ajax.php?type=user_payment (pay_deduction.php's own
-// #savepaydeduct click handler, read directly) — confirmed live this
-// session with a real test write. Unlike every other payroll/ajax.php
-// action in payrollActions.queries.ts (a bare 0/3/other status code), this
-// one echoes "1" for success specifically (its own JS checks
-// `response == 1`), so it can't reuse that file's shared postPayrollAjax
-// helper.
+// Via payroll/ajax.php?type=user_payment (pay_deduction.php's own
+// #savepaydeduct click handler). Unlike every other payroll/ajax.php action
+// in payrollActions.queries.ts (a bare 0/3/other status code), this one
+// echoes "1" for success specifically (its own JS checks `response == 1`),
+// so it can't reuse that file's shared postPayrollAjax helper.
 export function useCreatePayDeduction() {
   const queryClient = useQueryClient()
   return useMutation({

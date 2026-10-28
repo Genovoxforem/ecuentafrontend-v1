@@ -4,34 +4,27 @@ import type { NavSection } from '../navTypes'
 
 // Mirrors the real app's "Users" left menu (llx_menu, mainmenu=employee).
 // This file is only a label->path lookup for buildNavSections (see there) —
-// the real tree shape comes live from GET /api/menu/, keyed purely by leaf
+// the tree shape comes live from GET /api/menu/, keyed purely by leaf
 // label (flattened, parent-agnostic — see flattenPaths in
 // buildNavSections.ts) regardless of how deep this file nests things.
 //
-// "Events" was previously assumed to be a single leaf also titled "Events"
-// — confirmed wrong live: the real menu actually has New Event, then a
-// List group and a Calendar group each containing the SAME 4 real
-// pre-filtered views (My Incomplete Events / My Terminated Events / All
-// Incomplete Events / All Terminated Events), plus Reporting and
-// Tags/Categories. None of those real labels matched anything in this
-// file, so every one of those real sidebar links resolved to no path at
-// all — the reported "not routed" bug. All 4 filter combos route to the
-// same real Agenda page (AgendaOverview.tsx), which now reads
-// status/scope/view query params on load to seed its real filters —
-// see calendarApi.queries.ts's useCalendarEvents (status: todo/done maps
-// straight to real percent-based status; scope: all sends the real
-// filtert=-1 "no owner restriction" value, mine defaults to the current
-// user, matching the backend's own default).
+// "Events" in the menu is New Event, then a List group and a Calendar group
+// each containing the SAME 4 pre-filtered views (My Incomplete Events / My
+// Terminated Events / All Incomplete Events / All Terminated Events), plus
+// Reporting and Tags/Categories. All 4 filter combos route to the same
+// Agenda page (AgendaOverview.tsx), which reads status/scope/view query
+// params on load to seed its filters — see calendarApi.queries.ts's
+// useCalendarEvents (status: todo/done maps straight to percent-based
+// status; scope: all sends the filtert=-1 "no owner restriction" value,
+// mine defaults to the current user, matching the backend's own default).
 //
 // Reporting (comm/action/rapport/index.php) and Tags/Categories
-// (categories/index.php?type=actioncomm) both have real backends but no
-// JSON API — server-rendered HTML + server-generated PDF for the former,
-// classic form-POST CRUD for the latter (both confirmed by reading those
-// files directly). Rather than leave them permanently disabled, each now
-// has its own real React page (ReportingPage / EventCategoriesPage) that
-// says so honestly and links out to the real legacy page — Tags/Categories
-// also shows the real category list itself, since that part *is* already
-// real data via getFilters.
+// (categories/index.php?type=actioncomm) both have backends but no JSON
+// API — server-rendered HTML + server-generated PDF for the former,
+// classic form-POST CRUD for the latter. Each has its own React page
+// (ReportingPage / EventCategoriesPage) that says so and links out to the
+// legacy page — Tags/Categories also shows the category list itself, since
+// that part is available via getFilters.
 export const nav: NavSection = {
   key: 'users',
   label: 'Users',

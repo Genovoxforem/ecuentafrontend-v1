@@ -6,8 +6,9 @@ import { SearchableSelect } from '../../../shared/components/forms/SearchableSel
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
-import { resolveDocLink } from '../ledgerHtmlParser'
-import { parseAmount, type PieceCard, type PieceCardAddRow, type PieceCardLine } from '../pieceCardParser'
+import { resolveDocLink } from '../ledgerReport'
+import { parseAmount } from '../../../utils/text'
+import type { PieceCard, PieceCardAddRow, PieceCardLine } from '../pieceCard.types'
 import {
   fetchExchangeRate,
   useAddPieceLine,

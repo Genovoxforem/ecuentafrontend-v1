@@ -1,6 +1,7 @@
 import { useMemo, useState, type ComponentType } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Power, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { List, Loader2, Plus, Power, Trash2 } from 'lucide-react'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../../shared/components/ListPagination'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
@@ -20,11 +21,14 @@ export function DictListPage({
   path,
   columns,
   source,
+  rowLink,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
   path: string
   columns: string[]
+  // An extra row action that opens a page about the row (the classic "List of accounts" link); null hides it for that row.
+  rowLink?: (row: DictRow) => { to: string; title: string } | null
   // A dictionary with a JSON endpoint: rows come from `load` and the row actions go by row id instead of the scraped links.
   source?: { load: () => Promise<DictRow[]>; setActive: (rowid: string, active: boolean) => Promise<void>; remove: (rowid: string) => Promise<void> }
 }) {
@@ -152,6 +156,14 @@ export function DictListPage({
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
+                          {(() => {
+                            const link = rowLink?.(r)
+                            return link ? (
+                              <Link to={link.to} title={link.title} aria-label={link.title} className="text-text-muted hover:text-brand">
+                                <List size={14} />
+                              </Link>
+                            ) : null
+                          })()}
                           <button
                             type="button"
                             disabled={source ? jsonToggle.isPending : !r.toggleUrl || toggle.isPending}

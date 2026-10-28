@@ -1,7 +1,7 @@
 import { cellText } from './legacyTable'
 
 // accountancy/{customer,supplier,expensereport}/index.php — the "binding" overviews. From the pages'
-// own PHP and live markup (customer, 172.16.5.10):
+// own PHP and markup:
 //   - the year is in the title (`?year=`); an info box explains the binding, with bold phrases and
 //     line breaks;
 //   - sections follow one another: a title bar (`.ecnta-title`) and the table(s) under it. The first

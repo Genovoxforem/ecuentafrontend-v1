@@ -26,16 +26,13 @@ function formatNavDate(mode: TimeSpentMode, d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: '2-digit', day: '2-digit', year: 'numeric' })
 }
 
-// Real projet/activity/per{month,week,day}.php — all three tabs share the
-// same real grid/nav mechanics (see timeSpent.queries.ts's header comment
-// for how one generic reader covers all three). Confirmed live: an earlier
-// version of this page only implemented the Week tab and sent a `re` date
-// param the backend never reads, so navigation silently did nothing —
-// fixed to use the real day/month/year params, and extended to all three
-// tabs since they're the same mechanism. "Assign task to me" stays inert:
-// the real action (Task::add_contact via action=addtime&assigntask=1) is
-// genuine, but its task-role ("type") dropdown is sourced from
-// c_type_contact, which isn't confirmed anywhere in this app yet.
+// projet/activity/per{month,week,day}.php — all three tabs share the same
+// grid/nav mechanics (see timeSpent.queries.ts's header comment for how one
+// generic reader covers all three), navigated with the backend's own
+// day/month/year params. "Assign task to me" stays inert: the action
+// (Task::add_contact via action=addtime&assigntask=1) exists, but its
+// task-role ("type") dropdown is sourced from c_type_contact, which isn't
+// verified anywhere in this app yet.
 export function TimeSpentPage() {
   const { user } = useAuth()
   const [mode, setMode] = useState<TimeSpentMode>('week')

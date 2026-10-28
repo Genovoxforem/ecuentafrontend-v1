@@ -252,8 +252,8 @@ function LotCard({ id }: { id: string }) {
 }
 
 // One lot/serial — product/stock/fapi/lots.php?id= and its create / update /
-// delete (the classic productlot_card.php never wired its form up, so this page
-// used to be inert). /products/lot-serials/new is the create form.
+// delete (the classic productlot_card.php never wired its form up).
+// /products/lot-serials/new is the create form.
 export function LotSerialDetailPage() {
   const { id } = useParams<{ id: string }>()
   const isNew = id === 'new'

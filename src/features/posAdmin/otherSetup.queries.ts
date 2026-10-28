@@ -2,14 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 import { toggleChecked, csrfToken } from './posAdminShared'
 
-// takepos/admin/other.php — the one tab with a genuine second real JSON
-// API: takepos/admin/websocket_manage.php (POST, dataType: 'json'),
-// confirmed live by reading the real page's own wsCheckStatus()/wsAction()
-// JS directly. action='status' returns {running, pid}; action='start' /
-// 'stop' / 'restart' return {success, message}. Plus 1 real toggle
-// (ENABLE_SOCKETIO_NOTIFICATIONS via core/ajax/constantonoff.php). No
-// classic form-POST fields exist on this tab at all — it's the only one
-// that's 100% real already.
+// takepos/admin/other.php — the one tab with a second JSON API:
+// takepos/admin/websocket_manage.php (POST, dataType: 'json'), from the
+// page's own wsCheckStatus()/wsAction() JS. action='status' returns
+// {running, pid}; action='start' / 'stop' / 'restart' return {success,
+// message}. Plus 1 toggle (ENABLE_SOCKETIO_NOTIFICATIONS via
+// core/ajax/constantonoff.php). No classic form-POST fields exist on this
+// tab at all.
 export interface OtherSetup {
   socketioNotifications: boolean
   token: string

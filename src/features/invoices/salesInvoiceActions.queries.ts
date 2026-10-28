@@ -172,11 +172,6 @@ export function useSendSalesInvoiceEmail(facid: string | undefined) {
 
 // --- Record Payment ----------------------------------------------------------
 
-export interface PaymentOption {
-  id: string
-  text: string
-}
-
 export function usePaymentTypeOptions(enabled: boolean) {
   return usePaymentModeDictionary(enabled)
 }

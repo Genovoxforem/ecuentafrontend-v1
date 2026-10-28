@@ -22,14 +22,12 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-// Submits to the real quicklinks_ajax.php?type=savewarehouse handler (a
-// genuine INSERT INTO llx_entrepot — see warehouseExtras.queries.ts) instead
-// of the session-only local stub this used to be. "Add in" (fk_parent) and
-// Country now use real data sources: the real warehouse list itself, and
-// the real numeric llx_c_country ids from societe/api/meta.php's
-// wizard_options (the same source the Third Party create wizard uses) —
-// quicklinks_ajax.php's own country_id column needs that numeric id, not an
-// ISO code.
+// Submits to the quicklinks_ajax.php?type=savewarehouse handler (an INSERT
+// INTO llx_entrepot — see warehouseExtras.queries.ts). "Add in"
+// (fk_parent) and Country use the warehouse list itself and the numeric
+// llx_c_country ids from societe/api/meta.php's wizard_options (the same
+// source the Third Party create wizard uses) — quicklinks_ajax.php's own
+// country_id column needs that numeric id, not an ISO code.
 export function WarehouseCreateForm() {
   const navigate = useNavigate()
   const createWarehouse = useCreateWarehouseReal()

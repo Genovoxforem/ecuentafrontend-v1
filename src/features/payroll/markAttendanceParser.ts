@@ -1,20 +1,19 @@
-// Parses payroll/mark_attendance_ajax.php?enterAttendance=1 — the real
-// fragment behind payroll/mark_attendance.php's own "Search" button (POST,
-// params in the query string: ListofEmployee, TypesOfEntity, att_date).
-// Confirmed live: every employee row is one of two real, distinct states —
+// Parses payroll/mark_attendance_ajax.php?enterAttendance=1 — the fragment
+// behind payroll/mark_attendance.php's own "Search" button (POST, params in
+// the query string: ListofEmployee, TypesOfEntity, att_date). Every
+// employee row is one of two distinct states —
 //   1. No shift mapped for the selected date: a red <h6 class=
-//      "shift-not-assigned"> with one of two real message variants ("Shift
+//      "shift-not-assigned"> with one of two message variants ("Shift
 //      Not Assigned" when the employee has no shift assignment at all,
 //      "The selected date (...) is not mapped in shift" when they have one
-//      but it doesn't cover this date) — scraped verbatim rather than
-//      guessed, and clickable in the real page to open the real "Assign
-//      Shift" panel (see useAssignShift in payrollAttendance.queries.ts).
-//   2. A shift mapped for the date: real Present/Absent/Permission
-//      checkboxes, ALL unchecked by default (confirmed live — unlike the
-//      Special/Holiday Shift form, this page has no "everyone starts
-//      Present" default; every employee starts genuinely undecided), plus
-//      the real per-employee default Clock In/Out from their assigned
-//      shift and a handful of hidden passthrough fields
+//      but it doesn't cover this date) — scraped verbatim, and clickable in
+//      the classic page to open the "Assign Shift" panel (see useAssignShift
+//      in payrollAttendance.queries.ts).
+//   2. A shift mapped for the date: Present/Absent/Permission checkboxes,
+//      ALL unchecked by default (unlike the Special/Holiday Shift form, this
+//      page has no "everyone starts Present" default), plus the
+//      per-employee default Clock In/Out from their assigned shift and a
+//      handful of hidden passthrough fields
 //      (attendanceId/shiftId/holiday_tbl_id/requestedleave) this page's own
 //      JS round-trips verbatim on save — captured here so this app's own
 //      save can do the same instead of dropping them.

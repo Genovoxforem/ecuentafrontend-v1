@@ -1,7 +1,8 @@
 import { fapiGet } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
-import type { IncomeExpenseByYear } from './incomeExpenseByYearParser'
-import type { TurnoverReport } from './turnoverInvoicedParser'
+import type { IncomeExpenseByYear } from './incomeExpenseByYear.types'
+import type { TurnoverReport } from './turnoverInvoiced.types'
+import { usDateFromIso as usDate } from '../../utils/dates'
 import type { ReportTable } from './legacyTable'
 
 // The ledger reports on compta/resultat/fapi and compta/stats/fapi (22 Oct 2026), rendered in the shapes the report pages already take.
@@ -54,10 +55,6 @@ export interface FapiTurnover {
 }
 
 // yyyy-mm-dd -> MM/dd/yyyy, the way the page prints and takes its period.
-const usDate = (iso: string) => {
-  const [y, m, d] = iso.split('-')
-  return y && m && d ? `${m}/${d}/${y}` : ''
-}
 // A year-over-year change; no value (null) prints as "-".
 const delta = (v: number | null) => (v === null ? '-' : `${Number(v.toFixed(2))} %`)
 

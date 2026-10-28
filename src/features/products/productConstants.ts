@@ -4,11 +4,9 @@ export interface FormOption {
 }
 
 // Dolibarr's "Nature of product" (llx_product.finished column) — 1=Raw
-// Material, 2=Finished Product, 3=Service. Confirmed against live DB
-// (`SELECT finished, COUNT(*) FROM llx_product GROUP BY finished`) to be
-// the complete set of distinct values actually in use, so this hardcoded
-// list isn't missing any real option. Shared between ProductServiceCreateForm
-// (the create wizard) and ProductFilterModal (the All Products list filter).
+// Material, 2=Finished Product, 3=Service: the complete set of distinct
+// values in use. Shared between ProductServiceCreateForm (the create
+// wizard) and ProductFilterModal (the All Products list filter).
 export const NATURE_OPTIONS: FormOption[] = [
   { value: '2', label: 'Finished Product' },
   { value: '1', label: 'Raw Material' },
