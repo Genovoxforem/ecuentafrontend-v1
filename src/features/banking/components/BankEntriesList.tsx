@@ -371,14 +371,11 @@ export function BankEntriesList({ accountId: accountIdProp, embedded = false }: 
                     </tr>
                   ) : (
                     sortedEntries.map((r) => {
-                      // Prefer the real account id parsed straight off the cell's own
-                      // compta/bank/card.php link (authoritative) — only fall back to
-                      // name-matching for the rare row whose cell has no such link.
+                      // Prefer the entry's own account_id — only fall back to name-matching
+                      // for a row that has none.
                       const linkedAccountId = r.bankAccountId ?? findAccountId(accounts, dropdownAccounts, r.bankAccount)
-                      // Prefer the real socid parsed straight off the cell's own
-                      // societe/card.php link (authoritative) — only fall back to
-                      // name-matching against the customers/vendors list for the
-                      // rare row whose cell has no such link at all.
+                      // Prefer the entry's own thirdparty.id — only fall back to name-matching
+                      // against the customers/vendors list for a row that has none.
                       const thirdPartyId = r.thirdPartySocid ?? findThirdPartyId(customersSummary?.customers, vendorsSummary?.vendors, r.thirdParty)
                       return (
                         <tr key={r.id} className="border-b border-border last:border-0">

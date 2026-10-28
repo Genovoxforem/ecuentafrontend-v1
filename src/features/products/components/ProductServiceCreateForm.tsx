@@ -19,15 +19,11 @@ import {
   X,
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
+import { StickyFormShell, WizardStepper } from '../../../shared/components/layout/StickyFormShell'
 import { ROUTES } from '../../../routes'
-import {
-  useCreateCategory,
-  useCreateProduct,
-  useProductClassificationSearch,
-  useProductFormOptions,
-  type FormOption,
-} from '../../zra/createProduct.queries'
+import { useCreateCategory, useCreateProduct, useProductClassificationSearch } from '../../zra/createProduct.queries'
+import { useProductFormOptions } from '../productFormOptions.queries'
+import type { FormOption } from '../productConstants'
 import { useStatesByCountry } from '../../customers/thirdPartyOptions.queries'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
@@ -300,12 +296,8 @@ export function CategoryMultiSelect({ value, onChange, options }: { value: strin
         <ChevronDown size={14} className="text-text-faint shrink-0" />
       </button>
       {open && (
-        // Add New used to be the last child inside the same scrolling container as the
-        // option list (old menuCls applied max-h/overflow-auto to the whole panel), so once
-        // there were enough categories to need scrolling, it scrolled away with them instead
-        // of staying reachable. Splitting the scrollable list into its own inner div, with
-        // Add New as a sibling below it, keeps the button fixed at the panel's bottom
-        // regardless of list length or scroll position.
+        // The scrollable list is its own inner div with Add New as a sibling below it, so the
+        // button stays fixed at the panel's bottom regardless of list length or scroll position.
         <div className={`absolute z-20 w-full rounded-md border border-border bg-surface shadow-lg ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           <div className="max-h-56 overflow-auto soft-scrollbar">
             {options.map((o) => {
@@ -350,10 +342,10 @@ export function CategoryMultiSelect({ value, onChange, options }: { value: strin
 }
 
 // "hint" mirrors Field's — fields with no backing column on this backend's
-// /api/products/create-full/ endpoint (confirmed against its real field
-// list) are marked "demo only" right on their own label instead of a
-// separate full-width warning row, so the legacy layout isn't missing
-// pieces without burning a whole grid row per section for the disclaimer.
+// /api/products/create-full/ endpoint are marked "demo only" right on their
+// own label instead of a separate full-width warning row, so the legacy
+// layout isn't missing pieces without burning a whole grid row per section
+// for the disclaimer.
 function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
   return (
     <div className="flex items-center gap-2 h-9">
@@ -982,34 +974,7 @@ export function ProductServiceCreateForm({ prodType }: { prodType: 0 | 1 }) {
               </div>
             </InBanner>
 
-            <div className="flex items-center">
-              {PRODUCT_WIZARD_STEPS.map((s, i) => {
-                const isDone = i < step
-                const isActive = i === step
-                return (
-                  <div key={s.title} className={`flex items-center ${i < PRODUCT_WIZARD_STEPS.length - 1 ? 'flex-1' : ''}`}>
-                    <button type="button" onClick={() => i <= step && setStep(i)} title={s.subtitle} className="flex items-center gap-2.5 group text-left">
-                      <span
-                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors ${
-                          isDone
-                            ? 'bg-success border-success text-white'
-                            : isActive
-                              ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
-                              : 'bg-surface border-border text-text-faint'
-                        }`}
-                      >
-                        {isDone ? <Check size={14} /> : i + 1}
-                      </span>
-                      <span className="hidden sm:block">
-                        <span className={`block text-sm ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
-                        <span className="block text-xs text-text-faint">{s.subtitle}</span>
-                      </span>
-                    </button>
-                    {i < PRODUCT_WIZARD_STEPS.length - 1 && <div className={`h-0.5 flex-1 mx-3 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
-                  </div>
-                )
-              })}
-            </div>
+            <WizardStepper steps={PRODUCT_WIZARD_STEPS} step={step} onStep={setStep} canGoTo={(i) => i <= step} />
           </>
         }
         footerLeft={

@@ -4,9 +4,8 @@ import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFet
 import { parseCreateRoomFormOptions, type CreateRoomOption } from './createRoomFormParser'
 import { parseClassicBookingFormOptions, parseRoomOptionsFragment, type ClassicBookingOption } from './classicBookingFormParser'
 
-// Real shapes confirmed live against custom/hotel/api.php?r=<resource> — see
-// hotelApi.ts's own top comment. Every field below was observed in an
-// actual response, not guessed.
+// Shapes from custom/hotel/api.php?r=<resource> responses — see hotelApi.ts's
+// own top comment.
 
 export interface HotelRackRoom {
   id: string
@@ -1018,21 +1017,6 @@ export function useHotelZraSyncRoom() {
   })
 }
 
-export interface SaveServiceInput {
-  id?: string
-  name: string
-  rate: number
-  pbt: 'HT' | 'TTC'
-  status: 0 | 1
-  cls: string
-  country: string
-  unit: string
-  packing: string
-  tva: number
-  vatcode: string
-  tl: string
-  token: string
-}
 // Writes via booking_master.ajax.php (action=save_features) — a strict
 // superset of the Suite's own a=savefeature (name-only, amount hardcoded to
 // 0), so this covers Feature Type/Amount/Status too. accountancy_code is
@@ -1064,13 +1048,7 @@ export function useHotelSaveFeatureFull() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'features'] }),
   })
 }
-export function useHotelSaveService() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ token, ...fields }: SaveServiceInput) => hotelPost('saveservice', fields, token),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['hotel', 'features'] }),
-  })
-}
+
 export function useHotelDelFeature() {
   const qc = useQueryClient()
   return useMutation({
@@ -1315,8 +1293,8 @@ export interface HotelGuestHistoryBooking {
   amt: number
 }
 export interface HotelGuestHistory {
-  // Confirmed live: narrower than r=guests' own HotelGuest row (fk_pays
-  // instead of country, no stays/val/last/code/zraid/zip) — its own shape.
+  // Narrower than r=guests' own HotelGuest row (fk_pays instead of country,
+  // no stays/val/last/code/zraid/zip) — its own shape.
   guest: { id: string; name: string; email: string; phone: string; town: string; prefs: string; tpin: string; idno: string; fk_pays: string }
   profile?: { nationality?: string; id_type?: string; id_number?: string; dob?: string; vip?: 0 | 1; tax_exempt?: 0 | 1; prefs?: string } | null
   bookings: HotelGuestHistoryBooking[]
@@ -1445,8 +1423,8 @@ export interface HotelQuoteDetailLine {
   ptype?: string
 }
 export interface HotelQuoteDetail {
-  // Confirmed live: richer than the list row (HotelQuoteRow) — real ref/
-  // state/ht/ttc/email/phone alongside the fields already modeled there.
+  // Richer than the list row (HotelQuoteRow) — ref/state/ht/ttc/email/phone
+  // alongside the fields already modeled there.
   quote: {
     id?: string
     ref?: string

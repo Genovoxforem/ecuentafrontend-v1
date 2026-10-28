@@ -1,5 +1,5 @@
-// Parses admin/translation.php (Setup > Translation), which has two modes. Verified against the
-// dev backend's markup (search results, empty overwrite list) and the page's own PHP:
+// Parses admin/translation.php (Setup > Translation), which has two modes, per the page's
+// markup (search results, empty overwrite list) and its own PHP:
 //   - `?mode=searchkey&action=search&langcode=&transkey=&transvalue=&limit=&page=` lists the
 //     translation strings read from the backend's language files, one page at a time; the
 //     title carries "(<matches> / <all strings> - <files> Files)". A row's last cell has an

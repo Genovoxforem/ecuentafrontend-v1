@@ -8,10 +8,10 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-// The real page's "Select Month" field is actually a completed-date-range
-// picker (its own placeholder says so) despite the label — confirmed live
-// that a plain "DD/MM/YYYY - DD/MM/YYYY" first-day/last-day range for the
-// chosen month returns exactly that month's real rows.
+// The page's "Select Month" field is a completed-date-range picker (its own
+// placeholder says so) despite the label — a plain "DD/MM/YYYY -
+// DD/MM/YYYY" first-day/last-day range for the chosen month returns exactly
+// that month's rows.
 function monthToRange(monthIso: string): string {
   const [year, month] = monthIso.split('-').map(Number)
   const lastDay = new Date(year, month, 0).getDate()
@@ -22,9 +22,9 @@ function monthToRange(monthIso: string): string {
 
 export type PayrollSummarySearch = { type: 'employee'; employeeId: string } | { type: 'month'; month: string }
 
-// No CSRF token field in the real form (confirmed live) — Dolibarr's
-// Referer-based check here is satisfied automatically by the browser
-// (same-origin fetch), same reasoning as loans.queries.ts's own comment.
+// No CSRF token field in the classic form — Dolibarr's Referer-based check
+// here is satisfied automatically by the browser (same-origin fetch), same
+// reasoning as loans.queries.ts's own comment.
 export function usePayrollSummaryReport(search: PayrollSummarySearch | null) {
   return useQuery({
     queryKey: ['payroll', 'summaryReport', search],

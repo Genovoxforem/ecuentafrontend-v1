@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseExpenseReportDocuments, parseExpenseReportNotes, parseExpenseReportEvents, parseExpenseReportLedger } from './expenseReportTabsParser'
+import { parseExpenseReportDocuments, parseExpenseReportNotes } from './expenseReportTabsParser'
+import { loadExpenseReportEvents, loadExpenseReportLedger } from './expenseReportFapi'
 
 export function useExpenseReportDocuments(id: string | undefined) {
   return useQuery({
@@ -10,16 +11,13 @@ export function useExpenseReportDocuments(id: string | undefined) {
   })
 }
 
-// Multipart POST to the real action=sendit handler in
-// core/actions_linkedfiles.inc.php (included by expensereport/document.php)
-// — real fields confirmed live against 172.16.5.10 (id=6): token/
-// section_dir/section_id/sortfield/sortorder/max_file_size/userfile[]/
+// Multipart POST to the action=sendit handler in
+// core/actions_linkedfiles.inc.php (included by expensereport/document.php):
+// token/section_dir/section_id/sortfield/sortorder/max_file_size/userfile[]/
 // sendit, plus savingdocmask when the "save with name..." checkbox is
-// checked. A real file upload, not a mock — verified the uploaded file
-// actually appears in the real "Attached files and documents" list
-// afterward. `savingdocmask` must be sent as its real scraped value (a
-// filename-template string), not a plain "on" — confirmed live that doing
-// so breaks the upload (produces a file with no extension).
+// checked. `savingdocmask` must be sent as its scraped value (a
+// filename-template string), not a plain "on" — that produces a file with
+// no extension.
 export function useUploadExpenseReportDocument(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -68,9 +66,9 @@ export function useExpenseReportNotes(id: string | undefined) {
   })
 }
 
-// expensereport/note.php's real action=setnote_public/setnote_private
-// handler — confirmed live (172.16.5.10, id=1): a plain textarea form-POST,
-// token/id/action/note_public(or note_private)/modify=Modify.
+// expensereport/note.php's action=setnote_public/setnote_private handler:
+// a plain textarea form-POST, token/id/action/note_public(or
+// note_private)/modify=Modify.
 export function useSaveExpenseReportNote(id: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -92,7 +90,8 @@ export function useSaveExpenseReportNote(id: string | undefined) {
 export function useExpenseReportEvents(id: string | undefined) {
   return useQuery({
     queryKey: ['expenseReports', 'events', id],
-    queryFn: async () => parseExpenseReportEvents(await fetchLegacyDocument('/expensereport/info.php', new URLSearchParams({ id: id ?? '' }))),
+    // expensereport/fapi/events.php
+    queryFn: () => loadExpenseReportEvents(id ?? ''),
     enabled: Boolean(id),
   })
 }
@@ -100,7 +99,8 @@ export function useExpenseReportEvents(id: string | undefined) {
 export function useExpenseReportLedger(id: string | undefined) {
   return useQuery({
     queryKey: ['expenseReports', 'ledgerentry', id],
-    queryFn: async () => parseExpenseReportLedger(await fetchLegacyDocument('/expensereport/ledgerentry.php', new URLSearchParams({ id: id ?? '' }))),
+    // expensereport/fapi/ledgerentry.php
+    queryFn: () => loadExpenseReportLedger(id ?? ''),
     enabled: Boolean(id),
   })
 }

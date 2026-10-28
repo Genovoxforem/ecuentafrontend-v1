@@ -6,10 +6,9 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ListHeader, ListPagination, SearchBox, EmptyRow, ZraStatusBadge, PER_PAGE } from './ZraListChrome'
 
-// Real getLibStatut() labels this backend actually returns for supplier
-// invoices (confirmed live: Draft/Paid/Started/Not Paid all appear in real
-// rows) — anything else falls back to a neutral pill rather than guessing
-// a color for a label that hasn't been seen.
+// getLibStatut() labels this backend returns for supplier invoices
+// (Draft/Paid/Started/Not Paid) — anything else falls back to a neutral
+// pill rather than guessing a color for a label that hasn't been seen.
 const STATUS_STYLES: Record<string, string> = {
   Draft: 'bg-surface-hover text-text-muted',
   Paid: 'bg-info-bg text-info-fg',

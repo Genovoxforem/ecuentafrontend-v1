@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { fapiGet } from '../../api/fapiEnvelope'
 import { useStockMovementsList } from './stockMovementsList.queries'
+
+// product/stock/fapi/dashboard.php feeds both the summary tiles and the values column of the warehouse list. With
+// staleTime 0 fetchQuery never answers from the cache: callers that ask while a request is in flight share it, and any
+// later call fetches again.
+export function fetchWarehouseDashboard(queryClient: QueryClient) {
+  return queryClient.fetchQuery({ queryKey: ['warehouses', 'dashboardRaw'], queryFn: () => fapiGet<any>('/product/stock/fapi/dashboard.php'), staleTime: 0 })
+}
 
 export interface WarehouseSummary {
   totalProductsInStock: number
@@ -40,10 +47,11 @@ const EMPTY: WarehouseSummary = {
 // "stock value" (quantity x selling price); the cost-based figure is value_at_cost. Stock reservations are not a table
 // on this backend, so they stay at zero.
 export function useWarehouseSummary() {
+  const queryClient = useQueryClient()
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['warehouses', 'dashboardFapi'],
     queryFn: async (): Promise<WarehouseSummary> => {
-      const d = await fapiGet<any>('/product/stock/fapi/dashboard.php')
+      const d = await fetchWarehouseDashboard(queryClient)
       return {
         totalProductsInStock: Number(d.stock?.products_with_stock) || 0,
         totalStockQuantity: Number(d.stock?.total_qty) || 0,

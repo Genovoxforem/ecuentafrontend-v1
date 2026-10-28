@@ -403,7 +403,7 @@ export const ALL_APPS: AppSection[] = [
       { label: 'List Leave', to: ROUTES.leaveList },
       { label: 'New Expenses reports', to: ROUTES.expensesCreate },
       { label: 'List Expenses reports', to: ROUTES.expenseReportsList },
-      { label: 'Monthly statement' },
+      { label: 'Monthly statement', to: ROUTES.hrmMonthlyStatement },
     ],
   },
   {

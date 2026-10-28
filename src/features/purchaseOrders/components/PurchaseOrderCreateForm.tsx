@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useProjectOptions } from '../../../api/lookups'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -9,7 +10,6 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
-import { api } from '../../../api/axios'
 import { fapiGet, fapiPost } from '../../../api/fapiEnvelope'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useVendorOptions } from '../../customers/customerOptions'
@@ -69,10 +69,6 @@ interface DictionaryOption {
   id: string
   text: string
 }
-interface DictionaryResponse {
-  success: boolean
-  results: Array<{ id: string | number; text: string }>
-}
 // GET /api/payment_types.php — same real, working dictionary (llx_c_paiement)
 // OrderCreateForm.tsx already uses for Sales Orders' Payment Type field; not
 // order-type-specific, so reused as-is here for Payment Mode. Goes through
@@ -81,34 +77,17 @@ interface DictionaryResponse {
 // purchase_handler.php below, which is session-cookie authenticated only.
 function usePaymentTypes() {
   return useQuery({
-    queryKey: ['dictionary', '/payment_types.php'],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const { data } = await api.get<DictionaryResponse>('/payment_types.php')
-      return data.success ? data.results.map((r) => ({ id: String(r.id), text: r.text })) : []
-    },
+    queryKey: ['purchase-forms', 'paymentModes'],
+    queryFn: async (): Promise<DictionaryOption[]> =>
+      (await fapiGet<{ payment_modes: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_modes.map((m) => ({ id: String(m.value), text: m.label })),
     staleTime: 1000 * 60 * 10,
   })
 }
 
-interface ProjectOption {
-  id: string
-  ref: string
-  title: string
-}
 // GET /api/projects.php — same real, working endpoint (queries llx_projet
 // WHERE fk_statut = 1, no customer/socid filter) OrderCreateForm.tsx already
 // uses for Sales Orders' Project field; not order-type-specific, reused
 // as-is here.
-function useProjectOptions() {
-  return useQuery({
-    queryKey: ['projects', 'open'],
-    queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
-      return data.results ?? []
-    },
-    staleTime: 1000 * 60,
-  })
-}
 
 // Payment Terms (llx_c_payment_term) from form_options.php.
 function usePurchasePaymentTerms() {

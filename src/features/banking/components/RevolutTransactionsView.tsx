@@ -2,23 +2,20 @@ import { useState } from 'react'
 import { Banknote, AlertTriangle, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useRevolutStatus } from '../bankConnectors.queries'
 
 const COLUMNS = ['Transaction Id', 'Type', 'Status', 'Completed_at', 'Amount', 'Currency']
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Native replacement for linking out to custom/revolut/revolutindex.php.
-// Real code exists (custom/revolut/bank_sync.php) — a genuine multi-bank
-// auto-reconciliation engine (Revolut/FNB/Airtel/MTN/Stanbic/Zanaco) with
-// real permission checks and JSON output — but confirmed this session (see
-// bankingPlaceholders.ts's prior audit) to read/write llx_bank_account
-// columns (api_provider, api_enabled, etc.) that don't exist in any tracked
-// SQL migration in this codebase, so it fails live: the real page always
-// shows a Curl SSL error banner and an empty transactions table. Reproduced
-// here as that same honest, confirmed state rather than a generic
-// "Not built yet" card — not fabricated, this is what the live page does.
+// Native replacement for custom/revolut/revolutindex.php. The connector (custom/revolut/bank_sync.php) reads llx_bank_account columns
+// (api_provider, api_enabled, ...) that no migration creates, so custom/revolut/fapi/sync.php answers 409 with the missing columns and the
+// ALTER statement an operator must run: that answer is shown where the classic page prints its error line. The classic table (Transaction
+// Id, Type, Status, completed_at, Amount, Currency) has no data source: sync.php returns the schema state, not transactions.
 export function RevolutTransactionsView() {
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
+  const status = useRevolutStatus()
 
   return (
     <div className="space-y-4">
@@ -26,12 +23,21 @@ export function RevolutTransactionsView() {
         <Banknote size={20} className="text-brand" /> Revolut Transaction Details
       </h2>
 
-      <Card className="!h-auto flex items-start gap-2 !bg-danger-bg border-danger/40">
-        <AlertTriangle size={15} className="text-danger-fg mt-0.5 shrink-0" />
-        <p className="text-xs text-danger-fg">Curl error: SSL certificate problem: unable to get local issuer certificate</p>
-      </Card>
-
-      
+      {status.isLoading && <LegacyLoadingCard label="Checking the Revolut connector…" />}
+      {status.isError && <LegacyErrorCard title="Couldn't reach the Revolut connector" message={status.error instanceof Error ? status.error.message : 'Unknown error.'} onRetry={() => status.refetch()} />}
+      {status.data && !status.data.ready && (
+        <Card className="!h-auto flex items-start gap-2 !bg-danger-bg border-danger/40">
+          <AlertTriangle size={15} className="text-danger-fg mt-0.5 shrink-0" />
+          <div className="space-y-1 text-xs text-danger-fg">
+            <p>{status.data.message}</p>
+            {status.data.missingColumns.length > 0 && <p>Missing columns of llx_bank_account: {status.data.missingColumns.join(', ')}</p>}
+            {status.data.hints.map((h) => (
+              <p key={h}>{h}</p>
+            ))}
+            {status.data.alterSql && <pre className="whitespace-pre-wrap break-all rounded bg-black/5 p-2 font-mono">{status.data.alterSql}</pre>}
+          </div>
+        </Card>
+      )}
 
       <Card className="!p-0 overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">

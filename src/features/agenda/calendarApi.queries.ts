@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
 
 // Real via comm/action/ajax/calendar_api.php — a genuine, secured
 // (hasRight('agenda','myactions','read')) JSON API behind the modern
@@ -34,7 +35,7 @@ interface RawFiltersResponse {
   data: {
     users: { id: number; name: string }[]
     usergroups: { id: number; name: string }[]
-    types: { id: number; code: string; label: string; color: string; type: string; picto: string }[]
+    types: { id: number; code: string; label: string; color: string | null; type: string; picto: string | null }[]
     statuses: { id: string; label: string }[]
     projects: { id: number; name: string }[]
     thirdparties: { id: number; name: string }[]
@@ -47,22 +48,12 @@ export function useAgendaFilterOptions() {
   return useQuery({
     queryKey: ['agenda', 'filterOptions'],
     queryFn: async (): Promise<AgendaFilterOptions> => {
-      const body = new URLSearchParams({ api_action: 'getFilters' })
-      const res = await fetch('/comm/action/ajax/calendar_api.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json: RawFiltersResponse = await res.json()
-      if (!json.success) throw new Error('Could not load calendar filters.')
-      return json.data
+      // comm/fapi/calendar.php?action=filters (captured from newecuenta on 23 Oct 2026, tests/fixtures/calendar-filters.json); a type without a colour answers null
+      const d = await fapiGet<RawFiltersResponse['data']>('/comm/fapi/calendar.php', { action: 'filters' })
+      return { ...d, types: d.types.map((t) => ({ ...t, color: t.color ?? '' })) }
     },
     staleTime: 5 * 60_000,
   })
-}
-
-// Kept as a thin selector over the same real endpoint for AddEventModal's
-// "Type" dropdown — avoids every caller re-deriving `.types` itself.
-export function useActionTypes() {
-  const { data, ...rest } = useAgendaFilterOptions()
-  return { ...rest, data: data?.types }
 }
 
 export type CalendarViewMode = 'show_month' | 'show_week' | 'show_day'
@@ -207,12 +198,7 @@ export function useContactsByCompany(socid: number | null) {
   return useQuery({
     queryKey: ['agenda', 'contacts', socid],
     queryFn: async (): Promise<{ id: number; name: string }[]> => {
-      const body = new URLSearchParams({ api_action: 'getContacts', socid: String(socid) })
-      const res = await fetch('/comm/action/ajax/calendar_api.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json: { success: boolean; contacts: { id: number; name: string }[] } = await res.json()
-      if (!json.success) throw new Error('Could not load contacts.')
-      return json.contacts
+      return (await fapiGet<{ contacts: { id: number; name: string }[] }>('/comm/fapi/calendar.php', { action: 'contacts', socid: socid! })).contacts
     },
     enabled: !!socid && socid > 0,
   })
@@ -262,21 +248,14 @@ interface RawEventDetail {
   url: string
 }
 
-// Real via api_action=getEventDetails&event_id=X — was already returned by
-// this same real endpoint (confirmed by reading calendar_api.php directly)
-// but never called: every event chip/row instead linked out to the legacy
-// card.php page via its own `url` field. Powers an in-app detail view
-// instead, so viewing an event no longer leaves the SPA.
+// api_action=getEventDetails&event_id=X: powers the in-app event detail view,
+// so viewing an event stays inside the SPA.
 export function useEventDetail(eventId: number | null) {
   return useQuery({
     queryKey: ['agenda', 'eventDetail', eventId],
     queryFn: async (): Promise<EventDetail> => {
-      const body = new URLSearchParams({ api_action: 'getEventDetails', event_id: String(eventId) })
-      const res = await fetch('/comm/action/ajax/calendar_api.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const json: { success: boolean; error?: string; event?: RawEventDetail } = await res.json()
-      if (!json.success || !json.event) throw new Error(json.error || 'Could not load event.')
-      const e = json.event
+      // comm/fapi/calendar.php?action=event&id= (entity-guarded; 404 for an unknown event)
+      const e = (await fapiGet<{ event: RawEventDetail }>('/comm/fapi/calendar.php', { action: 'event', id: eventId! })).event
       return {
         id: e.id,
         label: e.label,

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Download, Globe, ListChecks, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
-import { SETUP_GROUPS, constantsPayload, useSetupAction, useSetupConstants, useSetupDevices, useSetupLeaveTypes, useSetupTaxBands, type SetupConstants, type SetupGroupKey } from '../payrollSetup.queries'
+import { SETUP_GROUPS, useSaveSetupConstants, useSetupAction, useSetupConstants, useSetupDevices, useSetupLeaveTypes, useSetupTaxBands, type SetupConstants, type SetupGroupKey } from '../payrollSetup.queries'
 import { useDeviceLogs } from '../payrollV2.queries'
 import { EmptyRow, ErrorCard, LoadingRows, PanelCard, PayrollModal, TablePanel, Td, Th } from './PayrollV2Chrome'
 
@@ -39,7 +39,7 @@ type TabKey = (typeof TABS)[number]['key']
 // ---- General / Statutory / Sharing
 
 function ConstantsForm({ group, initial }: { group: SetupGroupKey; initial: SetupConstants }) {
-  const action = useSetupAction()
+  const action = useSaveSetupConstants()
   const [values, setValues] = useState<SetupConstants>(initial)
   const [result, setResult] = useState<Result>(null)
   const fields = values[group]
@@ -50,7 +50,7 @@ function ConstantsForm({ group, initial }: { group: SetupGroupKey; initial: Setu
     event.preventDefault()
     setResult(null)
     action.mutate(
-      { tab: group, fields: constantsPayload(values) },
+      fields,
       { onSuccess: (msg) => setResult({ ok: true, text: msg || 'Setup saved.' }), onError: (err) => setResult({ ok: false, text: errorText(err) }) },
     )
   }

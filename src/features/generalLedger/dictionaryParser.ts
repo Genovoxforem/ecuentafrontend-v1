@@ -1,7 +1,6 @@
-// Generic reader for a Dolibarr dictionary page (admin/dict.php?id=N&from=accountancy). Verified
-// against the dev backend's dictionaries 7 (tax accounts), 10 (VAT) and 17 (expense report line
-// types) and dict.php's own source. Every dictionary page has the same shape, so the fields, the
-// filters and the columns are all discovered from the page rather than listed here:
+// Generic reader for a Dolibarr dictionary page (admin/dict.php?id=N&from=accountancy), per
+// dict.php's own source. Every dictionary page has the same shape, so the fields, the filters and
+// the columns are all discovered from the page rather than listed here:
 //   - the add row: one form (hidden token/from/id) whose row holds one control per field — text
 //     inputs and selects named after the table column — and the submit `actionadd`; the header row
 //     above it gives each field's label (class `fieldrequired` marks a required one);

@@ -9,6 +9,7 @@ import {
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useCustomerOptions } from '../../customers/customerOptions'
@@ -46,7 +47,7 @@ interface InvoiceLineState extends NewInvoiceLine {
 }
 
 // The product's cost price (product/fapi/get.php: cost_price, else the weighted average cost). The picker's own
-// list (/api/products/) carries no cost column, which is why this used to read 0.00 for every product.
+// list (/api/products/) carries no cost column.
 function LineCost({ productId }: { productId?: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ['products', 'cost', productId],
@@ -505,13 +506,15 @@ export function QuickInvoiceCreateForm() {
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
             <Zap size={20} className="text-brand" /> Create Quick Invoice
           </h2>
-          <button
-            type="button"
-            onClick={handleNewSale}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-          >
-            <PlusCircle size={14} /> New Sale
-          </button>
+          <InBanner>
+            <button
+              type="button"
+              onClick={handleNewSale}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+            >
+              <PlusCircle size={14} /> New Sale
+            </button>
+          </InBanner>
         </div>
       }
       footerLeft={

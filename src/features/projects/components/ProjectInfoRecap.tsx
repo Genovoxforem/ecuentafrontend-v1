@@ -15,10 +15,9 @@ export function InfoRow({ icon: Icon, label, value }: { icon: React.ComponentTyp
 }
 
 // The same Project Information / Usage / Description & Tags card group the
-// Project tab shows — confirmed live against the real page's contact.php
-// and tasks.php (both repeat this exact recap above their own tab-specific
-// content, e.g. contact.php?id=1) — so every project sub-tab calls this
-// same component instead of only the Project tab having it.
+// Project tab shows — the classic contact.php and tasks.php both repeat this
+// recap above their own tab-specific content — so every project sub-tab
+// calls this same component instead of only the Project tab having it.
 export function ProjectInfoCards({ project }: { project: ProjectRow }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

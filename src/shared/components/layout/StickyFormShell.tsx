@@ -24,7 +24,7 @@ import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 //     algorithm instead, which doesn't have that problem.
 export interface WizardStepDef {
   title: string
-  subtitle: string
+  subtitle?: string
 }
 
 const WizardContext = createContext<number | null>(null)
@@ -37,9 +37,12 @@ export function WizardStep({ n, children }: { n: number; children: ReactNode }) 
 }
 
 // Step indicator: numbered circles joined by a line, title and subtitle centred underneath. role=tablist keeps the page banner from hoisting it.
-export function WizardStepper({ steps, step, onStep, canGoTo = () => true }: { steps: WizardStepDef[]; step: number; onStep: (i: number) => void; canGoTo?: (i: number) => boolean }) {
+// The stepper is drawn at this factor of its base size (zoom); density styles resize the parts, so one factor keeps them in proportion. Every wizard in the app uses this component.
+const WIZARD_STEPPER_ZOOM = 1.04
+
+export function WizardStepper({ steps, step, onStep, canGoTo = () => true }: { steps: readonly WizardStepDef[]; step: number; onStep: (i: number) => void; canGoTo?: (i: number) => boolean }) {
   return (
-    <div role="tablist" className="flex items-center px-12 sm:px-16">
+    <div role="tablist" className="flex items-center px-12 py-1 sm:px-16" style={{ zoom: WIZARD_STEPPER_ZOOM }}>
       {steps.map((w, i) => {
         const done = i < step
         const active = i === step
@@ -93,8 +96,7 @@ export function StickyFormShell({
   // panel with its own overflow-auto): min-h-0 lets the wrapper shrink to the scrollport so
   // that card's own scrolling engages. Anything taller than the viewport then spills past
   // the wrapper's undersized box and the footer (laid out right after that box, not after
-  // the spillover) ends up stuck mid-content — which is why this used to be the default
-  // and showed up as a footer floating over half-hidden sections on the longer forms.
+  // the spillover) ends up stuck mid-content, floating over half-hidden sections.
   scrollsInternally?: boolean
   // Splits the form into steps: shows a step indicator in the header, Back/Next in the footer, and the page's own footerRight (the submit action) only on the last step.
   wizard?: WizardStepDef[]

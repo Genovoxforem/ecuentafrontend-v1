@@ -141,7 +141,7 @@ export function useCustomerGroupDetail(id: string | undefined) {
     queryFn: async (): Promise<CustomerGroupDetail> => {
       let data: ApiEnvelope & { data?: RawGroup }
       try {
-        ;({ data } = await api.get(ENDPOINT, { params: { action: 'get', id } }))
+        ;({ data } = await fapi.get(FAPI_ENDPOINT, { params: { action: 'get', id } }))
       } catch (err) {
         throw apiError(err, 'Customer group not found.')
       }
@@ -169,7 +169,7 @@ export function useGroupProducts(groupId: string | undefined, search: string, of
         hasMore?: boolean
       }
       try {
-        ;({ data } = await api.get(ENDPOINT, { params: { action: 'products', id: groupId ?? 0, search: search || undefined, offset, limit } }))
+        ;({ data } = await fapi.get(FAPI_ENDPOINT, { params: { action: 'products', id: groupId ?? 0, search: search || undefined, offset, limit } }))
       } catch (err) {
         throw apiError(err, 'Could not load the products.')
       }
@@ -194,7 +194,7 @@ export function useGroupProducts(groupId: string | undefined, search: string, of
 // Same rule the backend enforces on save; pass the group's id when editing so its own label doesn't read as taken.
 export async function checkGroupLabel(label: string, id?: string): Promise<{ available: boolean; message: string }> {
   try {
-    const { data } = await api.get<ApiEnvelope & { available?: boolean }>(ENDPOINT, { params: { action: 'check_label', label, id } })
+    const { data } = await fapi.get<ApiEnvelope & { available?: boolean }>(FAPI_ENDPOINT, { params: { action: 'check_label', label, id } })
     return { available: Boolean(data.available), message: data.message ?? '' }
   } catch (err) {
     throw apiError(err, 'Could not check the label.')
@@ -282,7 +282,7 @@ export function useUpdateCustomerGroup() {
   return useMutation({
     mutationFn: async ({ id, input }: { id: number; input: CustomerGroupInput }) => {
       try {
-        const { data } = await api.put<ApiEnvelope>(ENDPOINT, { action: 'update', id, ...toPayload(input) })
+        const { data } = await fapi.post<ApiEnvelope>(FAPI_ENDPOINT, { id, ...toPayload(input) }, { params: { action: 'update' } })
         if (!data.success) throw new Error(data.error || data.message || 'Failed to save changes.')
         return { id }
       } catch (err) {

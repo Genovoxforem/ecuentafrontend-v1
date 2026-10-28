@@ -12,7 +12,7 @@ import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
 const inputCls = 'text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5'
 
 // Stock at a date — product/stock/fapi/stock_at_date.php (the classic
-// product/stock/stockatdate.php had no JSON and this page used to be inert).
+// product/stock/stockatdate.php has no JSON).
 // mode=past walks today's stock back by undoing every movement after the day;
 // mode=future is the business layer's theoretical (virtual) stock limited to the
 // day. The two are computed differently, so the response's `basis` is shown.

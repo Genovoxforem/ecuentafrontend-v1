@@ -1,27 +1,21 @@
 import ecuentaLogo from "../../../assets/Ecuenta_logo_png 1.png?inline";
 
 // Single source of truth for the printable receipt layout, mirroring legacy
-// takeposnew/receipt.php's actual design (navy-blue headings, dotted
-// dividers, styled "PAYMENT DETAILS" box, bold sans-serif type) rather than
-// the earlier plain monospace placeholder. Kept separate from ReportsModal
-// so any other screen that needs to print a receipt (e.g. a future
-// "reprint" action from the POS screen itself) can reuse the exact same
-// template.
+// takeposnew/receipt.php's design (navy-blue headings, dotted dividers,
+// styled "PAYMENT DETAILS" box, bold sans-serif type). Kept separate from
+// ReportsModal so any other screen that needs to print a receipt (e.g. a
+// future "reprint" action from the POS screen itself) can reuse the exact
+// same template.
 //
-// Company logo: real per-merchant logo from the backend (api/invoices/
+// Company logo: the per-merchant logo from the backend (api/invoices/
 // details.php's company.logo, built from Dolibarr's MAIN_INFO_SOCIETE_LOGO,
-// confirmed live to genuinely differ per entity — e.g. entity 16 has
-// "voxforem-trading1.png", entity 18 has "voxforem.jpg") when the backend
-// actually has one configured, falling back to this app's own bundled
-// Ecuenta asset only when it doesn't (no MAIN_INFO_SOCIETE_LOGO set at all,
-// or it resolves to Dolibarr's own "nophoto.png" placeholder — confirmed
-// some entities, e.g. entity 1 on this exact instance, have
-// MAIN_INFO_SOCIETE_LOGO literally set to this project's own generic
-// Ecuenta logo, in which case using the backend URL vs. the bundled one
-// makes no visible difference anyway). See logoImgHtml below. The bundled
-// asset is still imported via Vite's `?inline` so it's embedded as a base64
-// data URI directly in the generated HTML string — works unmodified whether
-// that string ends up in the on-screen iframe's srcDoc or a print popup's
+// which differs per entity) when the backend has one configured, falling
+// back to this app's own bundled Ecuenta asset only when it doesn't (no
+// MAIN_INFO_SOCIETE_LOGO set at all, or it resolves to Dolibarr's own
+// "nophoto.png" placeholder). See logoImgHtml below. The bundled asset is
+// imported via Vite's `?inline` so it's embedded as a base64 data URI
+// directly in the generated HTML string — works unmodified whether that
+// string ends up in the on-screen iframe's srcDoc or a print popup's
 // document.write(), neither of which reliably resolves a root-relative asset
 // URL back to this app's own origin.
 // Order Type/Table (order_type/table_label) ARE shown
@@ -36,9 +30,8 @@ import ecuentaLogo from "../../../assets/Ecuenta_logo_png 1.png?inline";
 // ever comes from the api/invoices/index.php fallback path (see
 // receiptApi.js's receiptFromInvoiceDetail), not from the primary
 // api/pos/receipt/index.php endpoint, which doesn't return this field at
-// all. So on a server where the primary endpoint works (e.g. local WAMP),
-// this section won't appear even for an invoice that really was
-// ZRA-uploaded — only reachable via the fallback path today.
+// all. So on a server where the primary endpoint works, this section won't
+// appear even for an invoice that was ZRA-uploaded.
 const esc = (v) =>
     String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 

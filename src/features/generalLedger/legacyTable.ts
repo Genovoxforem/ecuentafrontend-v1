@@ -141,22 +141,3 @@ export interface ReportTable {
   headers: string[]
   rows: ReportRow[]
 }
-
-export function readReportTable(doc: Document, firstHeader: RegExp): ReportTable | null {
-  for (const tr of Array.from(doc.querySelectorAll('tr'))) {
-    const cells = Array.from(tr.children)
-    if (cells.length < 2 || !firstHeader.test(cellText(cells[0]))) continue
-    const table = tr.closest('table')
-    if (!table || table.querySelector('table')) continue
-    const trs = Array.from(table.querySelectorAll('tr')).filter((r) => r.closest('table') === table)
-    const rows: ReportRow[] = []
-    for (const r of trs.slice(trs.indexOf(tr) + 1)) {
-      const texts = Array.from(r.children).map((c) => cellText(c))
-      if (texts.every((t) => t === '')) continue
-      const kind = /total/i.test(r.className) ? 'total' : r.classList.contains('oddeven') ? 'item' : 'section'
-      rows.push({ cells: texts, kind })
-    }
-    return { headers: cells.map((c) => cellText(c)), rows }
-  }
-  return null
-}

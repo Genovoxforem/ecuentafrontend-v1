@@ -4,7 +4,7 @@ import { Pencil, X, Plus, Printer, Landmark, ChevronLeft } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
-import { useBankAccountsList, useBankAccountsDropdown, useBankEntriesList, parseAmount, type BankEntryRow } from '../banking.queries'
+import { useBankAccountsList, useBankAccountsDetailedList, useBankAccountsDropdown, useBankEntriesList, parseAmount, type BankEntryRow } from '../banking.queries'
 import { BankEntriesList } from './BankEntriesList'
 import { BankMonthlyReportingTab } from './BankMonthlyReportingTab'
 import { BankGraphicsTab } from './BankGraphicsTab'
@@ -56,10 +56,10 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 // page's exact Cash/Other/Debit-order buckets, since that categorization
 // rule isn't confirmed). compta/bank/card.php itself has no real JSON API
 // (its 2 json_encode calls are just internal extraparams serialization, not
-// a response) — so account-level fields it alone renders (Account Type,
-// Can Be Reconciled, Min Balances, IBAN, BIC, Bank Address, Owner info,
-// Tags/Categories, Comment, Accounting Account/Journal) have no confirmed
-// source and show as honest "—".
+// a response) — so account-level fields it alone renders (Can Be Reconciled,
+// Min Balances, IBAN, BIC, Bank Address, Owner info, Tags/Categories, Comment)
+// have no confirmed source and show as honest "—". The Account Type,
+// Accounting Account and Journal rows come from compta/bank/fapi/list.php?detail=1.
 export function BankAccountDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -68,9 +68,11 @@ export function BankAccountDetail() {
 
   const { data: accounts, isLoading: accountsLoading, isError: accountsError, error: accountsErr, refetch: refetchAccounts } = useBankAccountsList()
   const { data: dropdownAccounts } = useBankAccountsDropdown()
+  const { data: detailedAccounts } = useBankAccountsDetailedList('all')
   const { data: entriesData, isLoading: entriesLoading } = useBankEntriesList(accountId, 0, 2000)
 
   const account = accounts?.find((a) => a.id === accountId)
+  const detailed = detailedAccounts?.find((a) => a.id === String(accountId))
 
   const stats = useMemo(() => {
     const rows: BankEntryRow[] = entriesData?.rows ?? []
@@ -215,13 +217,13 @@ export function BankAccountDetail() {
           <Card className="!h-auto">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
               <div>
-                <InfoRow label="Account Type" value="—" />
+                <InfoRow label="Account Type" value={detailed?.type || '—'} />
                 <InfoRow label="Currency" value={currencyName(account.currencyCode)} />
                 <InfoRow label="Can Be Reconciled" value="—" />
                 <InfoRow label="Minimum Allowed Balance" value="—" />
                 <InfoRow label="Minimum Desired Balance" value="—" />
-                <InfoRow label="Accounting Account" value="—" />
-                <InfoRow label="Accounting Code Journal" value="—" />
+                <InfoRow label="Accounting Account" value={detailed?.accountingAccount || '—'} />
+                <InfoRow label="Accounting Code Journal" value={detailed?.journal || '—'} />
               </div>
               <div>
                 <InfoRow label="Tags/Categories" value="—" />
@@ -272,12 +274,12 @@ export function BankAccountDetail() {
         </Card>
       )}
 
-      {tab === 'Monthly Reporting' && <BankMonthlyReportingTab entries={entriesData?.rows ?? []} account={account} />}
+      {tab === 'Monthly Reporting' && <BankMonthlyReportingTab account={account} />}
 
-      {tab === 'Graphics' && <BankGraphicsTab entries={entriesData?.rows ?? []} account={account} />}
+      {tab === 'Graphics' && <BankGraphicsTab account={account} />}
 
       {tab === 'Account Statements' && (
-        <BankAccountStatementsTab entries={entriesData?.rows ?? []} currencyCode={account.currencyCode} onReconcile={() => setTab('Bank Entries')} />
+        <BankAccountStatementsTab accountId={account.id} currencyCode={account.currencyCode} onReconcile={() => setTab('Bank Entries')} />
       )}
 
       {tab === 'Linked Files' && <BankLinkedFilesTab accountId={account.id} />}

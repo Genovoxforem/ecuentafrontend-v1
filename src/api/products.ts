@@ -106,6 +106,10 @@ export interface ProductListItem {
   stock_alert: number
   desired_stock: number
   total_reserved: number
+  /** Lot / serial tracking: 0 off, 1 lot, 2 serial (llx_product.tobatch). */
+  tobatch?: number
+  /** The backend's label for `tobatch`, e.g. "Disabled". */
+  lot_status?: string
   stock_state: string
   weight: number | null
   weight_units: string
@@ -338,8 +342,8 @@ export function getProduct(id: number | string, options: { withStock?: boolean; 
   return call<ProductGetData>(fapi.get(`${BASE}/get.php`, { params }), 'Could not load the product.')
 }
 
-export function searchProducts(query: string, options: { warehouse?: number } = {}) {
-  return call<ProductSearchData>(fapi.get(`${BASE}/search.php`, { params: { q: query, warehouse: options.warehouse } }), 'Product search failed.')
+export function searchProducts(query: string, options: { warehouse?: number } = {}, signal?: AbortSignal) {
+  return call<ProductSearchData>(fapi.get(`${BASE}/search.php`, { params: { q: query, warehouse: options.warehouse }, signal }), 'Product search failed.')
 }
 
 export function findProductByBarcode(barcode: string) {
@@ -414,9 +418,8 @@ export function assignProductCategories(product: number | string, categories: nu
   )
 }
 
-// ── Detail tabs (product/fapi, deployed 15 Oct 2026) ───────────
-// The tab calls that used to go to productinfo/api/*.php. Shapes checked against
-// newecuenta's live responses. Older backends answer 404 here (isMissingEndpoint).
+// ── Detail tabs (product/fapi) ───────────
+// Older backends answer 404 here (isMissingEndpoint).
 
 export interface ProductRef {
   id: number
@@ -497,7 +500,9 @@ export interface ProductUomConversion {
   factor: number
   price_override_ttc: number
   purchase_price_ht: number | null
+  purchase_price_ttc?: number | null
   selling_price_ht: number | null
+  selling_price_ttc?: number | null
   allow_purchase: boolean
   allow_sale: boolean
   is_default: boolean
@@ -664,7 +669,7 @@ export interface ProductNotesData {
 
 export interface ProductDocumentsData {
   id: number
-  files: { name: string; size: number | string; date: string; is_image: boolean; url: string; image_url: string }[]
+  files: { name: string; size: number | string; size_raw?: number; date: string; is_image: boolean; url: string; image_url: string }[]
   links: { id: number; label: string; url: string; date: string }[]
   meta: { can_edit: boolean; modulepart: string; count: number }
 }
@@ -723,6 +728,11 @@ export function saveProductUomConversion(input: ProductUomConversionInput) {
 
 export function deleteProductUomConversion(id: number | string, convId: number) {
   return postTab<Record<string, unknown>>('uom.php', 'delete_conversion', { id: Number(id), conv_id: convId }, 'Could not delete this conversion.')
+}
+
+/** Turns lot/batch tracking on or off. Switching it off is refused (409) while lots exist, since they would stay attached to an untracked product. */
+export function setProductBatchTracking(id: number | string, enabled: boolean) {
+  return postTab<Record<string, unknown>>('uom.php', enabled ? 'enable_batch' : 'disable_batch', { id: Number(id) }, 'Could not change the lot tracking.')
 }
 
 export function getProductSuppliers(id: number | string) {
@@ -790,6 +800,15 @@ export function uploadProductDocument(id: number | string, file: File) {
 
 export function deleteProductDocumentFile(id: number | string, name: string) {
   return postTab<Record<string, unknown>>('documents.php', 'delete_file', { id: Number(id), name }, 'Could not delete this file.')
+}
+
+// documents.php?action=link { id, link, label } adds a URL link; action=delete_link { id, linkid } removes one.
+export function linkProductDocument(id: number | string, link: string, label: string) {
+  return postTab<Record<string, unknown>>('documents.php', 'link', { id: Number(id), link, label }, 'Could not add the link.')
+}
+
+export function deleteProductDocumentLink(id: number | string, linkId: number) {
+  return postTab<Record<string, unknown>>('documents.php', 'delete_link', { id: Number(id), linkid: linkId }, 'Could not remove the link.')
 }
 
 export function getProductAgenda(id: number | string) {

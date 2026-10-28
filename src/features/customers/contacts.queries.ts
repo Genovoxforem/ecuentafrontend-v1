@@ -49,8 +49,8 @@ export function useContacts(kind: ContactKind, search: string, page: number, lim
 
 /**
  * One contact by id — GET /contact/fapi/get.php. Carries everything the list
- * rows do plus the notes, entity and categories, so the detail page no longer
- * has to find its contact inside the list's first page.
+ * rows do plus the notes, entity and categories, so the detail page doesn't
+ * have to find its contact inside the list's first page.
  */
 export function useContact(id: string | undefined) {
   return useQuery({
@@ -81,8 +81,7 @@ export interface NewContactInput {
  * Create contact — uses the bearer-token-authenticated fapi endpoint:
  *   POST /contact/fapi/create.php
  *
- * Wraps Contact::create() so hooks/triggers fire. No longer needs the
- * session-cookie-based societe/api/contacts.php or a CSRF token.
+ * Wraps Contact::create() so hooks/triggers fire.
  */
 export function useCreateContact() {
   const queryClient = useQueryClient()

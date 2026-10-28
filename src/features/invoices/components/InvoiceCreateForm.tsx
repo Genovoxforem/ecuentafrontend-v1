@@ -18,7 +18,7 @@ import { formatMoney } from '../../../utils/format'
 import { useWarehousePickerOptions } from '../../warehouses/warehouseExtras.queries'
 import { useProjectsList } from '../../projects/projects.queries'
 import { useGeneralSettings } from '../../settings/settings.queries'
-import { useBankAccountOptions, useCustomerInvoiceDefaults, useInvoiceCurrencies, usePaymentTerms } from '../invoiceFormOptions.queries'
+import { useBankAccountOptions, useCustomerInvoiceDefaults, useInvoiceCurrencies, usePaymentModes, usePaymentTerms } from '../invoiceFormOptions.queries'
 
 // The five kinds of invoice the classic "Create Detailed Invoice" page offers.
 // Each one is saved the way the backend can really save it:
@@ -37,23 +37,6 @@ const KINDS: { key: InvoiceKind; label: string; info: string }[] = [
   { key: 'export', label: 'Export', info: 'An invoice for goods sold for export.' },
   { key: 'template', label: 'Template invoice', info: 'A recurring invoice: the invoice below is saved as a template that the backend turns into a real invoice on a schedule.' },
   { key: 'credit', label: 'Credit note', info: 'Corrects an invoice you already issued — choose the invoice to correct.' },
-]
-
-// Real llx_c_paiement codes/labels (queried directly against the DB) — no
-// dictionary endpoint exists for this on the backend, so it's a static list
-// like BASE_CURRENCIES/INCOTERMS_OPTIONS elsewhere in this app rather than
-// a live fetch, but the codes themselves are real and match what
-// fk_mode_reglement actually stores.
-const PAYMENT_TYPES = [
-  { code: '01', label: 'Cash' },
-  { code: '03', label: 'Cash/Credit' },
-  { code: '02', label: 'Credit' },
-  { code: 'CB', label: 'Credit card' },
-  { code: '05', label: 'Debit card' },
-  { code: '04', label: 'Bank cheque' },
-  { code: '08', label: 'Bank transfer' },
-  { code: '06', label: 'Mobile money' },
-  { code: '07', label: 'Other' },
 ]
 
 interface LineState extends NewInvoiceLine {
@@ -184,6 +167,7 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
   const [currency, setCurrency] = useState('')
   const [currencyRate, setCurrencyRate] = useState(1)
   const { data: paymentTerms } = usePaymentTerms()
+  const { data: paymentModes } = usePaymentModes()
   const { data: bankAccounts } = useBankAccountOptions()
   const { data: currencies } = useInvoiceCurrencies()
   const { data: projects } = useProjectsList('all')
@@ -515,9 +499,9 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
               <Field label="Payment Type" required>
                 <select value={paymentModeCode} onChange={(e) => setPaymentModeCode(e.target.value)} className={inputClasses}>
                   <option value="">Select a payment type</option>
-                  {PAYMENT_TYPES.map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.label}
+                  {(paymentModes ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.text}
                     </option>
                   ))}
                 </select>

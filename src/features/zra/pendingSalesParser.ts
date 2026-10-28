@@ -1,3 +1,4 @@
+import { parseAmount } from '../../utils/text'
 // Parses compta/facture/invoice_ajax_list.php's own DataTables rows (real,
 // confirmed by reading that file directly) — same aaData/iTotalRecords
 // shape as fourn/facture/facture_ajax_list.php (see
@@ -9,11 +10,6 @@
 function cellText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim()
-}
-
-function parseAmount(text: string): number {
-  const n = Number(text.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
 }
 
 export interface RawPendingSalesRow {

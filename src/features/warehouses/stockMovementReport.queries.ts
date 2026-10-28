@@ -1,12 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { fapiGet } from '../../api/fapiEnvelope'
 
-// product/stock/stock_movement_report_ajax.php — a real, complete stock-card
-// report (opening balance, per-movement in/out, running closing balance,
-// with customer/vendor "particulars" and invoice/order refs) — found by
-// grepping product/stock/ for json_encode. Confirmed live: returns a clean
-// {success, data, totals} envelope even for a product with zero movements
-// (a single OPENING row at the requested opening balance).
+// product/stock/fapi/movement_report.php — the stock card of one product: opening balance, each movement in or out, the running closing
+// balance, with the customer or vendor as "particulars" and the document ref. The period defaults to the current month when no date is sent.
+// Captured from newecuenta on 23 Oct 2026 (tests/fixtures/stock-movement-report.json).
 
 export interface StockMovementReportRow {
   date: string
@@ -37,63 +34,35 @@ export interface StockMovementReportFilters {
   dateEnd: string
 }
 
-interface RawRow {
-  date: string
-  particulars: string
-  invoice_no: string
-  initial_stock: number | ''
-  stock_in: number | ''
-  stock_out: number | ''
-  defects: number | ''
-  closing_stock: number
+export interface FapiMovementReport {
+  rows: Array<{ date: string; particulars: string | null; invoice_no: string | null; initial_stock: number | null; stock_in: number | null; stock_out: number | null; defects: number | null; closing_stock: number }>
+  totals: { initial_stock: number; total_in: number; total_out: number; total_defects: number; closing_stock: number }
 }
-interface RawTotals {
-  initial_stock: number
-  total_in: number
-  total_out: number
-  total_defects: number
-  closing_stock: number
+
+// The old report left a column blank (an empty string) where there was no figure.
+const blank = (v: number | null): number | '' => (v === null ? '' : v)
+
+export function mapMovementReport(d: FapiMovementReport): StockMovementReport {
+  return {
+    rows: d.rows.map((r) => ({
+      date: r.date,
+      particulars: r.particulars ?? '',
+      invoiceNo: r.invoice_no ?? '',
+      initialStock: blank(r.initial_stock),
+      stockIn: blank(r.stock_in),
+      stockOut: blank(r.stock_out),
+      defects: blank(r.defects),
+      closingStock: r.closing_stock,
+    })),
+    totals: { initialStock: d.totals.initial_stock, totalIn: d.totals.total_in, totalOut: d.totals.total_out, totalDefects: d.totals.total_defects, closingStock: d.totals.closing_stock },
+  }
 }
 
 export function useStockMovementReport(filters: StockMovementReportFilters) {
   return useQuery({
-    queryKey: ['stockMovementReport', filters],
-    queryFn: async (): Promise<StockMovementReport> => {
-      const params = new URLSearchParams({
-        product_id: String(filters.productId),
-        date_start: filters.dateStart,
-        date_end: filters.dateEnd,
-      })
-      if (filters.warehouseId) params.set('warehouse_id', String(filters.warehouseId))
-      const res = await fetch(`/product/stock/stock_movement_report_ajax.php?${params.toString()}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      let json: { success: boolean; message?: string; data?: RawRow[]; totals?: RawTotals }
-      try {
-        json = await res.json()
-      } catch {
-        throw new Error(NOT_SIGNED_IN_MESSAGE)
-      }
-      if (!json.success) throw new Error(json.message || 'Failed to load the stock movement report.')
-      return {
-        rows: (json.data ?? []).map((r) => ({
-          date: r.date,
-          particulars: r.particulars,
-          invoiceNo: r.invoice_no,
-          initialStock: r.initial_stock,
-          stockIn: r.stock_in,
-          stockOut: r.stock_out,
-          defects: r.defects,
-          closingStock: r.closing_stock,
-        })),
-        totals: {
-          initialStock: json.totals?.initial_stock ?? 0,
-          totalIn: json.totals?.total_in ?? 0,
-          totalOut: json.totals?.total_out ?? 0,
-          totalDefects: json.totals?.total_defects ?? 0,
-          closingStock: json.totals?.closing_stock ?? 0,
-        },
-      }
-    },
+    queryKey: ['stockMovementReport', 'fapi', filters],
+    queryFn: async (): Promise<StockMovementReport> =>
+      mapMovementReport(await fapiGet<FapiMovementReport>('/product/stock/fapi/movement_report.php', { product: filters.productId, warehouse_id: filters.warehouseId, date_start: filters.dateStart, date_end: filters.dateEnd })),
     enabled: !!filters.productId,
   })
 }

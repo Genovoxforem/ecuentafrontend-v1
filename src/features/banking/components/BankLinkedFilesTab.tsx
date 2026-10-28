@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Upload, Link2, LoaderCircle, Check } from 'lucide-react'
+import { Upload, Link2, LoaderCircle, Check, Download, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useUploadBankDocument, useLinkBankDocument } from '../banking.queries'
+import { useUploadBankDocument, useLinkBankDocument, useBankDocuments, useDeleteBankDocument } from '../banking.queries'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 w-full'
 
@@ -11,7 +12,11 @@ const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 // already attached/linked though, so both tables stay an honest empty state
 // — "No Documents Uploaded" / "No Registered Links" match the real page's
 // own wording for that case.
+// The attached files are listed (and removed) through compta/bank/fapi/documents.php; no endpoint lists the links.
 export function BankLinkedFilesTab({ accountId }: { accountId: number }) {
+  const documents = useBankDocuments(accountId)
+  const remove = useDeleteBankDocument(accountId)
+  const confirm = useConfirm()
   return (
     <div className="space-y-4">
       <UploadForm accountId={accountId} />
@@ -28,14 +33,55 @@ export function BankLinkedFilesTab({ accountId }: { accountId: number }) {
                 <th className="font-medium px-4 py-2.5">Documents</th>
                 <th className="font-medium px-4 py-2.5">Size</th>
                 <th className="font-medium px-4 py-2.5">Date</th>
+                <th className="font-medium px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={3} className="px-4 py-4 text-text-faint italic">
-                  No data source available — this backend has no endpoint to list attached files.
-                </td>
-              </tr>
+              {documents.isLoading && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-text-faint italic">
+                    Loading...
+                  </td>
+                </tr>
+              )}
+              {documents.isError && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-danger">
+                    {documents.error instanceof Error ? documents.error.message : "Couldn't load the files."}
+                  </td>
+                </tr>
+              )}
+              {documents.data && documents.data.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-text-faint italic">
+                    No Documents Uploaded
+                  </td>
+                </tr>
+              )}
+              {documents.data?.map((f) => (
+                <tr key={f.name} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5">
+                    <a href={f.url} download={f.name} className="flex items-center gap-1.5 text-brand hover:underline">
+                      <Download size={14} /> {f.name}
+                    </a>
+                  </td>
+                  <td className="px-4 py-2.5 text-text-muted">{f.size}</td>
+                  <td className="px-4 py-2.5 text-text-muted">{f.date}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      type="button"
+                      title="Delete file"
+                      disabled={remove.isPending}
+                      onClick={async () => {
+                        if (await confirm({ title: 'Delete File?', message: `Delete ${f.name}?` })) remove.mutate(f.name)
+                      }}
+                      className="p-1.5 rounded-md text-danger hover:bg-danger-bg disabled:opacity-60"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

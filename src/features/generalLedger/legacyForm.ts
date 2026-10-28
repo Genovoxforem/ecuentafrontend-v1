@@ -90,10 +90,12 @@ export function readLegacyForm(doc: Document, anchor: string): LegacyFormData {
   }
 }
 
-export function useLegacyForm(path: string, anchor: string, query?: Record<string, string>) {
+// `load` replaces the page fetch for a setup form that now has a JSON endpoint: it returns the same LegacyFormData, so the form page
+// renders it unchanged.
+export function useLegacyForm(path: string, anchor: string, query?: Record<string, string>, load?: () => Promise<LegacyFormData>) {
   return useQuery({
-    queryKey: ['generalLedger', 'legacyForm', path, query],
-    queryFn: async () => readLegacyForm(await fetchLegacyDocument(path, query ? new URLSearchParams(query) : undefined), anchor),
+    queryKey: ['generalLedger', 'legacyForm', path, query, load ? 'fapi' : 'page'],
+    queryFn: async () => (load ? load() : readLegacyForm(await fetchLegacyDocument(path, query ? new URLSearchParams(query) : undefined), anchor)),
     staleTime: 0,
     gcTime: 0, // the CSRF token must not outlive the page
   })

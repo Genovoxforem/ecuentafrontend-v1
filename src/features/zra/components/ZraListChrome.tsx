@@ -40,10 +40,6 @@ export function SearchBox({ value, onChange, onSubmit, placeholder = 'Search…'
   )
 }
 
-export function TableShell({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-xl border border-border bg-surface-alt overflow-auto max-h-[65vh] soft-scrollbar">{children}</div>
-}
-
 // `error` and `feature` back the api/zra/* "not available on this backend
 // yet" state (see shared/components/BackendUnavailable.tsx): every ZRA list
 // endpoint 404s on the current backend, so isError alone isn't enough to

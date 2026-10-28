@@ -85,9 +85,9 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-// Matches the real .ec-meta-item pills on product/stock/card.php's own
-// header banner (icon + label + bold value) — verified live (warehouse
-// id=9): fa-boxes-stacked/fa-cubes/fa-money-bill/fa-clock, in this order.
+// Matches the .ec-meta-item pills on product/stock/card.php's own header
+// banner (icon + label + bold value): fa-boxes-stacked/fa-cubes/
+// fa-money-bill/fa-clock, in this order.
 // Matches CustomerDetail.tsx's own StatTile exactly (label/value pair in the
 // header's stat row) — named differently here only because this file's own
 // Stock Movements tab already has an unrelated icon-based StatTile.
@@ -126,14 +126,14 @@ export function WarehouseDetail() {
     if (!(await confirm({ title: 'Delete Warehouse?', message: 'Are you sure you want to delete this warehouse?' }))) return
     deleteWarehouse.mutate(id, { onSuccess: () => navigate(ROUTES.warehouseList) })
   }
-  // The real Product Search select (card.php's own select_produits() call)
-  // lists the WHOLE product catalog, not just products already stocked
-  // here — confirmed live: "mtm" (0 products) still offers a full searchable
-  // list, and picking one not stocked in this warehouse legitimately comes
-  // back empty (its own SQL just ANDs "p.rowid = selected" onto the
-  // already-warehouse-scoped query). Reuses the same real catalog endpoint
-  // ProductsList.tsx uses; best-effort — falls back to this warehouse's own
-  // (smaller) product list if it fails, so the control never sits empty.
+  // The Product Search select (card.php's own select_produits() call) lists
+  // the WHOLE product catalog, not just products already stocked here: a
+  // warehouse with 0 products still offers a full searchable list, and
+  // picking one not stocked in this warehouse comes back empty (its own SQL
+  // just ANDs "p.rowid = selected" onto the already-warehouse-scoped query).
+  // Reuses the same catalog endpoint ProductsList.tsx uses; best-effort —
+  // falls back to this warehouse's own (smaller) product list if it fails,
+  // so the control never sits empty.
   const { data: allProducts } = useAllProductsRich(0)
 
   if (isLoading) {
@@ -680,17 +680,17 @@ interface MovementFilterDraft {
 const emptyMovementFilterDraft: MovementFilterDraft = { productId: '', batch: '', inventoryCode: '', startDate: '', endDate: '' }
 
 function WarehouseMovementsTab({ warehouseId }: { warehouseId: number }) {
-  // Draft/applied split matches the real page's own Filters panel — typing a
+  // Draft/applied split matches the page's own Filters panel — typing a
   // date or picking a dropdown value there doesn't refetch until "Search" is
-  // clicked (confirmed live), rather than firing a request per keystroke.
+  // clicked, rather than firing a request per keystroke.
   const [draft, setDraft] = useState<MovementFilterDraft>(emptyMovementFilterDraft)
   const [applied, setApplied] = useState<MovementFilterDraft>(emptyMovementFilterDraft)
   const [page, setPage] = useState(0)
   const tableRef = useRef<HTMLTableElement>(null)
-  // A single-sided pick (only From, or only To) used to be silently dropped
-  // entirely — the real newdatepicker param always needs both bounds, so an
-  // open end here is filled with a far-past/far-future date rather than
-  // requiring the user to fill in both fields for a simple "since X" filter.
+  // The newdatepicker param always needs both bounds, so for a single-sided
+  // pick (only From, or only To) the open end is filled with a
+  // far-past/far-future date rather than requiring the user to fill in both
+  // fields for a simple "since X" filter.
   const dateRange =
     applied.startDate || applied.endDate
       ? `${applied.startDate ? toLegacyDate(applied.startDate) : '01/01/1970'}-${applied.endDate ? toLegacyDate(applied.endDate) : '12/31/2099'}`

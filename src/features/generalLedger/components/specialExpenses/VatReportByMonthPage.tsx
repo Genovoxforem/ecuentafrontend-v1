@@ -2,7 +2,7 @@ import { BarChart3, FileSpreadsheet, Printer } from 'lucide-react'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useVatReportByMonth } from '../../vatReportByMonth.queries'
-import type { VatReportByMonth } from '../../vatReportByMonthParser'
+import type { VatReportByMonth } from '../../vatReportByMonth.types'
 
 const th = 'font-medium px-3 py-2 text-xs uppercase tracking-wide text-text-faint'
 const num = 'px-3 py-2 text-right tabular-nums'
@@ -39,7 +39,7 @@ function exportCsv(d: VatReportByMonth) {
 const btn = 'flex items-center justify-center h-9 w-9 rounded-md bg-brand text-white hover:bg-brand-hover'
 
 // compta/tva/index.php — the real "TAX REPORT BY MONTH" (see
-// vatReportByMonthParser.ts). Read-only; Export downloads the three tables
+// vatReportByMonth.types.ts). Read-only; Export downloads the three tables
 // as CSV and Print opens the browser print dialog.
 export function VatReportByMonthPage() {
   const { data, isLoading, isError, error, refetch } = useVatReportByMonth()
@@ -143,7 +143,7 @@ export function VatReportByMonthPage() {
         </div>
       </Card>
 
-      <Card className="!h-auto !p-0 overflow-hidden">
+      {data.balance.length > 0 && (<Card className="!h-auto !p-0 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">Tax Balance</div>
         <table className="w-full text-sm">
           <tbody>
@@ -155,7 +155,7 @@ export function VatReportByMonthPage() {
             ))}
           </tbody>
         </table>
-      </Card>
+      </Card>)}
     </div>
   )
 }

@@ -26,9 +26,9 @@ interface DashboardResponse {
   statistics: DashboardStatistics
 }
 
-// GET /api/dashboard/ — confirmed live. Shared by home.queries.ts and
-// billing.queries.ts (both need the same invoice/customer/order counts);
-// react-query dedupes the actual request across both by this query key.
+// GET /api/dashboard/. Shared by home.queries.ts and billing.queries.ts
+// (both need the same invoice/customer/order counts); react-query dedupes
+// the actual request across both by this query key.
 export function useDashboardStatistics() {
   return useQuery({
     queryKey: ['dashboard', 'statistics'],

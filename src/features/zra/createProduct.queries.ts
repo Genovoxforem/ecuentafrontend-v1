@@ -1,13 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createProductCategory, isMissingEndpoint, searchZraClassification } from '../../api/products'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import type { FormOption } from '../products/productConstants'
+import { collapse, FORM_OPTIONS_KEY, fetchProductFormOptions } from '../products/productFormOptions.queries'
+
+// Re-exports the form options from products/productFormOptions.queries.ts for existing imports.
+export { mapProductFormOptions, useProductFormOptions, type ProductFormOptions } from '../products/productFormOptions.queries'
+export type { FormOption } from '../products/productConstants'
 
 // The "Add Products" flow of the ZRA module, wired to what the backend itself
-// uses (all confirmed live against 172.16.5.10 by reading custom/zra/
-// zra-import.php and the endpoints its own scripts call):
-//   - form options and their default selections: the page's own #productsForm
-//     (countries, units, packaging, tax categories, warehouses, barcode types,
-//     accounts, tags/categories);
+// uses (custom/zra/zra-import.php and the endpoints its own scripts call):
+//   - form options and their default selections: products/productFormOptions.queries.ts
+//     (GET /product/fapi/form_options.php);
 //   - ASYCUDA prefill:   POST /quicklinks_ajax.php  type=get_importproduct;
 //   - classification search: GET /product/fapi/zra_classification.php?q= (JSON; the
 //     older custom/zra/productclassification.php answers when that is not deployed);
@@ -15,93 +19,6 @@ import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAG
 //     the new id; the older product/ajax/products.php answers when that is not deployed);
 //   - create product:    POST /custom/zra/ajax_products.php  type=addproducts
 //     (inserts the product AND registers it with the ZRA gateway in one request).
-// The old /api/zra/* and /api/products/create-full/ routes this used to call are
-// not on this backend.
-
-export interface FormOption {
-  value: string
-  label: string
-}
-
-const collapse = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
-
-// ---------------------------------------------------------------------------
-// Form options + defaults, read from the real form
-// ---------------------------------------------------------------------------
-
-export interface ProductFormOptions {
-  countries: FormOption[]
-  units: FormOption[]
-  packingUnits: FormOption[]
-  vatCategories: FormOption[]
-  iplCategories: FormOption[]
-  tourismCategories: FormOption[]
-  exciseCategories: FormOption[]
-  warehouses: FormOption[]
-  barcodeTypes: FormOption[]
-  categories: FormOption[]
-  accountingAccounts: FormOption[]
-  natures: FormOption[] // Finished Product / Raw Material / Service
-  weightUnits: FormOption[]
-  sizeUnits: FormOption[]
-  surfaceUnits: FormOption[]
-  volumeUnits: FormOption[]
-  // what the real form has pre-selected (Zambia, TTC pricing, 16 (A), Code 128, the default accounts…)
-  defaults: Record<string, string>
-}
-
-const PRODUCTS_FORM_PATH = '/custom/zra/zra-import.php'
-
-// Options that only mean "nothing chosen" on the real form.
-const NONE = new Set(['0', '-1'])
-
-export function parseProductForm(doc: Document): ProductFormOptions {
-  const form: ParentNode = doc.querySelector('#productsForm') ?? doc
-  const select = (name: string) => form.querySelector<HTMLSelectElement>(`select[name="${name}"]`)
-  const options = (name: string, dropNone = true): FormOption[] =>
-    Array.from(select(name)?.options ?? [])
-      .map((o) => ({ value: o.value, label: collapse(o.textContent) }))
-      .filter((o) => o.label !== '' && !(dropNone && NONE.has(o.value)))
-
-  const defaults: Record<string, string> = {}
-  for (const s of Array.from(form.querySelectorAll<HTMLSelectElement>('select[name]'))) {
-    if (!s.multiple) defaults[s.name] = s.value
-  }
-  for (const i of Array.from(form.querySelectorAll<HTMLInputElement>('input[name]'))) {
-    if (i.type === 'hidden') defaults[i.name] = i.value
-  }
-
-  return {
-    countries: options('country_id'),
-    units: options('units'),
-    packingUnits: options('packing'),
-    vatCategories: options('tva_tx'),
-    iplCategories: options('iplCatCd'),
-    tourismCategories: options('tlCatCd'),
-    exciseCategories: options('exciseTxCatCd'),
-    warehouses: options('fk_default_warehouse'),
-    barcodeTypes: options('fk_barcode_type'),
-    categories: options('categories[]', false),
-    accountingAccounts: options('accountancy_code_sell', false),
-    natures: options('finished'),
-    weightUnits: options('weight_units', false),
-    sizeUnits: options('size_units', false),
-    surfaceUnits: options('surface_units', false),
-    volumeUnits: options('volume_units', false),
-    defaults,
-  }
-}
-
-const FORM_OPTIONS_KEY = ['zra', 'product-form-options'] as const
-const fetchFormOptions = async () => parseProductForm(await fetchLegacyDocument(PRODUCTS_FORM_PATH))
-
-export function useProductFormOptions() {
-  return useQuery({
-    queryKey: FORM_OPTIONS_KEY,
-    queryFn: fetchFormOptions,
-    staleTime: 1000 * 60 * 10,
-  })
-}
 
 // ---------------------------------------------------------------------------
 // ASYCUDA prefill
@@ -256,12 +173,12 @@ export function useCreateCategory() {
       try {
         const created = await createProductCategory({ label: input.label, parent: input.parentId ? Number(input.parentId) : 0 })
         // The form's own tag list must show it too.
-        await queryClient.fetchQuery({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchFormOptions, staleTime: 0 })
+        await queryClient.fetchQuery({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchProductFormOptions, staleTime: 0 })
         return { categoryId: String(created.id), label: created.label }
       } catch (error) {
         if (!isMissingEndpoint(error)) throw error
       }
-      const before = await queryClient.ensureQueryData({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchFormOptions, staleTime: 1000 * 60 * 10 })
+      const before = await queryClient.ensureQueryData({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchProductFormOptions, staleTime: 1000 * 60 * 10 })
       const res = await fetch('/product/ajax/products.php', {
         method: 'POST',
         credentials: 'same-origin',
@@ -287,7 +204,7 @@ export function useCreateCategory() {
       if (outcome === 1) throw new Error('Category Name already exists')
       if (outcome !== 2) throw new Error('The backend did not confirm the new category.')
 
-      const after = await queryClient.fetchQuery({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchFormOptions, staleTime: 0 })
+      const after = await queryClient.fetchQuery({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchProductFormOptions, staleTime: 0 })
       const known = new Set(before.categories.map((c) => c.value))
       const created = after.categories.find((c) => !known.has(c.value)) ?? after.categories.find((c) => c.label === input.label || c.label.endsWith(`>> ${input.label}`))
       if (!created) throw new Error('The category was created but could not be found in the refreshed list.')
@@ -373,7 +290,7 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: async (input: CreateProductFullInput): Promise<{ status: number }> => {
       // Whatever the caller leaves out takes the value the real form pre-selects.
-      const d = (await queryClient.ensureQueryData({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchFormOptions, staleTime: 1000 * 60 * 10 })).defaults
+      const d = (await queryClient.ensureQueryData({ queryKey: FORM_OPTIONS_KEY, queryFn: fetchProductFormOptions, staleTime: 1000 * 60 * 10 })).defaults
       const pick = (v: string | undefined, key: string, fallback = '') => (v !== undefined && v !== '' ? v : (d[key] ?? fallback))
 
       const body = new URLSearchParams()

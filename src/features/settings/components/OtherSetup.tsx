@@ -5,12 +5,12 @@ import { SetupShell } from './SetupShell'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface disabled:text-text-faint'
 
-// No real API anywhere in this module (confirmed this session): "Available
-// App/Modules" and "Find/Deploy External" are admin/modules.php in its 3
-// modes (classic enable/disable form-POST + a static informational tab and
-// a 3rd-party-site search proxy); "Develop Your Own" is purely static;
-// "Const" is admin/const.php (real llx_const CRUD, classic form-POST); "Menu
-// Setup" is admin/menus/index.php (real llx_menu CRUD, classic GET-links) —
+// No API anywhere in this module: "Available App/Modules" and
+// "Find/Deploy External" are admin/modules.php in its 3 modes (classic
+// enable/disable form-POST + a static informational tab and a
+// 3rd-party-site search proxy); "Develop Your Own" is purely static;
+// "Const" is admin/const.php (llx_const CRUD, classic form-POST); "Menu
+// Setup" is admin/menus/index.php (llx_menu CRUD, classic GET-links) —
 // same content as MenusSetup.tsx's own "Menu Admin" tab, since
 // modules_prepare_head() maps both UI tabs to that one file.
 const TABS = ['Available App/Modules', 'Find External App/Modules', 'Deploy/Install External App/Module', 'Develop Your Own App/Modules', 'Const', 'Menu Setup'] as const

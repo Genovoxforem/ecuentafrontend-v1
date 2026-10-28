@@ -9,7 +9,8 @@ import { NOT_SIGNED_IN_MESSAGE } from '../shared/legacyHtmlFetch'
 function isPermanentHttpError(error: unknown): boolean {
   // The legacy session is gone: asking again returns the login page again.
   if (error instanceof Error && error.message === NOT_SIGNED_IN_MESSAGE) return true
-  const status = (error as { response?: { status?: number } })?.response?.status
+  // httpStatus: a fapi JSON error unwrapped by fapiEnvelope.ts, which keeps the server's message but not the axios response.
+  const status = (error as { response?: { status?: number } })?.response?.status ?? (error as { httpStatus?: number })?.httpStatus
   if (typeof status === 'number') return status >= 400 && status < 500 && status !== 408 && status !== 429
   const m = error instanceof Error ? /returned (\d{3})\b/.exec(error.message) : null
   const fromMessage = m ? Number(m[1]) : 0

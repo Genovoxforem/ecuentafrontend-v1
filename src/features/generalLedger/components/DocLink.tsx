@@ -1,6 +1,6 @@
 import { FileText } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { resolveDocLink } from '../ledgerHtmlParser'
+import { resolveDocLink } from '../ledgerReport'
 
 // Shared "Accounting Doc." cell for Ledger/Journals/Subledger/PieceDetail —
 // see resolveDocLink for which source documents have a React page to link to.

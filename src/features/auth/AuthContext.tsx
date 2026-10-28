@@ -33,17 +33,55 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+// The last verified user and permissions, kept with the token they belong to, so the app opens from this copy and
+// re-checks GET /user/ in the background instead of every page waiting about 1 s for it. It is only the screen's view
+// of who is signed in: every request is still checked by the server, and a failed re-check signs the user out.
+// Cleared on logout and on any token change.
+const ME_CACHE_KEY = 'ecuenta_me'
+type CachedMe = { token: string; user: AuthUser; rights: Record<string, Record<string, boolean>> }
+
+function readCachedMe(): CachedMe | null {
+  try {
+    const token = getStoredToken()
+    const raw = localStorage.getItem(ME_CACHE_KEY)
+    if (!token || !raw) return null
+    const cached = JSON.parse(raw) as CachedMe
+    return cached.token === token && cached.user?.id ? cached : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedMe(user: AuthUser, rights: Record<string, Record<string, boolean>>) {
+  try {
+    const token = getStoredToken()
+    if (token) localStorage.setItem(ME_CACHE_KEY, JSON.stringify({ token, user, rights } satisfies CachedMe))
+  } catch {
+    /* storage unavailable: the app just waits for the check next time */
+  }
+}
+
+function clearCachedMe() {
+  try {
+    localStorage.removeItem(ME_CACHE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 // Upper bound on how long sign-in waits for the legacy session (the backend's
-// login answer takes ~0.6 s on 172.16.5.10).
+// login answer takes about 0.6 s).
 const LEGACY_SESSION_WAIT_MS = 8000
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [rights, setRights] = useState<Record<string, Record<string, boolean>>>({})
-  const [status, setStatus] = useState<'loading' | 'authenticated' | 'anonymous'>('loading')
+  const [cached] = useState(readCachedMe)
+  const [user, setUser] = useState<AuthUser | null>(cached?.user ?? null)
+  const [rights, setRights] = useState<Record<string, Record<string, boolean>>>(cached?.rights ?? {})
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'anonymous'>(cached ? 'authenticated' : 'loading')
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
 
   const logout = useCallback(() => {
+    clearCachedMe()
     setStoredToken(null)
     setUser(null)
     setRights({})
@@ -74,9 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(me.user)
         setRights(me.permissions)
         setStatus('authenticated')
+        writeCachedMe(me.user, me.permissions)
       })
       .catch(() => {
+        clearCachedMe()
         setStoredToken(null)
+        setUser(null)
+        setRights({})
         setStatus('anonymous')
       })
   }, [])
@@ -89,12 +131,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // list pages read legacy endpoints, and one that reaches the backend before
     // this login finishes gets the login page back. It never throws, and the
     // wait is capped so a slow backend can't hold up the sign-in itself.
+    // Started only after the API login has answered: started together with it (tried 22 Oct 2026) the two logins raced on the PHP
+    // session cookie, the legacy login was refused, and every session-only call (menu, users, projects) got the login page back.
     const legacySession = establishLegacySession(credentials.login, credentials.password)
     const me = await fetchMe()
     await Promise.race([legacySession, new Promise((resolve) => window.setTimeout(resolve, LEGACY_SESSION_WAIT_MS))])
     setUser(me.user)
     setRights(me.permissions)
     setStatus('authenticated')
+    writeCachedMe(me.user, me.permissions)
     return me.user
   }, [])
 

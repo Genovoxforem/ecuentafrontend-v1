@@ -25,9 +25,8 @@ export interface TaskActivityReportInput {
   thirdPartyId: string // '-1' = all third parties
 }
 
-// yyyy-mm-dd -> MM/DD/YYYY, the real page's own daterangepicker format for
-// its single combined `newdatepicker` field (confirmed live:
-// "09/01/2026-09/30/2026").
+// yyyy-mm-dd -> MM/DD/YYYY, the page's own daterangepicker format for its
+// single combined `newdatepicker` field (e.g. "09/01/2026-09/30/2026").
 function toLegacyDate(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${m}/${d}/${y}`

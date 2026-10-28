@@ -1,3 +1,4 @@
+import { loadRemainingPages } from './paging'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Small readers for fapi list rows. The backend returns dates as Unix seconds or ISO strings depending on the
 // column, and the same fact can sit flat (`customer_name`) or nested (`customer.name`); these try the likely
@@ -60,14 +61,11 @@ export function isoDate(v: unknown): string {
   return d ? d.toISOString().slice(0, 10) : ''
 }
 
-/** Reads every page of a `{items, pagination:{pages}}` list (a hard cap of 50 pages guards a runaway). */
+/** Reads every page of a `{items, pagination:{pages}}` list (a hard cap of 50 pages guards a runaway).
+ * Page 1 says how many pages there are, so the rest load a few at a time and are joined in page order. */
 export async function fetchAllPages<T = any>(get: (page: number) => Promise<{ items?: T[]; pagination?: { pages?: number } }>): Promise<T[]> {
-  const out: T[] = []
-  let pages = 1
-  for (let page = 1; page <= pages && page <= 50; page += 1) {
-    const d = await get(page)
-    pages = d.pagination?.pages ?? 1
-    out.push(...(d.items ?? []))
-  }
-  return out
+  const first = await get(1)
+  const pages = Math.min(first.pagination?.pages ?? 1, 50)
+  const rest = await loadRemainingPages(pages, async (page) => (await get(page)).items ?? [])
+  return (first.items ?? []).concat(...rest)
 }

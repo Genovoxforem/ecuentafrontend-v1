@@ -39,6 +39,29 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Visiting a POS screen (src/pos2/*, src/pos/layouts/DashboardLayout.jsx) loads src/pos/index.css, which starts with its own
+   `@import "tailwindcss"`. That file puts Tailwind's DEFAULT --spacing and --text-* values on :root after the scaled ones set in the
+   @theme above, and a stylesheet loaded by a route is never removed, so every page opened afterwards (the dashboard, lists, ...) came
+   back with bigger text and spacing. The POS screens keep the default sizes they are laid out for (all of them have a .pos-app or
+   .pos-v2-root root); everywhere else the scaled values are put back with a rule that beats :root. Keep these numbers equal to the
+   @theme block above. */
+html:not(:has(.pos-app, .pos-v2-root)) {
+  --spacing: 0.189rem;
+  --text-xs: 0.59535rem;
+  --text-sm: 0.69458rem;
+  --text-base: 0.7938rem;
+  --text-lg: 0.89303rem;
+  --text-xl: 0.99225rem;
+  --text-2xl: 1.1907rem;
+  --text-3xl: 1.48838rem;
+  --text-4xl: 1.78605rem;
+  --text-5xl: 2.3814rem;
+  --text-6xl: 2.97675rem;
+  --text-7xl: 3.5721rem;
+  --text-8xl: 4.7628rem;
+  --text-9xl: 6.3504rem;
+}
+
 /* Was hardcoded to the old pre-rebrand template's dark colors regardless of
    the app's actual light/dark theme (see ThemeContext.tsx) — every page
    load flashed that dark gradient before AppShell's own themed background
@@ -234,6 +257,17 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) sp
   --page-gap: 0.5rem;
   /* Left/right padding. */
   --page-gap-x: 5px;
+  /* Bottom padding of the page content. */
+  --page-gap-bottom: 2px;
+
+  /* THE page typography. Font sizes and text colours of page content read these tokens, so changing one value
+     here changes it on every page. */
+  --fs-body: 0.645rem; /* table cells, paragraphs */
+  --fs-th: 0.595rem; /* table column headings */
+  --fs-label: 0.595rem; /* form field labels */
+  --fs-control: 0.694rem; /* inputs, selects, textareas */
+  --page-text: var(--color-text);
+  --page-text-muted: var(--color-text-muted);
 }
 
 #root {
@@ -333,7 +367,8 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .b
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-search > input {
-  padding-left: 23px;
+  /* !important: the generic .blue-theme-shell input:not(...) rule below is more specific and put the text under the search icon */
+  padding-left: 23px !important;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .blue-density-export {
@@ -776,7 +811,7 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-list-content, .blue-density-form-content) {
-  padding: var(--page-gap) var(--page-gap-x);
+  padding: var(--page-gap) var(--page-gap-x) var(--page-gap-bottom);
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-page-banner='true']:not([data-detail-page='true']) :is(.blue-density-footer, .blue-density-pagination) {
@@ -789,15 +824,15 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
    the cards of any list, form or dashboard sit the same distance from the edges and from each other.
    Page wrappers written as `px-6 py-4` (or `px-6 pt-4` when a footer follows) are normalised here
    instead of per page. */
-html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']):not(.blue-density-footer):not(.blue-density-pagination) {
-  padding: var(--page-gap) var(--page-gap-x) !important;
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='py-1'], [class~='py-2'], [class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']):not(.blue-density-footer):not(.blue-density-pagination) {
+  padding: var(--page-gap) var(--page-gap-x) var(--page-gap-bottom) !important;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6'][class~='pt-4'] {
   padding: var(--page-gap) var(--page-gap-x) 0 !important;
 }
 
-html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is([class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']), [class~='px-6'][class~='pt-4']):is([class*='space-y-']) > :not(:first-child) {
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is([class~='px-6']:is([class~='py-1'], [class~='py-2'], [class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']), [class~='px-6'][class~='pt-4']):is([class*='space-y-']) > :not(:first-child) {
   margin-top: var(--page-gap) !important;
 }
 
@@ -2068,8 +2103,8 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) .b
 }
 
 /* Page wrappers (the common "space-y-* px-6 py-4" root of list and form pages) and stacked blocks */
-html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='space-y-4'][class~='px-6']:is([class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']) {
-  padding: var(--page-gap) var(--page-gap-x);
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='space-y-4'][class~='px-6']:is([class~='py-1'], [class~='py-2'], [class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6']) {
+  padding: var(--page-gap) var(--page-gap-x) var(--page-gap-bottom);
 }
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.space-y-4, .space-y-5, .space-y-6) > :not(:last-child) {
   margin-block-start: 0;
@@ -2131,12 +2166,12 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='min-h-0'][class*='px-['][class*='py-['] {
   padding-top: var(--page-gap) !important;
-  padding-bottom: var(--page-gap) !important;
+  padding-bottom: var(--page-gap-bottom) !important;
 }
 
 /* Page roots padded with a plain p-4 / p-5 / p-6 follow the same page padding. */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='-m-6']:is([class~='p-4'], [class~='p-5'], [class~='p-6']) {
-  padding: var(--page-gap) var(--page-gap-x) !important;
+  padding: var(--page-gap) var(--page-gap-x) var(--page-gap-bottom) !important;
 }
 
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='space-y-'][class*='px-['] {
@@ -2149,4 +2184,67 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='-m-6'] > .blue-banner-continues {
   margin-left: 0 !important;
   margin-right: 0 !important;
+}
+
+
+/* Page typography: one size and colour per kind of text, on every page. Elements that carry their own text-colour
+   class (a red/green status, a link) keep it; only the size is forced. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']), select, textarea) {
+  font-size: var(--fs-control);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']), select, textarea):not([class*='text-']) {
+  color: var(--page-text);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content label:not(.sr-only) {
+  font-size: var(--fs-label);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content label:not(.sr-only):not([class*='text-']) {
+  color: var(--page-text-muted);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content tbody td {
+  font-size: var(--fs-body);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content tbody td:not([class*='text-']) {
+  color: var(--page-text);
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content thead th {
+  font-size: var(--fs-th);
+}
+
+/* A visually hidden first child (sr-only heading, the title that the banner already shows) takes no space, so the
+   block after it must not get the stacking gap either: the gap under the banner stays one --page-gap. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is([class*='space-y-'], .flex-col, .grid) > :is(.sr-only, .blue-duplicate-page-title):first-child + * {
+  margin-top: 0 !important;
+}
+
+/* A stack that spaces its children with a flex/grid gap must not also add the space-y margin (the gap was applied
+   twice: 16px between cards instead of one --page-gap). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.blue-density-form-content, .blue-density-list-content, [class*='space-y-']):is(.flex-col, .grid)[class*='gap-'] > :not(:first-child):not(:first-child) {
+  margin-top: 0 !important;
+}
+
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content :is(.blue-density-form-content, .blue-density-list-content).flex-col > :not(:first-child):not(:first-child) {
+  margin-top: 0 !important;
+}
+
+/* Content right under a sticky page header: the header already ends with one --page-gap of padding, so the content
+   does not add a second one on top (that made 16-17px between the header bar and the first card). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='sticky'] + :is([class~='px-6'], [class*='px-['], .blue-density-form-content, .blue-density-list-content):is([class~='py-1'], [class~='py-2'], [class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6'], [class*='py-['], .blue-density-form-content, .blue-density-list-content):not(#_) {
+  padding-top: 0 !important;
+}
+
+/* Tailwind's own space-y-N also adds a bottom margin to every child; the stacking gap is one --page-gap margin on top
+   (see above), so the bottom margins are removed (space-y-1/2/1.5/... pages had 6px extra between blocks). */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='space-y-'] > :not(:last-child):not(:last-child) {
+  margin-block-end: 0 !important;
+}
+
+/* Wrappers that pad themselves with separate top / bottom classes (px-6 pt-6 pb-4) follow the same page padding. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='pt-2'], [class~='pt-3'], [class~='pt-4'], [class~='pt-5'], [class~='pt-6'], [class~='pt-8']):not(#_):not(#_) {
+  padding-top: var(--page-gap) !important;
+  padding-left: var(--page-gap-x) !important;
+  padding-right: var(--page-gap-x) !important;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='pb-2'], [class~='pb-3'], [class~='pb-4'], [class~='pb-5'], [class~='pb-6'], [class~='pb-8']):not(#_):not(#_) {
+  padding-bottom: var(--page-gap-bottom) !important;
 }

@@ -4,9 +4,9 @@ import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { pv2Get } from '../payrollV2.api'
 import { useAttendance, useAttendanceEmployees, useAttendanceSheet, useMyAttendanceToday, usePayrollCommand, type AttendanceRow, type AttendanceSheetRow } from '../payrollV2.queries'
 import { EmptyRow, ErrorCard, LoadingRows, PanelCard, StatusBadge, TablePanel, Td, Th } from './PayrollV2Chrome'
+import { todayIso } from '../../../utils/dates'
 
-const today = () => new Date().toISOString().slice(0, 10)
-const monthStart = () => `${today().slice(0, 8)}01`
+const monthStart = () => `${todayIso().slice(0, 8)}01`
 const FIELD = 'rounded-md border border-input-border bg-input-bg px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
 const CELL = 'w-full rounded border border-input-border bg-input-bg px-2 py-1 text-sm text-text'
 const BTN = {
@@ -168,7 +168,7 @@ async function readImportFile(file: File): Promise<Array<Record<string, string>>
 function BulkSheet() {
   const command = usePayrollCommand()
   const confirm = useConfirm()
-  const [date, setDate] = useState(today())
+  const [date, setDate] = useState(todayIso())
   const [loadedDate, setLoadedDate] = useState<string | null>(null)
   const sheet = useAttendanceSheet(loadedDate)
   const [lines, setLines] = useState<SheetLine[]>([])
@@ -343,7 +343,7 @@ function BulkSheet() {
 
 // ---- Manual entry
 
-const EMPTY_MANUAL = { employee_id: '', work_date: today(), clock_in: '', clock_out: '', status: 'present', ot_hours: '', night_hours: '' }
+const EMPTY_MANUAL = { employee_id: '', work_date: todayIso(), clock_in: '', clock_out: '', status: 'present', ot_hours: '', night_hours: '' }
 
 function ManualEntry() {
   const employees = useAttendanceEmployees()
@@ -415,7 +415,7 @@ function ManualEntry() {
 // the classic page shows — bulk marking with export/import/delete, manual
 // entry, filters and per-record delete.
 export function PayrollAttendance() {
-  const [draft, setDraft] = useState({ start_date: monthStart(), end_date: today(), status: '', source: '' })
+  const [draft, setDraft] = useState({ start_date: monthStart(), end_date: todayIso(), status: '', source: '' })
   const [filters, setFilters] = useState(draft)
   const log = useAttendance({
     start_date: filters.start_date,

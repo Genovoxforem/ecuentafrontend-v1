@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useBankAccountDictionary, usePaymentModeDictionary, useProjectOptions } from '../../../api/lookups'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, X, Plus, Pencil, Trash2, LoaderCircle, ChevronLeft, ChevronRight, Save } from 'lucide-react'
@@ -17,47 +18,22 @@ import { useProductOptions } from '../../products/products.queries'
 import { getProductSuppliers } from '../../../api/products'
 import { useWarehousePickerOptions } from '../../warehouses/warehouseExtras.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
-import { legacyJsonBody } from '../../../shared/legacyHtmlFetch'
 import { QuickCustomerCreateModal } from './QuickCustomerCreateModal'
 import { QuickProductCreateModal } from './QuickProductCreateModal'
 
-interface ProjectOption {
-  id: string
-  ref: string
-  title: string
-}
 
-// GET /api/projects.php — a real, working endpoint confirmed live on this
-// backend (queries llx_projet WHERE fk_statut = 1, no customer/socid filter
-// at all). The Project field isn't a per-customer relationship the way the
-// legacy /api/salesorder/?action=get_projects action treats it (that one
-// filters to a single customer's own linked projects, and stayed
-// permanently empty on this deployment since the only real project here
-// has no customer linked to it — confirmed live) — this shows every open
-// project regardless of customer, matching what this dropdown is actually
-// meant to offer.
-function useProjectOptions() {
-  return useQuery({
-    queryKey: ['projects', 'open'],
-    queryFn: async () => {
-      const { data } = await api.get<unknown>('/projects.php')
-      const body = legacyJsonBody<{ success: boolean; results: ProjectOption[] }>(data, 'Projects API')
-      if (!body.success || !Array.isArray(body.results)) throw new Error('Projects API did not return project options.')
-      return body.results
-    },
-    staleTime: 1000 * 60,
-  })
-}
+// GET /api/projects.php (queries llx_projet WHERE fk_statut = 1, no
+// customer/socid filter at all). The Project field isn't a per-customer
+// relationship the way the legacy /api/salesorder/?action=get_projects
+// action treats it (that one filters to a single customer's own linked
+// projects) — this shows every open project regardless of customer,
+// matching what this dropdown is meant to offer.
 
 interface DictionaryOption {
   id: string
   text: string
 }
 
-interface DictionaryResponse {
-  success: boolean
-  results: Array<{ id: string | number; text: string }>
-}
 
 // GET /api/{bank_accounts,payment_types}.php — 2 real Dolibarr dictionaries
 // (llx_bank_account, llx_c_paiement) that work via this app's X-API-Key auth
@@ -65,18 +41,6 @@ interface DictionaryResponse {
 // /api/shipping_methods.php, and /api/payment_terms.php were added
 // alongside them but are a genuine 404 on this backend (checked live) — see
 // useOrderDictionaries below for the real replacement.
-function useDictionary(path: string) {
-  return useQuery({
-    queryKey: ['dictionary', path],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const { data } = await api.get<unknown>(path)
-      const body = legacyJsonBody<DictionaryResponse>(data, path)
-      if (!body.success || !Array.isArray(body.results)) throw new Error(`${path} did not return dictionary options.`)
-      return body.results.map((r) => ({ id: String(r.id), text: r.text }))
-    },
-    staleTime: 1000 * 60 * 10,
-  })
-}
 
 // The three dead dictionary endpoints' real replacement —
 // commande/fapi/meta.php returns the same dictionary tables
@@ -367,9 +331,9 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
   const { data: lookups } = customerLookupsQuery
   const { data: customerDefaults } = useCustomerDefaults(customerId)
   const { data: draftProductCostPrice } = useProductCostPrice(draftProductId)
-  const bankAccountsQuery = useDictionary('/bank_accounts.php')
+  const bankAccountsQuery = useBankAccountDictionary()
   const { data: bankAccounts } = bankAccountsQuery
-  const paymentTypesQuery = useDictionary('/payment_types.php')
+  const paymentTypesQuery = usePaymentModeDictionary()
   const { data: paymentTypes } = paymentTypesQuery
   const orderDictionariesQuery = useOrderDictionaries()
   const { data: orderDictionaries } = orderDictionariesQuery

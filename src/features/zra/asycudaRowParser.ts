@@ -1,4 +1,5 @@
 import type { AsycudaImportRow, AsycudaUpdateItem } from './asycudaImport.queries'
+import { htmlToText } from '../../utils/text'
 
 // The real custom/zra/zra-import_ajax.php builds every cell as <br>-joined
 // HTML text (read directly, not guessed — see that file's $data[] build).
@@ -8,9 +9,7 @@ import type { AsycudaImportRow, AsycudaUpdateItem } from './asycudaImport.querie
 // same parsing instead of duplicating it.
 export function extractLines(html: string): string[] {
   const withBreaks = html.replace(/<br\s*\/?>/gi, '\n')
-  const div = document.createElement('div')
-  div.innerHTML = withBreaks
-  return (div.textContent || '').split('\n').map((s) => s.trim()).filter(Boolean)
+  return htmlToText(withBreaks).split('\n').map((s) => s.trim()).filter(Boolean)
 }
 export function afterColon(line: string | undefined): string {
   if (!line) return 'N/A'
@@ -89,13 +88,13 @@ export type AsycudaActionState =
   | { kind: 'similar-matches'; updateItem: AsycudaUpdateItem; similarProducts: SimilarProduct[] }
   | { kind: 'needs-create'; updateItem: AsycudaUpdateItem; linkedProduct: LinkedProduct | null }
 
-// actionsHtml carries one of three fixed shapes depending on real backend
+// actionsHtml carries one of three fixed shapes depending on backend
 // product-matching (hasExactMatch / hasSimilarMatches / else) — detected via
 // zra-import_ajax.php's own literal button/badge text so this stays in sync
 // with that file without needing a JSON contract of its own. Every button in
-// a row (Approve/Cancel/each suggestion's Approve) carries the same real
-// data-* attributes the legacy onclick bridge used to read — parsed here via
-// DOMParser instead of a window.fn* global bridge.
+// a row (Approve/Cancel/each suggestion's Approve) carries the same data-*
+// attributes the legacy onclick handlers read — parsed here via DOMParser
+// instead of a window.fn* global bridge.
 export function parseActionsState(actionsHtml: string): AsycudaActionState {
   const doc = new DOMParser().parseFromString(actionsHtml, 'text/html')
   const cancelBtn = doc.querySelector('.cancel-btn')

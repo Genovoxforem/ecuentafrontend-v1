@@ -6,17 +6,14 @@ import { REPORT_CATEGORIES, reportPath } from '../../features/reports/reportsStr
 
 const PREVIEW_LIMIT = 6
 
-// The real "Reports Center" (custom/reports/reportsindex.php) — confirmed
-// this session to be a large, real, working module (previously wrongly
-// concluded to be a dead link, by checking the wrong path). Its own real
-// menu descriptor (modReports.class.php) never wires this into llx_menu at
-// all, so it's unreachable from the sidebar in the real app too — this hub
-// is the real, only way in. Categories, report labels, and grouping are
-// all real (read directly from that PHP file); the card design itself
-// (icons/colors/descriptions) is this pass's own presentation choice. Only
-// "Purchase Invoices" and "Sales Invoices" (marked with a lightning bolt)
-// have a confirmed real, secured JSON API — every other entry routes to a
-// real inert page rather than a PHP link.
+// The "Reports Center" (custom/reports/reportsindex.php). Its own menu
+// descriptor (modReports.class.php) never wires this into llx_menu at all,
+// so it's unreachable from the sidebar in the classic app too — this hub
+// is the only way in. Categories, report labels, and grouping are read
+// from that PHP file; the card design itself (icons/colors/descriptions)
+// is this app's own presentation choice. Only "Purchase Invoices" and
+// "Sales Invoices" (marked with a lightning bolt) have a secured JSON API —
+// every other entry routes to an inert page rather than a PHP link.
 export function ReportsModule() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')

@@ -20,11 +20,10 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key']
 
 // custom/payroll/admin/{setup,designation,tax_deduction,device_settings,
-// about,add_expense,paye_tax}.php — all 7 real backend pages, each read via
-// fetchLegacyDocument and each with real save/update/delete actions posted
-// back to the exact same real endpoints those pages' own forms use
-// (confirmed by reading every one of them directly this session). See each
-// tab component + payrollSetup.queries.ts / payrollAdminTabs.queries.ts.
+// about,add_expense,paye_tax}.php — 7 backend pages, each read via
+// fetchLegacyDocument and each with save/update/delete actions posted back
+// to the same endpoints those pages' own forms use. See each tab component +
+// payrollSetup.queries.ts / payrollAdminTabs.queries.ts.
 export function PayrollSetupForm() {
   const [tab, setTab] = useState<TabKey>('settings')
   const Active = TABS.find((t) => t.key === tab)?.Component ?? PayrollSettingsTab

@@ -1,46 +1,40 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 
-// The /api/projects/ (api/projects/index.php) this file used to call is
-// gone from the active backend — confirmed live (a GET to it returns the
-// legacy login page's HTML, not JSON; no api/projects/ directory exists on
-// disk at all, only the unrelated read-only api/projects.php dropdown
-// dictionary already used elsewhere for Project select fields). The
-// generic Dolibarr Restler layer this bridge used to wrap
-// (projet/class/api_projects.class.php) is still real, but — same
-// situation as Contracts' equivalent — it requires a DOLAPIKEY header, a
-// different auth model than everything else in this app, and there's no
-// bridge exposing it under this app's own session-cookie/X-API-Key scheme
-// any more. Building one would be a backend PHP change, out of scope.
+// There is no /api/projects/ (api/projects/index.php) on the active backend
+// (a GET to it returns the legacy login page's HTML; only the unrelated
+// read-only api/projects.php dropdown dictionary exists, used for Project
+// select fields). The generic Dolibarr Restler layer
+// (projet/class/api_projects.class.php) requires a DOLAPIKEY header — a
+// different auth model than everything else in this app — and there's no
+// bridge exposing it under this app's session-cookie/X-API-Key scheme.
+// Building one would be a backend PHP change, out of scope.
 //
-// Real primary source: projet/list.php — genuinely classic Dolibarr HTML
-// (no json_encode anywhere in that file, confirmed by reading it directly).
-// Its own real GET filters are what the reference app's filter-icon dropdown
-// itself links to (read directly from source, not guessed):
+// Primary source: projet/list.php — classic Dolibarr HTML (no json_encode
+// anywhere in that file). Its own GET filters are what the reference app's
+// filter-icon dropdown links to:
 //   List (no filter):        no extra params
 //   List Open Leads:         search_opp_status=openedopp&search_status=99
 //   List Open Projects:      search_opp_status=notopenedopp&search_status=99
 // search_status=99 means "fk_statut <> 2" (anything but Closed); openedopp
 // means "has an opportunity status set, and it isn't WON/LOST" (a lead still
 // being pursued); notopenedopp means "no opportunity tracking, or WON" (a
-// real project, not an in-progress lead). This is a genuine, meaningful
-// server-side distinction this app previously couldn't reproduce (both
-// filters used to alias to the same "open" filter) because the OTHER real
-// source below doesn't expose fk_opp_status at all.
+// project, not an in-progress lead). This server-side distinction can't be
+// reproduced from the secondary source below, which doesn't expose
+// fk_opp_status at all.
 //
-// Real secondary source: projet/projects-list-ajax.php, a genuine DataTables
-// JSON endpoint over llx_projet (confirmed live). It only selects 5 raw
-// columns (rowid, ref, title, fk_statut, third-party name) and hardcodes its
-// own page size to 25 (`$length = 25;`, ignoring whatever `length` is sent —
-// same limitation as the standalone Contacts module's list-ajax endpoint).
-// It's used here only to enrich each row with a third-party name, since
-// this install's own arrayfields config doesn't render a Company column on
-// projet/list.php at all (confirmed live) — no real source for that field
-// exists anywhere else.
+// Secondary source: projet/projects-list-ajax.php, a DataTables JSON
+// endpoint over llx_projet. It only selects 5 raw columns (rowid, ref,
+// title, fk_statut, third-party name) and hardcodes its own page size to 25
+// (`$length = 25;`, ignoring whatever `length` is sent — same limitation as
+// the standalone Contacts module's list-ajax endpoint). It's used here only
+// to enrich each row with a third-party name, since this install's own
+// arrayfields config doesn't render a Company column on projet/list.php at
+// all — no other source for that field exists.
 //
-// projet/card.php (create/view) has no JSON API at all (checked directly:
-// no json_encode anywhere in that file) — see ProjectCreateForm.tsx and
-// ProjectDetail.tsx for how each is honest about that.
+// projet/card.php (create/view) has no JSON API at all (no json_encode
+// anywhere in that file) — see ProjectCreateForm.tsx and ProjectDetail.tsx.
 
 export type ProjectListFilter = 'all' | 'openLeads' | 'openProjects'
 
@@ -81,11 +75,10 @@ function textOf(html: string): string {
 // projet/list.php's own table has a distinctive id="example" — a much safer
 // anchor than searching for the first <thead>/<tbody> on the page, since a
 // shared "Cash Position" finance widget elsewhere on this same page layout
-// has its own real <thead>/<tbody> earlier in the document (the same trap
-// that broke an earlier version of the Replenishment Orders scraper).
+// has its own <thead>/<tbody> earlier in the document.
 // Column order (Ref/Project label/Start date/End date/Visibility/Budget/
 // Creat. date/Status) matches this install's own configured arrayfields,
-// confirmed live — not hardcoded from Dolibarr's generic default.
+// not Dolibarr's generic default.
 function parseProjectListRows(html: string): Omit<ProjectRow, 'thirdPartyName'>[] {
   const tableStart = html.indexOf('<table id="example"')
   if (tableStart === -1) return []
@@ -171,8 +164,22 @@ export function useProjectsList(filter: ProjectListFilter) {
 // The navbar's "Today New Leads" pill: how many open leads were created today,
 // counted from the same real open-leads list the Open Leads page shows (newest
 // first). Dates there are printed MM/DD/YYYY hh:mm AM.
+//
+// It reads the whole 500-row legacy open-leads page (about 240 KB of server-built HTML, 1.5 to 2.4 s) and the navbar mounts on
+// every page, so it is only requested a few seconds after the page opens, once the page's own data has had the connection.
+function useReadyAfter(ms: number) {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReady(true), ms)
+    return () => window.clearTimeout(timer)
+  }, [ms])
+  return ready
+}
+
 export function useTodayNewLeadsCount() {
+  const ready = useReadyAfter(6000)
   return useQuery({
+    enabled: ready,
     queryKey: ['projects', 'todayNewLeads'],
     queryFn: async (): Promise<number> => {
       const res = await fetch(`${buildListUrl('openLeads')}&sortfield=p.datec&sortorder=desc`, { credentials: 'same-origin' })

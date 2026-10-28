@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { usDateFromIso as usDate } from '../../utils/dates'
 import { readExchangeList, type ExchangeList } from './exchangeListParser'
 
 // accountancy/bookkeeping/exchange_list.php — see exchangeListParser.ts. A read-only report.
@@ -18,11 +19,6 @@ export interface ExchangeRequest {
   limit: number | null
   // 0-based
   page: number
-}
-
-const usDate = (iso: string) => {
-  const [y, m, d] = iso.split('-')
-  return y && m && d ? `${m}/${d}/${y}` : ''
 }
 
 // The page's own search parameters; the period travels as the single text it reads.

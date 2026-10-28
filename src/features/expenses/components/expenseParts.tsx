@@ -1,11 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, ChevronDown, ChevronUp, ChevronsUpDown, Search, Truck, User } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { resolveLegacyRoute } from '../../../shared/legacyRoute'
 import { ROUTES } from '../../../routes'
-import { parseParty, type ExpenseParty } from '../expensePagesParser'
+import type { ExpenseParty } from '../expensePagesParser'
 import { PAGE_SIZES, controlCls } from '../expenseTable'
 
 // ── Who a report belongs to / is linked to ───────────────────────────────────────────────────────────
@@ -62,12 +62,6 @@ export function PartyLink({ party, avatar = false, showIcon = false }: { party: 
       {tip && <HoverCard party={party} at={tip} />}
     </span>
   )
-}
-
-// A user or company from the raw markup the list endpoint returns.
-export function PartyHtml({ html, avatar = false, showIcon = false }: { html: string; avatar?: boolean; showIcon?: boolean }) {
-  const party = useMemo(() => parseParty(html), [html])
-  return <PartyLink party={party} avatar={avatar} showIcon={showIcon} />
 }
 
 // ── Badges ───────────────────────────────────────────────────────────────────────────────────────────

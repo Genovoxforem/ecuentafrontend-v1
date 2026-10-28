@@ -8,7 +8,7 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { ROUTES } from '../../../routes'
 import { useHolidayStats, useHolidayRequests, type HolidaySearchStatus } from '../leave.queries'
-import type { HolidayRequestRow } from '../holidayParser'
+import type { HolidayRequestRow } from '../holiday.types'
 
 type SortKey = 'ref' | 'employee' | 'validator' | 'type' | 'duration' | 'start' | 'end' | 'created' | 'updated' | 'status'
 
@@ -27,11 +27,11 @@ const COLUMNS: { label: string; key: SortKey }[] = [
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Real: the "⋮" dropdown on holiday/list.php's own title bar — 5 links
-// (?search_status=1..5), confirmed live. "All Statuses" isn't one of the
-// real options (the real page's own unfiltered default is reached by
-// dropping the query param entirely, not a menu entry) but is added here
-// as an obvious, honest way back to that same default from inside the menu.
+// The "⋮" dropdown on holiday/list.php's own title bar — 5 links
+// (?search_status=1..5). "All Statuses" isn't one of the classic options
+// (the classic page's own unfiltered default is reached by dropping the
+// query param entirely, not a menu entry) but is added here as a way back
+// to that same default from inside the menu.
 const STATUS_OPTIONS: { value: HolidaySearchStatus; label: string }[] = [
   { value: '', label: 'All Statuses' },
   { value: '1', label: 'Draft' },

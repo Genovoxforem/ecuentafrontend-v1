@@ -1,33 +1,23 @@
 import { useState } from 'react'
 import { X, LoaderCircle, CloudOff } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../../api/axios'
+import { fapiPost } from '../../../api/fapiEnvelope'
 import { Field, inputCls } from '../../products/components/ProductServiceCreateForm'
 import { useThirdPartyFormOptions } from '../../customers/thirdPartyOptions.queries'
 
 const TPIN_PATTERN = /^\d{10}$/
 const selectCls = inputCls + ' appearance-none'
 
-interface CreateCustomerResponse {
-  success: boolean
-  error?: string
-  message?: string
-  data?: { id: number; name: string }
-}
-
 // Compact single-page modal matching the reference layout's own "Create New Customer"
 // slide-in. Customer Code isn't an input here — the backend always auto-generates
 // code_client itself, same as the reference modal's own read-only display.
 //
 // Gender, Alias name, Customer Group, Sales tax used, VAT ID, Currency, Fax, and Sales
-// representative are deliberately NOT fields here, even though api/customer/index.php's
-// handleCreateCustomer() accepts all of them on ecnta10 (where this modal was originally
-// built and verified live) — the currently-active backend (ecuenta9) silently ignores
-// all 8 of those params on create (confirmed by reading its handler: no GETPOST() call
-// for any of them), so the POST would succeed with no error while quietly discarding
-// whatever the user typed. Rather than keep inputs that imply data is being saved when
-// it isn't, they're removed until the backend the app actually points at supports them
-// again — see [[feedback_frontend_only_scope]] on why the fix stops here (no backend edits).
+// representative are deliberately NOT fields here: the active backend's
+// api/customer/index.php handleCreateCustomer() has no GETPOST() call for any of them,
+// so the POST would succeed with no error while quietly discarding whatever the user
+// typed. Rather than keep inputs that imply data is being saved when it isn't, they're
+// left out until the backend supports them (no backend edits from this repo).
 export function QuickCustomerCreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (customer: { id: string; name: string }) => void }) {
   const queryClient = useQueryClient()
   const { data: options, isLoading: optionsLoading, optionsUnavailable } = useThirdPartyFormOptions()
@@ -44,20 +34,17 @@ export function QuickCustomerCreateModal({ onClose, onCreated }: { onClose: () =
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const body = new URLSearchParams()
-      body.set('name', name.trim())
-      body.set('tpin', tpin.trim())
-      if (email) body.set('email', email)
-      if (phone) body.set('phone', phone)
-      if (address) body.set('address', address)
-      if (town) body.set('town', town)
-      if (zip) body.set('zip', zip)
-      if (countryId) body.set('country_id', countryId)
-      const { data } = await api.post<CreateCustomerResponse>('/customer/?action=create', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      return fapiPost<{ id: number; name: string }>('/societe/fapi/create.php', {
+        name: name.trim(),
+        type: 'customer',
+        tpin: tpin.trim(),
+        email: email || undefined,
+        phone: phone || undefined,
+        address: address || undefined,
+        town: town || undefined,
+        zip: zip || undefined,
+        country_id: countryId ? Number(countryId) : undefined,
       })
-      if (!data.success || !data.data) throw new Error(data.error ?? data.message ?? 'Failed to create customer')
-      return data.data
     },
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })

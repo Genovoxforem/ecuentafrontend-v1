@@ -6,21 +6,13 @@ import { StickyFormShell } from '../../../shared/components/layout/StickyFormShe
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
+import { toIso, toUs } from '../../../utils/dates'
 import { useCreateDonation, useDonationCreateForm, type DonationCreateForm, type DonationInput } from '../donationCreate.queries'
 
 const inputCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const areaCls = 'w-full px-3 py-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 
 // MM/dd/yyyy (the real form's own format) <-> yyyy-MM-dd (native date input).
-const toIso = (us: string) => {
-  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
-}
-const toUs = (iso: string) => {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
-}
-
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>

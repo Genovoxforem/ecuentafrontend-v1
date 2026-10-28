@@ -2,7 +2,7 @@
 // (Outgoing emails for the Ticket module): `?action=edit` renders one <form> whose controls
 // are all named MAIN_*, next to hidden `token` and `action=update` fields. The read view
 // only prints a Parameter/Value table, so the edit form is the source of the current values.
-// Verified against the dev backend; the SMTP password comes back in the field's own value.
+// The SMTP password comes back in the field's own value.
 
 export interface MailFormOption {
   value: string

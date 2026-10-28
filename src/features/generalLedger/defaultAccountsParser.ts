@@ -1,5 +1,5 @@
-// Parses accountancy/admin/defaultaccounts.php (General Ledger > Setup > Default accounts).
-// Verified against the dev backend and the page's own PHP:
+// Parses accountancy/admin/defaultaccounts.php (General Ledger > Setup > Default accounts),
+// per the page's own PHP:
 //   - one <form> with hidden `token` and `action=update`, holding a table of section rows
 //     (`ThirdParties | Users`, `Product`, `Service`, `Others`, `Loan Management`: two cells, no
 //     select) and field rows (label cell + a select named after the accounting constant);

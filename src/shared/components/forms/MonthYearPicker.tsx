@@ -4,11 +4,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-// Converts this widget's `YYYY-MM` value into the real "Month Year" text
-// (e.g. "September 2026") that the real monthPic query param expects —
-// confirmed live on payroll/earn_dedu.php, payroll/atten_overall_rip.php
-// and payroll/atten_emp_rip.php, all of which parse it server-side via a
-// human month-name string, not a machine date format.
+// Converts this widget's `YYYY-MM` value into the "Month Year" text (e.g.
+// "September 2026") that the monthPic query param expects —
+// payroll/earn_dedu.php, payroll/atten_overall_rip.php and
+// payroll/atten_emp_rip.php all parse it server-side via a human
+// month-name string, not a machine date format.
 export function monthIsoToLabel(value: string): string {
   const [year, month] = value.split('-')
   const d = new Date(Number(year), Number(month) - 1, 1)
@@ -16,13 +16,13 @@ export function monthIsoToLabel(value: string): string {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
-// Matches a real Dolibarr month-picker widget seen on several Payroll
-// report pages (payroll/earn_dedu.php, payroll/atten_overall_rip.php,
-// confirmed live on both): a blank field until a month is actually
-// confirmed, opening a popover with prev/next arrows either side of
-// Month/Year dropdowns and a Now/Done footer — not a plain native month
-// input. `value` is `YYYY-MM`; callers that need the real widget's own
-// "Month Year" text (e.g. for a monthPic query param) format it themselves.
+// Matches a Dolibarr month-picker widget seen on several Payroll report
+// pages (payroll/earn_dedu.php, payroll/atten_overall_rip.php): a blank
+// field until a month is confirmed, opening a popover with prev/next
+// arrows either side of Month/Year dropdowns and a Now/Done footer — not a
+// plain native month input. `value` is `YYYY-MM`; callers that need the
+// widget's own "Month Year" text (e.g. for a monthPic query param) format
+// it themselves.
 export function MonthYearPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false)
   const [pendingMonth, setPendingMonth] = useState(new Date().getMonth())

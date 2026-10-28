@@ -230,6 +230,7 @@ export const ROUTES = {
   ledgerChartOfAccountsModels: '/ledger/setup/chart-of-accounts-models',
   ledgerChartOfIndividualAccounts: '/ledger/setup/chart-of-individual-accounts',
   ledgerPersonalizedGroups: '/ledger/setup/personalized-groups',
+  ledgerPersonalizedGroupAccounts: '/ledger/setup/personalized-groups/:id/accounts',
   ledgerDefaultAccounts: '/ledger/setup/default-accounts',
   ledgerBankAccountsSetup: '/ledger/setup/bank-accounts',
   ledgerVatAccounts: '/ledger/setup/vat-accounts',
@@ -278,6 +279,7 @@ export const ROUTES = {
   ledgerLoanCreate: '/ledger/special-expenses/loans/new',
   ledgerMiscPaymentsList: '/ledger/special-expenses/misc-payments',
   ledgerMiscPaymentCreate: '/ledger/special-expenses/misc-payments/new',
+  ledgerMiscPaymentDetail: '/ledger/special-expenses/misc-payments/:id',
   // Binding
   ledgerCustomerBindingIndex: '/ledger/binding/customer',
   ledgerCustomerBindingToDispatch: '/ledger/binding/customer/to-dispatch',
@@ -302,6 +304,7 @@ export const ROUTES = {
   leaveRequest: '/users-dashboard/hrm/leave/request',
   leaveDetail: '/users-dashboard/hrm/leave/:id',
   timeSpent: '/users-dashboard/hrm/time-spent',
+  hrmMonthlyStatement: '/users-dashboard/hrm/monthly-statement',
   activitiesDetail: '/users-dashboard/hrm/activities',
   userDocuments: '/users-dashboard/documents',
   userDocumentsManual: '/users-dashboard/documents/manual',

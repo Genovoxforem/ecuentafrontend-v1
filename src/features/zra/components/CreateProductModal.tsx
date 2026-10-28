@@ -4,13 +4,12 @@ import {
   useCreateCategory,
   useCreateProduct,
   useProductClassificationSearch,
-  useProductFormOptions,
   useProductPrefill,
   pickUnitByCode,
-  type FormOption,
-  type ProductFormOptions,
   type ProductPrefill,
 } from '../createProduct.queries'
+import { useProductFormOptions, type ProductFormOptions } from '../../products/productFormOptions.queries'
+import type { FormOption } from '../../products/productConstants'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {

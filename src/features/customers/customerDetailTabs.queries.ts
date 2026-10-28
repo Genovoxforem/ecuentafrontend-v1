@@ -1,31 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapi } from '../../api/axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { usDate as usDateText } from '../../api/fapiRow'
 
-// Real, working REST API found by watching societe/card.php?socid=X's own
-// network traffic while switching tabs — a full societe/api/{transactions,
-// activities,contacts,contracts,customer,agenda}.php namespace, session-
-// cookie authenticated like the rest of societe/api/*, all filtered by
-// ?socid=. This directly replaces this page's earlier "not built yet" cards
-// for these tabs, which were based on the dead /api/customers/* namespace,
-// not on checking this real one.
+// The customer card's tabs, all on societe/fapi (key-authenticated JSON; the societe/api/* files they replace need a PHP
+// session cookie and a CSRF token scraped from a page). Reads take ?socid=; writes are POST ?action= with socid in the body.
+const FAPI = '/societe/fapi'
 
-// These endpoints' own JSON returns real legacy page URLs prefixed with
-// this dev environment's document root (e.g.
-// "/ecuenta9/htdocs/contrat/card.php?..."), which only resolves against the
-// real backend origin, not this app's dev-server origin (see vite.config.ts
-// — production deploys onto the backend's own origin, where this prefix
-// doesn't exist at all, but dev needs it stripped before using the URL as a
-// same-origin link/proxy target).
+// The legacy tab file names that differ from their fapi file.
+const TAB_FILE: Record<string, string> = { notify: 'notifications', paymentmodes: 'payment_modes', transactions: 'ledger' }
+
+// These endpoints' own JSON returns legacy page URLs prefixed with this dev environment's document root (e.g.
+// "/ecuenta9/htdocs/contrat/card.php?..."); stripped before the URL is used as a same-origin link.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function stripBackendPrefix(url: string): string {
   return url.replace(/^\/[^/]+\/htdocs(?=\/|$)/, '')
 }
 
+// Reads `/societe/api/<tab>.php?<query>` (the form the hooks below were written in) from `/societe/fapi/<tab>.php`.
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data = (await res.json()) as T & { ok?: boolean; message?: string }
-  if (data.ok === false) throw new Error(data.message ?? 'Legacy backend rejected the request.')
-  return data
+  const u = new URL(url, 'http://local')
+  const name = /^\/societe\/api\/(\w+)\.php$/.exec(u.pathname)?.[1]
+  if (!name) throw new Error(`Not a customer tab URL: ${url}`)
+  return fapiGet<T>(`${FAPI}/${TAB_FILE[name] ?? name}.php`, Object.fromEntries(u.searchParams.entries()))
 }
 
 // --- Transactions (per-account ledger) --------------------------------
@@ -66,17 +63,17 @@ function normalizeLedgerRow(raw: LedgerResponse['rows'][number]): LedgerRow {
   }
 }
 
-// datefilter is sent exactly as the legacy UI's own daterangepicker posts it
-// ("MM/DD/YYYY - MM/DD/YYYY") — confirmed live, this is the same string
-// transactions.php's own account_title/date_from response echoes back.
+// "MM/DD/YYYY" (what the date range pickers hold) -> "YYYY-MM-DD".
+const isoFromUs = (v: string) => {
+  const [m, d, y] = v.split('/')
+  return y && m && d ? `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}` : v
+}
+
 export function useCustomerLedger(socid: string | undefined, dateFrom: string, dateTo: string) {
-  const datefilter = `${dateFrom} - ${dateTo}`
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'ledger', dateFrom, dateTo],
     queryFn: async () => {
-      const data = await fetchJson<LedgerResponse>(
-        `/societe/api/transactions.php?action=ledger&datefilter=${encodeURIComponent(datefilter)}&socid=${socid}`,
-      )
+      const data = await fapiGet<LedgerResponse>(`${FAPI}/ledger.php`, { socid, date_from: isoFromUs(dateFrom), date_to: isoFromUs(dateTo) })
       return { ...data, rows: data.rows.map(normalizeLedgerRow) }
     },
     enabled: !!socid,
@@ -85,13 +82,12 @@ export function useCustomerLedger(socid: string | undefined, dateFrom: string, d
 
 // --- Activities (Tasks / Meetings / Calls) -----------------------------
 //
-// Full real contract confirmed this session by reading
-// societe/api/activities.php directly (not guessed): sc_act_row() is the
-// exact field set both the list and the detail=X actions return, and the
+// Contract from societe/api/activities.php: sc_act_row() is the field set
+// both the list and the detail=X actions return, and the
 // meta/create/update/schedule/close/delete branches below name their own
-// accepted POST fields explicitly. Mirrors the same real 3-icon Actions
-// column (View/Edit/Schedule) and Schedule-follow-up flow the legacy JS
-// widget (societe/assets/js/components/activities.js) implements — Edit and
+// accepted POST fields. Mirrors the 3-icon Actions column
+// (View/Edit/Schedule) and Schedule-follow-up flow the legacy JS widget
+// (societe/assets/js/components/activities.js) implements — Edit and
 // Schedule only apply to OPEN items there, so the same restriction is kept
 // here.
 
@@ -299,16 +295,8 @@ export function useCreateActivity(socid: string | undefined, type: ActivityType)
   return useMutation({
     mutationFn: async (input: ActivityFormInput) => {
       if (!socid) throw new Error('Missing third party id.')
-      const token = await scrapeSocieteToken(socid)
-      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...activityFormBody(type, input), action: 'create', type, token }),
-      })
-      const data = (await res.json()) as { ok: boolean; error?: string; id?: number }
-      if (!data.ok) throw new Error(data.error ?? 'Could not create the activity.')
-      return data.id
+      const d = await fapiPost<{ id?: number }>(`${FAPI}/activities.php`, { ...activityFormBody(type, input), socid: Number(socid) }, { action: 'create', socid: Number(socid) })
+      return d.id
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
@@ -326,15 +314,7 @@ export function useUpdateActivity(socid: string | undefined, type: ActivityType)
   return useMutation({
     mutationFn: async ({ id, input }: { id: number; input: ActivityFormInput }) => {
       if (!socid) throw new Error('Missing third party id.')
-      const token = await scrapeSocieteToken(socid)
-      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...activityFormBody(type, input), action: 'update', activity_id: id, token }),
-      })
-      const data = (await res.json()) as { ok: boolean; error?: string }
-      if (!data.ok) throw new Error(data.error ?? 'Could not update the activity.')
+      await fapiPost(`${FAPI}/activities.php`, { ...activityFormBody(type, input), activity_id: id, socid: Number(socid) }, { action: 'update', socid: Number(socid) })
     },
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
@@ -368,15 +348,7 @@ export function useScheduleActivity(socid: string | undefined, type: ActivityTyp
   return useMutation({
     mutationFn: async ({ id, processtype, input }: { id: number; processtype: string; input: ScheduleActivityInput }) => {
       if (!socid) throw new Error('Missing third party id.')
-      const token = await scrapeSocieteToken(socid)
-      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...input, action: 'schedule', activity_id: id, processtype, token }),
-      })
-      const data = (await res.json()) as { ok: boolean; error?: string }
-      if (!data.ok) throw new Error(data.error ?? 'Could not schedule the follow-up.')
+      await fapiPost(`${FAPI}/activities.php`, { ...input, activity_id: id, processtype, socid: Number(socid) }, { action: 'schedule', socid: Number(socid) })
     },
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
@@ -392,15 +364,7 @@ export function useCloseActivity(socid: string | undefined, type: ActivityType) 
   return useMutation({
     mutationFn: async ({ id, processtype, description }: { id: number; processtype: string; description?: string }) => {
       if (!socid) throw new Error('Missing third party id.')
-      const token = await scrapeSocieteToken(socid)
-      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'close', activity_id: id, processtype, description, token }),
-      })
-      const data = (await res.json()) as { ok: boolean; error?: string }
-      if (!data.ok) throw new Error(data.error ?? 'Could not close the activity.')
+      await fapiPost(`${FAPI}/activities.php`, { activity_id: id, processtype, description, socid: Number(socid) }, { action: 'close', socid: Number(socid) })
     },
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
@@ -417,15 +381,7 @@ export function useDeleteActivity(socid: string | undefined, type: ActivityType)
   return useMutation({
     mutationFn: async (id: number) => {
       if (!socid) throw new Error('Missing third party id.')
-      const token = await scrapeSocieteToken(socid)
-      const res = await fetch(`/societe/api/activities.php?socid=${socid}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', activity_id: id, token }),
-      })
-      const data = (await res.json()) as { ok: boolean; error?: string }
-      if (!data.ok) throw new Error(data.error ?? 'Could not delete the activity.')
+      await fapiPost(`${FAPI}/activities.php`, { activity_id: id, socid: Number(socid) }, { action: 'delete', socid: Number(socid) })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'detail', socid, 'activities', type] })
@@ -453,7 +409,10 @@ export interface ContactsResponse {
 export function useCustomerContacts(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'contacts'],
-    queryFn: () => fetchJson<ContactsResponse>(`/societe/api/contacts.php?socid=${socid}`),
+    queryFn: async (): Promise<ContactsResponse> => {
+      const d = await fapiGet<{ can_edit?: boolean; rows?: ContactRow[]; items?: ContactRow[] }>('/contact/fapi/list.php', { socid, limit: 100 })
+      return { can_edit: Boolean(d.can_edit), rows: d.rows ?? d.items ?? [] }
+    },
     enabled: !!socid,
   })
 }
@@ -465,20 +424,6 @@ export interface CreateContactInput {
   phone: string
   phone_mobile: string
   poste: string
-}
-
-// societe/api/* write actions go through sc_api_check_token(), which
-// validates against this session's own server-side CSRF token — there's no
-// dedicated token-issuing endpoint, so a fresh one is scraped off
-// societe/card.php's own hidden `token` field (same technique already used
-// for the real Warehouse edit form).
-async function scrapeSocieteToken(socid: string): Promise<string> {
-  const res = await fetch(`/societe/card.php?socid=${socid}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const html = await res.text()
-  const match = html.match(/name="token"\s+value="([^"]+)"/)
-  if (!match) throw new Error('Could not find a CSRF token on the third party page.')
-  return match[1]
 }
 
 // POST contact/fapi/create.php — Contact::create() as JSON, no CSRF token
@@ -530,7 +475,38 @@ export interface ContractsResponse {
 export function useCustomerContracts(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'contracts'],
-    queryFn: () => fetchJson<ContractsResponse>(`/societe/api/contracts.php?sortfield=c.ref&sortorder=DESC&socid=${socid}`),
+    queryFn: async (): Promise<ContractsResponse> => {
+      const d = await fapiGet<{ items?: Array<Record<string, any>> }>('/contrat/fapi/list.php', { socid, sort: 'ref', direction: 'desc', limit: 100 })
+      const items = d.items ?? []
+      const sum = (k: string) => items.reduce((n, c) => n + (Number(c[k]) || 0), 0)
+      return {
+        rows: items.map((c) => ({
+          id: Number(c.id),
+          ref: String(c.ref ?? ''),
+          ref_customer: String(c.ref_customer ?? ''),
+          ref_supplier: String(c.ref_supplier ?? ''),
+          sales_representatives: ((c.sales_reps ?? []) as Array<{ name?: string }>).map((r) => r.name ?? '').filter(Boolean).join(', '),
+          date_contract: usDateText(c.date_contrat),
+          lower_planned_end_date: usDateText(c.date_end),
+          service_status: String(c.status_label ?? ''),
+        })),
+        summary: {
+          cards: [
+            {
+              title: 'Services',
+              items: [
+                { label: 'Not running', value: sum('nb_initial') },
+                { label: 'Running', value: sum('nb_running') },
+                { label: 'Expired', value: sum('nb_expired') },
+                { label: 'Late', value: sum('nb_late') },
+                { label: 'Closed', value: sum('nb_closed') },
+              ],
+            },
+          ],
+        },
+        urls: { create: '', legacy: '' },
+      }
+    },
     enabled: !!socid,
   })
 }
@@ -601,20 +577,19 @@ export function useCustomerTab(socid: string | undefined) {
   })
 }
 
-// --- Vendor tab (fourn/card.php's real data, confirmed live) ------------
-// societe/api/supplier.php is a real, already-built sibling of customer.php
-// above — read directly and confirmed live (socid=6, "Vendor2"): real KPIs
-// (proposals_kpi/orders_kpi/supplier_outstanding), real payment-term/mode
-// labels, real category list, and real action-button URLs
-// (create_proposal/create_order/create_invoice point at the actual
+// --- Vendor tab (fourn/card.php's data) ------------
+// societe/api/supplier.php is the sibling of customer.php above: KPIs
+// (proposals_kpi/orders_kpi/supplier_outstanding), payment-term/mode
+// labels, category list, and action-button URLs
+// (create_proposal/create_order/create_invoice point at the
 // supplier_proposal/fourn.commande/fourn.purchase create pages). No
 // separate "invoices_kpi" bucket exists in the response the way
 // proposals/orders each have one — supplier_outstanding.total_ht is used
-// for the "Invoices" stat tile here since it's the only real invoiced-
-// amount figure this endpoint returns; the real page's "Current
-// Outstanding Bill"/"Advance" tiles map to supplier_outstanding.opened and
+// for the "Invoices" stat tile here since it's the only invoiced-amount
+// figure this endpoint returns; the page's "Current Outstanding
+// Bill"/"Advance" tiles map to supplier_outstanding.opened and
 // fields.advance respectively (no Used/Pending breakdown exists in this
-// response, so that real sub-line isn't reproduced).
+// response, so that sub-line isn't reproduced).
 export interface VendorTabResponse {
   fournisseur: number
   code_fournisseur: string
@@ -691,19 +666,11 @@ export interface AgendaFilters {
   to?: string
 }
 
-const usDate = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}`
-
 export function useCustomerAgenda(socid: string | undefined, filters: AgendaFilters) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'agenda', filters],
     queryFn: () => {
-      const params = new URLSearchParams({ socid: socid ?? '' })
-      if (filters.type) params.set('type', filters.type)
-      if (filters.status) params.set('status', filters.status)
-      if (filters.user) params.set('user', filters.user)
-      if (filters.search) params.set('search', filters.search)
-      if (filters.from || filters.to) params.set('datefilter', `${usDate(filters.from || '1900-01-01')} - ${usDate(filters.to || '2100-12-31')}`)
-      return fetchJson<AgendaResponse>(`/societe/api/agenda.php?${params.toString()}`)
+      return fapiGet<AgendaResponse>(`${FAPI}/agenda.php`, { socid, type: filters.type || undefined, status: filters.status || undefined, user: filters.user || undefined, search: filters.search || undefined, date_from: filters.from || undefined, date_to: filters.to || undefined })
     },
     enabled: !!socid,
   })

@@ -4,14 +4,10 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { useUsersSummary } from '../../users/users.queries'
 import { usePayrollLegacyList } from '../payrollLists.queries'
+import { currentMonthIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
-
-function currentMonthIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
 
 function formatMonthLabel(value: string) {
   if (!value) return ''

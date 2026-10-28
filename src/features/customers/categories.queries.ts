@@ -18,9 +18,9 @@ export interface CategoryRow {
 }
 
 // The classic tags/categories page (categories/index.php?type=product|customer|
-// contact|supplier) loads its tree from categories/api/index.php — confirmed live on
-// 172.16.5.10 (session-cookie auth, read-only: actions tree / search /
-// products). The names below are that page's own `type` values.
+// contact|supplier) loads its tree from categories/api/index.php (session-cookie
+// auth, read-only: actions tree / search / products). The names below are that
+// page's own `type` values.
 const TYPE_NAME: Record<CategoryType, 'product' | 'supplier' | 'customer' | 'contact'> = { 0: 'product', 1: 'supplier', 2: 'customer', 4: 'contact' }
 
 // The four cards above the tree: how many tags, how many top-level ones, how
@@ -112,6 +112,45 @@ export function fetchCategoryItems(type: CategoryType, categoryId?: number): Pro
   return fetchItemsFapi(type, categoryId)
 }
 
+export interface CategoryCandidate {
+  id: number
+  ref: string
+  label: string
+  linked: boolean
+}
+
+// GET categories/fapi/list.php?action=candidates feeds the add-member picker: the records of the tag's type that match
+// the search, with the ones already filed under the tag flagged so they are not offered twice.
+export async function fetchCategoryCandidates(type: CategoryType, tagId: number, search: string): Promise<CategoryCandidate[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = await fapiGet<any>(`${FAPI}/list.php`, { type: TYPE_NAME[type], id: tagId, action: 'candidates', search: search || undefined, limit: 20 })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const list: any[] = d.candidates ?? d.items ?? d.objects ?? []
+  return list.map((o) => ({
+    id: Number(o.id),
+    ref: String(o.ref ?? o.code ?? ''),
+    label: String(o.label ?? o.name ?? ''),
+    linked: Boolean(o.linked ?? o.already_linked ?? o.is_linked ?? o.is_member),
+  }))
+}
+
+// categories/fapi/assign.php and unassign.php take object_ids (an array; a lone object_id is ignored and nothing is
+// attached), file a record under a tag or take it out again (the record itself is
+// untouched). Both refresh the tag tree, whose counts change.
+export function useCategoryMembership(type: CategoryType) {
+  const queryClient = useQueryClient()
+  const done = () => queryClient.invalidateQueries({ queryKey: ['categories', type] })
+  const assign = useMutation({
+    mutationFn: ({ tagId, objectId }: { tagId: number; objectId: number }) => fapiPost(`${FAPI}/assign.php`, { type: TYPE_NAME[type], id: tagId, object_ids: [objectId] }),
+    onSuccess: done,
+  })
+  const unassign = useMutation({
+    mutationFn: ({ tagId, objectId }: { tagId: number; objectId: number }) => fapiPost(`${FAPI}/unassign.php`, { type: TYPE_NAME[type], id: tagId, object_ids: [objectId] }),
+    onSuccess: done,
+  })
+  return { assign, unassign }
+}
+
 // POST categories/fapi/create.php (409 on a duplicate name at the same level); the colour is stored without the #.
 export function useCreateCategory(type: CategoryType) {
   const queryClient = useQueryClient()
@@ -140,18 +179,6 @@ export function useUpdateCategory(type: CategoryType) {
     mutationFn: async (input: { id: number; label: string; description: string; color: string; parentId: number; previousParentId: number; visible: boolean }) => {
       await fapiPost(`${FAPI}/update.php`, { type: TYPE_NAME[type], id: input.id, label: input.label, description: input.description, color: input.color.replace('#', ''), visible: input.visible })
       if (input.parentId !== input.previousParentId) await fapiPost(`${FAPI}/move.php`, { type: TYPE_NAME[type], id: input.id, parent_id: input.parentId > 0 ? input.parentId : 0 })
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),
-  })
-}
-
-// categories/fapi/delete.php: a tag with sub-tags is refused (409) unless confirm:true, because Categorie::delete()
-// re-parents them silently; the objects that were tagged are untouched.
-export function useDeleteCategory(type: CategoryType) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ id, confirm }: { id: number; confirm?: boolean }) => {
-      await fapiPost(`${FAPI}/delete.php`, { type: TYPE_NAME[type], id, confirm: confirm || undefined })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories', type] }),
   })

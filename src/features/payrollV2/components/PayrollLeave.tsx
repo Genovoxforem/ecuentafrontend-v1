@@ -14,9 +14,9 @@ import {
   usePayrollEmployees,
   type LeaveRequestRow,
 } from '../payrollV2.queries'
+import { todayIso } from '../../../utils/dates'
 import { EmptyRow, ErrorCard, LoadingRows, PanelCard, StatusBadge, TablePanel, Td, Th } from './PayrollV2Chrome'
 
-const today = () => new Date().toISOString().slice(0, 10)
 const FIELD = 'rounded-md border border-input-border bg-input-bg px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Request failed.')
 
@@ -175,8 +175,8 @@ export function PayrollLeave() {
 
   const [employeeId, setEmployeeId] = useState('')
   const [typeId, setTypeId] = useState('')
-  const [from, setFrom] = useState(today())
-  const [to, setTo] = useState(today())
+  const [from, setFrom] = useState(todayIso())
+  const [to, setTo] = useState(todayIso())
   const [reason, setReason] = useState('')
 
   const apply = (event: React.FormEvent) => {

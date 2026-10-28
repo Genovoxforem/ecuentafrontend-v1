@@ -4,24 +4,18 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useUsersSummary } from '../../users/users.queries'
+import { currentMonthIso } from '../../../utils/dates'
 import { usePayDeductionListPage, useCreatePayDeduction, type PayDeductionRowInput } from '../payDeduction.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-function currentMonthIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
 function emptyRow(): PayDeductionRowInput {
   return { expenseTypeId: '', kind: 'Allowance', amount: '' }
 }
 
-// pay_deduction.php's list is real, scraped data, and its Add panel's write
-// is a real payroll/ajax.php call — see payDeduction.queries.ts's own top
-// comment for how both were confirmed live this session (a real test write
-// round-tripped through the list correctly).
+// pay_deduction.php's list is scraped, and its Add panel's write is a
+// payroll/ajax.php call — see payDeduction.queries.ts's own top comment.
 export function PayDeductionForm() {
   const { data: page, isLoading, isError, error, refetch } = usePayDeductionListPage()
   const { data: users } = useUsersSummary()

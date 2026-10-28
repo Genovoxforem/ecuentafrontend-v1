@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { BarChart, Eye, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
-import { useUsersSummary } from '../../users/users.queries'
+import { formatMoney } from '../../../utils/format'
+import { useYtdSummary, type YtdSummaryPeriod } from '../payrollLists.queries'
+import { currentMonthIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -12,11 +14,6 @@ const SEARCH_TYPES: { value: SearchType; label: string }[] = [
   { value: 'month', label: 'By Month' },
   { value: 'year', label: 'By Fiscal Year' },
 ]
-
-function currentMonthIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
 
 function formatMonthLabel(value: string) {
   if (!value) return ''
@@ -41,7 +38,8 @@ function formatMonthLabel(value: string) {
 // this reproduces here too — a static popup, not a live call, since the
 // real result never varies while that table has no rows.
 export function YtdPayrollSummaryForm() {
-  const { data: users } = useUsersSummary()
+  const [applied, setApplied] = useState<YtdSummaryPeriod>(null)
+  const { data: summaryRows, isLoading, isError, error: loadError } = useYtdSummary(applied)
 
   const [searchType, setSearchType] = useState<SearchType | ''>('')
   const [month, setMonth] = useState(currentMonthIso())
@@ -59,10 +57,10 @@ export function YtdPayrollSummaryForm() {
   }, [])
 
   const rows = useMemo(() => {
-    const all = users?.users ?? []
+    const all = summaryRows ?? []
     const q = search.trim().toLowerCase()
-    return q ? all.filter((u) => (u.name || u.login).toLowerCase().includes(q)) : all
-  }, [users, search])
+    return q ? all.filter((r) => r.employeeName.toLowerCase().includes(q)) : all
+  }, [summaryRows, search])
   const pageRows = rows.slice((page - 1) * perPage, page * perPage)
 
   function handleGo() {
@@ -71,9 +69,11 @@ export function YtdPayrollSummaryForm() {
     if (searchType === 'month') {
       if (!month) return setError('Select a month.')
       setReport(`the month of ${formatMonthLabel(month)}`)
+      setApplied({ type: 'month', month })
     } else {
       if (!year) return setError('Select a fiscal year.')
       setReport(`Fiscal Year ${year}`)
+      setApplied({ type: 'year', year })
     }
     setPage(1)
   }
@@ -83,6 +83,7 @@ export function YtdPayrollSummaryForm() {
     setYear('')
     setError('')
     setReport(null)
+    setApplied(null)
     setSearch('')
     setPage(1)
   }
@@ -184,7 +185,19 @@ export function YtdPayrollSummaryForm() {
                 </tr>
               </thead>
               <tbody>
-                {pageRows.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-text-faint italic">
+                      Loading...
+                    </td>
+                  </tr>
+                ) : isError ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-danger">
+                      {loadError instanceof Error ? loadError.message : 'Could not load the summary.'}
+                    </td>
+                  </tr>
+                ) : pageRows.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-3 py-4 text-text-faint italic">
                       No Data Available In Table
@@ -192,14 +205,14 @@ export function YtdPayrollSummaryForm() {
                   </tr>
                 ) : (
                   pageRows.map((u) => (
-                    <tr key={u.id} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-text!">{u.name || u.login}</td>
-                      <td className="px-3 py-2 text-text-faint">-</td>
-                      <td className="px-3 py-2 text-text-faint">-</td>
+                    <tr key={u.employeeId} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2 text-text!">{u.employeeName}</td>
+                      <td className="px-3 py-2 text-text-faint">{u.netSalary === null ? '-' : formatMoney(u.netSalary)}</td>
+                      <td className="px-3 py-2 text-text-faint">{u.paidAmount === null ? '-' : formatMoney(u.paidAmount)}</td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
-                          onClick={() => setViewEmployee(u.name || u.login)}
+                          onClick={() => setViewEmployee(u.employeeName)}
                           title="Payment Details"
                           className="text-text-muted hover:text-brand"
                         >

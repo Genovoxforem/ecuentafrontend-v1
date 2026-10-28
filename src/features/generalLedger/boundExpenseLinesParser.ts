@@ -1,12 +1,11 @@
 // accountancy/expensereport/lines.php — "Bound lines of expense reports" (the
-// expense report "Dispatched" screen). Confirmed live against 172.16.5.10
-// (page, form, filters, 372-option account_parent select) and in the PHP
-// source, which shows the row template. Same architecture as the customer
-// lines.php: one POST form (token) around a table with a `changeaccount[]`
-// checkbox per bound line; "Change the binding" posts the ticked ids plus
-// account_parent and runs UPDATE expensereport_det SET fk_code_ventilation.
-// Only approved/closed expense reports are listed. Columns are mapped by
-// header text because the optional "Validation date" column may be present.
+// expense report "Dispatched" screen). The PHP source shows the row template.
+// Same architecture as the customer lines.php: one POST form (token) around
+// a table with a `changeaccount[]` checkbox per bound line; "Change the
+// binding" posts the ticked ids plus account_parent and runs UPDATE
+// expensereport_det SET fk_code_ventilation. Only approved/closed expense
+// reports are listed. Columns are mapped by header text because the
+// optional "Validation date" column may be present.
 
 export interface BoundExpenseLine {
   lineId: string

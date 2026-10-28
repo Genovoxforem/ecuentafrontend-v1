@@ -12,7 +12,7 @@ const ENDPOINT = "/api/invoices/index.php";
 const PAGE_SIZE = 200;
 
 // ISO "YYYY-MM-DD" -> legacy's expected "MM/DD/YYYY" (matches this instance's
-// configured FormatDateShortInput, confirmed against langs/en_US/main.lang).
+// configured FormatDateShortInput, see langs/en_US/main.lang).
 const toLegacyDate = (iso) => {
     const [y, m, d] = iso.split("-");
     return `${m}/${d}/${y}`;
@@ -93,15 +93,13 @@ export const getReportsInRange = async ({ startDate, endDate, search }) => {
 
 // Same-origin only: takeposnew's own payment_summary.php — totals grouped by
 // payment method, for the summary cards legacy shows above its reports
-// table. Deliberately called with NO params: confirmed live (both by reading
-// pos-reports.js's loadPaymentSummary(), which never sends `daterange`, and
-// by watching the real request fire from demo1.ecuenta.online) that legacy's
-// own UI does the same — so despite the endpoint technically accepting a
-// `daterange` param, this always reflects the *current month* regardless of
-// whatever range is selected in the entries table below. Known legacy quirk,
-// intentionally replicated here rather than "fixed" — see
-// [[legacy-dolibarr-pos-backend]]. Returns null on failure so the caller
-// falls through to summarizeInvoicePayments below.
+// table. Deliberately called with NO params: legacy's own UI does the same
+// (pos-reports.js's loadPaymentSummary() never sends `daterange`), so
+// despite the endpoint technically accepting a `daterange` param, this
+// always reflects the *current month* regardless of whatever range is
+// selected in the entries table below. Known legacy quirk, intentionally
+// replicated here rather than "fixed". Returns null on failure so the
+// caller falls through to summarizeInvoicePayments below.
 const fetchLegacyPaymentSummary = async () => {
     try {
         const response = await fetch(buildRequestUrl("/takeposnew/api/payment_summary.php"), {
@@ -126,22 +124,18 @@ const fetchLegacyPaymentSummary = async () => {
 };
 
 // Universal fallback for when the same-origin legacy path above isn't
-// available (the normal case — see [[pos_standalone_no_backend_changes]]:
-// user explicitly doesn't want backend endpoints touched at all, even for a
-// one-line typo fix, so this builds the aggregate client-side instead, from
-// whichever per-invoice endpoint is actually working on the configured
-// server). Tries api/pos/receipt/index.php first — its payments SQL is
-// correct (uses the real `p.datep` column) and returns real payment data
-// wherever that endpoint itself is reachable (confirmed live on local WAMP).
-// Falls back to api/invoices/index.php's detail action otherwise (e.g.
-// api/pos/receipt returning "Include of main fails" on the shared
-// demo/demo1.ecuenta.online deployment — confirmed both hostnames resolve
-// to the same backend, same bug, live) — but that endpoint's own payments
-// sub-query references a nonexistent column (`p.datepaye` instead of
-// `p.datep`) and always comes back empty, a real backend bug this project
-// isn't touching. So on that server, every path comes up empty and this
-// legitimately has no data to show — not a frontend gap, there's simply no
-// working endpoint left to ask.
+// available (the normal case): builds the aggregate client-side instead
+// (no backend changes from this project), from whichever per-invoice
+// endpoint is working on the configured server. Tries
+// api/pos/receipt/index.php first — its payments SQL is correct (uses the
+// `p.datep` column) and returns payment data wherever that endpoint itself
+// is reachable. Falls back to api/invoices/index.php's detail action
+// otherwise (e.g. api/pos/receipt returning "Include of main fails") — but
+// that endpoint's own payments sub-query references a nonexistent column
+// (`p.datepaye` instead of `p.datep`) and always comes back empty, a
+// backend bug this project isn't touching. So on such a server, every path
+// comes up empty and this has no data to show — not a frontend gap, there's
+// simply no working endpoint left to ask.
 const fetchInvoicePayments = async (invoiceId) => {
     try {
         const data = await get(`/api/pos/receipt/index.php?id=${invoiceId}`);

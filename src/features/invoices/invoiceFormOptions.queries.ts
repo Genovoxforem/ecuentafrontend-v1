@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useBankAccountDictionary, usePaymentModeDictionary } from '../../api/lookups'
 import { api, fapi } from '../../api/axios'
 import { customerLookupsQuery, type CustomerLookups } from '../customers/thirdPartyOptions.queries'
 
@@ -9,40 +10,22 @@ interface DictionaryOption {
   text: string
 }
 
-interface DictionaryResponse {
-  success: boolean
-  results: Array<{ id: string | number; text: string }>
-}
 
 // GET /api/payment_types.php — real Dolibarr dictionary (llx_c_paiement),
 // works via X-API-Key auth. Same endpoint OrderCreateForm uses.
 export function usePaymentModes() {
-  return useQuery({
-    queryKey: ['dictionary', '/payment_types.php'],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const { data } = await api.get<DictionaryResponse>('/payment_types.php')
-      return data.success ? data.results.map((r) => ({ id: String(r.id), text: r.text })) : []
-    },
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePaymentModeDictionary()
 }
 
 // GET /api/bank_accounts.php — real Dolibarr dictionary (llx_bank_account),
 // works via X-API-Key auth. Same endpoint OrderCreateForm uses.
 export function useBankAccountOptions() {
-  return useQuery({
-    queryKey: ['dictionary', '/bank_accounts.php'],
-    queryFn: async (): Promise<DictionaryOption[]> => {
-      const { data } = await api.get<DictionaryResponse>('/bank_accounts.php')
-      return data.success ? data.results.map((r) => ({ id: String(r.id), text: r.text })) : []
-    },
-    staleTime: 1000 * 60 * 10,
-  })
+  return useBankAccountDictionary()
 }
 
 // Payment terms (llx_c_payment_term) from societe/api/meta.php's
 // wizard_options, the same rows/ids/order as the legacy order-create page's
-// <select name="cond_reglement_id"> this used to download (1.7 MB) to read.
+// <select name="cond_reglement_id">.
 const toPaymentTermOptions = (lookups: CustomerLookups): DictionaryOption[] => lookups.paymentTerms.map((t) => ({ id: String(t.id), text: t.label }))
 
 export function usePaymentTerms() {

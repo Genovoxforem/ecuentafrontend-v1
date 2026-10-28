@@ -3,7 +3,6 @@
 // one toggle per accessory into `#accessories_container`:
 //   <input type="checkbox" class="btn-check" id="3" name="ass_id[]" value="3">
 //   <label class="btn btn-outline-primary" for="3">Pouch</label>
-// Verified against the dev backend (five real accessories on one, none on the other).
 
 export interface JobCardAccessory {
   id: number

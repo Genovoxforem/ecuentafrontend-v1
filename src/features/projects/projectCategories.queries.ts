@@ -5,9 +5,9 @@ import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 // own custom /api/categories/ endpoint (used by the Customers Tags/Categories
 // page) only exists for types 1/2/4 and 404s for other types, so this
 // follows the same legacy-scrape pattern as the rest of the Projects module
-// instead. Verified live against categories/card.php?type=6: real field
-// names are label, description, color, parent, with hidden id="", type="6",
-// type_id="", action=add, urlfrom, token.
+// instead. categories/card.php?type=6 field names are label, description,
+// color, parent, with hidden id="", type="6", type_id="", action=add,
+// urlfrom, token.
 
 const NOT_SIGNED_IN_MESSAGE =
   'Not signed into the legacy backend. Project categories have no usable REST API and read the real Dolibarr page directly — log out and back in to refresh that session, then retry.'

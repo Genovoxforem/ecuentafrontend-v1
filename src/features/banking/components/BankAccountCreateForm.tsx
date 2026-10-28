@@ -4,6 +4,7 @@ import { Landmark, Check, X, LoaderCircle } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
+import { todayIso } from '../../../utils/dates'
 import { useBankAccountFormOptions, useCreateBankAccount } from '../banking.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -13,10 +14,6 @@ const ACCOUNT_TYPES = [
   { value: '1', label: 'Cash account' },
   { value: '2', label: 'Savings account' },
 ]
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -30,14 +27,9 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-// Real POST to compta/bank/card.php?action=add — no JSON API on this
-// backend, but a genuine classic form-POST create (see useCreateBankAccount
-// in banking.queries.ts for the full field mapping and why this is safe to
-// attempt rather than leaving inert). Country/State/Accounting Account/
-// Accounting Code Journal options are parsed straight out of that same
-// page's own real <option> lists (see bankAccountFormParser.ts) — Account
-// type and Status aren't scraped since Dolibarr hardcodes those inline in
-// the PHP source itself.
+// Creates the account through compta/bank/fapi/account.php (POST ?action=create); the Currency / Country / State / Accounting Account /
+// Accounting Code Journal lists come from the same file's form_options. Ref, Bank or cash label and Accounting code journal are the fields
+// the endpoint insists on. Account type and Status keep the classic page's own wording.
 export function BankAccountCreateForm() {
   const navigate = useNavigate()
   const { data: options, isLoading: optionsLoading, isError: optionsError } = useBankAccountFormOptions()
@@ -72,12 +64,13 @@ export function BankAccountCreateForm() {
   // isn't clobbered if the options refetch.
   useEffect(() => {
     if (options?.defaultCountryValue) setCountryId((prev) => prev || options.defaultCountryValue)
-  }, [options?.defaultCountryValue])
+    if (options?.defaultCurrencyValue) setCurrencyCode((prev) => prev || options.defaultCurrencyValue || '')
+  }, [options?.defaultCountryValue, options?.defaultCurrencyValue])
 
   async function handleSubmit() {
     setFormError('')
-    if (!ref.trim() || !label.trim() || !currencyCode || !countryId || !accountingAccount) {
-      setFormError('Ref, Bank or cash label, Currency, Account country and Accounting account are required.')
+    if (!ref.trim() || !label.trim() || !currencyCode || !countryId || !accountingAccount || !accountingJournal) {
+      setFormError('Ref, Bank or cash label, Currency, Account country, Accounting account and Accounting code journal are required.')
       return
     }
     try {
@@ -105,7 +98,7 @@ export function BankAccountCreateForm() {
         accountingAccount,
         accountingJournal,
       })
-      navigate(ROUTES.bankingAccountDetail.replace(':id', String(newId)))
+      navigate(newId === undefined ? ROUTES.bankingAccounts : ROUTES.bankingAccountDetail.replace(':id', String(newId)))
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create bank account.')
     }
@@ -261,7 +254,7 @@ export function BankAccountCreateForm() {
               ))}
             </select>
           </Field>
-          <Field label="Accounting code journal">
+          <Field label="Accounting code journal" required>
             <select value={accountingJournal} onChange={(e) => setAccountingJournal(e.target.value)} className={inputClasses}>
               <option value="">Select a journal</option>
               {options?.accountingJournals.map((j) => (

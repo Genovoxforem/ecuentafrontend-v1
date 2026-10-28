@@ -104,15 +104,14 @@ export function usePayment() {
     //
     // Three-tier fallback, tried in order of "closest to a real draft":
     //  1. takeposnew/ajax/ajax.php's saveDraft (same-origin only) — the
-    //     legacy TakePOS UI's own mechanism, confirmed live 2026-07-18 to
-    //     produce a genuine statut=0 draft. Preferred whenever available
-    //     since this app is normally deployed same-origin (see
-    //     [[pos_standalone_dynamic_proxy]]/htdocs build modes).
+    //     legacy TakePOS UI's own mechanism, which produces a statut=0
+    //     draft. Preferred whenever available since this app is normally
+    //     deployed same-origin.
     //  2. api/pos/draft/index.php — also a true draft, for whenever this app
     //     is running cross-origin against a backend that happens to have
     //     this file deployed (isn't deployed everywhere — see saveDraftInvoice).
     //  3. api/pos/payment's deferred_payment flag — last resort, only ever
-    //     produces a validated-but-unpaid invoice (stock decremented, real
+    //     produces a validated-but-unpaid invoice (stock decremented, final
     //     ref), never a true draft, but universally deployed.
     const saveDraft = async () => {
         if (cart.length === 0 || pendingInvoice || draftInvoiceId) return;
@@ -185,10 +184,9 @@ export function usePayment() {
             }
         } catch (err) {
             // handleError only sets `error` state, which nothing outside
-            // PaymentModal renders — CartPanel (where this button actually
-            // lives) never shows it, so a failure here was previously
-            // completely silent to the cashier. A toast is the only feedback
-            // mechanism CartPanel already has wired up.
+            // PaymentModal renders — CartPanel (where this button lives)
+            // never shows it, so a toast is the only feedback mechanism
+            // CartPanel has wired up.
             handleError(err);
             const message = err.response?.data?.error || err.message || "Failed to save draft";
             showToast(message, "error");

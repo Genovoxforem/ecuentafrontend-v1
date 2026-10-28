@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
   fetchThirdParties,
   fetchThirdPartySummary,
@@ -52,13 +52,22 @@ export function toThirdPartyRow(item: FapiThirdPartyRow): ThirdPartyRow {
  * vendor-specific outstanding balance from facture_fourn (purchase invoices),
  * not facture (sales invoices).
  */
+
+// The vendor KPI summary is also read by the Purchase Invoices cards. Both go through here so the purchases dashboard
+// makes one request. It sits under the ['vendors', 'summary'] prefix, so creating a vendor refreshes it, and keeps the
+// 1-minute window useVendorsSummary always had.
+export function fetchVendorSummary(queryClient: QueryClient) {
+  return queryClient.fetchQuery({ queryKey: ['vendors', 'summary', 'raw'], queryFn: () => fetchThirdPartySummary('vendor'), staleTime: 1000 * 60 })
+}
+
 export function useVendorsSummary() {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ['vendors', 'summary'],
     queryFn: async (): Promise<VendorsSummary> => {
       const [listData, summary] = await Promise.all([
         fetchThirdParties({ type: 'vendor', limit: 100, sort: 'name', direction: 'asc' }),
-        fetchThirdPartySummary('vendor'),
+        fetchVendorSummary(queryClient),
       ])
       const vendors: ThirdPartyRow[] = listData.items.map(toThirdPartyRow)
 

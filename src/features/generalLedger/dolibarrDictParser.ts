@@ -1,18 +1,17 @@
 // Shared parser for Dolibarr's generic "dictionary" list template — the
-// exact same markup (tr.oddeven rows, td.tddict data cells, a status
-// toggle + edit + delete link per row, each carrying its own real CSRF
-// token) backs admin/dict.php?id=<n> AND several accountancy-specific
-// clones of that same template (journals_list.php, categories_list.php) —
-// confirmed live this session by diffing Tax Accounts (dict.php?id=7),
-// VAT Accounts (id=10), Expense Report Accounts (id=17), Personalized
-// Groups (categories_list.php?id=32), and Accounting Journals
-// (journals_list.php?id=35): identical row/cell/link shape, only the
-// column count and dictionary id differ. Only Enable/Disable and Delete
-// are wired here (both are simple, already-tokened GET links scraped
-// straight off each row) — Add/Edit are real classic form-POSTs too, but
-// each dictionary's own field set differs enough (Code/Label/Nature for
-// journals vs Code/Label/Country/Accounting Code/Deductible for tax
-// types, etc.) that reproducing them all generically is out of scope here.
+// same markup (tr.oddeven rows, td.tddict data cells, a status toggle +
+// edit + delete link per row, each carrying its own CSRF token) backs
+// admin/dict.php?id=<n> AND several accountancy-specific clones of that
+// template (journals_list.php, categories_list.php): Tax Accounts
+// (dict.php?id=7), VAT Accounts (id=10), Expense Report Accounts (id=17),
+// Personalized Groups (categories_list.php?id=32), and Accounting Journals
+// (journals_list.php?id=35) share the row/cell/link shape, only the column
+// count and dictionary id differ. Only Enable/Disable and Delete are wired
+// here (both are already-tokened GET links scraped off each row) —
+// Add/Edit are classic form-POSTs too, but each dictionary's own field set
+// differs enough (Code/Label/Nature for journals vs Code/Label/Country/
+// Accounting Code/Deductible for tax types, etc.) that reproducing them all
+// generically is out of scope here.
 export interface DictRow {
   rowid: string
   cells: string[]

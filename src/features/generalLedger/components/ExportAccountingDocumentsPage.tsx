@@ -6,7 +6,7 @@ import { StickyListLayout, ScrollCard, STICKY_THEAD, STICKY_TFOOT } from '../../
 import { resolveLegacyRoute } from '../../../shared/legacyRoute'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAccountingFiles, useDownloadAccountingFiles, type AccountingFilesSearch } from '../accountingFiles.queries'
-import type { AccountingFileRow } from '../accountingFilesParser'
+import type { AccountingFileRow } from '../accountingFiles.types'
 
 const dateCls = 'h-10 rounded-md border border-input-border bg-input-bg px-3 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
 const th = 'px-3 py-2.5 text-xs font-semibold text-text whitespace-nowrap'

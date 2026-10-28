@@ -1,11 +1,11 @@
-// Parses payroll/gratuity_report.php — confirmed live to be a plain
-// GET-able classic report (its own <form method="POST"> has no `action`,
-// real PHP reads `employee_li`/`submitt` via $_REQUEST). The Employee
-// select is server-rendered directly into the page, grouped by real
-// llx_entity rows, one real option per active (`statut`='1') llx_user in
-// that entity. Real columns: Month/Basic Salary/Gratuity Amount, one row
-// per llx_payroll_gratuity_report entry for the chosen employee, plus a
-// real trailing Total row (tfoot) summing the Gratuity Amount column.
+// Parses payroll/gratuity_report.php — a plain GET-able classic report (its
+// own <form method="POST"> has no `action`, the PHP reads `employee_li`/
+// `submitt` via $_REQUEST). The Employee select is server-rendered directly
+// into the page, grouped by llx_entity rows, one option per active
+// (`statut`='1') llx_user in that entity. Columns: Month/Basic
+// Salary/Gratuity Amount, one row per llx_payroll_gratuity_report entry for
+// the chosen employee, plus a trailing Total row (tfoot) summing the
+// Gratuity Amount column.
 
 export interface GratuityEmployeeOption {
   value: string

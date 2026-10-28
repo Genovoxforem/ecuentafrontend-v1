@@ -71,15 +71,14 @@ for (const [k, v] of Object.entries(MAINMENU_TO_INTERNAL_KEY)) {
 const FALLBACK_TO_LOCAL_NAV_KEYS = new Set(['expenses'])
 
 // Sections whose live backend rows are FLAT: every row has fk_menu=-1, so the
-// backend carries no grouping to rebuild (confirmed live on 172.16.5.10 for
-// ZRA's ASYCUDA/Sales/Customer/Purchase/... headings and Ticket's list; Hotel
-// and Payroll have the same shape on installs that expose them). For these,
-// the hand-built *.nav.ts file supplies only the NESTING and the React paths —
-// what is shown is limited to the items the backend lists (and lists as enabled
-// and permitted for this user): a local item the backend does not return is
-// dropped, and a backend item with no local page is added as an unlinked entry
-// (the same way every other section shows one). Same tradeoff as before for the
-// grouping itself: it is the local structure, not a live one.
+// backend carries no grouping to rebuild (ZRA's ASYCUDA/Sales/Customer/Purchase/...
+// headings and Ticket's list; Hotel and Payroll have the same shape on installs
+// that expose them). For these, the hand-built *.nav.ts file supplies only the
+// NESTING and the React paths — what is shown is limited to the items the backend
+// lists (and lists as enabled and permitted for this user): a local item the
+// backend does not return is dropped, and a backend item with no local page is
+// added as an unlinked entry (the same way every other section shows one). The
+// grouping itself is the local structure, not a live one.
 const LOCAL_STRUCTURE_NAV_KEYS = new Set(['hotel', 'payroll', 'zra', 'ticket'])
 
 function normalizeLabel(label: string): string {
@@ -177,11 +176,10 @@ function mapNode(internalKey: string, node: BackendMenuNode, pathIndex: Map<stri
     (composite && pathIndex.get(`${internalKey}::${composite}`)) ?? pathIndex.get(`${internalKey}::${normalizeLabel(node.titre)}`) ?? resolveLegacyRoute(node.url) ?? undefined
   if (node.children.length > 0) {
     // `path` carries through even though this node also has children — a
-    // real node can be both (see NavGroupItem's own comment). Dropping it
-    // here previously made a node like Agenda's "Events" (link to the bare
-    // calendar AND parent of New Event/List/Calendar/Reporting/Tags) resolve
-    // to no path at all, breaking both its breadcrumb and its own direct
-    // link once real backend data replaced the flat local fallback tree.
+    // node can be both (see NavGroupItem's own comment), e.g. Agenda's
+    // "Events" (link to the bare calendar AND parent of New
+    // Event/List/Calendar/Reporting/Tags) needs its path for both its
+    // breadcrumb and its own direct link.
     const nextAncestors = [...ancestors, node.titre]
     return { label: node.titre, path, items: node.children.map((child) => mapNode(internalKey, child, pathIndex, nextAncestors)) }
   }

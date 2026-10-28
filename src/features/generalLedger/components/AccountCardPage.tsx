@@ -14,8 +14,8 @@ const inputCls = 'h-10 w-full rounded-md border border-input-border bg-input-bg 
 // "Short label" -> "Short Label"
 const titleCase = (text: string) => text.replace(/\b\w/g, (c) => c.toUpperCase())
 
-// The backend's own "Accounting account - Card" (accountancy/admin/card.php): the account's rows,
-// Modify (the page's edit form) and Delete.
+// The backend's own "Accounting account - Card" (accountancy/admin/card.php): the account's rows
+// (from coa.php), Modify (the classic page's edit form) and Delete.
 export function AccountCardPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -31,7 +31,7 @@ export function AccountCardPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const formData = form.data
-  const number = formData?.fields.account_number?.value ?? ''
+  const number = card.data?.accountNumber ?? ''
   const label = card.data?.rows.find((r) => /^label$/i.test(r.label))?.value ?? ''
 
   const startEdit = () => {
@@ -168,10 +168,10 @@ export function AccountCardPage() {
 
           {!editing && (
             <div className="flex items-center gap-3">
-              <button type="button" disabled={!card.data.canModify || !formData} onClick={startEdit} title={card.data.canModify ? undefined : 'Not allowed'} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
+              <button type="button" disabled={!formData} onClick={startEdit} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
                 <Pencil size={14} /> Modify
               </button>
-              <button type="button" disabled={!card.data.deleteHref || remove.isPending} onClick={doDelete} title={card.data.deleteHref ? undefined : 'Not allowed'} className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+              <button type="button" disabled={remove.isPending} onClick={doDelete} className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
                 {remove.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
               </button>
             </div>

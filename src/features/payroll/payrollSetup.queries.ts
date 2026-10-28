@@ -1,17 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, legacyMissingContentError, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { hrmGet } from './hrm.api'
 
-// custom/payroll/admin/setup.php — real, confirmed by reading that file
-// directly
-// (it was previously assumed to have no JSON API and shown as an inert,
-// read-only placeholder — that assumption was wrong: it's a plain classic
-// form, no CSRF token, POSTing back to itself). Each accounting-code row is
-// a real `<select name="acc_code[]">` populated from `llx_accounting_account`
-// (reused here via the same real /accountancy/admin/fetch.php endpoint the
-// General Ledger chart-of-accounts tree already uses), the bank field is a
-// real `<select name="fk_account">` (the same accounts useBankAccountsList
-// already fetches), and Update posts every row + the 3 constants back in one
-// classic multi-value form submit.
+// custom/payroll/admin/setup.php — a plain classic form, no CSRF token,
+// POSTing back to itself. Each accounting-code row is a `<select
+// name="acc_code[]">` populated from `llx_accounting_account` (reused here
+// via the same /accountancy/admin/fetch.php endpoint the General Ledger
+// chart-of-accounts tree uses), the bank field is a `<select
+// name="fk_account">` (the same accounts useBankAccountsList fetches), and
+// Update posts every row + the 3 constants back in one classic multi-value
+// form submit.
 export interface PayrollSetupRow {
   key: string // name="key[]" — the llx_c_type_fees.code, e.g. "Basic001"
   label: string // name="idd[]" — llx_c_type_fees.label, e.g. "Basic Salary"
@@ -27,44 +25,24 @@ export interface PayrollSetup {
   salaryCalculationFrom: 'basic' | 'gross' | ''
 }
 
-function textInput(scope: ParentNode, name: string): string {
-  return (scope.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value ?? '').trim()
-}
-
-function selectedOptionValue(scope: ParentNode, name: string): string {
-  const select = scope.querySelector<HTMLSelectElement>(`select[name="${name}"]`)
-  const selected = select?.querySelector<HTMLOptionElement>('option[selected]')
-  return selected?.getAttribute('value') ?? ''
-}
-
+// payroll/fapi/setup.php: the six salary codes, the bank, the NAPSA limit and the salary basis, with the same field names
+// as the classic page's controls (checked live on newecuenta: identical to what the classic page held).
 export function usePayrollSetup() {
   return useQuery({
     queryKey: ['payroll', 'setup'],
     queryFn: async (): Promise<PayrollSetup> => {
-      const doc = await fetchLegacyDocument('/custom/payroll/admin/setup.php')
-      const table = doc.querySelector('#example1')
-      if (!table) throw legacyMissingContentError(doc, 'The Payroll Setup page was not recognised.')
-
-      const rows: PayrollSetupRow[] = Array.from(table.querySelectorAll('input[name="key[]"]')).map((keyInput) => {
-        const tr = (keyInput as HTMLInputElement).closest('tr') as ParentNode
-        const accSelected = selectedOptionValue(tr, 'acc_code[]')
-        return {
-          key: (keyInput as HTMLInputElement).value,
-          label: textInput(tr, 'idd[]'),
-          codeId: textInput(tr, 'codeid[]'),
-          currentAccountancyCode: textInput(tr, 'iddfees[]'),
-          selectedAccountNumber: accSelected === '-1' ? '' : accSelected,
-        }
-      })
-
-      const bankValue = selectedOptionValue(table, 'fk_account')
-      const salaryValue = selectedOptionValue(table, 'salary_calculation_from')
-
+      const d = await hrmGet<{ rows: PayrollSetupRow[]; bankAccountId: string | number | null; napsaLimit: string | number | null; salaryCalculationFrom: string | null }>('setup')
       return {
-        rows,
-        bankAccountId: bankValue,
-        napsaLimit: textInput(table, 'napsa_limit'),
-        salaryCalculationFrom: salaryValue === 'basic' || salaryValue === 'gross' ? salaryValue : '',
+        rows: d.rows.map((r) => ({
+          key: r.key,
+          label: r.label,
+          codeId: String(r.codeId ?? ''),
+          currentAccountancyCode: String(r.currentAccountancyCode ?? ''),
+          selectedAccountNumber: String(r.selectedAccountNumber ?? ''),
+        })),
+        bankAccountId: d.bankAccountId === null || d.bankAccountId === undefined ? '' : String(d.bankAccountId),
+        napsaLimit: d.napsaLimit === null || d.napsaLimit === undefined ? '' : String(d.napsaLimit),
+        salaryCalculationFrom: d.salaryCalculationFrom === 'basic' || d.salaryCalculationFrom === 'gross' ? d.salaryCalculationFrom : '',
       }
     },
     staleTime: 1000 * 30,

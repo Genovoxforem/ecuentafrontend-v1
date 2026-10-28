@@ -1,3 +1,4 @@
+import { stripTags } from '../../utils/text'
 import { useQuery } from '@tanstack/react-query'
 
 export interface PurchaseReportInvoiceRow {
@@ -75,10 +76,6 @@ interface RawSalesInvoicesResponse {
   totals: { ht: string; vat: string; ttc: string; paid: string; remain: string }
 }
 
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
-
 // Real via compta/facture/listreport_api.php — the real JSON DataTables
 // endpoint behind compta/facture/listreport.php ("Sales Invoices", in the
 // Reports Center's own real "Receivables" category — confirmed by reading
@@ -119,15 +116,14 @@ export function useSalesInvoicesReport(dateFrom: string, dateTo: string) {
   })
 }
 
-// Real via compta/resultat/purchase_report.php — the actual file the real
-// llx_menu row (position 260, "Purchase report") points to, confirmed by
-// reading the PHP source directly. Unlike almost every other file in this
-// sprawling, duplicate-riddled compta/resultat/ directory (100+ files, many
-// -old/-backup/-copy variants), this one is genuinely self-contained AJAX:
-// a POST with action=getReportData returns real JSON, gated by the same
-// restrictedArea() check that runs on every page load (not just the ajax
-// branch) — a real permission check, unlike most *-sidebar-list-ajax.php
-// files found elsewhere this session. date_range must be 'MM/DD/YYYY-MM/DD/YYYY'.
+// Via compta/resultat/purchase_report.php — the file the llx_menu row
+// (position 260, "Purchase report") points to. Unlike most files in the
+// compta/resultat/ directory (100+ files, many -old/-backup/-copy
+// variants), this one is self-contained AJAX: a POST with
+// action=getReportData returns JSON, gated by the same restrictedArea()
+// check that runs on every page load (not just the ajax branch) — a
+// permission check, unlike most *-sidebar-list-ajax.php files.
+// date_range must be 'MM/DD/YYYY-MM/DD/YYYY'.
 export function usePurchaseReport(dateFrom: string, dateTo: string) {
   return useQuery({
     queryKey: ['reports', 'purchase', dateFrom, dateTo],

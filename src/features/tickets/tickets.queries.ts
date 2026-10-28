@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { stripTags } from '../../utils/text'
 
 // The classic list's status filter (search_fk_status): "openall" (unread to
 // on hold — what the Ticket / List / My Tickets menu entries open), "-1" every
@@ -53,23 +54,17 @@ export function useChangeTicketStatus() {
   })
 }
 
-// The 2 real JSON APIs wired here — confirmed by reading both files
-// directly. ticket_list_ajax.php is a real DataTables handler
+// The 2 JSON APIs wired here. ticket_list_ajax.php is a DataTables handler
 // (hasRight('ticket','read')), used for both "List" and "My Assigned
 // Tickets" (same endpoint, mode=mine); its response also carries jobcards
-// (linked fichinter refs) and date_close, both genuinely returned but
-// unused until this pass. ticket_stats_ajax.php is a real, well-built
+// (linked fichinter refs) and date_close. ticket_stats_ajax.php is a
 // dashboard-counts endpoint (same permission check) whose by_status[]
-// entries carry real hex colors, and whose created_by_me_today/
-// assigned_to_me_today fields (also previously unused) back the "Today: N"
-// badges on the My Tickets/Assigned to Me cards. A third real endpoint,
-// ticket-side-list-ajax.php, exists but is NOT used here — confirmed to
-// have zero permission check and an unescaped SQL LIKE clause (a live
-// SQL-injection surface), reported not fixed per frontend-only scope.
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
+// entries carry hex colors, and whose created_by_me_today/
+// assigned_to_me_today fields back the "Today: N" badges on the My
+// Tickets/Assigned to Me cards. A third endpoint, ticket-side-list-ajax.php,
+// exists but is NOT used here — it has no permission check and an
+// unescaped SQL LIKE clause (an SQL-injection surface), reported not fixed
+// per frontend-only scope.
 
 // The list endpoint's cell values are themselves pre-rendered Dolibarr
 // getNomUrl() HTML fragments (confirmed by reading the raw JSON directly),

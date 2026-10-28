@@ -180,6 +180,22 @@ export function LoginModule() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Sign-in is followed by the app shell and the dashboard, both lazy chunks that the sign-in screen itself does not need. Fetched
+  // once the form has been drawn and the page is idle, so they are already here when the user presses the button. Code only, no data;
+  // a failed fetch is ignored (the normal navigation fetches again).
+  useEffect(() => {
+    const warm = () => {
+      void import('../../app/AppShell').catch(() => undefined)
+      void import('../dashboard/DashboardModule').catch(() => undefined)
+    }
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(warm, { timeout: 3000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(warm, 800)
+    return () => window.clearTimeout(id)
+  }, [])
+
   // Default-select the master entity (id=1, Dolibarr's standard master
   // entity) once the entities list loads, so the user doesn't have to
   // manually pick one before submitting — the vast majority of logins go

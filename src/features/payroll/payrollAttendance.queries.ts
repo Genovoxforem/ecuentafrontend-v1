@@ -2,21 +2,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE, fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 import { parseManualShiftAttendanceRows, type ManualShiftEmployeeRow } from './manualShiftAttendanceParser'
 import { parseMarkAttendanceRows, parseAssignShiftOptions, type MarkAttendanceRow, type AbsenceReasonOption, type ShiftOption } from './markAttendanceParser'
+import { stripTags } from '../../utils/text'
 
-// A handful of real JSON endpoints across payroll/ and payroll/*_ajax.php
-// (confirmed this session by reading each real page's own JS directly, not
-// guessed) — the module's other ~50 pages remain NotBuiltPage placeholders.
+// JSON endpoints across payroll/ and payroll/*_ajax.php, read from each
+// classic page's own JS.
 //
-// The real "Devices" dropdown on payroll/attendance_rip.php is
-// server-rendered straight from `device_setting` — there's no JSON list
-// endpoint for it (custom/payroll/admin/save_ajax.php only has a
-// single-device-by-id brand lookup and bare-status-code writes, confirmed
-// by reading that file directly), so this deliberately does NOT scrape that
-// page's HTML to fabricate one. Instead the Devices filter below is derived
-// from whichever `device` values are actually present in the real JSON rows
-// already being fetched — real API data, just narrower: only devices that
-// appear in the selected date's attendance records, not every device ever
-// registered.
+// The "Devices" dropdown on payroll/attendance_rip.php is server-rendered
+// straight from `device_setting` — there's no JSON list endpoint for it
+// (custom/payroll/admin/save_ajax.php only has a single-device-by-id brand
+// lookup and bare-status-code writes), so this deliberately does NOT scrape
+// that page's HTML to fabricate one. Instead the Devices filter below is
+// derived from whichever `device` values are present in the JSON rows
+// already being fetched — narrower: only devices that appear in the
+// selected date's attendance records, not every device ever registered.
 
 // ── Date Wise Attendance (read) ──────────────────────────────────────────
 export interface AttendanceSummary {
@@ -57,20 +55,14 @@ interface RawAttendanceResponse {
   summary: { employees: number; present: number; absent: number; late: number; leave: number; display_date: string }
 }
 
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
-
-// The real endpoint embeds each row's own "History" modal as a full HTML
-// blob right in `action` (a real Bootstrap modal + table, not a separate
-// AJAX call — confirmed live: every row's action field already carries it,
+// The endpoint embeds each row's own "History" modal as a full HTML blob
+// right in `action` (a Bootstrap modal + table, not a separate AJAX call),
 // so DateWiseAttendance.tsx's History button needs no extra network round
-// trip). Parsed into safe, structured data here rather than rendered via
+// trip. Parsed into safe, structured data here rather than rendered via
 // dangerouslySetInnerHTML — this app's established convention for scraped
-// legacy markup. Real columns: Clock In / Clock Out / Clock In Note /
-// Clock Out Note / Working Hour / Devices, plus a "Total Working Hour"
-// summary row that's always present (its own row even when there are no
-// real visits, confirmed live against every one of 36 employees' rows).
+// legacy markup. Columns: Clock In / Clock Out / Clock In Note / Clock Out
+// Note / Working Hour / Devices, plus a "Total Working Hour" summary row
+// that's always present (its own row even when there are no visits).
 export interface LoginHistoryVisit {
   clockIn: string
   clockOut: string
@@ -153,13 +145,13 @@ export function useDateWiseAttendance(date: string) {
 }
 
 // ── Mark Attendance (read) ───────────────────────────────────────────────
-// Real via payroll/mark_attendance_ajax.php?enterAttendance=1 — see
-// markAttendanceParser.ts's own top comment for the full real shape: every
+// Via payroll/mark_attendance_ajax.php?enterAttendance=1 — see
+// markAttendanceParser.ts's own top comment for the full shape: every
 // employee row is either "no shift mapped for this date" (not editable —
-// see useAssignShift below for the real fix) or a genuine editable
-// Present/Absent/Permission row, all unchecked by default (confirmed live —
-// this page has no "everyone starts Present" default the way the Special/
-// Holiday Shift form does).
+// see useAssignShift below for the fix) or an editable
+// Present/Absent/Permission row, all unchecked by default (this page has no
+// "everyone starts Present" default the way the Special/Holiday Shift form
+// does).
 export function useMarkAttendanceRows(date: string, entityType: string, enabled: boolean) {
   return useQuery({
     queryKey: ['payroll', 'attendance', 'mark', entityType, date],
@@ -176,14 +168,13 @@ export function useMarkAttendanceRows(date: string, entityType: string, enabled:
 }
 
 // ── Assign Shift (read form + write) ─────────────────────────────────────
-// Real "Assign Shift" side panel on payroll/mark_attendance.php itself —
-// the real fix for a "not mapped in shift" row (see markAttendanceParser.ts):
-// pick one of the real llx_payroll_shifts rows + a date range, and that
-// employee gets a real shift assignment covering it. Confirmed live:
-// POST payroll/ajax_search.php with shiftEmployeeId/shifts/stdate/endate/
-// assignshift=1, JSON {status,message} back — no CSRF token on this one
-// (confirmed: #shift_form has no hidden token input, unlike this app's
-// other mutating legacy forms).
+// The "Assign Shift" side panel on payroll/mark_attendance.php itself — the
+// fix for a "not mapped in shift" row (see markAttendanceParser.ts): pick
+// one of the llx_payroll_shifts rows + a date range, and that employee gets
+// a shift assignment covering it. POST payroll/ajax_search.php with
+// shiftEmployeeId/shifts/stdate/endate/assignshift=1, JSON {status,message}
+// back — no CSRF token on this one (#shift_form has no hidden token input,
+// unlike this app's other mutating legacy forms).
 export function useAssignShiftOptions() {
   return useQuery({
     queryKey: ['payroll', 'attendance', 'assign-shift-options'],

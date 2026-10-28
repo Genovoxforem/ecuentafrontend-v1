@@ -2,13 +2,18 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 import { legacyAdminSend } from '../settings/legacyAdminRequest'
 import { toastMessages } from './bindLines.queries'
+import { bindAutomatically, loadBindingOverview, overviewKindOf } from './bindingOverviewFapi'
 import { readBindingIndex } from './bindingIndexParser'
 
 // accountancy/{customer,supplier,expensereport}/index.php — see bindingIndexParser.ts.
 export function useBindingIndex(path: string, year: number) {
   return useQuery({
     queryKey: ['generalLedger', 'bindingIndex', path, year],
-    queryFn: async () => readBindingIndex(await fetchLegacyDocument(path, new URLSearchParams({ year: String(year) }))),
+    queryFn: async () => {
+      const kind = overviewKindOf(path)
+      if (kind) return loadBindingOverview(kind, year)
+      return readBindingIndex(await fetchLegacyDocument(path, new URLSearchParams({ year: String(year) })))
+    },
     staleTime: 0,
     placeholderData: keepPreviousData,
   })
@@ -21,6 +26,8 @@ export function useBindAutomatically(path: string, year: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (): Promise<string> => {
+      const kind = overviewKindOf(path)
+      if (kind) return bindAutomatically(kind, year)
       const page = readBindingIndex(await fetchLegacyDocument(path, new URLSearchParams({ year: String(year) })))
       const href = page.sections.find((s) => s.action)?.action?.href
       if (!href) throw new Error('You are not allowed to bind automatically.')

@@ -43,9 +43,18 @@ export interface ProductDetailPanel {
   notFound: boolean
 }
 
+export interface ProductLinkRow {
+  id: number
+  label: string
+  url: string
+  date: string
+}
+
 export interface ProductDocumentRow {
   fileName: string
   fileUrl: string | null
   size: string
+  /** Size in bytes (the "size" text is "1176 Kb"); the total of the tab adds these. */
+  sizeBytes?: number
   date: string
 }

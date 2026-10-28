@@ -105,12 +105,11 @@ export function useAsycudaImportCount(declRefNum?: string) {
   })
 }
 
-// custom/zra/product_search_api.php?q=X — the real debounced-search endpoint
-// behind each row's own "Search product..." box (read directly from
-// zra-import.php's own product-search-input-main handler, not guessed).
-// Confirmed live: real product matches, e.g. q=biscuit -> id 157 "ASSORTED
-// BISCUITS". Response field is `text` (the real page falls back to `label`
-// if `text` is missing, so this does too).
+// custom/zra/product_search_api.php?q=X — the debounced-search endpoint
+// behind each row's own "Search product..." box (zra-import.php's own
+// product-search-input-main handler), e.g. q=biscuit -> id 157 "ASSORTED
+// BISCUITS". Response field is `text` (the classic page falls back to
+// `label` if `text` is missing, so this does too).
 export interface AsycudaProductSearchResult {
   id: string
   text: string
@@ -176,17 +175,16 @@ export interface AsycudaSplitRow {
   hsncode: string
 }
 
-// POST custom/zra/zraupdateimport.php — read directly (not guessed): THIS
-// SUBMITS TO THE LIVE ZRA GOVERNMENT TAX GATEWAY (zraworker->initialize(),
-// endpoint '/imports/updateImportItems') — not a local-only mutation, and
+// POST custom/zra/zraupdateimport.php: THIS SUBMITS TO THE LIVE ZRA
+// GOVERNMENT TAX GATEWAY (zraworker->initialize(), endpoint
+// '/imports/updateImportItems') — not a local-only mutation, and
 // deliberately not auto-retried on failure to avoid double-submitting a
-// real filing. Exact status codes/action name (approve=3, cancel=4,
-// split-approve=multiupdate+3) read directly from zra-import.php's
+// filing. Status codes/action name (approve=3, cancel=4,
+// split-approve=multiupdate+3) from zra-import.php's
 // fnapproveasycuda/fncancelasycuda/fnapprovesplitasycuda. `itemdetails` is
-// posted as a real PHP array field (itemdetails[itemNm]=...), matching
-// exactly how that handler reads $itemdetails['itemNm'] etc. Real response
-// is a bare {status: string} — no {success,data} envelope, unlike the old
-// ecnta10-side proxy this used to call.
+// posted as a PHP array field (itemdetails[itemNm]=...), matching exactly
+// how that handler reads $itemdetails['itemNm'] etc. The response is a bare
+// {status: string} — no {success,data} envelope.
 export type AsycudaUpdateInput =
   | { action: 'approve'; item: AsycudaUpdateItem }
   | { action: 'cancel'; item: AsycudaUpdateItem; reason: string }

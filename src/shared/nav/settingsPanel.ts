@@ -1,9 +1,9 @@
 import { ROUTES } from '../../routes'
 
 // The classic top bar's gear panel (main.inc.php's #ecSettings offcanvas): 17
-// groups of setup links, read off a live 172.16.5.10 page. Each entry opens the
-// React page for the same screen (`to`); the ones with no React page yet have
-// none and show disabled, never as a link to the backend page.
+// groups of setup links. Each entry opens the React page for the same screen
+// (`to`); the ones with no React page yet have none and show disabled, never
+// as a link to the backend page.
 export interface SettingsLink {
   label: string
   to?: string

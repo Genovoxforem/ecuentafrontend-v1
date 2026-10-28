@@ -154,11 +154,11 @@ export interface ListParams {
 /**
  * GET /societe/fapi/list.php — paginated third-party list.
  */
-export async function fetchThirdParties(params: ListParams = {}): Promise<{
+export async function fetchThirdParties(params: ListParams = {}, signal?: AbortSignal): Promise<{
   items: ThirdPartyRow[]
   pagination: Pagination
 }> {
-  const res = await fapi.get<FapiListResponse<ThirdPartyRow>>('/societe/fapi/list.php', { params })
+  const res = await fapi.get<FapiListResponse<ThirdPartyRow>>('/societe/fapi/list.php', { params, signal })
   return res.data.data
 }
 
@@ -175,9 +175,10 @@ export async function fetchThirdParty(id: number): Promise<ThirdPartyDetail> {
 /**
  * GET /societe/fapi/summary.php?type=… — KPI summary for a type.
  */
-export async function fetchThirdPartySummary(type: ThirdPartyType = 'customer'): Promise<SummaryData> {
+export async function fetchThirdPartySummary(type: ThirdPartyType = 'customer', signal?: AbortSignal): Promise<SummaryData> {
   const res = await fapi.get<FapiSuccess<SummaryData>>('/societe/fapi/summary.php', {
     params: { type },
+    signal,
   })
   return res.data.data
 }

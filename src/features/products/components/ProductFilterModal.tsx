@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Filter, X } from 'lucide-react'
-import { useProductFormOptions } from '../../zra/createProduct.queries'
+import { useProductFormOptions } from '../productFormOptions.queries'
 import { CategoryMultiSelect } from './ProductServiceCreateForm'
 import { NATURE_OPTIONS } from '../productConstants'
 import { DEFAULT_PRODUCT_FILTERS, type ProductFilters } from '../productFilters'
@@ -17,10 +17,8 @@ function FieldWrap({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
-// Real entities list would come from Dolibarr's multicompany module — this
-// install only has one entity (confirmed live: `SELECT * FROM llx_entity`
-// returns exactly one row, "Master entity"), so this is a real field with
-// a single real option rather than a fake dropdown.
+// The entities list comes from Dolibarr's multicompany module — this install
+// has one entity ("Master entity"), so this field has a single option.
 const ENTITY_OPTIONS = [{ value: '1', label: 'Master entity' }]
 
 // Legacy's own "Filter" modal (product/allproducts.php) — see productFilters.ts

@@ -1,5 +1,5 @@
-// accountancy/admin/productaccount.php — "Products accounts". Confirmed live
-// against 172.16.5.10. One POST form (token, action=update) around:
+// accountancy/admin/productaccount.php — "Products accounts". One POST form
+// (token, action=update) around:
 //   - a mode radio `accounting_product_mode` (ACCOUNTANCY_SELL / _SELL_EXPORT /
 //     _BUY; also accepted as a GET param),
 //   - a filter row (`search_ref`, `search_label`, `search_vat`, `search_onsell`,

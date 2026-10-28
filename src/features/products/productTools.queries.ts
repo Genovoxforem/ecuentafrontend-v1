@@ -32,16 +32,16 @@ import {
   type StockAtDateParams,
   type UnixTime,
 } from '../../api/products'
+import { loadRemainingPages } from '../../api/paging'
 import { formatDate } from '../../utils/format'
 import type { ProductStatSeries, StockByLotRow } from './productTypes'
 
 // The stock views, lots, variant attributes, all-products statistics and the two
-// bulk tools — product/stock/fapi, variants/fapi and product/fapi (deployed on
-// newecuenta 15 Oct 2026). A backend without those files answers an HTML 404,
-// and the pages that used to scrape a classic page fall back to that scrape
-// (productLegacyParsers.ts). Stock at a date, the lot / attribute writes and the
-// bulk tools never had a classic source, so they have no fallback.
-
+// bulk tools — product/stock/fapi, variants/fapi and product/fapi. A backend
+// without those files answers an HTML 404, and the pages that have a classic page
+// fall back to scraping it (productLegacyParsers.ts). Stock at a date, the lot /
+// attribute writes and the bulk tools have no classic source, so they have no
+// fallback.
 
 /** Unix seconds → YYYY-MM-DD ('' when unset). Strings pass through as-is. */
 export function unixDate(value: UnixTime | string | undefined): string {
@@ -53,8 +53,6 @@ export function unixDate(value: UnixTime | string | undefined): string {
 function saleLabel(flag: number | boolean, kind: 'sale' | 'purchase'): string {
   return flag ? `For ${kind}` : `Not for ${kind}`
 }
-
-
 
 // ── Stocks and location (product/stock/fapi/reassort.php) ──────
 
@@ -90,17 +88,6 @@ export interface StockListFilters {
   limit: number
 }
 
-export interface StockListPage {
-  rows: StockListRow[]
-  total: number
-  pages: number
-  /** This page only, as the classic list totals it. */
-  totals: { units: number; value: number | null; belowAlert: number; toOrder: number }
-  source: 'api' | 'legacy'
-  /** True when products with nothing on the shelf but something on order are listed too. */
-  rowsWithoutStockShown: boolean
-}
-
 export function stockRowFromApi(item: ReassortItem): StockListRow {
   return {
     id: String(item.id),
@@ -122,7 +109,6 @@ export function stockRowFromApi(item: ReassortItem): StockListRow {
     avatarColor: null,
   }
 }
-
 
 export function useStockList(filters: StockListFilters) {
   return useQuery({
@@ -181,9 +167,8 @@ export function useStockByLotRows() {
     queryFn: () =>
       (async () => {
           const first = await listStockByLot({ page: 1, limit: 500 })
-          const items = [...first.items]
-          for (let page = 2; page <= first.pagination.pages; page++) items.push(...(await listStockByLot({ page, limit: 500 })).items)
-          return items.map(lotStockRowFromApi)
+          const rest = await loadRemainingPages(first.pagination.pages, async (page) => (await listStockByLot({ page, limit: 500 })).items)
+          return first.items.concat(...rest).map(lotStockRowFromApi)
         })(),
     staleTime: 1000 * 30,
     retry: false,
@@ -226,16 +211,6 @@ export interface LotListFilters {
   limit: number
 }
 
-export interface LotListPage {
-  rows: LotRow[]
-  total: number
-  pages: number
-  totals: { stockQty: number; expired: number } | null
-  canCreate: boolean
-  canDelete: boolean
-  source: 'api' | 'legacy'
-}
-
 // The list item shape was never captured live (newecuenta has no lot-tracked
 // product), so the product may come nested or flat.
 export function lotRowFromApi(item: ProductLotItem): LotRow {
@@ -255,7 +230,6 @@ export function lotRowFromApi(item: ProductLotItem): LotRow {
     expired: typeof item.expired === 'boolean' ? item.expired : null,
   }
 }
-
 
 export function useLotList(filters: LotListFilters) {
   return useQuery({
@@ -326,12 +300,6 @@ export interface AttributeRow {
   productCount: number
   /** null on the classic list, which does not say. */
   isUsed: boolean | null
-}
-
-export interface AttributeList {
-  rows: AttributeRow[]
-  canCreate: boolean
-  source: 'api' | 'legacy'
 }
 
 export function useVariantAttributeList() {

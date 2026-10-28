@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { legacyAdminSend } from '../settings/legacyAdminRequest'
-import { parseDefaultAccountsPage, type DefaultAccountsPage } from './defaultAccountsParser'
+import { fapi } from '../../api/axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { requireJson } from '../salesOrders/orderApi'
+import type { DefaultAccountsPage } from './defaultAccountsParser'
+import { mapDefaultAccountsFapi, type FapiDefaultAccounts } from './defaultAccountsFapi'
 
 // accountancy/admin/accountjstree.php's own page does no server-side query at
 // all — the Chart of Accounts tree is loaded entirely client-side from two
-// real, independent JSON endpoints: fetch.php (read) and updatecoa.php
-// (create/update/delete). Confirmed by reading both directly this session —
-// genuine `header('Content-Type: application/json')` + `json_encode(...)`,
-// not HTML fragments. Neither is referenced by any other page's own UI in
-// this legacy app, so this is the first real wiring of either.
+// independent JSON endpoints: fetch.php (read) and updatecoa.php
+// (create/update/delete), both `header('Content-Type: application/json')` +
+// `json_encode(...)`, not HTML fragments.
 
 export interface CoaNode {
   id: number
@@ -25,9 +25,8 @@ export function useChartOfAccountsTree() {
   return useQuery({
     queryKey: ['generalLedger', 'chartOfAccounts'],
     queryFn: async (): Promise<CoaNode[]> => {
-      const res = await fetch('/accountancy/admin/fetch.php', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      return res.json()
+      // accountancy/fapi/coa.php?action=tree answers the same bare array as the old fetch.php, so the tree renders unchanged.
+      return requireJson(await fapi.get<CoaNode[]>('/accountancy/fapi/coa.php', { params: { action: 'tree' } })).data
     },
     staleTime: 1000 * 30,
   })
@@ -36,6 +35,12 @@ export function useChartOfAccountsTree() {
 interface CoaSaveResult {
   status: 200 | 300 | 500
   message?: string
+}
+
+// coa.php?action=delete answers a bare [{ status }] array like updatecoa.php did: 300 means the account has children or ledger rows.
+export async function deleteCoaAccount(id: number): Promise<CoaSaveResult> {
+  const data = requireJson(await fapi.post<CoaSaveResult[]>('/accountancy/fapi/coa.php', { id }, { params: { action: 'delete' } })).data
+  return data[0] ?? { status: 500 }
 }
 
 async function postUpdateCoa(params: URLSearchParams): Promise<CoaSaveResult> {
@@ -57,10 +62,10 @@ export function useUpdateAccountLabel() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, text }: { id: number; text: string }) => {
-      const params = new URLSearchParams({ type: 'update', id: String(id), newText: text })
-      const result = await postUpdateCoa(params)
-      if (result.status !== 200) throw new Error(result.message || 'Update failed.')
-      return result
+      // `text` is "<account_number>-<label>"; account_save needs the number and the label apart.
+      const cut = text.indexOf('-')
+      await fapiPost('/accountancy/fapi/coa.php', { id, account_number: cut < 0 ? '' : text.slice(0, cut).trim(), label: (cut < 0 ? text : text.slice(cut + 1)).trim() }, { action: 'account_save' })
+      return { status: 200 as const }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'chartOfAccounts'] }),
   })
@@ -70,7 +75,7 @@ export function useDeleteAccount() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      const result = await postUpdateCoa(new URLSearchParams({ type: 'delete', id: String(id) }))
+      const result = await deleteCoaAccount(id)
       if (result.status !== 200) throw new Error(result.message || 'Unable to delete this account.')
       return result
     },
@@ -90,6 +95,12 @@ export function useCreateAccount() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewAccountInput) => {
+      // With an account number the account goes through coa.php?action=account_save. Without one the old page derived the number from the
+      // parent's, which the endpoint does not do, so that case still goes through updatecoa.php.
+      if (input.accountNumber.trim()) {
+        await fapiPost('/accountancy/fapi/coa.php', { account_number: input.accountNumber.trim(), label: input.label, labelshort: input.labelshort, account_parent: input.accountParentId }, { action: 'account_save' })
+        return { status: 200 as const }
+      }
       const params = new URLSearchParams({
         type: 'button-save-coa',
         label: input.label,
@@ -106,16 +117,15 @@ export function useCreateAccount() {
   })
 }
 
-// ── Default Accounts (accountancy/admin/defaultaccounts.php) ────────────
-// A classic form page with no JSON. Reading is the page itself (defaultAccountsParser.ts: its
-// sections, labels, the chart of accounts as options, and every field's stored account).
-// Saving is the form's own POST — and that POST sets EVERY listed constant, blank when
-// missing, so it always carries all fields with their current values. Both writes are
-// confirmed by reading the page again, since the backend answers with the whole page.
-const DEFAULT_ACCOUNTS_PATH = '/accountancy/admin/defaultaccounts.php'
+// ── Default Accounts (accountancy/fapi/default_accounts.php) ────────────
+// Key-authenticated JSON (the classic defaultaccounts.php form needs a PHP session and a form token). The answer holds the sections, each
+// field's stored account and the chart of accounts as the picker list. Saving posts a map of constant name -> account number: only the
+// managed constants are written and an empty value clears one, so the page posts every field with its current value; the answer to the
+// save is the refreshed page, which is checked against what was sent.
+const DEFAULT_ACCOUNTS_PATH = '/accountancy/fapi/default_accounts.php'
 const DEFAULT_ACCOUNTS_KEY = ['generalLedger', 'defaultAccounts'] as const
 
-const fetchDefaultAccounts = async (): Promise<DefaultAccountsPage> => parseDefaultAccountsPage(await fetchLegacyDocument(DEFAULT_ACCOUNTS_PATH))
+const fetchDefaultAccounts = async (): Promise<DefaultAccountsPage> => mapDefaultAccountsFapi(await fapiGet<FapiDefaultAccounts>(DEFAULT_ACCOUNTS_PATH))
 
 export function useDefaultAccounts() {
   return useQuery({ queryKey: DEFAULT_ACCOUNTS_KEY, queryFn: fetchDefaultAccounts, staleTime: 1000 * 30 })
@@ -126,27 +136,20 @@ export function useUpdateDefaultAccounts() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (values: Record<string, string>) => {
-      const before = await fetchDefaultAccounts()
-      const body = new URLSearchParams({ token: before.token, action: 'update', ...values })
-      await legacyAdminSend(DEFAULT_ACCOUNTS_PATH, { method: 'POST', body })
-      const saved = new Map(
-        (await fetchDefaultAccounts()).sections.flatMap((s) => s.fields).map((f) => [f.name, f.value] as const),
-      )
-      if (Object.entries(values).some(([name, value]) => saved.get(name) !== value)) throw new Error('The backend did not save these accounts.')
+      const saved = mapDefaultAccountsFapi(await fapiPost<FapiDefaultAccounts>(DEFAULT_ACCOUNTS_PATH, values, { action: 'update' }))
+      const stored = new Map(saved.sections.flatMap((s) => s.fields).map((f) => [f.name, f.value] as const))
+      if (Object.entries(values).some(([name, value]) => stored.get(name) !== value)) throw new Error('The backend did not save these accounts.')
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: DEFAULT_ACCOUNTS_KEY }),
   })
 }
 
-// "Set As Default (Reference)": the page's second form, which overwrites the accounts with the
-// backend's own reference values and redirects back.
+// "Set As Default (Reference)": the backend overwrites every managed account with its own reference values (no body).
 export function useSetDefaultAccountsToReference() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const { token } = await fetchDefaultAccounts()
-      const body = new URLSearchParams({ token, action: 'set_reference_defaults', button_set_reference_defaults: '1' })
-      await legacyAdminSend(DEFAULT_ACCOUNTS_PATH, { method: 'POST', body })
+      await fapiPost<FapiDefaultAccounts>(DEFAULT_ACCOUNTS_PATH, {}, { action: 'set_reference_defaults' })
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: DEFAULT_ACCOUNTS_KEY }),
   })

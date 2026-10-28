@@ -1,11 +1,10 @@
-// Parses the real holiday/card.php?id=N page ("Leave request" card). The
+// Parses the holiday/card.php?id=N page ("Leave request" card). The
 // fields are label/value pairs of consecutive `.col-md-3` cells inside the
 // card's `.form-tab` row (User, Type, Start date, End date, Number of days,
 // Description, Requested by, Approved by, Creation date, Date approved, …),
 // and the status is the badge under the banner. Which pairs appear depends on
 // the request's state (e.g. refused/cancelled ones add who/when/why), so they
-// are read generically rather than by fixed label. Confirmed against a live
-// approved request.
+// are read generically rather than by fixed label.
 
 export interface LeaveCardField {
   label: string

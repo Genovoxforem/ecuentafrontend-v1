@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // The two ZRA actions that run against the live ZRA gateway, wired to the same
-// requests the backend's own pages send (confirmed live against 172.16.5.10 by
-// reading custom/zra/zraindex.php and product/stock/movement_listunuploaded.php).
+// requests the backend's own pages send (custom/zra/zraindex.php and
+// product/stock/movement_listunuploaded.php).
 
 // Manual Sync — the dashboard's "Run full ZRA synchronization now" button:
 // POST custom/zra/zra_run_sync.php with the session's CSRF token, answered with

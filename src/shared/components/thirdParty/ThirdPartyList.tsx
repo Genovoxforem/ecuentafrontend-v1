@@ -61,10 +61,7 @@ function matchesSearch(row: ThirdPartyRow, query: string) {
 }
 
 export interface ThirdPartyRow {
-  // Real societe.rowid, parsed from the list row's own card.php?socid= link
-  // — null only if that link was somehow missing
-  // from a row's HTML, in which case the name renders as plain text instead
-  // of a dead link.
+  // societe.rowid from the list row; null renders the name as plain text instead of a dead link.
   id: number | null
   name: string
   country: string
@@ -134,6 +131,7 @@ function CreatorCell({ id, name, date }: { id: number | null; name: string; date
   if (!name && !date) return null
   if (!name) {
     const formattedDate = formatDateTimeAmPm(date)
+    if (!formattedDate) return null
     return (
       <div className="whitespace-nowrap text-xs text-text-faint">
         On : {id ? <Link to={ROUTES.customerDetail.replace(':id', String(id))} className="text-brand hover:underline">{formattedDate}</Link> : formattedDate}
@@ -151,9 +149,11 @@ function CreatorCell({ id, name, date }: { id: number | null; name: string; date
         ) : (
           <div className="truncate text-brand">{name}</div>
         )}
-        <div className="whitespace-nowrap text-xs text-text-faint">
-          On : {id ? <Link to={ROUTES.customerDetail.replace(':id', String(id))} className="text-brand hover:underline">{formatDateTimeAmPm(date)}</Link> : formatDateTimeAmPm(date)}
-        </div>
+        {formatDateTimeAmPm(date) && (
+          <div className="whitespace-nowrap text-xs text-text-faint">
+            On : {id ? <Link to={ROUTES.customerDetail.replace(':id', String(id))} className="text-brand hover:underline">{formatDateTimeAmPm(date)}</Link> : formatDateTimeAmPm(date)}
+          </div>
+        )}
       </div>
     </div>
   )

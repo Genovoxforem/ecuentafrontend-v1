@@ -5,9 +5,9 @@
 // analytics, …) and none of it has a JSON endpoint, so the React dashboard
 // reads the page instead of re-deriving the same figures from the invoice
 // lists. Selectors are the page's own erp-* widget classes
-// (mainDashboard/erp_widgets.php), which are the same on every install seen
-// so far even where the surrounding layout differs (ecnta10 wraps the KPI
-// cards in .erp-kpi-grid, 172.16.5.10 in Bootstrap columns).
+// (mainDashboard/erp_widgets.php), which stay the same even where the
+// surrounding layout differs (some installs wrap the KPI cards in
+// .erp-kpi-grid, others in Bootstrap columns).
 //
 // Only a super-admin gets this page: index.php sends everyone else to
 // userdashboard.php or the POS, so a document without the dashboard markup
@@ -298,7 +298,7 @@ function parseSide(pane: Element | null, dashboard: Element, scripts: string, ki
   // The row count in the title is a per-install setting (MAIN_SIZE_SHORTLIST):
   // some installs print "Last 5 Sales", others "Last 7 Sales" — the number is
   // not the page's own, so it is matched generically rather than pinned to 7.
-  // The title itself also isn't always `.erp-card__title`: 172.16.5.10 prints
+  // The title itself also isn't always `.erp-card__title`: some installs print
   // the classic Bootstrap `.card-title` inside the same `.erp-card` instead.
   const lastCardTitle = kind === 'sales' ? /^last\s*\d+\s+sales\b/i : /^last\s*\d+\s+purchases?\b/i
   const lastCard = Array.from(dashboard.querySelectorAll('.erp-card')).find((card) =>

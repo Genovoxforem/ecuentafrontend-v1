@@ -32,22 +32,19 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
-// Real columns confirmed live from listbysubaccount.php's own <th> row:
+// Columns from listbysubaccount.php's own <th> row:
 // Num. transaction / Journal / Date / Accounting Doc. / Label / Debit /
-// Credit / Date export — a genuinely different template from the Ledger
-// view's real page (Currency/Conversion/Lettering code, no Date export).
+// Credit / Date export — a different template from the Ledger view's page
+// (Currency/Conversion/Lettering code, no Date export).
 const COLUMNS = ['Num.', 'Journal', 'Date', 'Accounting Doc.', 'Label', 'Debit', 'Credit', 'Date Export', '']
 
-// accountancy/bookkeeping/listbysubaccount.php — the real page has no JSON
-// API and no working subledger filter param server-side (confirmed by
-// reading it directly), but the one real JSON endpoint this module does
-// have (listbyaccount_ajax_api.php, already powering Ledger/Journals)
-// already returns a real subledger_account field on every entry — so this
-// groups those same already-fetched real entries by that field client-side
-// instead, rather than the disabled mock form this page used to be. Most
-// entries have no subledger account (only third-party-linked accounts like
-// 401/411 typically carry one) — grouped under an honest "No subledger
-// account" bucket rather than hidden.
+// accountancy/bookkeeping/listbysubaccount.php has no JSON API and no
+// working subledger filter param server-side, but listbyaccount_ajax_api.php
+// (already powering Ledger/Journals) returns a subledger_account field on
+// every entry — so this groups those already-fetched entries by that field
+// client-side. Most entries have no subledger account (only
+// third-party-linked accounts like 401/411 typically carry one) — grouped
+// under a "No subledger account" bucket rather than hidden.
 export function SubledgerReport() {
   const [filters, setFilters] = useState<LedgerFilters>(defaultLedgerFilters)
   const [draft, setDraft] = useState<LedgerFilters>(filters)

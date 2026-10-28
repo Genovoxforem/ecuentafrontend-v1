@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { X, LoaderCircle } from 'lucide-react'
 import { Field, Select, ClassificationSearch, CategoryMultiSelect, inputCls, selectCls } from '../../products/components/ProductServiceCreateForm'
-import { useCreateProduct, useProductFormOptions, type FormOption } from '../../zra/createProduct.queries'
+import { useCreateProduct } from '../../zra/createProduct.queries'
+import type { FormOption } from '../../products/productConstants'
+import { useProductFormOptions } from '../../products/productFormOptions.queries'
 
 // Compact single-page modal matching the reference layout's own "Add Products" slide-in —
 // same real create-product request (useCreateProduct -> POST custom/zra/ajax_products.php,

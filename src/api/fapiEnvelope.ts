@@ -19,22 +19,31 @@ function errorText(body: { message?: unknown; errors?: unknown } | undefined, fa
   const errors = body?.errors
   if (errors && typeof errors === 'object') {
     for (const value of Object.values(errors as Record<string, unknown>)) {
-      const first = Array.isArray(value) ? value[0] : value
-      if (typeof first === 'string' && first && !parts.includes(first)) parts.push(first)
+      const list = Array.isArray(value) ? value : [value]
+      // A refused line comes as {index, message}: name the line so the user knows which one to fix.
+      const texts = list.map((e) => {
+        if (typeof e === 'string') return e
+        const line = e as { index?: unknown; message?: unknown } | null
+        return typeof line?.message === 'string' ? (typeof line.index === 'number' ? `Line ${line.index + 1}: ${line.message}` : line.message) : ''
+      })
+      const shown = texts.every((t) => t === '' || t.startsWith('Line ')) ? texts : texts.slice(0, 1)
+      for (const t of shown) if (t && !parts.includes(t)) parts.push(t)
     }
   }
   return parts.join(' — ') || fallback
 }
 
 function rethrow(e: unknown): never {
-  if (isMissingRoute(e)) throw e
-  if (axios.isAxiosError(e)) throw new Error(errorText(e.response?.data, `Backend returned ${e.response?.status ?? 'no response'}.`))
+  if (axios.isCancel(e) || isMissingRoute(e)) throw e
+  // httpStatus keeps the answer's status so the query client does not retry a 4xx (queryClient.ts isPermanentHttpError).
+  if (axios.isAxiosError(e)) throw Object.assign(new Error(errorText(e.response?.data, `Backend returned ${e.response?.status ?? 'no response'}.`)), { httpStatus: e.response?.status })
   throw e
 }
 
-export async function fapiGet<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+// `signal` is React Query's query signal: pass it so a query that is no longer wanted cancels its request.
+export async function fapiGet<T>(path: string, params?: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<T> {
   try {
-    const res = requireJson(await fapi.get<FapiEnvelope<T>>(path, { params }))
+    const res = requireJson(await fapi.get<FapiEnvelope<T>>(path, { params, signal }))
     if (res.data.success === false) throw new Error(errorText(res.data, 'Request failed.'))
     return res.data.data
   } catch (e) {

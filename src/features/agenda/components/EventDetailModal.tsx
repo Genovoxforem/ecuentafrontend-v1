@@ -14,12 +14,9 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-// Native "view event" panel backed by the real api_action=getEventDetails
-// endpoint (see calendarApi.queries.ts's useEventDetail) — a real,
-// already-existing endpoint that was going unused while every event
-// chip/row instead linked straight out to the legacy card.php page. Keeps
-// that legacy link too (footer), just no longer as the only way to see an
-// event's details.
+// Native "view event" panel backed by the api_action=getEventDetails endpoint
+// (see calendarApi.queries.ts's useEventDetail). The legacy link stays in the
+// footer.
 export function EventDetailModal({ eventId, onClose }: { eventId: number; onClose: () => void }) {
   const { data, isLoading, isError, error, refetch } = useEventDetail(eventId)
 

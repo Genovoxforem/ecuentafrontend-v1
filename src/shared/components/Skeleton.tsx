@@ -72,32 +72,3 @@ export function DetailPageSkeleton() {
     </div>
   )
 }
-
-// List page skeleton — search bar + table with skeleton rows.
-export function ListPageSkeleton({ rows = 8, cols = 6 }: { rows?: number; cols?: number }) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-9 w-64 rounded-md" />
-        <div className="flex-1" />
-        <Skeleton className="h-9 w-24 rounded-md" />
-      </div>
-      <div className="rounded-lg border border-border overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-surface-alt">
-              {Array.from({ length: cols }).map((_, i) => (
-                <th key={i} className="px-4 py-2.5">
-                  <Skeleton className="h-4 w-20" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <SkeletonRows count={rows} cols={cols} />
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}

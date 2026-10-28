@@ -9,13 +9,11 @@ const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg te
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const SERIES_COLORS = ['bg-slate-400', 'bg-brand']
 
-// Real data from reception/stats/index.php's own embedded Chart.js config
-// (see receptionStats.queries.ts's header comment). Previously this whole
-// page was hardcoded — the chart always rendered flat zero-height bars, the
-// filters didn't call anything, and "Refresh" had no onClick at all. Now
-// mirrors StatisticsShipmentPage.tsx's fix exactly: real Third-Party/Created
-// By/Year filters, applied only on Refresh (matching the reference page's
-// own full-reload-on-filter behavior), grouped bars per year.
+// Data from reception/stats/index.php's own embedded Chart.js config (see
+// receptionStats.queries.ts's header comment). Mirrors
+// StatisticsShipmentPage.tsx: Third-Party/Created By/Year filters, applied
+// only on Refresh (matching the reference page's own full-reload-on-filter
+// behavior), grouped bars per year.
 export function ReceptionStatisticsPage() {
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: usersSummary } = useUsersSummary()

@@ -4,7 +4,7 @@ import { toastMessages } from './bindLines.queries'
 import { cellText } from './legacyTable'
 
 // The "Document Uploads" tab of accountancy/closure/financialvalidate.php?year=YYYY. Shapes from
-// the dev backend's markup and the page's own PHP:
+// the page's markup and its own PHP:
 //   - while the year has no closing the tab only prints "Create Financial Year Ending to Upload
 //     Documents"; once it has one it prints a count table ("Number of attached files/documents",
 //     "Total size of attached files/documents"), an upload form (`#formuserfile`: hidden `token`,

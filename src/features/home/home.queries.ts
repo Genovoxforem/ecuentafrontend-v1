@@ -48,12 +48,11 @@ export const QUICK_ACTIONS: DashQuickAction[] = [
 ]
 
 // GET index.php — for a super-admin this is the classic dashboard page itself
-// (one request, ~0.3 s on 172.16.5.10), with every figure the old React
-// dashboard used to re-derive from 8 list requests (the 5,000-row invoice list
-// alone took 3–9 s). index.php redirects any other user to userdashboard.php or
-// the POS; that redirect is not followed and comes back as null, so the caller
-// can fall back to its own figures. A login page means the legacy session is
-// missing — thrown, never turned into an empty dashboard.
+// (one request), with every figure the dashboard shows. index.php redirects any
+// other user to userdashboard.php or the POS; that redirect is not followed and
+// comes back as null, so the caller can fall back to its own figures. A login
+// page means the legacy session is missing — thrown, never turned into an empty
+// dashboard.
 export async function fetchLegacyHomeDashboard(): Promise<LegacyHomeDashboard | null> {
   const res = await fetch('/index.php?mainmenu=home', { credentials: 'same-origin', redirect: 'manual' })
   if (res.type === 'opaqueredirect') return null
@@ -69,7 +68,7 @@ export function useLegacyHomeDashboard(enabled = true) {
 
 // Bank Details rows. The account list (bank-sidebar-list-ajax.php) carries each
 // account's name, currency and exact balance — the classic card prints the same
-// sums rounded to an even number, and on 172.16.5.10 without the account names
+// sums rounded to an even number, and on some installs without the account names
 // (its Account::fetch comes back empty) — so its rows are used when they load,
 // and the card's own rows only when they don't. The share is the classic card's:
 // balance over the summed balances, never below 0.

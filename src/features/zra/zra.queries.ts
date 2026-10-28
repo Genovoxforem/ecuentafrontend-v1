@@ -34,23 +34,17 @@ export interface ZraSummary {
   details: ZraSyncDetailRow[]
 }
 
-// custom/zra/zra_filter_api.php?year=X — a real, dedicated JSON API behind
-// zraindex.php's own year-filter dropdown (found by reading that page's
-// own filterDashboardByYear() JS, which calls this exact endpoint — not
-// guessed). Confirmed live with real, non-zero data (304 sales invoices,
-// 76 succeeded/228 unsynced, etc.) — a completely different, currently-
-// active-deployment-specific integration from the old /api/zra/summary/
-// this used to call, which a comment on the previous version of this
-// function noted was "real... on the ecnta10 backend" (the inactive
-// secondary install) and 404s here. Same-origin, session-cookie
-// authenticated like every other custom/* endpoint in this app (see
-// legacySession.ts) — no bearer token, so this bypasses the `api` axios
-// instance entirely, same as societe/api/list.php elsewhere.
+// custom/zra/zra_filter_api.php?year=X — a dedicated JSON API behind
+// zraindex.php's own year-filter dropdown (that page's own
+// filterDashboardByYear() JS calls this endpoint). Same-origin,
+// session-cookie authenticated like every other custom/* endpoint in this
+// app (see legacySession.ts) — no bearer token, so this bypasses the `api`
+// axios instance entirely, same as societe/api/list.php elsewhere.
 //
-// The response has no separate "income" bucket — the real page's own
+// The response has no separate "income" bucket — the classic page's own
 // "Income" stat card is labelled "Combined Total" and is sales_invoices +
-// credit_notes added together (confirmed by reading the real stat-card
-// markup: matching icon/wording to a plain sum, not a distinct raw field).
+// credit_notes added together (per the stat-card markup: matching
+// icon/wording to a plain sum, not a distinct raw field).
 interface RawZraBucket {
   total: number
   succeeded: number
@@ -77,11 +71,11 @@ interface RawZraFilterResponse {
   data: RawZraFilterData
 }
 
-// Thresholds classify the real succeeded/total ratio, matching the legacy
-// dashboard's own badge splits (zraindex.php's real sync_rate values:
-// 25% -> Poor, 75% -> Fair, 89.83% -> Good, confirmed live) — separate from
-// the live VSDC gateway probe (useVsdcStatus below), which is a real
-// connectivity check, not a derived ratio.
+// Thresholds classify the succeeded/total ratio, matching the legacy
+// dashboard's own badge splits (zraindex.php's sync_rate values: 25% ->
+// Poor, 75% -> Fair, 89.83% -> Good) — separate from the live VSDC gateway
+// probe (useVsdcStatus below), which is a connectivity check, not a
+// derived ratio.
 function rateToStatus(succeeded: number, total: number): ZraSyncStatus {
   if (total <= 0) return 'complete'
   const rate = (succeeded / total) * 100
@@ -203,14 +197,12 @@ export function useZraServerStatus() {
   })
 }
 
-// custom/zra/saleszralistajax.php?cisInvcNo=X — real, confirmed by reading
-// that file directly: unconditionally calls zraworker::initialize() against
-// the live ZRA gateway's /trnsSales/selectInvoice endpoint and prints a
-// plain HTML fragment (no llxHeader, no JSON) with the receipt fields. The
-// old /api/zra/sales-lookup/ this used to call was for the inactive ecnta10
-// backend — confirmed dead here (404). Read-only query (not a filing),
-// safe to call and retry — but every call is a real hit against Zambia's
-// live tax gateway, not a local read.
+// custom/zra/saleszralistajax.php?cisInvcNo=X: unconditionally calls
+// zraworker::initialize() against the live ZRA gateway's
+// /trnsSales/selectInvoice endpoint and prints a plain HTML fragment (no
+// llxHeader, no JSON) with the receipt fields. Read-only query (not a
+// filing), safe to call and retry — but every call is a hit against
+// Zambia's live tax gateway, not a local read.
 export interface SalesInvoiceLookup {
   found: boolean
   invoiceNumber?: string
@@ -247,14 +239,12 @@ export function useSalesInvoiceLookup() {
   })
 }
 
-// custom/zra/customer.php?formfilteraction=search&cisInvcNo=X (real param
-// name, despite the label — confirmed by reading the file directly: it's
-// read via GETPOST('cisInvcNo') and sent to ZRA as custmTpin) — real, live
-// call to the ZRA gateway's /customers/selectCustomer endpoint. Unlike the
-// Sales Invoice lookup, this is a full Dolibarr-chrome page (llxHeader),
-// so results come back as <div class="accordion-item"> blocks to scrape,
-// not JSON. The old /api/zra/customer-lookup/ this used to call is dead
-// (inactive ecnta10 backend).
+// custom/zra/customer.php?formfilteraction=search&cisInvcNo=X (the param
+// name, despite the label: it's read via GETPOST('cisInvcNo') and sent to
+// ZRA as custmTpin) — a live call to the ZRA gateway's
+// /customers/selectCustomer endpoint. Unlike the Sales Invoice lookup, this
+// is a full Dolibarr-chrome page (llxHeader), so results come back as <div
+// class="accordion-item"> blocks to scrape, not JSON.
 export interface ZraCustomerRecord {
   tpin: string
   branchId: string
@@ -270,11 +260,11 @@ export function useZraCustomerLookup() {
     mutationFn: async (tpin: string): Promise<ZraCustomerRecord[]> => {
       const doc = await fetchLegacyDocument('/custom/zra/customer.php', new URLSearchParams({ formfilteraction: 'search', cisInvcNo: tpin }))
       if (looksLikeZraLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      // Scoped to the real page's own #accordionPanelsStayOpenExample
-      // container specifically — a bare '.accordion-item' also matches an
-      // unrelated site-wide ticket-chat widget present on every Dolibarr
-      // page, confirmed live (it shares the same Bootstrap accordion
-      // classes and would otherwise be scraped as a fake "customer").
+      // Scoped to the page's own #accordionPanelsStayOpenExample container
+      // specifically — a bare '.accordion-item' also matches an unrelated
+      // site-wide ticket-chat widget present on every Dolibarr page (it
+      // shares the same Bootstrap accordion classes and would otherwise be
+      // scraped as a fake "customer").
       return Array.from(doc.querySelectorAll('#accordionPanelsStayOpenExample .accordion-item')).map((item) => {
         const rows = Array.from(item.querySelectorAll('.accordion-body p span')).map((span) => (span.textContent ?? '').trim())
         const [customerTpin, branchId, customerNo, taxpayerName, tpinField, phone, email, address] = rows

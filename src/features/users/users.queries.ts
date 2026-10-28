@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatDateTimeAmPm } from '../../utils/format'
-import { fetchSocieteFormContext } from '../customers/thirdPartyOptions.queries'
 
 export interface LanguageOption {
   code: string
@@ -71,96 +71,76 @@ export interface UsersSummary {
   superAdmins: number
   activeUsers: number
   todayLoginUsers: number
+  // Split of the admin count shown by the classic card ("4 | POS: 1 | KOT: 2"); absent when the backend does not return them.
+  posUsers?: number
+  kotUsers?: number
   users: UserRow[]
 }
 
-// Raw shape as returned by userprofile/api/users.php?action=list (real,
-// confirmed by reading that file directly). mode=all (not 'employee',
-// despite the reference page's own URL saying mode=employee — that param
-// belongs to the classic Dolibarr user/list.php page and isn't forwarded
-// to this API; confirmed live: mode=employee here filters to 16 rows,
-// mode=all returns the real 20 matching the "Total Users" stat card and
-// the reference screenshot's own mixed Employee Yes/No rows). admin/
-// employee/statut come back as real ints (0/1), not booleans — coerced
-// below.
-interface RawUserItem {
+// core/fapi/users.php (the list) and user_meta.php?action=stats (the stat cards), replacing the session-only userprofile/api/users.php.
+// Captured from newecuenta on 23 Oct 2026 (tests/fixtures/users-fapi.json, users-stats.json). The list carries name, login, email, job and
+// status; it has no phone, gender or last-login column, so those show empty on the list (they are on the user's own card).
+export interface RawUserItem {
   id: number
   login: string
-  name: string
-  admin: number
-  employee: number
-  entity: number
-  gender: string | null
-  phone: string | null
+  fullname: string
+  admin: boolean
+  super_admin: boolean
+  employee: boolean
   email: string | null
-  designation: string | null
-  lastlogin: string
+  job: string | null
   status: 'Enabled' | 'Disabled'
 }
 
 const QUERY_KEY = ['users', 'summary'] as const
 
-function toRow(item: RawUserItem): UserRow {
+export function toRow(item: RawUserItem): UserRow {
   return {
     id: item.id,
     login: item.login,
-    name: item.name ?? '',
+    name: item.fullname ?? '',
     employee: !!item.employee,
-    phone: item.phone ?? '',
+    phone: '',
     email: item.email ?? '',
-    gender: item.gender ?? '',
-    designation: item.designation ?? '',
-    lastLogin: item.lastlogin ? formatDateTimeAmPm(item.lastlogin) : '',
+    gender: '',
+    designation: item.job ?? '',
+    lastLogin: '',
     status: item.status,
     isAdmin: !!item.admin,
-    // Matches the real stats action's own definition (admin=1 AND
-    // entity=0) — confirmed by reading that action directly, not guessed.
-    isSuperAdmin: !!item.admin && item.entity === 0,
+    isSuperAdmin: !!item.super_admin,
   }
 }
 
-// userprofile/api/users.php?action=stats (stat-card counts) + ?action=list
-// (the row list, limit: 500 — this endpoint's own clamp ceiling) — real,
-// confirmed by reading that file directly. The old GET /api/users/summary/
-// and /api/users/ this used to call are both permanent 404s on the active
-// backend (confirmed live) — a completely different, dead REST namespace
-// from the real userprofile/api/* one already used elsewhere in this file
-// for single-user detail and the New User wizard.
 export function useUsersSummary() {
   return useQuery({
-    queryKey: QUERY_KEY,
+    queryKey: [...QUERY_KEY, 'fapi'],
     queryFn: async (): Promise<UsersSummary> => {
-      const [statsRes, listRes] = await Promise.all([
-        fetch('/userprofile/api/users.php?action=stats', { credentials: 'same-origin' }),
-        fetch('/userprofile/api/users.php?action=list&mode=all&limit=500', { credentials: 'same-origin' }),
+      const [stats, list] = await Promise.all([
+        fapiGet<{ stats: { total_users: number; admins: number; superadmins: number; active_users: number; today_login_users: number; pos_users?: number; kot_users?: number } }>('/core/fapi/user_meta.php', { action: 'stats' }),
+        fapiGet<{ items: RawUserItem[] }>('/core/fapi/users.php', { limit: 500 }),
       ])
-      if (!statsRes.ok || !listRes.ok) throw new Error(`Legacy backend returned ${statsRes.status}/${listRes.status}.`)
-      const statsData: { ok: boolean; stats: { total_users: number; admins: number; superadmins: number; active_users: number; today_login_users: number } } = await statsRes.json()
-      const listData: { ok: boolean; rows: RawUserItem[] } = await listRes.json()
-      if (!statsData.ok || !listData.ok) throw new Error('Legacy backend rejected the request.')
       return {
-        totalUsers: statsData.stats.total_users,
-        admins: statsData.stats.admins,
-        superAdmins: statsData.stats.superadmins,
-        activeUsers: statsData.stats.active_users,
-        todayLoginUsers: statsData.stats.today_login_users,
-        users: listData.rows.map(toRow),
+        totalUsers: stats.stats.total_users,
+        admins: stats.stats.admins,
+        superAdmins: stats.stats.superadmins,
+        activeUsers: stats.stats.active_users,
+        todayLoginUsers: stats.stats.today_login_users,
+        posUsers: stats.stats.pos_users,
+        kotUsers: stats.stats.kot_users,
+        users: list.items.map(toRow),
       }
     },
     staleTime: 1000 * 60,
   })
 }
 
-// GET /api/users/:id equivalent doesn't exist (confirmed live: /api/users/
-// and /api/users/detail/ both 404 on the currently-active backend — the
-// same dead-old-REST-namespace pattern already found for /api/orders/
-// elsewhere in this app) — but userprofile/api/user.php?id=X is real: it's
-// the JSON API behind the newer userprofile/index.php SPA page (found by
-// watching that page's own network traffic while checking its Permissions
-// tab — see userPermissions.queries.ts). It returns everything useUser and
-// useUserDetail below need for one arbitrary user id, in one call, so both
-// hooks share a single query instead of firing two separate requests for
-// data that comes from the same real endpoint.
+// There is no GET /api/users/:id (/api/users/ and /api/users/detail/ both
+// 404 on the active backend, the same dead-old-REST-namespace pattern as
+// /api/orders/), but userprofile/api/user.php?id=X is the JSON API behind
+// the newer userprofile/index.php SPA page (see userPermissions.queries.ts).
+// It returns everything useUser and useUserDetail below need for one
+// arbitrary user id, in one call, so both hooks share a single query
+// instead of firing two separate requests for data from the same endpoint.
 interface RawUserProfileWorkProfile {
   office_phone: string | null
   office_fax: string | null
@@ -247,6 +227,13 @@ interface RawUserProfileUser {
   dateemploymentend: string | null
   social_links: RawUserSocialLink[]
   work_profile: RawUserProfileWorkProfile
+  // userprofile/fapi/user.php fills these (the older core/fapi/user.php answered none of them)
+  country_label?: string | null
+  state_label?: string | null
+  created_at?: string | null
+  creator_login?: string | null
+  note?: string | null
+  salary?: number | null
 }
 
 interface RawUserProfileGroup {
@@ -284,11 +271,9 @@ function useUserProfileQuery(id: string | number | undefined) {
   return useQuery({
     queryKey: ['users', 'profile', numericId],
     queryFn: async (): Promise<RawUserProfileResponse> => {
-      const res = await fetch(`/userprofile/api/user.php?id=${numericId}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawUserProfileResponse = await res.json()
-      if (!data.ok) throw new Error('Legacy backend rejected the request.')
-      return data
+      // userprofile/fapi/user.php?id= is the card of core/fapi/user.php plus the country and state names, the creation date and creator, the
+      // note and the salary (captured 26 Oct 2026, tests/fixtures/users-profile.json).
+      return { ok: true, ...(await fapiGet<Omit<RawUserProfileResponse, 'ok'>>('/userprofile/fapi/user.php', { id: numericId })) }
     },
     enabled: numericId !== undefined && !Number.isNaN(numericId),
   })
@@ -393,12 +378,7 @@ function toBrief(brief: RawUserBrief | null): UserBriefRef | null {
   return brief ? { id: brief.id, name: brief.name, login: brief.login } : null
 }
 
-// countryLabel/stateLabel, createdAt/creatorLogin, and note aren't part of
-// userprofile/api/user.php's response (that endpoint has country_id/
-// state_id as bare numeric ids with no label, and creation metadata +
-// notes live on separate userprofile/api/* endpoints — notes now covered by
-// useUserNotes() in userDetailTabs.queries.ts) — null rather than a guess,
-// same honesty convention as the rest of this file.
+// countryLabel/stateLabel, createdAt/creatorLogin, note and salary come from userprofile/fapi/user.php (null when it has none).
 export function useUserDetail(id: string | number | undefined) {
   const { data: envelope, isLoading, isError, error } = useUserProfileQuery(id)
   const data = envelope?.user
@@ -416,17 +396,17 @@ export function useUserDetail(id: string | number | undefined) {
           address: data.work_profile.address || data.address,
           zip: data.work_profile.zip || data.zip,
           town: data.work_profile.town || data.town,
-          countryLabel: null,
-          stateLabel: null,
+          countryLabel: data.country_label || null,
+          stateLabel: data.state_label || null,
           mobile: data.user_mobile || data.personal_mobile,
           officePhone: data.work_profile.office_phone || data.office_phone,
           officeFax: data.work_profile.office_fax || data.office_fax,
           email: data.email,
           enabled: data.statut === 1,
           lastLogin: data.work_profile.datelastlogin,
-          createdAt: null,
-          creatorLogin: null,
-          note: null,
+          createdAt: data.created_at ?? null,
+          creatorLogin: data.creator_login ?? null,
+          note: data.note || null,
           dateEmployment: data.dateemployment || data.work_profile.dateemployment,
           dateEmploymentEnd: data.dateemploymentend || data.work_profile.dateemploymentend,
           dateStartValidity: data.work_profile.datestartvalidity,
@@ -436,7 +416,7 @@ export function useUserDetail(id: string | number | undefined) {
           expenseValidator: toBrief(data.expense_validator),
           holidayValidator: toBrief(data.holiday_validator),
           employeeNrc: data.employee_nrc,
-          salary: null,
+          salary: data.salary ?? null,
           hourlyCost: data.work_profile.thm,
           dailyCost: data.work_profile.tjm,
           weeklyHours: data.work_profile.weeklyhours,
@@ -484,11 +464,11 @@ export function useUserIdByName(name: string | undefined) {
   return matches.length === 1 ? matches[0].id : undefined
 }
 
-// Used by payroll.queries.ts — count of real users flagged as employees.
-// Doesn't include the real logged-in admin (they're not a UserRow at all,
-// just the account this session is authenticated as); callers that want
-// that counted too add 1 themselves. 0 while the summary is still loading,
-// same "honest placeholder" reasoning as payroll's own money fields.
+// Used by payroll.queries.ts — count of users flagged as employees.
+// Doesn't include the logged-in admin (they're not a UserRow at all, just
+// the account the app is authenticated as); callers that want that counted
+// too add 1 themselves. 0 while the summary is still loading, same
+// placeholder reasoning as payroll's own money fields.
 export function useEmployeeCount() {
   const { data } = useUsersSummary()
   return data?.users.filter((u) => u.employee).length ?? 0
@@ -510,7 +490,6 @@ export interface UserWizardOptions {
   tokens: { activeUsed: number; activeTotal: number; posUsed: number; posTotal: number }
 }
 interface RawWizardOptions {
-  ok: boolean
   can_create: boolean
   designations: string[]
   devices: Array<{ id: number; device_name?: string; name?: string; brand: string | null }>
@@ -523,10 +502,8 @@ export function useUserWizardOptions() {
   return useQuery({
     queryKey: ['users', 'wizard-options'],
     queryFn: async (): Promise<UserWizardOptions> => {
-      const res = await fetch('/userprofile/api/users.php?action=wizard_options', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawWizardOptions = await res.json()
-      if (!data.ok) throw new Error('Legacy backend rejected the request.')
+      // core/fapi/user_meta.php?action=wizard_options (captured 23 Oct 2026, tests/fixtures/users-wizard-options.json)
+      const data = await fapiGet<RawWizardOptions>('/core/fapi/user_meta.php', { action: 'wizard_options' })
       return {
         canCreate: data.can_create,
         designations: data.designations ?? [],
@@ -558,10 +535,8 @@ export function useUserStateOptions(countryId: number | undefined) {
   return useQuery({
     queryKey: ['users', 'states', countryId ?? 0],
     queryFn: async (): Promise<StateOption[]> => {
-      const res = await fetch(`/userprofile/api/users.php?action=states&country_id=${countryId}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: { ok: boolean; states: StateOption[] } = await res.json()
-      return data.ok ? (data.states ?? []) : []
+      const data = await fapiGet<{ states: StateOption[] }>('/core/fapi/user_meta.php', { action: 'country_states', country_id: countryId })
+      return data.states ?? []
     },
     enabled: !!countryId,
     staleTime: 1000 * 60,
@@ -622,9 +597,7 @@ export function useCreateUserReal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewUserInput) => {
-      const { token } = await fetchSocieteFormContext()
       const body = {
-        token,
         basic: {
           firstname: input.firstname,
           lastname: input.lastname,
@@ -662,15 +635,10 @@ export function useCreateUserReal() {
         },
         social: input.social ?? {},
       }
-      const res = await fetch('/userprofile/api/users.php?action=create', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data: CreateUserResponse = await res.json()
-      if (!data.ok) throw new Error(data.error || 'Failed to create user')
-      return data
+      // core/fapi/user.php?action=create: a port of the old create (basic / professional / social). The document marks it "read from code, not run
+      // live"; any field it does not take comes back in ignored_fields and is logged in development.
+      const data = await fapiPost<Omit<CreateUserResponse, 'ok'>>('/core/fapi/user.php', body, { action: 'create' })
+      return { ok: true, ...data } as CreateUserResponse
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })

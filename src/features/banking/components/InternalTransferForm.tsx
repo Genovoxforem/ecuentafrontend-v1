@@ -11,13 +11,10 @@ function todayIso() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-// compta/bank/transfer.php — no JSON API (confirmed live), but a genuine
-// classic form-POST create: writes a debit in the source account and a
-// credit in the target account with the same amount/label/date. See
+// Internal transfer: writes a debit in the source account and a credit in
+// the target account with the same amount/label/date. See
 // useCreateInternalTransfer in banking.queries.ts. The From/To dropdowns
-// use the already-confirmed-real useBankAccountsList() data rather than
-// re-scraping the real page's own <select> — only its CSRF token is
-// scraped, at submit time.
+// use useBankAccountsList().
 export function InternalTransferForm() {
   const navigate = useNavigate()
   const { data: accounts } = useBankAccountsList()

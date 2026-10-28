@@ -3,11 +3,11 @@ import { Link2, FolderPlus, RefreshCw, ExternalLink } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 
-// Automatic Tree mirrors the real backend's own fixed list — one directory
-// (and real ecm/index_auto.php?module=<slug> link) per Dolibarr module that
-// accepts attachments, confirmed live against the real page's own tree
-// markup (`<a class="fmdirlia" href="/ecm/index_auto.php?module=...">`),
-// not guessed from screenshots — labels/casing match that markup exactly.
+// Automatic Tree mirrors the backend's own fixed list — one directory (and
+// ecm/index_auto.php?module=<slug> link) per Dolibarr module that accepts
+// attachments, per the classic page's own tree markup
+// (`<a class="fmdirlia" href="/ecm/index_auto.php?module=...">`) — labels/
+// casing match that markup exactly.
 const AUTOMATIC_DIRECTORIES = [
   { module: 'banque', label: 'Bank account' },
   { module: 'recruitment-recruitmentcandidature', label: 'Candidatures' },

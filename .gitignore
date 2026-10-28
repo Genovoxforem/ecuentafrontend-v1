@@ -33,3 +33,6 @@ deploy
 *.njsproj
 *.sln
 *.sw?
+
+# k6 load test output
+tests/load/k6-*summary.json

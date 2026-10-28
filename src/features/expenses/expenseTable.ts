@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Tone } from './expenseTabsParser'
+import type { Tone } from './expenseTabs.types'
 
 // The backend's own tables offer 10/20/50/100/500 rows a page and a search box.
 export const PAGE_SIZES = [10, 20, 50, 100, 500]

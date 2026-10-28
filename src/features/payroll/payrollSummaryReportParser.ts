@@ -1,14 +1,8 @@
-// payroll/payroll_summary.php's report table (id="example") is real,
-// server-rendered HTML — confirmed live this session by logging in as
-// Vox_admin and POSTing the real search form directly: a By Employee search
-// for employee 11 (Sayuj) returned a genuine row (May 2026, Gross Salary
-// 5500.00, Net Salary 5101.00, Paid Amount 2139.00), matching the same
+// payroll/payroll_summary.php's report table (id="example") is
+// server-rendered HTML, scraped here (a By Employee search returns the same
 // llx_payroll_paid_payments record its own row-level "Payment Details"
-// popup shows. So unlike Generate Payslip/YTD Payslip/Gratuity Payment
-// (whose own tables/popups were checked and found genuinely empty for every
-// case tried), this report's rows are scraped for real rather than left
-// inert. The row-level popup itself (a full printable payslip layout with
-// company letterhead, employee profile fields, and an itemized
+// popup shows). The row-level popup itself (a full printable payslip layout
+// with company letterhead, employee profile fields, and an itemized
 // allowance/deduction breakdown) is NOT reproduced — it's mostly a
 // re-presentation of the same row's own numbers plus employee profile
 // fields already available from Users, and its print button

@@ -10,9 +10,9 @@ import { useYtdEarningsDeductions, type YtdEarningsDeductionsSearchType } from '
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Real via payroll/earn_dedu.php — see payrollLists.queries.ts's
-// useYtdEarningsDeductions and ytdEarningsDeductionsParser.ts for the full
-// investigation. "By Month" always comes back with just an Employee Name
+// Real via payroll/fapi/ytd_earnings_deductions.php — see payrollLists.queries.ts's
+// useYtdEarningsDeductions and ytdEarningsDeductions.types.ts for the shape.
+// What the classic report did (and the fapi reproduces): "By Month" always comes back with just an Employee Name
 // column (no paid-payment records exist — same real gap as Generate/YTD
 // Payslip). "By Fiscal Year" is genuinely computed live from each
 // employee's assigned Salary Template, columns and all — rendered exactly

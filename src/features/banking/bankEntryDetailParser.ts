@@ -1,17 +1,12 @@
-// compta/bank/line.php?rowid=N has no JSON API either (confirmed live, same
-// as compta/bank/card.php?action=create — see bankAccountFormParser.ts) but
-// is itself a real, working classic form: "Bank entry" (name="update",
-// action=update) for the transaction's own fields, plus a second,
-// independent form ("Reconciliation", action=setreconcile) for its
-// statement number / reconciled flag. Both post straight back to this same
-// URL. Parsed the same way as bankAccountFormParser.ts: read this page once
-// for its CSRF token + current field values + dropdown options, submit the
-// real field names Dolibarr's own form uses.
+import { stripTags } from '../../utils/text'
+// compta/bank/line.php?rowid=N is a classic form page: "Bank entry"
+// (name="update", action=update) for the transaction's own fields, plus a
+// second, independent form ("Reconciliation", action=setreconcile) for its
+// statement number / reconciled flag. Both post back to this same URL.
+// Parsed the same way as bankAccountFormParser.ts: read this page once for
+// its CSRF token + current field values + dropdown options, submit the
+// field names Dolibarr's own form uses.
 import { extractSelectOptions, type BankAccountFormOption } from './bankAccountFormParser'
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim()
-}
 
 export interface BankEntryLink {
   label: string
@@ -72,12 +67,11 @@ function extractMultiSelectOptions(html: string, name: string): BankEntryCategor
   return options
 }
 
-// The "Links" field is a free-form, comma-separated list of <a> tags —
-// confirmed live to include a real third-party link + real payment link for
-// a customer payment entry, and a real link to the *other* leg of an
-// internal-transfer entry (`line.php?rowid=`, e.g. a Petty Cash <-> Bank
-// transfer) for a LOAN/transfer-type entry — classified by href pattern
-// rather than assumed to always be exactly one fixed shape.
+// The "Links" field is a free-form, comma-separated list of <a> tags — a
+// third-party link + payment link for a customer payment entry, or a link
+// to the *other* leg of an internal-transfer entry (`line.php?rowid=`, e.g.
+// a Petty Cash <-> Bank transfer) for a LOAN/transfer-type entry —
+// classified by href pattern rather than assumed to be one fixed shape.
 function parseLinksCell(html: string): BankEntryLink[] {
   const links: BankEntryLink[] = []
   const anchorRe = /<a\s+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g
@@ -195,26 +189,10 @@ export interface BankEntryLog {
   lastModificationDate: string
 }
 
-export function parseBankEntryLogPage(html: string): BankEntryLog {
-  const statusMatch = html.match(/class="[^"]*\bstatusrefbis\b[^"]*"><span class="opacitymedium">([^<]*)<\/span>/)
-  const userIdMatch = html.match(/href="\/userprofile\/index\.php\?id=(\d+)"/)
-  const nameMatch = html.match(/<span class="nopadding usertext">([^<]*)<\/span>/)
-  const creationMatch = html.match(/Creation date:\s*([^<]*)<br>/)
-  const modifiedMatch = html.match(/Latest modification date:\s*([^<]*)<br>/)
-  return {
-    accountedStatusText: (statusMatch?.[1] ?? '').trim(),
-    createdByName: (nameMatch?.[1] ?? '').trim(),
-    createdByUserId: userIdMatch ? Number(userIdMatch[1]) : undefined,
-    creationDate: (creationMatch?.[1] ?? '').trim(),
-    lastModificationDate: (modifiedMatch?.[1] ?? '').trim(),
-  }
-}
-
-// ── LedgerEntry tab (compta/bank/ledgerentry.php?rowid=N) — no JSON API,
-// real read-only page: the accounting-ledger rows this bank entry has been
-// posted to (empty for both sample entries checked live, so the per-row
-// cell shape below is inferred from the table's own <thead> column order,
-// not confirmed against a populated row).
+// ── LedgerEntry tab (compta/bank/ledgerentry.php?rowid=N) — read-only page:
+// the accounting-ledger rows this bank entry has been posted to. The per-row
+// cell shape below follows the table's own <thead> column order; not
+// verified against a populated row.
 export interface BankEntryLedgerRow {
   date: string
   accountingDoc: string
@@ -232,34 +210,4 @@ export interface BankEntryLedger {
   totalDebit: string
   totalCredit: string
   totalAmount: string
-}
-
-export function parseBankEntryLedgerPage(html: string): BankEntryLedger {
-  // </thead> alone isn't unique enough on a page this dense with other UI —
-  // anchor on the ledger table's own "CodeJournal" header first.
-  const anchor = html.indexOf('CodeJournal')
-  const theadEnd = html.indexOf('</thead>', anchor)
-  const tableEnd = html.indexOf('</table>', theadEnd)
-  const body = theadEnd >= 0 ? html.slice(theadEnd + '</thead>'.length, tableEnd > -1 ? tableEnd : undefined) : ''
-
-  const totalMatch = body.match(/class="liste_total">([\s\S]*?)<\/tr>/)
-  const totalCells = totalMatch ? Array.from(totalMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)).map((m) => stripTags(m[1])) : []
-
-  const dataSection = totalMatch ? body.slice(0, totalMatch.index) : body
-  const rows: BankEntryLedgerRow[] = []
-  const rowRe = /<tr>([\s\S]*?)<\/tr>/g
-  let rowMatch: RegExpExecArray | null
-  while ((rowMatch = rowRe.exec(dataSection))) {
-    const cells = Array.from(rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)).map((m) => stripTags(m[1]))
-    if (cells.length < 9) continue // the "No record found" placeholder row has one colspan cell
-    const [date, accountingDoc, ref, codeJournal, account, label, debit, credit, amount] = cells
-    rows.push({ date, accountingDoc, ref, codeJournal, account, label, debit, credit, amount })
-  }
-
-  return {
-    rows,
-    totalDebit: totalCells[totalCells.length - 3] ?? '0.00',
-    totalCredit: totalCells[totalCells.length - 2] ?? '0.00',
-    totalAmount: totalCells[totalCells.length - 1] ?? '0.00',
-  }
 }

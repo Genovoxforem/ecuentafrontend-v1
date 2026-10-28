@@ -1,8 +1,8 @@
-// Parses payroll/salary_temp.php's own real Allowances/Deductions fee-type
-// dropdown (llx_c_type_fees, confirmed live) — both the "Select Allowances"
+// Parses payroll/salary_temp.php's own Allowances/Deductions fee-type
+// dropdown (llx_c_type_fees) — both the "Select Allowances"
 // (name="a_label[]") and "Select Deductions" (name="d_label[]") selects
-// list the exact same 5 real options (a shared fee-type dictionary, not two
-// separate lists), so one scrape covers both tabs.
+// list the same options (a shared fee-type dictionary, not two separate
+// lists), so one scrape covers both tabs.
 
 export interface SalaryFeeType {
   value: string

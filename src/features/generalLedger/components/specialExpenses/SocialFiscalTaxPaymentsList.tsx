@@ -1,11 +1,13 @@
 import { Landmark } from 'lucide-react'
 import { TableExportButtons } from '../../../../shared/components/TableExportButtons'
 import { LegacyListPage } from '../LegacyListPage'
+import { loadSocialPayments } from '../../specialPaymentsFapi'
 
 // compta/sociales/payments.php?mode=sconly — payments of social/fiscal taxes.
 export function SocialFiscalTaxPaymentsList() {
   return (
     <LegacyListPage
+      load={loadSocialPayments}
       icon={Landmark}
       title="Social/Fiscal Taxes Payments"
       path="/compta/sociales/payments.php"

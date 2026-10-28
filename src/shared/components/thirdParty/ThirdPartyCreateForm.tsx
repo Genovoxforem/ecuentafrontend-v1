@@ -42,7 +42,7 @@ import {
   Paperclip,
 } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
-import { StickyFormShell } from '../layout/StickyFormShell'
+import { StickyFormShell, WizardStepper } from '../layout/StickyFormShell'
 import { SOCIAL_LINK_FIELDS, SocialLinksStep } from '../forms/SocialLinksStep'
 import { type IconType, type FieldSpec, StepFields } from '../forms/StepFormFields'
 import axios from 'axios'
@@ -236,7 +236,6 @@ function ReviewStep({ fields, values }: { fields: FieldSpec[]; values: Record<st
   )
 }
 
-const STEP_ICONS: IconType[] = [Contact, MapPin, Landmark, Tags, Check]
 
 const STEP_SECTIONS: string[][] = [
   ['Identity', 'Contact Info', 'Classification'],
@@ -305,11 +304,11 @@ function NameField({
   )
 }
 
-// Real response shape from societe/api/societes.php?action=create,
-// confirmed live: {"ok":true,"message":"Third party created","id":2071,
+// Response shape from societe/api/societes.php?action=create:
+// {"ok":true,"message":"Third party created","id":2071,
 // "societe":{...},"redirect":"/.../societe/card.php?socid=2071"}. Errors
-// use `error` in place of `ok:true` (not directly captured live, but
-// matches this endpoint's list.php sibling's own {ok, error} convention).
+// use `error` in place of `ok:true` (not verified; matches this endpoint's
+// list.php sibling's own {ok, error} convention).
 interface CreateThirdPartyResponse {
   ok: boolean
   id?: number
@@ -722,49 +721,7 @@ export function ThirdPartyCreateForm({ variant, cancelPath, profile, extra }: { 
       headerClassName="pt-1.5 pb-2.5"
       header={
         <>
-          {/* Vendor/Prospect used to show a warning banner here explaining that
-              /api/customer/?action=create always saved a plain customer
-              regardless of variant. That's no longer true — this form now
-              submits to societe/api/societes.php, the real endpoint the
-              legacy wizard itself uses, which correctly reads client/
-              fournisseur (confirmed live per-variant: Customer client=1,
-              Prospect client=2, Vendor client=0+fournisseur=1). No banner
-              needed since the save is now correct. */}
-
-
-          <div className="flex items-center px-12 sm:px-16">
-            {steps.map((s, i) => {
-              const StepIcon = STEP_ICONS[i]
-              const isDone = i < step
-              const isActive = i === step
-              return (
-                <div key={s.title} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : ''}`}>
-                  <button type="button" onClick={() => setStep(i)} title={s.title} className="flex flex-col items-center gap-2 group">
-                    <span
-                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
-                        isDone
-                          ? 'bg-success border-success text-white'
-                          : isActive
-                            ? 'bg-brand border-brand text-white shadow-sm shadow-brand/30'
-                            : 'bg-surface border-border text-text-faint group-hover:border-brand/40 group-hover:text-brand'
-                      }`}
-                    >
-                      {isDone ? <Check size={16} /> : <StepIcon size={16} />}
-                    </span>
-                    {/* Hidden below sm: three whitespace-nowrap labels ("Setup basic
-                        details", ...) don't fit a narrow viewport, and main has no
-                        horizontal-scroll fallback — the step icon + title
-                        attribute carry it on mobile instead. */}
-                    <span className="hidden sm:flex flex-col items-center">
-                      <span className={`text-xs whitespace-nowrap ${isActive ? 'text-text! font-semibold' : 'text-text-faint'}`}>{s.title}</span>
-                      <span className="text-[11px] whitespace-nowrap text-text-faint">{s.subtitle}</span>
-                    </span>
-                  </button>
-                  {i < steps.length - 1 && <div className={`h-0.5 flex-1 mx-2 rounded-full transition-colors ${i < step ? 'bg-success' : 'bg-border'}`} />}
-                </div>
-              )
-            })}
-          </div>
+          <WizardStepper steps={steps} step={step} onStep={setStep} />
         </>
       }
       footerLeft={

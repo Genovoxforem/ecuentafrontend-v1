@@ -2,11 +2,10 @@
 // Project Statistics (projet/stats/index.php) and Vendor Proposal
 // Statistics (comm/propal/stats/index.php?mode=supplier) — both render the
 // same shape: a Year filter, a results table, and 2-3 Chart.js charts whose
-// full labels/datasets are embedded inline as real JS object literals in a
-// <script> tag (not a static image) — verified live against the real
-// backend. Extracting the real numbers out of that JS text (rather than
-// re-fetching some separate chart-data endpoint, which doesn't exist) is
-// what lets this render an actual chart instead of a blank placeholder.
+// full labels/datasets are embedded inline as JS object literals in a
+// <script> tag (not a static image). Extracting the numbers out of that JS
+// text (there is no separate chart-data endpoint) is what lets this render
+// an actual chart instead of a blank placeholder.
 
 export interface SelectOption {
   value: string

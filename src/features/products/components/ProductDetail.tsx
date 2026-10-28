@@ -17,25 +17,22 @@ import {
   MapPin,
   Factory,
   Calendar,
-  Landmark,
   CheckCircle2,
   Circle,
   BarChart2,
-  ShieldCheck,
 } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Avatar } from '../../../shared/components/Avatar'
+import { ProductHeroImage } from './ProductHeroImage'
 import { useTheme } from '../../../context/ThemeContext'
-import { resolveBackendAsset } from '../../../api/backends'
 import { ROUTES } from '../../../routes'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { formatMoney, formatNumber, formatDateTimeAmPm } from '../../../utils/format'
 import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS } from '../productConstants'
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
-import { ProductZraRegisterModal } from './ProductZraRegisterModal'
 import {
   useProductDetail,
+  useAccountNames,
   useProductDocuments,
   useProductDashboard,
   useProductSalesWindow,
@@ -48,6 +45,7 @@ import {
   SectionHeader,
   StatusPill,
   TABS,
+  sameOriginPath,
   type Tab,
 } from './ProductDetailShared'
 
@@ -58,34 +56,27 @@ import {
 // ProductTab stays inline (it's the default, always visible).
 const LazyTabRenderer = lazy(() => import('./ProductDetailTabs').then((m) => ({ default: m.LazyTabRenderer })))
 
-// Matches legacy's real primary/overflow tab split exactly (confirmed live
-// via product/card.php's own rendered tab bar for product id=123) - not a
-// guess at grouping, the actual 7 primary + 6 "More..." tabs shown there.
-// Icons are a redesign addition (legacy's own primary tab bar has none -
-// only the More... dropdown does) for visual consistency between the two.
-// Same set/order/labels as the real reference page's own tab bar
-// (productinfo/index.php, backed by productinfo/json/tabs.json on the
-// active backend - read directly, not guessed): Product Card, Selling
-// Prices, Supplier Prices, Stock, UOM, Variants, Composition, Statistics,
-// Invoice Stats, Notes, Documents, Events. Each renamed label maps to the
-// SAME underlying data/component as before (confirmed against that json's
-// own api file per tab, e.g. variant_api.php uses the same ProductCombination
-// class "Product Combinations" already used) - only the label changed.
-// "Margins" has no equivalent tab in that reference at all (selling-vs-
-// buying margin isn't one of its 12 tabs), so it's kept, appended at the
-// end, rather than dropped - real working functionality, not a guess this
-// app should lose just because the reference page doesn't happen to have it.
+// Matches legacy's primary/overflow tab split (product/card.php's own
+// rendered tab bar): 7 primary + 6 "More..." tabs. Icons are a redesign
+// addition (legacy's own primary tab bar has none - only the More...
+// dropdown does) for visual consistency between the two.
+// Same set/order/labels as the reference page's own tab bar
+// (productinfo/index.php, backed by productinfo/json/tabs.json): Product
+// Card, Selling Prices, Supplier Prices, Stock, UOM, Variants, Composition,
+// Statistics, Invoice Stats, Notes, Documents, Events. Each label maps to
+// the same underlying data/component (e.g. variant_api.php uses the same
+// ProductCombination class as "Product Combinations").
+// "Margins" has no equivalent tab in that reference (selling-vs-buying
+// margin isn't one of its 12 tabs), so it's kept, appended at the end.
 
-// Real scannable barcode, rendered client-side from the product's actual
-// barcode value via jsbarcode (CODE128 - matches product.barcodeType,
-// "Code 128", on every product checked live this session). lineColor:
-// 'currentColor' lets the SVG inherit the wrapper's text color so it stays
-// legible in both themes without a second color prop to keep in sync.
-// width is the bar-thickness multiplier, not a pixel target - jsbarcode
-// derives the SVG's actual rendered width from the encoded value's real
-// module count Ã— this. Thinner bars (a lower value) read as a genuine
-// barcode at small sizes; the previous fixed 1.4 made bars chunky/blocky
-// relative to a compact height, closer to a stylized icon than a real one.
+// Scannable barcode, rendered client-side from the product's barcode value
+// via jsbarcode (CODE128 - matches product.barcodeType, "Code 128").
+// lineColor: 'currentColor' lets the SVG inherit the wrapper's text color so
+// it stays legible in both themes without a second color prop to keep in
+// sync. width is the bar-thickness multiplier, not a pixel target -
+// jsbarcode derives the SVG's rendered width from the encoded value's
+// module count × this. Thinner bars (a lower value) read as a barcode at
+// small sizes rather than chunky/blocky bars at a compact height.
 function ProductBarcodeGraphic({ value, height = 28, width = 1 }: { value: string; height?: number; width?: number }) {
   const ref = useRef<SVGSVGElement>(null)
   useEffect(() => {
@@ -131,7 +122,6 @@ export function ProductDetail() {
   const duplicateProduct = useDuplicateProduct()
   const confirm = useConfirm()
   const [actionError, setActionError] = useState('')
-  const [showZra, setShowZra] = useState(false)
   const [tab, setTab] = useState<Tab>('Product Card')
   // Fetched here (not just inside LinkedFilesTab) so its real file count can
   // badge the "Documents" tab button, matching legacy's own file-count badge
@@ -215,7 +205,6 @@ export function ProductDetail() {
 
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
-      {showZra && <ProductZraRegisterModal productId={id!} onClose={() => setShowZra(false)} />}
       <div className="sticky -top-6 z-10 flex items-center justify-between gap-3 border-b border-border bg-white p-2.5 dark:bg-gray-950">
         <Link to={ROUTES.productList} className="flex items-center gap-1.5 text-sm text-text-faint hover:text-text" title="Back to list">
           <ChevronLeft size={18} /> Products
@@ -235,12 +224,11 @@ export function ProductDetail() {
           <Card className="!h-auto !p-0 overflow-hidden !border-0 !rounded-none">
           <div className="flex flex-wrap items-start justify-between gap-4 p-3 border-b border-border">
           <div className="flex items-start gap-4 min-w-[240px] flex-1">
-            <Avatar
-              photo={product.hasImage ? resolveBackendAsset(product.imageUrl) : undefined}
+            <ProductHeroImage
+              src={product.hasImage && product.imageUrl ? sameOriginPath(product.imageUrl) : undefined}
               name={product.label}
-              size={52}
-              rounded={isBlueMetal ? 'full' : 'lg'}
-              color={isBlueMetal ? 'bg-teal-600' : 'bg-brand'}
+              fallbackRounded={isBlueMetal ? 'full' : 'lg'}
+              fallbackColor={isBlueMetal ? 'bg-teal-600' : 'bg-brand'}
             />
             <div className="space-y-2 pt-0.5">
               {/* Name, status, the type / country / created line and the price and stock
@@ -305,16 +293,6 @@ export function ProductDetail() {
               >
                 <Pencil size={14} /> Edit
               </Link>
-              {product.type !== 'service' && (
-                <button
-                  type="button"
-                  onClick={() => setShowZra(true)}
-                  title="Register with ZRA"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-text-muted text-sm font-medium hover:bg-surface-hover hover:text-text"
-                >
-                  <ShieldCheck size={14} /> ZRA
-                </button>
-              )}
               <button
                 type="button"
                 onClick={handleDuplicate}
@@ -339,13 +317,13 @@ export function ProductDetail() {
           </div>
 
           <div className="border-t border-border">
-            <div className="flex items-center gap-0 overflow-x-auto overflow-y-hidden -mx-6 px-6" style={{ scrollBehavior: 'smooth' }}>
+            <div className="flex flex-wrap items-center gap-0 -mx-6 px-6">
               {TABS.map(({ label: t, icon: Icon }) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTab(t)}
-                  className={`flex items-center gap-1.5 shrink-0 px-4 py-3 text-sm font-medium border-b-3 cursor-pointer -mb-px whitespace-nowrap transition-colors ${
+                  className={`flex items-center gap-1.5 shrink-0 px-3 py-2.5 text-sm font-medium border-b-3 cursor-pointer -mb-px whitespace-nowrap transition-colors ${
                     tab === t ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'
                   }`}
                 >
@@ -391,11 +369,9 @@ export function ProductDetail() {
   )
 }
 
-// About + Pricing sections match legacy's product/card.php field-for-field
-// (verified live against product id=123, the same "Zktecho" product the
-// reference screenshots show - every value here cross-checked to match
-// exactly, including Total Sold Qty/Amount and the resolved
-// manufacturer/base-unit/packing-unit/barcode-type labels).
+// About + Pricing sections match legacy's product/card.php field-for-field,
+// including Total Sold Qty/Amount and the resolved manufacturer/base-unit/
+// packing-unit/barcode-type labels.
 function ProductTab({
   product,
   id,
@@ -405,6 +381,10 @@ function ProductTab({
   id: string | undefined
   onViewAllActivity: () => void
 }) {
+  const hasAccountCodes = !!(product.accountancySell || product.accountancySellExport || product.accountancyBuy || product.accountancyBuyExport)
+  const { data: accountNames } = useAccountNames(hasAccountCodes)
+  const account = (code: string) => (code && accountNames?.get(code) ? `${code} - ${accountNames.get(code)}` : code)
+  const withCurrency = (amount: number) => `${formatMoney(amount)}${product.currency ? ` ${product.currency}` : ''}`
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
       <div className="space-y-4">
@@ -415,7 +395,7 @@ function ProductTab({
             (already three separate cards). Same field content/order/
             positioning as before (About on the left, Pricing above
             Accountancy on the right), just genuinely separated. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <Card className="!h-auto">
             <SectionHeader icon={Info} color="blue">
               About
@@ -426,7 +406,9 @@ function ProductTab({
               <Field label="ZRA Updated Product Code" value={product.zraId} />
               <FieldRow label="ZRA Updated Status">
                 {product.zraStatus ? (
-                  <span className={`font-medium ${/succeed|success|sent|valid|ok/i.test(product.zraStatus) ? 'text-success' : 'text-text-muted'}`}>{product.zraStatus}</span>
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${/succeed|success|sent|valid|ok/i.test(product.zraStatus) ? 'bg-success-bg text-success' : 'bg-surface-alt text-text-muted'}`}>
+                    {product.zraStatus.replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </span>
                 ) : (
                   '—'
                 )}
@@ -456,6 +438,10 @@ function ProductTab({
                   '—'
                 )}
               </FieldRow>
+              <Field label="Product Accountancy Sell Code" value={account(product.accountancySell)} />
+              <Field label="Product Accountancy Sell Export Code" value={account(product.accountancySellExport)} />
+              <Field label="Product Accountancy Buy Code" value={account(product.accountancyBuy)} />
+              <Field label="Product Accountancy Buy Export Code" value={account(product.accountancyBuyExport)} />
               <FieldRow label="Use Lot/Serial Number">
                 <span className={`inline-flex items-center gap-1.5 font-medium ${product.useLotSerial ? 'text-info' : 'text-text-muted'}`}>
                   {product.useLotSerial ? <CheckCircle2 size={14} /> : <Circle size={14} />}
@@ -465,45 +451,21 @@ function ProductTab({
               <Field label="Description" value={product.description} />
               <Field label="Public URL" value={product.publicUrl} />
               <Field label="Default Warehouse" value={product.defaultWarehouse} />
-              <Field label="RRP" value={formatMoney(product.rrp)} />
+              <Field label="RRP" value={withCurrency(product.rrp)} />
             </div>
-          </Card>
-
-          <div className="flex flex-col gap-4">
-            <Card className="!h-auto">
+            <div className="mt-3 border-t border-border pt-3">
               <SectionHeader icon={Tag} color="green">
                 Pricing
               </SectionHeader>
-              <div>
-                <Field label="Price (HT)" value={formatMoney(product.priceExclTax)} />
-                <Field label="Price (TTC)" value={formatMoney(product.priceInclTax)} />
-                <Field label="Tax Rate" value={product.vatRate} />
-                <Field label="Total Sold Qty" value={formatNumber(product.totalSoldQty)} />
-                <Field label="Total Sold Amount" value={formatMoney(product.totalSoldAmount)} />
-                <Field label="Manufacturer / Vendor" value={product.manufacturer} />
-              </div>
-            </Card>
+              <Field label="Price (HT)" value={withCurrency(product.priceExclTax)} />
+              <Field label="Price (TTC)" value={withCurrency(product.priceInclTax)} />
+              <Field label="Tax Rate" value={product.vatRatePct || product.vatCode ? `${product.vatRatePct.toFixed(3)}%${product.vatCode ? ` (${product.vatCode})` : ''}` : ''} />
+              <Field label="Total Sold Qty" value={formatNumber(product.totalSoldQty)} />
+              <Field label="Total Sold Amount" value={formatMoney(product.totalSoldAmount)} />
+              <Field label="Manufacturer / Vendor" value={product.manufacturer} />
+            </div>
+          </Card>
 
-            {/* Split out of the About list into its own sub-panel, matching the
-                reference design's grouping exactly - same 4 real accountancy-code
-                fields as before, just labeled as their own section. Grows to fill
-                the rest of this column (flex-1, no !h-auto override) so its bottom
-                edge lines up with About's on the left - this column sits in a grid
-                row stretched to About's height, so the extra space is real, not the
-                unbounded-ancestor case the shared Card's h-full otherwise misbehaves
-                in (see the h-full inflation note on that component). */}
-            <Card className="flex-1">
-              <SectionHeader icon={Landmark} color="violet">
-                Product Accountancy
-              </SectionHeader>
-              <div>
-                <Field label="Sell Code" value={product.accountancySell} />
-                <Field label="Sell Export Code" value={product.accountancySellExport} />
-                <Field label="Buy Code" value={product.accountancyBuy} />
-                <Field label="Buy Export Code" value={product.accountancyBuyExport} />
-              </div>
-            </Card>
-          </div>
         </div>
 
         {/* Matches product/card.php's separate "Overview" card exactly (confirmed by reading
@@ -515,17 +477,30 @@ function ProductTab({
           <SectionHeader icon={Eye} color="amber">
             Overview
           </SectionHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+          <div className="grid grid-cols-1">
             <Field label="Nature Of Product" value={NATURE_OPTIONS.find((o) => o.value === String(product.finished))?.label ?? ''} />
             <Field label="Weight" value={formatDimension(product.weight, product.weightUnits, WEIGHT_UNITS)} />
             <Field
               label="Length X Width X Height"
-              value={[product.length, product.width, product.height].some((v) => v !== null) ? formatDimension3(product.length, product.width, product.height, product.lengthUnits) : ''}
+              value={[product.length, product.width, product.height].some((v) => v !== null) ? formatDimension3(product.length, product.width, product.height, product.lengthUnits) : '— × — × —'}
             />
             <Field label="Area" value={formatDimension(product.surface, product.surfaceUnits, SURFACE_UNITS)} />
             <Field label="Volume" value={formatDimension(product.volume, product.volumeUnits, VOLUME_UNITS)} />
             <Field label="Customs/Commodity/HS Code" value={product.customCode} />
-            <Field label="Tags/Categories" value={product.categories.map((c) => c.label).join(', ')} />
+            <Field label="Origin" value={product.originCountryCode} />
+            <FieldRow label="Tags/Categories">
+              {product.categories.length === 0 ? (
+                <span className="text-sm text-text!">—</span>
+              ) : (
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  {product.categories.map((c) => (
+                    <span key={c.id} className="px-2.5 py-0.5 rounded-full bg-brand text-white text-xs font-medium capitalize">
+                      {c.label}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </FieldRow>
           </div>
         </Card>
       </div>
@@ -560,14 +535,14 @@ function ProductTab({
   )
 }
 
-function formatDimension(value: number | null, unitCode: number, table: { value: string; label: string }[]): string {
+function formatDimension(value: number | null, unitCode: number | null, table: { value: string; label: string }[]): string {
   if (value === null) return ''
-  const unit = table.find((u) => u.value === String(unitCode))?.label ?? ''
+  const unit = unitCode === null ? '' : (table.find((u) => u.value === String(unitCode))?.label ?? '')
   return unit ? `${value} ${unit}` : String(value)
 }
-function formatDimension3(length: number | null, width: number | null, height: number | null, unitCode: number): string {
+function formatDimension3(length: number | null, width: number | null, height: number | null, unitCode: number | null): string {
   const parts = [length, width, height].filter((v) => v !== null)
-  const unit = SIZE_UNITS.find((u) => u.value === String(unitCode))?.label ?? ''
+  const unit = unitCode === null ? '' : (SIZE_UNITS.find((u) => u.value === String(unitCode))?.label ?? '')
   return `${parts.join(' x ')}${unit ? ' ' + unit : ''}`
 }
 
@@ -653,7 +628,7 @@ function ActivityTimeline({ id, onViewAll }: { id: string | undefined; onViewAll
               invoice history (useProductReferers), the closest genuine "see
               everything" target - no dedicated standalone activity page exists. */}
           <button type="button" onClick={onViewAll} className="mt-2 text-xs font-medium text-brand hover:underline">
-            View all activities â†’
+            View all activities →
           </button>
         </>
       )}

@@ -396,7 +396,6 @@ function ContactsOfProjectTab({ project }: { project: ProjectRow }) {
     <div className="space-y-3">
       <ProjectInfoCards project={project} />
       <TabTitle>Contacts of Project</TabTitle>
-      {/* <NoApiNote>projet/contact.php has no JSON API (confirmed by reading it directly) — the add-contact form and unlink action below are inert.</NoApiNote> */}
 
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="overflow-x-auto">

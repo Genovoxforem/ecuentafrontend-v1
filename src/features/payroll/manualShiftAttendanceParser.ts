@@ -1,17 +1,16 @@
-// Parses payroll/shiftsmanual_ajax.php?enterAttendance=1 — the real
-// backend fragment behind payroll/shiftsmanual_attendance.php's own
-// "Search" button (POST, params in the query string: ListofEmployee=All,
-// TypesOfEntity=1, att_date=YYYY-MM-DD, shiftId=3|4). Returns raw HTML
-// (`$("#tableBody").html(msg)` client-side, not JSON — confirmed live, same
-// gap payrollAttendance.queries.ts's own header comment already documents
-// for this page's read side), one <tr class="tab-link"> per employee with
-// real name/designation and the real per-row defaults: every employee
-// starts pre-checked "Present" with clockIn/clockOut defaulted to
+// Parses payroll/shiftsmanual_ajax.php?enterAttendance=1 — the backend
+// fragment behind payroll/shiftsmanual_attendance.php's own "Search" button
+// (POST, params in the query string: ListofEmployee=All, TypesOfEntity=1,
+// att_date=YYYY-MM-DD, shiftId=3|4). Returns raw HTML
+// (`$("#tableBody").html(msg)` client-side, not JSON — the same gap
+// payrollAttendance.queries.ts's own header comment documents for this
+// page's read side), one <tr class="tab-link"> per employee with
+// name/designation and the per-row defaults: every employee starts
+// pre-checked "Present" with clockIn/clockOut defaulted to
 // 08:00:00/17:00:00 — this form has no concept of "not yet marked" per
 // employee (unlike the regular Mark Attendance page's own
 // attendance_rip_ajax.php), it's a from-scratch "mark today" sheet every
-// time, confirmed by reading several employees' rows live (all `checked`,
-// none omitted).
+// time.
 
 export interface ManualShiftEmployeeRow {
   employeeId: number

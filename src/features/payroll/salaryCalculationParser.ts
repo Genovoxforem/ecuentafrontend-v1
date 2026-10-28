@@ -1,13 +1,13 @@
 // Parses payroll/loadcalculation.php — the HTML fragment the Salary Template page
 // fills its right-hand panel with (the page POSTs its whole form to it, on every
-// change). Verified live against two dev backends. It says whether the allowance
-// split adds up to the gross ("* Salary Allocation is Successful", or "* Adjust
-// The Payment To Equilize Gross Pay, Pending Amount …"), lists the backend's own
-// contribution rows (Napsa, Nhima, … — which differ per installation), and gives
-// the totals. Its named inputs (`tax_prec[]`, `tax_type[]`, `dedu_id[]`,
-// `tax_ded[]`, `paye_deduction`, `sum_deduc`, `sum_gross`, `sum_nett`) live inside
-// the form on the real page, so the browser submits them with Save — `saveFields`
-// carries them so a native Save can send the same.
+// change). It says whether the allowance split adds up to the gross ("* Salary
+// Allocation is Successful", or "* Adjust The Payment To Equilize Gross Pay,
+// Pending Amount …"), lists the backend's own contribution rows (Napsa, Nhima, … —
+// which differ per installation), and gives the totals. Its named inputs
+// (`tax_prec[]`, `tax_type[]`, `dedu_id[]`, `tax_ded[]`, `paye_deduction`,
+// `sum_deduc`, `sum_gross`, `sum_nett`) live inside the form on the classic page,
+// so the browser submits them with Save — `saveFields` carries them so a native
+// Save can send the same.
 
 export interface SalaryContribution {
   label: string

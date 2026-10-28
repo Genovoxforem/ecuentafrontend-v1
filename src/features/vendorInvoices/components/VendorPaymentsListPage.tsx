@@ -6,6 +6,7 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney, formatDateTimeAmPm } from '../../../utils/format'
 import { usePurchasePayments, type PurchasePaymentRow } from '../vendorPayments.queries'
+import { todayIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -22,10 +23,6 @@ const COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Amount', key: 'amount' },
 ]
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function matchesSearch(r: PurchasePaymentRow, query: string) {
   const q = query.trim().toLowerCase()

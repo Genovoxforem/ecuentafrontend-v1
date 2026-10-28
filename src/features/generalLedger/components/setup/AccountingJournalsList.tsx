@@ -17,9 +17,7 @@ import {
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../../shared/components/ListPagination'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
-import { useDictList, useToggleDictStatus, useDeleteDictRow } from '../../dolibarrDict.queries'
-
-const PATH = '/accountancy/admin/journals_list.php?id=35'
+import { NATURES, useCreateJournal, useDeleteJournal, useJournalsAdmin, useToggleJournal } from '../../journalsAdminFapi'
 
 const inputCls = 'w-full h-10 px-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 placeholder:text-text-faint'
 
@@ -40,7 +38,7 @@ const NATURE_META: Record<string, { icon: ComponentType<{ size?: number; classNa
 const DEFAULT_NATURE_META = { icon: Settings, className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400' }
 
 function NatureBadge({ label }: { label: string }) {
-  const meta = NATURE_META[label] ?? DEFAULT_NATURE_META
+  const meta = NATURE_META[label] ?? Object.entries(NATURE_META).find(([k]) => k.toLowerCase() === label.toLowerCase())?.[1] ?? DEFAULT_NATURE_META
   const Icon = meta.icon
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${meta.className}`}>
@@ -66,18 +64,19 @@ function StatusToggle({ active, disabled, onClick }: { active: boolean; disabled
   )
 }
 
-// accountancy/admin/journals_list.php?id=35 — real, scraped rows
-// (llx_accounting_journal). Enable/Disable and Delete call the exact
-// already-tokened GET link scraped off each row (see
-// dolibarrDictParser.ts's own top comment); Add/Edit are real classic
-// form-POSTs too, but this page's own field set (Code/Label/Nature) isn't
-// reproduced as a working submit here — the form below is shown for
-// layout parity only and stays disabled.
+// accountancy/fapi/journals_admin.php (llx_accounting_journal): list, add, switch on/off and delete. Editing a journal is not in the
+// endpoint (bug list), so the pencil stays off.
 export function AccountingJournalsList() {
-  const { data: rows, isLoading, isError, error, refetch } = useDictList(PATH)
-  const toggle = useToggleDictStatus(PATH)
-  const del = useDeleteDictRow(PATH)
+  const { data: rows, isLoading, isError, error, refetch } = useJournalsAdmin()
+  const toggle = useToggleJournal()
+  const del = useDeleteJournal()
+  const create = useCreateJournal()
   const confirm = useConfirm()
+  const [code, setCode] = useState('')
+  const [label, setLabel] = useState('')
+  const [nature, setNature] = useState(1)
+  const problem = [toggle, del, create].find((m) => m.isError)?.error
+  const canAdd = code.trim() !== '' && label.trim() !== '' && !create.isPending
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -86,7 +85,7 @@ export function AccountingJournalsList() {
   const filteredRows = useMemo(() => {
     const all = rows ?? []
     const q = search.trim().toLowerCase()
-    return q ? all.filter((r) => r.cells.some((c) => c.toLowerCase().includes(q))) : all
+    return q ? all.filter((r) => [r.code, r.label, r.natureLabel].some((c) => c.toLowerCase().includes(q))) : all
   }, [rows, search])
   const pageRows = filteredRows.slice((page - 1) * perPage, page * perPage)
 
@@ -117,11 +116,21 @@ export function AccountingJournalsList() {
           </div>
           <button
             type="button"
-            disabled
-            title="Add isn't wired — accountancy/admin/journals_list.php's Add is a classic full-page form-POST, no JSON."
-            className="flex items-center gap-1.5 rounded-lg bg-brand/50 px-4 py-2 text-sm font-medium text-white cursor-not-allowed"
+            disabled={!canAdd}
+            onClick={() =>
+              create.mutate(
+                { code, label, nature },
+                {
+                  onSuccess: () => {
+                    setCode('')
+                    setLabel('')
+                  },
+                },
+              )
+            }
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
-            <Plus size={14} /> Add Journal
+            {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add Journal
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -129,23 +138,32 @@ export function AccountingJournalsList() {
             <span className="text-xs font-medium text-text-faint">
               Code <span className="text-danger">*</span>
             </span>
-            <input disabled placeholder="e.g. AC" className={`${inputCls} cursor-not-allowed`} />
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. AC" className={inputCls} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-faint">
               Label <span className="text-danger">*</span>
             </span>
-            <input disabled placeholder="e.g. Purchase Journal" className={`${inputCls} cursor-not-allowed`} />
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Purchase Journal" className={inputCls} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-faint">
               Nature of Journal <span className="text-danger">*</span>
             </span>
-            <select disabled defaultValue="Miscellaneous Operations" className={`${inputCls} cursor-not-allowed`}>
-              <option>Miscellaneous Operations</option>
+            <select value={nature} onChange={(e) => setNature(Number(e.target.value))} className={inputCls}>
+              {NATURES.map((n) => (
+                <option key={n.value} value={n.value}>
+                  {n.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>
+        {problem && (
+          <p role="alert" className="text-sm text-danger">
+            {problem instanceof Error ? problem.message : 'The request was refused.'}
+          </p>
+        )}
       </Card>
 
       <Card className="!h-auto !p-0 overflow-hidden">
@@ -209,33 +227,33 @@ export function AccountingJournalsList() {
                 </tr>
               ) : (
                 pageRows.map((r, i) => (
-                  <tr key={r.rowid} className="border-b border-border last:border-0 hover:bg-surface-hover">
+                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover">
                     <td className="px-4 py-2.5 text-text-faint">{(page - 1) * perPage + i + 1}</td>
                     <td className="px-4 py-2.5">
-                      <span className="inline-block rounded-md bg-brand/10 text-brand px-2 py-0.5 text-xs font-semibold">{r.cells[0] || '—'}</span>
+                      <span className="inline-block rounded-md bg-brand/10 text-brand px-2 py-0.5 text-xs font-semibold">{r.code || '—'}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-text-muted">{r.cells[1] || '—'}</td>
+                    <td className="px-4 py-2.5 text-text-muted">{r.label || '—'}</td>
                     <td className="px-4 py-2.5">
-                      <NatureBadge label={r.cells[2] || ''} />
+                      <NatureBadge label={r.natureLabel} />
                     </td>
                     <td className="px-4 py-2.5">
-                      <StatusToggle active={r.active} disabled={!r.toggleUrl || toggle.isPending} onClick={() => r.toggleUrl && toggle.mutate(r.toggleUrl)} />
+                      <StatusToggle active={r.active} disabled={toggle.isPending} onClick={() => toggle.mutate(r.id)} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           disabled
-                          title="Edit isn't wired — this page's Edit is a classic full-page form-POST, no JSON."
+                          title="Editing a journal is not in the API yet."
                           className="p-1.5 rounded-md bg-brand text-white opacity-50 cursor-not-allowed"
                         >
                           <Pencil size={13} />
                         </button>
                         <button
                           type="button"
-                          disabled={!r.deleteUrl || del.isPending}
+                          disabled={del.isPending}
                           onClick={async () => {
-                            if (r.deleteUrl && (await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) del.mutate(r.deleteUrl)
+                            if (await confirm({ title: 'Delete journal?', message: `Delete the journal ${r.code}? It is refused when the ledger has lines under it.` })) del.mutate(r.id)
                           }}
                           title="Delete"
                           className="p-1.5 rounded-md bg-danger text-white disabled:opacity-40"

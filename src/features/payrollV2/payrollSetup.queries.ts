@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
 import { toastMessages } from '../generalLedger/bindLines.queries'
-import { parseCountries, parseDevices, parseLeaveTypes, parseSetupFields, parseTaxBands, parseTaxYears, type SetupField } from './setupHtmlParser'
+import { pv2Get, pv2PostResult } from './payrollV2.api'
+import { parseCountries, parseDevices, parseLeaveTypes, parseTaxBands, parseTaxYears, type SetupField } from './setupHtmlParser'
 
 const SETUP_URL = '/custom/payroll_v2/admin/setup.php'
 
@@ -57,15 +58,42 @@ export type SetupConstants = Record<SetupGroupKey, SetupField[]>
 
 const setupDoc = (params: Record<string, string>) => fetchLegacyDocument(SETUP_URL, new URLSearchParams(params))
 
-// Each settings tab prints only its own controls, so all three are read.
+// payroll_v2/fapi/setup.php?action=get: the three constant tabs with each field's current value, in one call. Checked live
+// against the classic page's own controls: same keys, labels, types and values. The one difference is the salary bank
+// account, which the fapi gives as type "bank_select" plus a separate bank_accounts list; the classic page's option text is
+// "<label> (<ref>) — GL <account number>" with an empty "-- Select Bank Account --" first option, rebuilt here.
+interface FapiSetupField {
+  key: string
+  label: string
+  type: string
+  value: unknown
+  options?: Record<string, string>
+}
+interface FapiSetup {
+  tabs: Record<string, { title: string; fields: FapiSetupField[] }>
+  bank_accounts: Array<{ id: number | string; label: string; ref: string; account_number: string }>
+}
+
+export function setupFieldFrom(key: string, label: string, f: FapiSetupField | undefined, banks: FapiSetup['bank_accounts']): SetupField {
+  const value = f?.value === null || f?.value === undefined ? '' : String(f.value)
+  if (f?.type === 'bank_select') {
+    const options = [{ value: '', label: '-- Select Bank Account --' }, ...banks.map((b) => ({ value: String(b.id), label: `${b.label} (${b.ref}) — GL ${b.account_number}` }))]
+    return { key, label, type: 'select', value, options }
+  }
+  if (f?.type === 'select') return { key, label, type: 'select', value, options: Object.entries(f.options ?? {}).map(([v, l]) => ({ value: v, label: l })) }
+  if (f?.type === 'checkbox') return { key, label, type: 'checkbox', value: value === '1' ? '1' : '0', options: [] }
+  return { key, label, type: f?.type === 'password' ? 'password' : 'text', value, options: [] }
+}
+
 export function useSetupConstants() {
   return useQuery({
     queryKey: ['payroll-v2', 'setup', 'constants'],
     queryFn: async (): Promise<SetupConstants> => {
+      const data = await pv2Get<FapiSetup>('setup.php', 'get')
       const keys = Object.keys(SETUP_GROUPS) as SetupGroupKey[]
-      const docs = await Promise.all(keys.map((tab) => setupDoc({ tab })))
-      if (!docs[0].querySelector('[name="payroll_v2_calc_from"]')) throw new Error('The Payroll V2 setup page did not open — this account may not have access to it.')
-      return Object.fromEntries(keys.map((tab, i) => [tab, parseSetupFields(docs[i], [...SETUP_GROUPS[tab].fields])])) as SetupConstants
+      return Object.fromEntries(
+        keys.map((tab) => [tab, SETUP_GROUPS[tab].fields.map(({ key, label }) => setupFieldFrom(key, label, data.tabs[tab]?.fields.find((f) => f.key === key), data.bank_accounts ?? []))]),
+      ) as SetupConstants
     },
   })
 }
@@ -118,20 +146,26 @@ export function useSetupAction() {
   })
 }
 
-// setup.php's `update` writes every constant of every tab from the request — a
-// checkbox that is absent becomes 0 and a text field that is absent becomes
-// empty — so the classic page's per-tab form wipes the other two tabs. Saving
-// always sends the full set (the edited tab plus the other tabs as loaded).
-export function constantsPayload(all: SetupConstants): Record<string, string> {
-  const fields: Record<string, string> = { action: 'update' }
-  for (const group of Object.values(all)) {
-    for (const f of group) {
-      if (f.type === 'checkbox') {
-        if (f.value === '1') fields[f.key.toLowerCase()] = '1'
-      } else {
-        fields[f.key.toLowerCase()] = f.value
-      }
-    }
-  }
-  return fields
+// payroll_v2/fapi/setup.php?action=save: writes only the constants it is sent (checked with a dry run on newecuenta: one key
+// answered "would save 1 constant"), so a tab saves without touching the other two, unlike the classic page's form, which
+// wiped them. Keys are the upper-case constant names (lower-case ones come back in ignored_fields). The call is a dry run
+// until confirm is sent; confirm=1 as a form value persists (checked on newecuenta by writing one constant back with its own
+// value: "Settings saved.", dry_run false, nothing else changed). If the server still answers a dry run nothing was saved,
+// and that is reported instead of "saved".
+export function setupSavePayload(fields: SetupField[]): Record<string, string> {
+  const params: Record<string, string> = { confirm: '1' }
+  for (const f of fields) params[f.key] = f.type === 'checkbox' ? (f.value === '1' ? '1' : '0') : f.value
+  return params
+}
+
+export function useSaveSetupConstants() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fields: SetupField[]) => {
+      const { data, message } = await pv2PostResult<{ dry_run?: boolean; count?: number } | null>('setup.php', 'save', setupSavePayload(fields))
+      if (data?.dry_run) throw new Error('The server answered a dry run, so nothing was saved.')
+      return message || null
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['payroll-v2', 'setup'] }),
+  })
 }

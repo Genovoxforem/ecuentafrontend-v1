@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useProjectOptions } from '../../../api/lookups'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, X, LoaderCircle, Plus, Trash2, FileText, ListChecks, Users, StickyNote, Calculator, Layers } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { api } from '../../../api/axios'
 import { Card, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
 import { InBanner } from '../../../shared/components/layout/bannerSlot'
@@ -19,25 +18,10 @@ import { RepField } from './ContractCreateFromCustomerForm'
 import { todayIso } from '../../../shared/localCollection'
 import { formatMoney } from '../../../utils/format'
 
-interface ProjectOption {
-  id: string
-  ref: string
-  title: string
-}
 
 // GET /api/projects.php — same real, working endpoint used by Purchase
 // Order/Sales Order/Quotation Create forms elsewhere in this app (queries
 // llx_projet WHERE fk_statut = 1, not order-type-specific).
-function useProjectOptions() {
-  return useQuery({
-    queryKey: ['projects', 'open'],
-    queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
-      return data.results ?? []
-    },
-    staleTime: 1000 * 60,
-  })
-}
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
 

@@ -1,5 +1,5 @@
 // The count-entry tab of an inventory (product/stock/fapi/inventory.php?id=: the lines with the expected quantity at
-// validation and the counted one). Types only; the classic inventory.php page is no longer parsed.
+// validation and the counted one). Types only.
 export type InventoryLineStatus = 'draft' | 'validated' | 'closed'
 
 export interface InventoryLineRow {
@@ -31,6 +31,3 @@ export interface InventoryLinesPage {
   page: number
   hasNextPage: boolean
 }
-
-// The endpoint returns every line at once.
-export const LINES_PER_PAGE = 100000

@@ -85,15 +85,13 @@ function flattenTree(nodes: BackendMenuTreeNode[]): RawMenuRow[] {
   return out
 }
 
-// The Home/Dashboard tab's own submenu was NEVER database-driven in the
-// real reference system either — confirmed by reading ecnta10's own working
-// api/menu/index.php (built by literally reusing the theme's real
+// The Home/Dashboard tab's own submenu is not database-driven in the
+// reference system either: api/menu/index.php reuses the theme's
 // ecumenu_build_sidebar_shell(), which renders this tab from exactly this
-// small hardcoded PHP array, not from llx_menu). Ported verbatim rather
-// than re-derived, and confirmed live against ecuenta9 too: its `dashboard`
-// mainmenu key has real DB rows for the top tab itself and nothing else —
-// zero rows resolve into it as children — so without this, Home shows no
-// submenu at all instead of silently showing the wrong thing.
+// small hardcoded PHP array, not from llx_menu. The `dashboard` mainmenu
+// key has DB rows for the top tab itself and nothing else — zero rows
+// resolve into it as children — so without this, Home shows no submenu at
+// all.
 //
 // Each entry names the top-menu key(s) of the module it belongs to; it is only
 // shown when the backend lists that module for this user, so a disabled or
@@ -111,34 +109,29 @@ const MODULE_DASHBOARDS: { url: string; title: string; requires?: string[] }[] =
   { url: '/user/list.php?mode=employee&mainmenu=dashboard', title: 'Users Dashboard', requires: ['employee', 'users'] },
 ]
 
-// Groups the flat row list into {topMenus, sections} — AND, unlike an
-// earlier version of this function, reconstructs the real nested groups
-// within each section instead of leaving everything a single flat list.
-// topMenus come straight from the type==='top' rows (real, correctly
-// populated on every one). For everything else, a row's own `mainmenu` is
-// usually empty — its real section only lives on an ancestor further up the
-// real `fk_menu` parent chain, so resolveSectionKey walks that chain
-// (bounded by `seen`, so a bad/cyclic fk_menu can't hang) until it hits a
-// row with a mainmenu matching a real top entry. Confirmed live: this
-// recovers ~400 of 583 rows into their correct section (vs. under 150 with
-// a naive direct-match); the remaining ~180 have no resolvable ancestor at
-// all (or resolve to a real mainmenu — e.g. a genuine 12-item "companies"
+// Groups the flat row list into {topMenus, sections} and reconstructs the
+// nested groups within each section.
+// topMenus come straight from the type==='top' rows. For everything else, a
+// row's own `mainmenu` is usually empty — its section only lives on an
+// ancestor further up the `fk_menu` parent chain, so resolveSectionKey
+// walks that chain (bounded by `seen`, so a bad/cyclic fk_menu can't hang)
+// until it hits a row with a mainmenu matching a top entry. This recovers
+// most rows into their correct section; the rest have no resolvable
+// ancestor at all (or resolve to a mainmenu — e.g. a 12-item "companies"
 // group — with no matching top entry to hang under) and are skipped rather
-// than guessed at. Sidebar.tsx's own PATH_SOURCE_SECTIONS fallback already
-// covers full navigation regardless, so this only adds real per-user
-// permission-awareness where the data actually supports it.
+// than guessed at. Sidebar.tsx's own PATH_SOURCE_SECTIONS fallback covers
+// full navigation regardless, so this only adds per-user
+// permission-awareness where the data supports it.
 //
-// Once a row's section is known, its real UI *parent* (for actual nested
-// groups, not just section membership) is whichever row its own `fk_menu`
-// points to — but only when that parent is itself a member of the SAME
-// section; otherwise the parent is the section boundary itself (a top-level
-// entry, or something outside this section entirely), so the row becomes a
-// root-level item directly under the section. This is a real relationship
-// already present in the raw data — not an invented grouping — confirmed
-// live to reconstruct sensible 2-4 level trees (e.g. Sales > Invoices >
-// List/Abandoned/Template Invoices) instead of one long flat ~40-item list,
-// which is what made every section look like it had no real submenus at
-// all once rendered.
+// Once a row's section is known, its UI *parent* (for nested groups, not
+// just section membership) is whichever row its own `fk_menu` points to —
+// but only when that parent is itself a member of the SAME section;
+// otherwise the parent is the section boundary itself (a top-level entry,
+// or something outside this section entirely), so the row becomes a
+// root-level item directly under the section. This relationship is already
+// present in the raw data — not an invented grouping — and gives 2-4 level
+// trees (e.g. Sales > Invoices > List/Abandoned/Template Invoices) instead
+// of one long flat list.
 export function buildAppMenuFromRows(rows: RawMenuRow[]): AppMenuResponse {
   const byId = new Map(rows.map((r) => [String(r.rowid), r]))
   const topMenus: BackendTopMenu[] = rows.filter((r) => r.type === 'top').map((r) => ({ key: r.mainmenu, title: r.titre, url: r.url }))
@@ -242,9 +235,8 @@ export function useAppMenu() {
         // entity" under multicompany), a different thing from $conf->entity
         // (the session's actual *working* entity), which is what this
         // endpoint checks and 403s ("Entity mismatch") against otherwise.
-        // Confirmed live against a real session: 1 (Dolibarr's standard
-        // master entity) is what $conf->entity actually is — this isn't a
-        // multicompany-active install.
+        // $conf->entity is 1 (Dolibarr's standard master entity) — this
+        // isn't a multicompany-active install.
         entity: '1',
         // 0 = internal user (Dolibarr's own default when a user has no
         // linked socid). This app has no source for the current user's

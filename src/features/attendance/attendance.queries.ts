@@ -20,7 +20,7 @@ interface AttendanceResponse {
 
 const STATUS_KEY = ['attendance', 'status']
 
-// GET /api/attendance/ — confirmed live on this app's backend.
+// GET /api/attendance/.
 export function useAttendanceStatus() {
   return useQuery({
     queryKey: STATUS_KEY,

@@ -5,7 +5,7 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/Le
 import { ROUTES } from '../../../routes'
 import { usePaymentTypes } from '../expenses.queries'
 import { useApproveRepayment, useCreateRepayment, useRepayments, useSettleRepayment } from '../expenseTabs.queries'
-import type { RepaymentRow } from '../expenseTabsParser'
+import type { RepaymentRow } from '../expenseTabs.types'
 import { TONE_CLS, controlCls } from '../expenseTable'
 import { ExpenseTable, type ExpenseColumn } from './ExpenseTable'
 import { Field, FormCard, FormProblem } from './expenseParts'

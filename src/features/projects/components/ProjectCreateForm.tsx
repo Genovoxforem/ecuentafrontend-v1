@@ -19,16 +19,13 @@ const LEAD_STATUS_OPTIONS = [
   { value: '7', label: 'Lost' },
 ]
 
-// projet/card.php has no JSON API at all — confirmed by reading it directly
-// (no json_encode anywhere in the file). The generic Restler REST layer
-// (projet/class/api_projects.class.php) that the old /api/projects/ bridge
-// used to wrap is gone from disk (confirmed live: that endpoint now returns
-// the legacy login page, not JSON) — same situation as Contracts' own
-// generic API: real, but DOLAPIKEY-gated with no session-cookie bridge, so
-// out of reach without a backend change. There is genuinely no way to
-// create or edit a project from the frontend right now, so this form is
-// shown for layout reference only — every field is disabled and the real,
-// working legacy page is offered as the actual way to do this.
+// projet/card.php has no JSON API (no json_encode anywhere in the file),
+// and the generic Restler REST layer (projet/class/api_projects.class.php)
+// is DOLAPIKEY-gated with no session-cookie bridge, so out of reach without
+// a backend change. There is no way to create or edit a project from the
+// frontend right now, so this form is shown for layout reference only —
+// every field is disabled and the working legacy page is offered as the
+// actual way to do this.
 export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: number } = {}) {
   const { id: idParam } = useParams<{ id: string }>()
   const projectId = projectIdProp ?? (idParam ? Number(idParam) : undefined)

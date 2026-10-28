@@ -4,6 +4,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useUsersSummary } from '../../users/users.queries'
+import { currentMonthIso } from '../../../utils/dates'
 import { usePayrollSummaryReport, type PayrollSummarySearch } from '../payrollSummaryReport.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -15,16 +16,8 @@ const SEARCH_TYPES: { value: SearchType; label: string }[] = [
   { value: 'month', label: 'By Month' },
 ]
 
-function currentMonthIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-// payroll/payroll_summary.php's report table is scraped for real — see
-// payrollSummaryReportParser.ts's own top comment for how this was
-// confirmed live (a By Employee search for employee 11 returned a genuine
-// May 2026 paid-payment row) — unlike this module's other Salary Payments
-// pages, which were checked and found genuinely empty for every case tried.
+// payroll/payroll_summary.php's report table is scraped — see
+// payrollSummaryReportParser.ts's own top comment.
 export function PayrollSummaryForm() {
   const { data: users } = useUsersSummary()
 

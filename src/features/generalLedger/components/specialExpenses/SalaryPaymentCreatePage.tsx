@@ -1,5 +1,7 @@
 import { Banknote } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
+import { saveSalaryPayment } from '../../specialPaymentsSave'
+import { loadSalaryForm } from '../../specialMetaFapi'
 import { LegacyFormPage } from '../LegacyFormPage'
 
 // salaries/card.php?action=create — the real "New payment - salaries" form;
@@ -7,6 +9,8 @@ import { LegacyFormPage } from '../LegacyFormPage'
 export function SalaryPaymentCreatePage() {
   return (
     <LegacyFormPage
+      load={loadSalaryForm}
+      save={saveSalaryPayment}
       icon={Banknote}
       title="New Payment - Salaries"
       path="/salaries/card.php"

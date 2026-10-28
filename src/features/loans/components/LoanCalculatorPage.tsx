@@ -4,6 +4,7 @@ import { Card, fmtZMW } from '../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { formatDate } from '../../../utils/format'
 import { calculateLoanSchedule, type LoanCalculatorResult, type LoanInterestType, type LoanTermPeriod } from '../loans.queries'
+import { todayIso } from '../../../utils/dates'
 
 const PAGE_SIZE = 15
 
@@ -23,10 +24,6 @@ const TERM_PERIOD_OPTIONS: { value: LoanTermPeriod; label: string }[] = [
 ]
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand'
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 // Real: loan_calculator.php's own math (read directly from the backend
 // PHP), ported verbatim — same 5 interest_type variants loan_product.php's
@@ -50,9 +47,8 @@ export function LoanCalculatorPage() {
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<LoanCalculatorResult | null>(null)
 
-  // Real: loan_calculator.php only computes on an explicit "Calculate"
-  // submit (a plain GET form, action=calculate_loan) — it doesn't recompute
-  // live on every keystroke like this page previously did.
+  // loan_calculator.php only computes on an explicit "Calculate" submit (a
+  // plain GET form, action=calculate_loan), not on every keystroke.
   function handleCalculate(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
     const amount = Number(applyAmount) || 0

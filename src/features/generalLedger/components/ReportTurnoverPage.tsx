@@ -3,21 +3,13 @@ import { FileSpreadsheet, Loader2, Printer, TrendingUp } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { TURNOVER_BASIS_OPTIONS, useTurnoverInvoiced, type TurnoverFilters } from '../turnoverInvoiced.queries'
-import type { TurnoverReport } from '../turnoverInvoicedParser'
+import type { TurnoverReport } from '../turnoverInvoiced.types'
+import { toIso, toUs } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const btn = 'flex items-center justify-center h-9 w-9 rounded-md bg-brand text-white hover:bg-brand-hover'
 
 // MM/dd/yyyy (the report's own format) <-> yyyy-MM-dd (native date input).
-const toIso = (us: string) => {
-  const m = us.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : ''
-}
-const toUs = (iso: string) => {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  return m ? `${m[2]}/${m[3]}/${m[1]}` : ''
-}
-
 function toCsv(d: TurnoverReport): string {
   const q = (s: string) => `"${s.replace(/"/g, '""')}"`
   const rows: string[][] = [
@@ -39,7 +31,7 @@ function exportCsv(d: TurnoverReport) {
 }
 
 // compta/stats/index.php — the real "Turnover invoiced" report (see
-// turnoverInvoicedParser.ts). Read-only: period and accounting basis are the
+// turnoverInvoiced.types.ts). Read-only: period and accounting basis are the
 // backend page's own parameters.
 export function ReportTurnoverPage() {
   const [applied, setApplied] = useState<TurnoverFilters>({ start: '', end: '', basis: 'BOOKKEEPING' })

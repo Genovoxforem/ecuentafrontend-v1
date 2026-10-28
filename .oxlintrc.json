@@ -4,5 +4,15 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      // The route tables are plain functions that return <Route> elements; they hold the lazy() pages of their
+      // area and have nothing to hot-reload.
+      "files": ["src/app/routes/**"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    }
+  ]
 }

@@ -89,10 +89,10 @@ function sortValue(m: StockMovementRow, key: SortKey): string | number {
 }
 
 // product/stock/movement_list.php ("List of Stock Movements"). See
-// stockMovementsList.queries.ts's header comment: this is a real SPA backed
-// by a genuine, complete JSON API (product/stock/ajax/movement_list_api.php),
-// not classic HTML — every stat tile, filter option, table column and the
-// bulk "Update to ZRA" action below is real, live-verified data.
+// stockMovementsList.queries.ts's header comment: an SPA backed by a
+// complete JSON API (product/stock/ajax/movement_list_api.php), not classic
+// HTML — every stat tile, filter option, table column and the bulk "Update
+// to ZRA" action below comes from it.
 // `embedded`: rendered under another form (Stock correction / transfer) instead of as a
 // page of its own — it then sits in the normal flow, without the full-page negative
 // margins and sticky header that would pull it up over the form above.

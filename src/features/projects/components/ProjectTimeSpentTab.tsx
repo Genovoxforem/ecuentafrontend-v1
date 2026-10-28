@@ -9,14 +9,14 @@ import { ProjectInfoCards } from './ProjectInfoRecap'
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 w-full'
 const selectCls = inputCls + ' appearance-none'
 
-// Real "List Of Time Consumed On Tasks Of Project" widget from
-// projet/tasks/time.php — the Add row genuinely POSTs via the same
+// "List Of Time Consumed On Tasks Of Project" widget from
+// projet/tasks/time.php — the Add row POSTs via the same
 // /api/project-tasks/?action=addtimespent endpoint TasksListPage.tsx/
-// tasks.queries.ts already use (Task::addTimeSpent(), confirmed live). There
-// is no matching list/GET endpoint for past time-spent entries though, so
-// the results table below stays an honest empty state rather than
-// fabricating rows. "By" is always the logged-in user server-side (no field
-// for it in the real POST), and there's no real "Value" field at all.
+// tasks.queries.ts use (Task::addTimeSpent()). There is no matching
+// list/GET endpoint for past time-spent entries though, so the results
+// table below stays an empty state rather than fabricating rows. "By" is
+// always the logged-in user server-side (no field for it in the POST), and
+// there's no "Value" field at all.
 export function ProjectTimeSpentTab({ project }: { project: ProjectRow }) {
   const [showAdd, setShowAdd] = useState(false)
 

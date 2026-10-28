@@ -12,7 +12,7 @@ const iconBtn = 'flex h-7 w-7 items-center justify-center rounded text-text-mute
 
 // One variant attribute and its values — variants/fapi/attributes.php?id= with
 // update / delete / add_value / update_value / delete_value (the classic
-// variants/card.php only ever answered 302, so this page used to be inert).
+// variants/card.php only answers 302).
 // Delete is refused (409) while a product combination uses the attribute, so
 // the button is greyed out from is_used before anyone clicks it.
 export function VariantAttributeDetailPage() {

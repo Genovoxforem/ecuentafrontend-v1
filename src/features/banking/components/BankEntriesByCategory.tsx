@@ -2,9 +2,8 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useBankBudget } from '../banking.queries'
 
-// compta/bank/budget.php — no JSON API (confirmed live), a plain read-only
-// report breaking down every tagged bank entry's debit/credit by
-// Tag/Category. See bankBudgetParser.ts.
+// Bank entries by category (classic compta/bank/budget.php): count, total and
+// average of the tagged bank entries per Tag/Category. See bankBudget.types.ts.
 export function BankEntriesByCategory() {
   const { data, isLoading, isError, error, refetch } = useBankBudget()
 

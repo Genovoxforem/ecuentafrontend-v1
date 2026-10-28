@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { resolveBackendAsset } from '../../api/backends'
+import { fapiGet } from '../../api/fapiEnvelope'
 import {
   cloneProduct,
   correctProductStock,
@@ -9,6 +10,8 @@ import {
   deleteProductCombination,
   deleteProductCompositionChild,
   deleteProductDocumentFile,
+  deleteProductDocumentLink,
+  linkProductDocument,
   deleteProductPriceLog,
   deleteProductUomConversion,
   getProduct,
@@ -32,6 +35,7 @@ import {
   saveProductCompositionChild,
   saveProductNotes,
   saveProductUomConversion,
+  setProductBatchTracking,
   searchProducts,
   setProductStockLimits,
   transferProductStock,
@@ -51,12 +55,13 @@ import { formatMoney } from '../../utils/format'
 import { NATURE_OPTIONS } from './productConstants'
 import { BACKEND_ACTION_UNAVAILABLE_PREFIX } from '../../shared/components/BackendUnavailable'
 import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
+import { loadBindableAccounts } from '../generalLedger/bindingFapi'
 import type { RichProductRow } from './productRich'
 import { parseListDate, richRowFromListItem } from './productListMapper'
-import { NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import {
   type ProductDetailPanel,
   type ProductDocumentRow,
+  type ProductLinkRow,
 } from './productTypes'
 
 export interface ProductRow {
@@ -70,8 +75,8 @@ export interface ProductRow {
   // vatRatePct for that.
   vatRate: string
   // Clean numeric rate for calculations (e.g. 16), from the API's separate
-  // tva_rate field — confirmed live to omit the " (A)" code suffix that
-  // tva_tx carries, unlike vatRate above.
+  // tva_rate field — it omits the " (A)" code suffix that tva_tx carries,
+  // unlike vatRate above.
   vatRatePct: number
   // Clean VAT code alone (e.g. "A"), from the API's vat_src_code field —
   // pair with vatRatePct to build a "16%(A)" display without parsing
@@ -98,17 +103,14 @@ export interface ProductRow {
   // Real `tobuy` field (added alongside finished/rrp below for the All
   // Products filter port — see productFilters.ts).
   forPurchase: boolean
-  // Real `finished` column (Dolibarr's "Nature of product" — 1=Raw
-  // Material, 2=Finished Product, 3=Service; see productConstants.ts's
-  // NATURE_OPTIONS, confirmed against live DB to be the complete set of
-  // distinct values actually used).
+  // `finished` column (Dolibarr's "Nature of product" — 1=Raw Material,
+  // 2=Finished Product, 3=Service; see productConstants.ts's NATURE_OPTIONS).
   finished: number
   // Real `rrp` column (Recommended Retail Price) — 0 when unset, same as
   // every other numeric field here.
   rrp: number
-  // Real `image_url`/`has_image` — already returned by the backend's
-  // buildProductRow() for every list/detail response, just not previously
-  // mapped on the frontend. Root-relative path; resolve with
+  // `image_url`/`has_image` — returned by the backend's buildProductRow()
+  // for every list/detail response. Root-relative path; resolve with
   // resolveBackendAsset() before use in an <img src>.
   imageUrl: string
   hasImage: boolean
@@ -127,7 +129,7 @@ export interface ServicesSummary {
   services: ProductRow[]
 }
 
-// GET /api/products/ response shape, confirmed live.
+// GET /api/products/ response shape.
 interface RawProduct {
   id: number | string
   ref: string
@@ -184,11 +186,11 @@ export function toRow(raw: RawProduct): ProductRow {
   }
 }
 
-// GET /api/products/ — confirmed live on this app's backend. Products and
-// services share this one endpoint (fk_product_type distinguishes them),
-// so both hooks below query the same cache key and split client-side
-// rather than each making their own request. `enabled` lets a picker that is
-// only sometimes shown skip the request until it opens.
+// GET /api/products/. Products and services share this one endpoint
+// (fk_product_type distinguishes them), so both hooks below query the same
+// cache key and split client-side rather than each making their own
+// request. `enabled` lets a picker that is only sometimes shown skip the
+// request until it opens.
 export function useProductRows(enabled = true) {
   return useQuery({
     queryKey: ['products', 'all'],
@@ -279,15 +281,15 @@ export interface ProductSearchResult {
 export function useProductSearch(query: string) {
   return useQuery({
     queryKey: ['products', 'search', query],
-    queryFn: async (): Promise<ProductSearchResult[]> => {
+    queryFn: async ({ signal }): Promise<ProductSearchResult[]> => {
       try {
-        // product/fapi/search.php ranks exact ref / barcode / prefix matches first.
-        const found = await searchProducts(query.trim())
+        // product/fapi/search.php ranks exact ref / barcode / prefix matches first. A search the user has typed past is cancelled.
+        const found = await searchProducts(query.trim(), {}, signal)
         return found.items.slice(0, 20).map((p) => ({ id: String(p.id), ref: p.ref, label: p.label }))
       } catch (error) {
         if (!isMissingEndpoint(error)) throw error
       }
-      const { data } = await api.get<ProductsResponse>('/products/', { params: { action: 'list', search: query, limit: 20 } })
+      const { data } = await api.get<ProductsResponse>('/products/', { params: { action: 'list', search: query, limit: 20 }, signal })
       return (data.products ?? []).map((p) => ({ id: String(p.id ?? ''), ref: p.ref ?? '', label: p.label ?? '' }))
     },
     enabled: query.trim().length > 1,
@@ -314,6 +316,18 @@ export function useAllProductsRich(type: 0 | 1) {
   })
 }
 export type { RichProductRow }
+
+// Whether ZRA is switched on for this instance: product/fapi/prices.php answers zra.enabled with the instance-wide setting
+// (false on newecuenta). Any product id will do; the Product List uses it to show the ZRA column only when ZRA is on.
+export function useZraEnabled(sampleProductId: string | undefined) {
+  return useQuery({
+    queryKey: ['products', 'zraEnabled'],
+    queryFn: async (): Promise<boolean> => Boolean((await getProductPrices(sampleProductId!)).zra?.enabled),
+    enabled: !!sampleProductId,
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  })
+}
 
 // Row-click detail panel — see ProductsList.tsx's expandedId state. Read from
 // product/fapi/get.php (photo, per-warehouse stock, prices, ZRA); a backend
@@ -376,9 +390,8 @@ export function useServicesSummary() {
 // ProductDetail.tsx. Card/Stock/Statistics reuse hooks already defined
 // above; everything below is new for the remaining tabs.
 
-// GET /api/products/?action=detail&id=X — already-existing real endpoint
-// (handleProductDetail() in api/products/index.php), just not previously
-// wired to any React hook. Full field set for the Card tab, plus
+// GET /api/products/?action=detail&id=X (handleProductDetail() in
+// api/products/index.php). Full field set for the Card tab, plus
 // categories/note_public/note_private for their own tabs.
 export interface ProductDetail extends ProductRow {
   description: string
@@ -387,10 +400,8 @@ export interface ProductDetail extends ProductRow {
   notePublic: string
   notePrivate: string
   currency: string
-  // "About" section fields (product/card.php) — all confirmed live against
-  // a real product (id=123, matching the reference screenshots exactly:
-  // zraid/zrastatus/accountancy codes/base+packing units/barcode
-  // type/manufacturer/total sold all cross-checked field-by-field).
+  // "About" section fields (product/card.php): zraid/zrastatus/accountancy
+  // codes/base+packing units/barcode type/manufacturer/total sold.
   zraId: string
   zraStatus: string
   useLotSerial: boolean
@@ -411,22 +422,22 @@ export interface ProductDetail extends ProductRow {
   defaultWarehouse: string
   totalSoldQty: number
   // total_ttc-based (incl. tax), matching product/card.php's own
-  // soldAmountTotal query exactly — confirmed live against a non-zero-VAT
-  // product after an earlier 0%-VAT test product masked a total_ht mistake.
+  // soldAmountTotal query.
   totalSoldAmount: number
   // "Overview" section fields (product/card.php, the card right after
   // About) — all null/'' when unset, same as every other optional field
-  // here; confirmed live against product id=170 (Wooden Block).
+  // here.
   weight: number | null
-  weightUnits: number
+  // Unit codes stay null when the product has none set (the classic page then shows the bare number); 0 is a real code (kg).
+  weightUnits: number | null
   length: number | null
   width: number | null
   height: number | null
-  lengthUnits: number
+  lengthUnits: number | null
   surface: number | null
-  surfaceUnits: number
+  surfaceUnits: number | null
   volume: number | null
-  volumeUnits: number
+  volumeUnits: number | null
   customCode: string
   originCountry: string
   // Real ISO 3166-1 alpha-2 code (llx_c_country.code) — the DB's own
@@ -462,21 +473,46 @@ interface RawProductDetail extends RawProduct {
   total_sold_qty?: number | string
   total_sold_amount?: number | string
   weight?: number | string | null
-  weight_units?: number
+  weight_units?: number | string | null
   length?: number | string | null
   width?: number | string | null
   height?: number | string | null
-  length_units?: number
+  length_units?: number | string | null
   surface?: number | string | null
-  surface_units?: number
+  surface_units?: number | string | null
   volume?: number | string | null
-  volume_units?: number
+  volume_units?: number | string | null
   customcode?: string
   origin_country?: string
   origin_country_code?: string
   origin_state?: string
   created_at?: string
 }
+// Chart-of-accounts names by account number ("5017" -> "Sales"), so a product's accountancy codes read "5017 - Sales" like the classic card.
+// One cached read of the chart; a failed read only leaves the bare codes.
+export function useAccountNames(enabled: boolean) {
+  return useQuery({
+    queryKey: ['products', 'accountNames'],
+    queryFn: async (): Promise<Map<string, string>> => {
+      const names = new Map<string, string>()
+      for (const { label } of await loadBindableAccounts()) {
+        const at = label.indexOf(' - ')
+        if (at > 0) names.set(label.slice(0, at), label.slice(at + 3))
+      }
+      return names
+    },
+    enabled,
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  })
+}
+
+export function unitCode(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
 export function useProductDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', id],
@@ -487,7 +523,32 @@ export function useProductDetail(id: string | undefined) {
         api.get<{ success: boolean; product: RawProductDetail }>('/products/', { params: { action: 'detail', id } }),
         getProduct(id!, { withStock: false, withPrices: false }).catch(() => null),
       ])
-      const p = data.product
+      // /api/products/?action=detail leaves out several columns on current backends (item code, base and packing unit, nature,
+      // "for purchase", origin, custom code, units); product/fapi/get.php has them, so it fills whatever the first call left empty.
+      const x: Record<string, unknown> = extra?.product ?? {}
+      const xs = (key: string): string => (typeof x[key] === 'string' ? (x[key] as string) : '')
+      const xn = (key: string): number | undefined => (x[key] === null || x[key] === undefined || x[key] === '' ? undefined : Number(x[key]))
+      const xr = (key: string): number | string | null | undefined => (x[key] === undefined ? undefined : (x[key] as number | string | null))
+      const xPackingUnit = xs('packing_unit') ? `${xs('packing_unit')}${xn('packing') ? ` ×${xn('packing')}` : ''}` : ''
+      const p: RawProductDetail = {
+        ...data.product,
+        finished: data.product.finished ?? xn('finished'),
+        tobuy: data.product.tobuy ?? xn('tobuy'),
+        itemclassification: data.product.itemclassification || xs('itemclassification'),
+        image_url: data.product.image_url || xs('image_url'),
+        has_image: data.product.has_image ?? xn('has_image'),
+        // Weight, size, area and volume (with their unit codes): the older call leaves them out, get.php has them.
+        weight: data.product.weight ?? xr('weight'),
+        weight_units: data.product.weight_units ?? xr('weight_units'),
+        length: data.product.length ?? xr('length'),
+        width: data.product.width ?? xr('width'),
+        height: data.product.height ?? xr('height'),
+        length_units: data.product.length_units ?? xr('length_units'),
+        surface: data.product.surface ?? xr('surface'),
+        surface_units: data.product.surface_units ?? xr('surface_units'),
+        volume: data.product.volume ?? xr('volume'),
+        volume_units: data.product.volume_units ?? xr('volume_units'),
+      }
       const fapiCreated = parseListDate(typeof extra?.product.date_creation === 'string' ? extra.product.date_creation : '')
       const fapiCountryCode = typeof extra?.product.country_code === 'string' ? extra.product.country_code : ''
 
@@ -504,31 +565,31 @@ export function useProductDetail(id: string | undefined) {
         publicUrl: p.url ?? '',
         priceMinExclTax: Number(p.price_min ?? 0) || 0,
         priceMinInclTax: Number(p.price_min_ttc ?? 0) || 0,
-        accountancySell: p.accountancy_code_sell ?? '',
-        accountancySellExport: p.accountancy_code_sell_export ?? '',
-        accountancyBuy: p.accountancy_code_buy ?? '',
-        accountancyBuyExport: p.accountancy_code_buy_export ?? '',
-        baseUnit: p.base_unit ?? '',
-        packingUnit: p.packing_unit ?? '',
-        barcodeType: p.barcode_type ?? '',
-        manufacturer: p.manufacturer ?? '',
-        defaultWarehouse: p.default_warehouse ?? '',
+        accountancySell: p.accountancy_code_sell || xs('accountancy_code_sell'),
+        accountancySellExport: p.accountancy_code_sell_export || xs('accountancy_code_sell_export'),
+        accountancyBuy: p.accountancy_code_buy || xs('accountancy_code_buy'),
+        accountancyBuyExport: p.accountancy_code_buy_export || xs('accountancy_code_buy_export'),
+        baseUnit: p.base_unit || xs('base_unit'),
+        packingUnit: p.packing_unit || xPackingUnit,
+        barcodeType: p.barcode_type || xs('barcode_type'),
+        manufacturer: p.manufacturer || xs('manufacturer'),
+        defaultWarehouse: p.default_warehouse || xs('default_warehouse'),
         totalSoldQty: Number(p.total_sold_qty ?? 0) || 0,
         totalSoldAmount: Number(p.total_sold_amount ?? 0) || 0,
         weight: p.weight === null || p.weight === undefined ? null : Number(p.weight),
-        weightUnits: Number(p.weight_units ?? 0) || 0,
+        weightUnits: unitCode(p.weight_units),
         length: p.length === null || p.length === undefined ? null : Number(p.length),
         width: p.width === null || p.width === undefined ? null : Number(p.width),
         height: p.height === null || p.height === undefined ? null : Number(p.height),
-        lengthUnits: Number(p.length_units ?? 0) || 0,
+        lengthUnits: unitCode(p.length_units),
         surface: p.surface === null || p.surface === undefined ? null : Number(p.surface),
-        surfaceUnits: Number(p.surface_units ?? 0) || 0,
+        surfaceUnits: unitCode(p.surface_units),
         volume: p.volume === null || p.volume === undefined ? null : Number(p.volume),
-        volumeUnits: Number(p.volume_units ?? 0) || 0,
-        customCode: p.customcode ?? '',
-        originCountry: p.origin_country ?? '',
-        originCountryCode: p.origin_country_code || fapiCountryCode,
-        originState: p.origin_state ?? '',
+        volumeUnits: unitCode(p.volume_units),
+        customCode: p.customcode || xs('customcode'),
+        originCountry: p.origin_country || xs('origin_country'),
+        originCountryCode: p.origin_country_code || xs('origin_country_code') || fapiCountryCode,
+        originState: p.origin_state || xs('origin_state'),
         createdAt: p.created_at || (fapiCreated.time ? new Date(fapiCreated.time).toISOString() : ''),
       }
     },
@@ -546,12 +607,11 @@ function useProductDetailAction<T>(action: string, id: string | undefined, respo
     queryFn: async (): Promise<T> => {
       const { data } = await api.get<Record<string, unknown>>('/products/', { params: { action, id } })
       // Same unrouted-action fallthrough as useUpdateProductNote above —
-      // confirmed live against ecuenta9: combinations/associations/
-      // referers/events all come back 200 {success:true, products:[...]}
-      // with no key matching `responseKey` at all. Defaulting that to []
-      // would look identical to "this product genuinely has none" instead
-      // of "this backend doesn't support this action" — throw instead so
-      // the tab can show the real distinction.
+      // some backends answer combinations/associations/referers/events with
+      // 200 {success:true, products:[...]} and no key matching `responseKey`
+      // at all. Defaulting that to [] would look identical to "this product
+      // has none" instead of "this backend doesn't support this action" —
+      // throw instead so the tab can show the distinction.
       if (!(responseKey in data)) throw new Error(`${BACKEND_ACTION_UNAVAILABLE_PREFIX}${action}`)
       return (data[responseKey] ?? []) as T
     },
@@ -577,8 +637,8 @@ export function useProductReferers(id: string | undefined) {
 
 // Margins tab (margin/tabs/productMargins.php) — per-invoice
 // selling-vs-buying margin breakdown. DISPLAY_MARGIN_RATES/DISPLAY_MARK_RATES
-// are both unset on this install (confirmed live), so no rate fields here,
-// matching what legacy itself actually shows.
+// are both unset on this install, so no rate fields here, matching what
+// legacy itself shows.
 export interface ProductMarginLine {
   invoiceId: number
   ref: string
@@ -638,13 +698,14 @@ export function useProductMargins(id: string | undefined) {
 export function useProductDocuments(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'documents', id],
-    queryFn: (): Promise<{ count: number; totalSize: string; documents: ProductDocumentRow[] }> =>
+    queryFn: (): Promise<{ count: number; totalSize: string; documents: ProductDocumentRow[]; links: ProductLinkRow[] }> =>
       (async () => {
           const d = await getProductDocuments(id!)
           return {
             count: d.meta?.count ?? d.files.length,
             totalSize: '',
-            documents: d.files.map((f) => ({ fileName: f.name, fileUrl: f.url, size: String(f.size ?? ''), date: f.date })),
+            documents: d.files.map((f) => ({ fileName: f.name, fileUrl: f.url, size: String(f.size ?? ''), sizeBytes: f.size_raw, date: f.date })),
+            links: (d.links ?? []).map((l) => ({ id: l.id, label: l.label, url: l.url, date: l.date })),
           }
         })(),
     enabled: !!id,
@@ -663,6 +724,27 @@ export function useUploadProductDocument() {
   })
 }
 
+// "Link a new file/document": a URL link next to the product (documents.php?action=link), and its removal (action=delete_link).
+export function useLinkProductDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, link, label }: { id: string; link: string; label: string }) => linkProductDocument(id, link, label),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'documents', variables.id] })
+    },
+  })
+}
+
+export function useDeleteProductDocumentLink() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, linkId }: { id: string; linkId: number }) => deleteProductDocumentLink(id, linkId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'documents', variables.id] })
+    },
+  })
+}
+
 export function useDeleteProductDocument() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -675,13 +757,10 @@ export function useDeleteProductDocument() {
 }
 
 // Product/Card page's own dashboard AJAX endpoint (product/ajax/product_dashboard.php)
-// — a real, already-JSON source for the Activity Timeline, Connections
-// (customers who bought this product, by invoice count), and Teams
-// (vendors who supply it, by supplier-invoice count) panels shown on the
-// Product tab, all in one call. Same same-origin session-cookie pattern as
-// UOM Settings above — no scraping, no new backend endpoint needed, this
-// already returns exactly what's needed. Confirmed live against product
-// id=170 (Wooden Block) matching the reference screenshots field-for-field.
+// — a JSON source for the Activity Timeline, Connections (customers who
+// bought this product, by invoice count), and Teams (vendors who supply it,
+// by supplier-invoice count) panels shown on the Product tab, all in one
+// call. Same same-origin session-cookie pattern as UOM Settings above.
 export interface ProductTimelineEntry {
   ref: string
   invoiceId: number
@@ -697,20 +776,13 @@ export interface ProductConnection {
   connectionsLabel: string
   initials: string
 }
-interface RawDashboardTimeline {
-  ref: string
-  id: number
-  date: string
-  amount: string
-  customer: string
-  status: string
-  status_id: number
-}
-interface RawDashboardConnection {
-  id: number
-  name: string
-  connections: string
-  initials: string
+export interface FapiProductDashboard {
+  timeline: Array<{ id: number; ref: string; date: string; amount_formatted: string; customer: string; status: string; status_id: number }>
+  timeline_total: number
+  timeline_page: number
+  timeline_per_page: number
+  connections: Array<{ id: number; name: string; connections: string; initials: string }>
+  teams: Array<{ id: number; name: string; connections: string; initials: string }>
 }
 export interface ProductDashboard {
   timeline: ProductTimelineEntry[]
@@ -720,30 +792,23 @@ export interface ProductDashboard {
   connections: ProductConnection[]
   teams: ProductConnection[]
 }
+export function mapProductDashboard(d: FapiProductDashboard): ProductDashboard {
+  const conn = (c: { id: number; name: string; connections: string; initials: string }): ProductConnection => ({ id: c.id, name: c.name, connectionsLabel: c.connections, initials: c.initials })
+  return {
+    timeline: d.timeline.map((t) => ({ ref: t.ref, invoiceId: t.id, date: t.date, amount: t.amount_formatted, customer: t.customer, status: t.status, statusId: t.status_id })),
+    timelineTotal: d.timeline_total,
+    timelinePage: d.timeline_page,
+    timelinePerPage: d.timeline_per_page,
+    connections: d.connections.map(conn),
+    teams: d.teams.map(conn),
+  }
+}
 export function useProductDashboard(id: string | undefined, page: number = 1) {
   return useQuery({
     queryKey: ['products', 'legacy', 'dashboard', id, page],
-    queryFn: async (): Promise<ProductDashboard> => {
-      const res = await fetch(`/product/ajax/product_dashboard.php?product_id=${encodeURIComponent(id!)}&page=${page}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const data: {
-        timeline?: RawDashboardTimeline[]
-        timeline_total?: number
-        timeline_page?: number
-        timeline_per_page?: number
-        connections?: RawDashboardConnection[]
-        teams?: RawDashboardConnection[]
-      } = await res.json()
-      const mapConn = (c: RawDashboardConnection): ProductConnection => ({ id: c.id, name: c.name, connectionsLabel: c.connections, initials: c.initials })
-      return {
-        timeline: (data.timeline ?? []).map((t) => ({ ref: t.ref, invoiceId: t.id, date: t.date, amount: t.amount, customer: t.customer, status: t.status, statusId: t.status_id })),
-        timelineTotal: data.timeline_total ?? 0,
-        timelinePage: data.timeline_page ?? 1,
-        timelinePerPage: data.timeline_per_page ?? 10,
-        connections: (data.connections ?? []).map(mapConn),
-        teams: (data.teams ?? []).map(mapConn),
-      }
-    },
+    // product/fapi/dashboard.php answers the invoice timeline and the connections next to the sales window (replacing the session-only
+    // product/ajax/product_dashboard.php); captured from newecuenta on 23 Oct 2026 (tests/fixtures/product-dashboard.json).
+    queryFn: async (): Promise<ProductDashboard> => mapProductDashboard(await fapiGet<FapiProductDashboard>('/product/fapi/dashboard.php', { id: id!, page })),
     enabled: !!id,
     staleTime: 1000 * 30,
     retry: false,
@@ -887,15 +952,18 @@ export interface ProductStockOverview {
 async function fetchProductStockOverview(id: string): Promise<ProductStockOverview> {
   const [s, prices, suppliers] = await Promise.all([getProductStock(id), getProductPrices(id).catch(() => null), getProductSuppliers(id).catch(() => null)])
   const money = (n: number | null | undefined) => (n === null || n === undefined ? '' : `${formatMoney(n)}${s.currency ? ` ${s.currency}` : ''}`)
-  const sell = prices ? prices.current.price : null
+  // A product priced in TTC shows its TTC selling and minimum price, tagged "Inc. Tax", like the classic stock tab.
+  const ttc = prices?.current.price_base_type === 'TTC'
+  const taxed = (n: number | null | undefined) => (n === null || n === undefined ? '' : `${money(n)}${ttc ? ' Inc. Tax' : ''}`)
+  const sell = prices ? (ttc ? prices.current.price_ttc : prices.current.price) : null
   const { alert, desired } = s.totals
   return {
     pricing: {
       costPrice: money(prices?.current.cost_price),
       pmp: money(s.totals.pmp),
       buyingPriceMin: suppliers?.best ? money(suppliers.best.unit_price) : '',
-      sellingPrice: money(sell),
-      minPrice: money(prices?.current.price_min),
+      sellingPrice: taxed(sell),
+      minPrice: taxed(prices ? (ttc ? prices.current.price_min_ttc : prices.current.price_min) : null),
     },
     stockAlertThreshold: alert ? String(alert) : '',
     desiredStock: desired ? String(desired) : '',
@@ -1023,10 +1091,11 @@ export function useTransferStock() {
 export interface ProductUomOverview {
   baseUnitLabel: string
   conversionsCount: number
-  availableUnitsCount: number
+  // Stock on hand in the base unit, e.g. "0.00 mm" (the classic UOM tab's "Available stock").
+  availableStock: string
   productBarcode: string
   hasBatchTracking: boolean
-  conversions: { id: number; packingUnitId: number; packingLabel: string; uomUnitId: number; uomLabel: string; factor: number; priceOverrideTtc: number; barcode: string; note: string; isDefault: boolean }[]
+  conversions: { id: number; packingUnitId: number; packingLabel: string; uomUnitId: number; uomLabel: string; factor: number; priceOverrideTtc: number; purchasePriceTtc: number | null; sellingPriceTtc: number | null; barcode: string; note: string; isDefault: boolean }[]
   packingUnitOptions: { value: string; label: string }[]
   uomUnitOptions: { value: string; label: string }[]
   canEdit: boolean
@@ -1046,7 +1115,7 @@ async function fetchProductUomOverview(id: string): Promise<ProductUomOverview> 
   return {
     baseUnitLabel: base?.label || base?.code || '—',
     conversionsCount: u.conversions.length,
-    availableUnitsCount: u.options.uom_units.length,
+    availableStock: stock ? `${Number(stock.totals.real).toFixed(2)}${base?.short_label ? ` ${base.short_label}` : ''}` : '—',
     productBarcode: typeof card?.product.barcode === 'string' ? card.product.barcode : '',
     hasBatchTracking: !!stock?.options.batch_enabled,
     conversions: u.conversions.map((c) => ({
@@ -1057,6 +1126,8 @@ async function fetchProductUomOverview(id: string): Promise<ProductUomOverview> 
       uomLabel: c.uom_label,
       factor: c.factor,
       priceOverrideTtc: c.price_override_ttc,
+      purchasePriceTtc: c.purchase_price_ttc ?? null,
+      sellingPriceTtc: c.selling_price_ttc ?? null,
       barcode: c.barcode,
       note: c.note,
       isDefault: c.is_default,
@@ -1138,6 +1209,20 @@ export function useGenerateProductBarcode() {
   })
 }
 
+// product/fapi/uom.php?action=enable_batch | disable_batch: the Stock and UOM tabs both need tracking on before they can
+// offer a lot. Both tabs read the flag from stock.php's options, so both refresh.
+export function useSetBatchTracking() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => setProductBatchTracking(id, enabled),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'uomOverview', id] })
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'stockOverview', id] })
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', id] })
+    },
+  })
+}
+
 export function useDeleteUomConversion() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -1156,7 +1241,7 @@ export interface ProductSupplierOverview {
   costPrice: number
   pmp: number
   bestPriceSupplierName: string | null
-  suppliers: { rowid: number; supplierName: string; refFourn: string; unitPrice: number; quantity: number; vatRate: string; deliveryDays: number | null; reputation: string }[]
+  suppliers: { rowid: number; supplierName: string; refFourn: string; unitPrice: number; priceHt: number; currency: string; quantity: number; vatRate: string; deliveryDays: number | null; reputation: string }[]
 }
 // product/fapi/suppliers.php — rows ordered by unit price, `best` = the cheapest.
 async function fetchProductSupplierOverview(id: string): Promise<ProductSupplierOverview> {
@@ -1174,6 +1259,8 @@ async function fetchProductSupplierOverview(id: string): Promise<ProductSupplier
       supplierName: s.supplier,
       refFourn: s.ref_fourn,
       unitPrice: s.unit_price,
+      priceHt: s.price,
+      currency: s.currency || '',
       quantity: s.qty,
       vatRate: String(s.tva_tx),
       deliveryDays: s.delivery_days ?? null,
@@ -1379,6 +1466,9 @@ export interface ProductVariantOverview {
     // null when the source does not say (product/fapi/variants.php's child has no tobuy).
     forPurchase: boolean | null
     variationPrice: number
+    // price_impact is a percentage of the parent price when true, an amount otherwise
+    variationIsPercent: boolean
+    weightImpact: number
     attributes: { label: string; value: string }[]
   }[]
   totalValues: number
@@ -1403,6 +1493,8 @@ async function fetchProductVariantOverview(id: string): Promise<ProductVariantOv
       forSale: c.child.tosell === 1,
       forPurchase: c.child.tobuy === undefined ? null : c.child.tobuy === 1,
       variationPrice: c.price_impact,
+      variationIsPercent: c.price_impact_is_percent,
+      weightImpact: c.weight_impact,
       attributes: c.values.map((v) => ({ label: v.attribute_label, value: v.value_label })),
     })),
     totalValues: attributes.reduce((sum, a) => sum + a.values.length, 0),
@@ -1465,7 +1557,7 @@ export interface ProductCompositionOverview {
   natureLabel: string
   priceDisplay: string
   parents: { id: number; ref: string; label: string; qty: number }[]
-  compositions: { id: number; ref: string; label: string; qty: number; stock: number; buyPrice: number; buyDefined: boolean; sellPrice: number | null }[]
+  compositions: { id: number; ref: string; label: string; qty: number; stock: number; buyPrice: number; buyDefined: boolean; sellPrice: number | null; incdec: boolean; forSale: boolean }[]
   totalBuy: number
   totalSell: number
   canEdit: boolean
@@ -1486,6 +1578,9 @@ async function fetchProductCompositionOverview(id: string, finished: number | un
     buyPrice: buyPrices[i] ?? 0,
     buyDefined: buyPrices[i] !== null,
     sellPrice: c.price,
+    // 1 = the parent's stock moves with the sub-product's
+    incdec: c.incdec === 1,
+    forSale: c.tosell === 1,
   }))
   return {
     natureLabel: NATURE_OPTIONS.find((o) => o.value === String(finished ?? ''))?.label ?? 'Not defined',
@@ -1595,8 +1690,9 @@ export function useProductNotesOverview(id: string | undefined) {
 export function useSaveProductNotes() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, notePublic, notePrivate }: { id: string; notePublic: string; notePrivate: string }) =>
-      (() => saveProductNotes(id, { note_public: notePublic, note_private: notePrivate }))(),
+    // only the note that was sent is written (notes.php leaves the other as it is)
+    mutationFn: ({ id, notePublic, notePrivate }: { id: string; notePublic?: string; notePrivate?: string }) =>
+      saveProductNotes(id, { ...(notePublic !== undefined ? { note_public: notePublic } : {}), ...(notePrivate !== undefined ? { note_private: notePrivate } : {}) }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'notes', variables.id] })
     },
@@ -1611,6 +1707,8 @@ export function useSaveProductNotes() {
 // pulls the `events` field that endpoint doesn't carry.
 export interface ProductAgendaEvent {
   id: number
+  // the agenda event type: AC_PRODUCT_MODIFY marks a recorded modification of the product
+  typeCode: string
   label: string
   date: string
   dateEnd: string | null
@@ -1619,25 +1717,35 @@ export interface ProductAgendaEvent {
   percent: number
   status: 'success' | 'warning' | 'info' | 'secondary'
 }
+export interface ProductAgenda {
+  events: ProductAgendaEvent[]
+  createdBy: string
+  creationDate: string
+  latestModificationDate: string
+}
 export function useProductAgendaEvents(id: string | undefined) {
   return useQuery({
     queryKey: ['products', 'detail', 'agendaEvents', id],
-    queryFn: (): Promise<ProductAgendaEvent[]> =>
-      (// product/fapi/agenda.php — each event's progress (percent, -1 = automatic
-        // event) and status text; the badge is derived from them.
-        async () => {
-          const d = await getProductAgenda(id!)
-          return d.events.map((e) => ({
-            id: e.id,
-            label: e.label,
-            date: e.date,
-            dateEnd: e.date_end || null,
-            typeLabel: e.percent < 0 ? 'Automatic' : e.status_label,
-            userName: e.owner,
-            percent: e.percent,
-            status: e.percent < 0 ? 'secondary' : e.percent >= 100 ? 'success' : e.percent > 0 ? 'info' : 'warning',
-          }))
-        })(),
+    queryFn: async (): Promise<ProductAgenda> => {
+      // product/fapi/agenda.php: each event's progress (percent, -1 = automatic event) and status text; the badge is derived from them.
+      const d = await getProductAgenda(id!)
+      return {
+        createdBy: d.created_by,
+        creationDate: d.creation_date,
+        latestModificationDate: d.latest_modification_date,
+        events: d.events.map((e) => ({
+          id: e.id,
+          typeCode: e.type_code,
+          label: e.label,
+          date: e.date,
+          dateEnd: e.date_end || null,
+          typeLabel: e.percent < 0 ? 'Automatic' : e.status_label,
+          userName: e.owner,
+          percent: e.percent,
+          status: e.percent < 0 ? 'secondary' : e.percent >= 100 ? 'success' : e.percent > 0 ? 'info' : 'warning',
+        })),
+      }
+    },
     enabled: !!id,
     staleTime: 1000 * 30,
   })

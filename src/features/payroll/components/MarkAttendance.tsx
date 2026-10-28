@@ -13,21 +13,18 @@ import {
 } from '../payrollAttendance.queries'
 import type { MarkAttendanceRow, AssignableAttendanceRow } from '../markAttendanceParser'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { todayIso } from '../../../utils/dates'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 type Decision = 'Present' | 'Absent' | 'Permission'
 type HalfDay = 'Full Day' | 'Fore Noon' | 'After Noon'
 
-// Every field here starts genuinely blank — confirmed live (see
-// markAttendanceParser.ts's top comment): unlike the Special/Holiday Shift
-// form, this real page never defaults an employee to Present.
+// Every field here starts blank (see markAttendanceParser.ts's top comment):
+// unlike the Special/Holiday Shift form, this page never defaults an
+// employee to Present.
 interface RowState {
   decision: Decision | null
   clockIn: string

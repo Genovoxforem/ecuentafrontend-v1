@@ -6,13 +6,10 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { useManualShiftAttendanceRows, useMarkManualShiftAttendance } from '../payrollAttendance.queries'
 import { avatarColorFor, initialsFor } from '../../../shared/avatarColor'
+import { todayIso } from '../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 interface RowState {
   present: boolean

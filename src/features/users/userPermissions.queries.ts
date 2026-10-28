@@ -1,24 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { loadUserPermissions } from './userProfileFapi'
 
-// Real per-arbitrary-user permissions API — userprofile/api/permissions.php
-// (found by watching userprofile/index.php?id=X#permissions's own network
-// traffic, then confirmed by reading the file directly). This supersedes
-// the earlier conclusion that no such endpoint exists on this backend: that
-// was based on api/user/index.php, which really is limited to the
-// currently-logged-in user, but this newer userprofile/api/* namespace
-// (also covering user/activities/notify/bank/notes/documents/agenda —
-// confirmed via userprofile/api/meta.php's own real `tabs` list) has a
-// dedicated, arbitrary-user-id endpoint instead.
-//
-// GET returns the real Dolibarr rights_def rows for every module, each
-// flagged granted/direct/inherited (direct = assigned straight to this
-// user, inherited = via a group they belong to). POST/PUT
-// (action=add_right/del_right, confirmed by reading the file) actually
-// writes real rows to llx_user_rights and requires the same Dolibarr
-// session CSRF token every other mutation in this app already scrapes
-// (here: userprofile/index.php's own <meta name="anti-csrf-currenttoken">
-// tag — the standard Dolibarr theme convention, not something specific to
-// this page).
+// The permissions tab. GET userprofile/fapi/permissions.php returns the rights of every module, each flagged granted / direct / inherited
+// (direct = assigned straight to this user, inherited = via a group they belong to). Granting and revoking still POST to the older
+// userprofile/api/permissions.php (action add_right / del_right) with the Dolibarr session CSRF token (here: userprofile/index.php's own
+// <meta name="anti-csrf-currenttoken"> tag): the fapi grant / revoke only answers a plan and writes nothing.
 
 export interface PermissionRight {
   id: number
@@ -42,36 +28,18 @@ export interface UserPermissions {
   modules: PermissionModule[]
 }
 
-interface RawPermissionsResponse {
-  ok: boolean
-  can_edit: boolean
-  nb_rights: number
-  modules: PermissionModule[]
-}
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data = (await res.json()) as T & { ok?: boolean; error?: string }
-  if (data.ok === false) throw new Error(data.error ?? 'Legacy backend rejected the request.')
-  return data
-}
-
 export function useUserPermissions(userId: string | undefined) {
   return useQuery({
     queryKey: ['users', 'permissions', userId],
-    queryFn: async (): Promise<UserPermissions> => {
-      const data = await fetchJson<RawPermissionsResponse>(`/userprofile/api/permissions.php?id=${userId}`)
-      return { canEdit: data.can_edit, nbRights: data.nb_rights, modules: data.modules }
-    },
+    queryFn: (): Promise<UserPermissions> => loadUserPermissions(userId as string),
     enabled: !!userId,
   })
 }
 
 // The standard Dolibarr theme's own CSRF meta tag — present on every
 // authenticated page, scraped here from the same userprofile/index.php page
-// this tab already lives on (save_lastsearch_values=1 is required for this
-// route to resolve at all — confirmed live, omitting it 404s).
+// this tab lives on (save_lastsearch_values=1 is required for this route to
+// resolve at all — omitting it 404s).
 async function fetchUserProfileToken(userId: string): Promise<string> {
   const res = await fetch(`/userprofile/index.php?id=${userId}&save_lastsearch_values=1`, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Legacy backend returned ${res.status} fetching CSRF token.`)

@@ -1,5 +1,7 @@
 import { Landmark } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
+import { saveSocialCharge } from '../../specialPaymentsSave'
+import { loadSocialChargeForm } from '../../specialMetaFapi'
 import { LegacyFormPage } from '../LegacyFormPage'
 
 // compta/sociales/card.php?action=create — the real "New social/fiscal tax"
@@ -7,6 +9,8 @@ import { LegacyFormPage } from '../LegacyFormPage'
 export function SocialFiscalTaxCreatePage() {
   return (
     <LegacyFormPage
+      load={loadSocialChargeForm}
+      save={saveSocialCharge}
       icon={Landmark}
       title="New Social/Fiscal Tax"
       path="/compta/sociales/card.php"
