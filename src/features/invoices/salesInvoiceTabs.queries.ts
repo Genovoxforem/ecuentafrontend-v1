@@ -84,7 +84,8 @@ function useDocsMutation<I>(facid: string | undefined, run: (input: I) => Promis
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: run,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid, 'documents'] }),
+    // The whole invoice: the Customer Invoice tab's Linked Files card shows the same files as this tab.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })
 }
 
@@ -109,7 +110,10 @@ export interface GenerateSalesDocumentInput {
 }
 
 export function useGenerateSalesDocument(facid: string | undefined) {
-  return useDocsMutation(facid, (input: GenerateSalesDocumentInput) => fapiPost(DOCS, { id: Number(facid), model: input.model, lang_id: input.lang }, { action: 'generate' }))
+  // A copy is asked for the way the classic card does it (buttongeneratetype=Generate-copy).
+  return useDocsMutation(facid, (input: GenerateSalesDocumentInput) =>
+    fapiPost(DOCS, { id: Number(facid), model: input.model, lang_id: input.lang, ...(input.copy ? { buttongeneratetype: 'Generate-copy' } : {}) }, { action: 'generate' }),
+  )
 }
 
 export function useAddSalesDocumentLink(facid: string | undefined) {

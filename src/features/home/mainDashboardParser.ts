@@ -78,6 +78,8 @@ export interface DashSide {
   summary: Array<{ label: string; value: number | null; currency: string; trend: DashTrend | null }>
   periods: Partial<Record<DashPeriod, DashPeriodSeries>>
   last7: DashInvoiceRow[]
+  // The card's own title ("Last 5 Sales"): the row count is a per-install setting.
+  lastTitle?: string
   countries: DashCountry[]
   markers: DashMarker[]
   lines: DashLine[]
@@ -185,7 +187,7 @@ function parseInvoiceRow(tr: Element): DashInvoiceRow | null {
   const refLink = cells[1].querySelector('a')
   const partyLink = cells[2].querySelector('a')
   const partyCopy = (partyLink ?? cells[2]).cloneNode(true) as Element
-  partyCopy.querySelectorAll('.avatar-circle').forEach((a) => a.remove())
+  partyCopy.querySelectorAll('.avatar-circle, .avatar').forEach((a) => a.remove())
   const badge = cells[5].querySelector('.badge')
   const badgeCode = badge ? /badge-status(\d+)/.exec(badge.className) : null
   const viewHref = cells[6]?.querySelector('a')?.getAttribute('href') ?? ''
@@ -299,10 +301,11 @@ function parseSide(pane: Element | null, dashboard: Element, scripts: string, ki
   // some installs print "Last 5 Sales", others "Last 7 Sales" — the number is
   // not the page's own, so it is matched generically rather than pinned to 7.
   // The title itself also isn't always `.erp-card__title`: some installs print
-  // the classic Bootstrap `.card-title` inside the same `.erp-card` instead.
+  // the classic Bootstrap `.card-title` inside the same `.erp-card` instead, and
+  // newecuenta prints a plain `<h6>` in the `.card-header`.
   const lastCardTitle = kind === 'sales' ? /^last\s*\d+\s+sales\b/i : /^last\s*\d+\s+purchases?\b/i
   const lastCard = Array.from(dashboard.querySelectorAll('.erp-card')).find((card) =>
-    lastCardTitle.test(text(card.querySelector('.erp-card__title, .card-title'))),
+    lastCardTitle.test(text(card.querySelector('.erp-card__title, .card-title, .card-header h6'))),
   )
   const markerVar = kind === 'sales' ? 'mapMarkers' : 'mappMarkers'
   const lineVar = kind === 'sales' ? 'mapLines' : 'mappLines'
@@ -323,6 +326,7 @@ function parseSide(pane: Element | null, dashboard: Element, scripts: string, ki
       }
     }),
     periods: toPeriods(jsonAfter(scripts, new RegExp(`erpPeriodData\\s*=\\s*\\{[\\s\\S]*?\\b${kind}:\\s*`))),
+    lastTitle: text(lastCard?.querySelector('.erp-card__title, .card-title, .card-header h6')) || undefined,
     last7: Array.from(lastCard?.querySelectorAll('tbody > tr') ?? [])
       .map(parseInvoiceRow)
       .filter((r): r is DashInvoiceRow => r !== null),

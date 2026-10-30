@@ -199,7 +199,11 @@ export function PaymentsListPage() {
                   <>
                     {pageRows.map((r, i) => (
                       <tr key={`${r.ref}-${i}`} className="border-b border-border last:border-0 hover:bg-surface-hover">
-                        <td className="px-4 py-3 text-brand font-medium whitespace-nowrap">{r.ref}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <Link to={ROUTES.paymentCard.replace(':ref', encodeURIComponent(r.ref))} className="text-brand font-medium hover:underline">
+                            {r.ref}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 text-text-muted whitespace-nowrap">{fmtDate(r.paymentDate)}</td>
                         <td className="px-4 py-3">
                           {r.socid ? (

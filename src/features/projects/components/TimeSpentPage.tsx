@@ -156,14 +156,16 @@ export function TimeSpentPage() {
         </table>
       </Card>
 
-      <button
-        type="button"
-        disabled
-        title="Saving isn't wired up yet — this backend has no task currently assigned to the logged-in user to verify the save request against. Assign yourself a task on the real backend first."
-        className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60 cursor-not-allowed"
-      >
-        Save
-      </button>
+      <div>
+        <button
+          type="button"
+          disabled
+          title="Saving isn't wired up yet — this backend has no task currently assigned to the logged-in user to verify the save request against. Assign yourself a task on the real backend first."
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-60 cursor-not-allowed"
+        >
+          Save
+        </button>
+      </div>
     </div>
   )
 }

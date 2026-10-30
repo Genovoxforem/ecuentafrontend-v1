@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../features/auth/AuthContext'
+import { readSessionCache, writeSessionCache } from '../../utils/sessionCache'
 
 // Real menu data, but this backend's own contract differs sharply by
 // environment. The version this was originally built against (ecnta10)
@@ -224,6 +225,7 @@ export function buildAppMenuFromRows(rows: RawMenuRow[]): AppMenuResponse {
 // same-origin fetch() is all that's needed here, no separate login step.
 export function useAppMenu() {
   const { user } = useAuth()
+  const cacheKey = `menu:${user?.id}`
   return useQuery({
     queryKey: ['app-menu', user?.id],
     queryFn: async (): Promise<AppMenuResponse> => {
@@ -249,9 +251,13 @@ export function useAppMenu() {
       const res = await fetch(`/api/menu/?${params.toString()}`, { credentials: 'same-origin' })
       const body: { success: boolean; data?: BackendMenuTreeNode[] } = await res.json()
       if (!body.success || !body.data) throw new Error('Menu response did not include data')
-      return buildAppMenuFromRows(flattenTree(body.data))
+      const menu = buildAppMenuFromRows(flattenTree(body.data))
+      writeSessionCache(cacheKey, menu)
+      return menu
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 5,
+    // Asked once per sign-in (and kept for the browser session): the menu does not change while the user works.
+    initialData: () => readSessionCache<AppMenuResponse>(cacheKey),
+    staleTime: Infinity,
   })
 }

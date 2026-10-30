@@ -5,11 +5,10 @@ import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { useCustomerOptions, useVendorOptions } from '../customerOptions'
-import { useCreateContact, type ContactKind } from '../contacts.queries'
+import { useCreateContact, useContactMeta, type ContactKind } from '../contacts.queries'
 import { useCustomerLookups } from '../thirdPartyOptions.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
-const disabledClasses = 'w-full text-sm rounded-md border border-input-border bg-surface-hover text-text-faint px-3 py-2 cursor-not-allowed'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -26,10 +25,9 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // POST contact/fapi/create.php (see contacts.queries.ts) — Contact::create()
 // with lastname/firstname/poste/address/zip/town/country_id/email, the
 // professional, personal and mobile phones, fax and visibility (priv).
-// Third-party is required (this is the customers' contact list). Title, Date
-// of birth, Tags/categories and
-// the Social Media tab are not accepted by that endpoint — kept in the layout
-// to match the design, but disabled.
+// Third-party is required (this is the customers' contact list). Title (civility), Date of birth and the
+// Social Media handles are accepted by the same endpoint, their options coming from contact/fapi/meta.php.
+// Tags/categories stay a note: meta.php lists no contact tag on this backend.
 export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind }) {
   const isVendor = kind === 'vendor'
   const { data: customerOpts, isLoading: customerOptsLoading } = useCustomerOptions(!isVendor)
@@ -56,11 +54,15 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
   const [countryId, setCountryId] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [formError, setFormError] = useState('')
+  const [civility, setCivility] = useState('')
+  const [birthday, setBirthday] = useState('')
+  const [socialNetworks, setSocialNetworks] = useState<Record<string, string>>({})
   const { data: lookups, isLoading: lookupsLoading } = useCustomerLookups()
+  const { data: meta, isLoading: metaLoading } = useContactMeta()
 
   function handleSubmit() {
     setFormError('')
-    if (!lastName.trim() && !firstName.trim()) {
+    if (!lastName.trim()) {
       setFormError('Last name / Label is required.')
       return
     }
@@ -69,7 +71,7 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
       return
     }
     createContact.mutate(
-      { companyId, firstName, lastName, jobPosition, address, town, zip, email, phonePro, phoneMobile, phonePerso, fax, countryId, isPrivate },
+      { companyId, firstName, lastName, jobPosition, address, town, zip, email, phonePro, phoneMobile, phonePerso, fax, countryId, isPrivate, civility, birthday, socialNetworks },
       {
         onSuccess: () => navigate(listRoute),
         onError: (err) => setFormError(err instanceof Error ? err.message : 'Could not save this contact — please try again.'),
@@ -132,8 +134,13 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
             </Field>
 
             <Field label="Title">
-              <select disabled className={disabledClasses}>
-                <option>Select a title</option>
+              <select value={civility} onChange={(e) => setCivility(e.target.value)} className={inputClasses}>
+                <option value="">{metaLoading ? 'Loading…' : 'Select a title'}</option>
+                {meta?.civilities.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Job position">
@@ -184,7 +191,7 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
             </Field>
 
             <Field label="Date of birth">
-              <input disabled className={disabledClasses} />
+              <input type="date" value={birthday} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setBirthday(e.target.value)} className={inputClasses} />
             </Field>
 
             <div className="sm:col-span-2 xl:col-span-3">
@@ -198,18 +205,12 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
         <Card>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-            <Field label="Facebook">
-              <input disabled className={disabledClasses} />
-            </Field>
-            <Field label="Twitter / X">
-              <input disabled className={disabledClasses} />
-            </Field>
-            <Field label="LinkedIn">
-              <input disabled className={disabledClasses} />
-            </Field>
-            <Field label="WhatsApp">
-              <input disabled className={disabledClasses} />
-            </Field>
+            {metaLoading && <p className="text-sm text-text-faint">Loading…</p>}
+            {meta?.social_networks.map((n) => (
+              <Field key={n.code} label={n.label}>
+                <input type="text" value={socialNetworks[n.code] ?? ''} onChange={(e) => setSocialNetworks((cur) => ({ ...cur, [n.code]: e.target.value }))} className={inputClasses} />
+              </Field>
+            ))}
           </div>
         </Card>
       )}

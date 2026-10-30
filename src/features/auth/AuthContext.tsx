@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { getStoredToken, setStoredToken, registerUnauthorizedHandler } from '../../api/axios'
 import { loginRequest, fetchMe, type LoginCredentials } from './auth.api'
 import { establishLegacySession } from './legacySession'
+import { clearSessionCache } from '../../utils/sessionCache'
 
 export interface AuthUser {
   id: string
@@ -33,10 +34,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-// The last verified user and permissions, kept with the token they belong to, so the app opens from this copy and
-// re-checks GET /user/ in the background instead of every page waiting about 1 s for it. It is only the screen's view
-// of who is signed in: every request is still checked by the server, and a failed re-check signs the user out.
-// Cleared on logout and on any token change.
+// The user and permissions verified at sign-in, kept with the token they belong to, so the app opens from this copy and
+// does not ask GET /user/ again on every load. It is only the screen's view of who is signed in: every request is still
+// checked by the server, and a 401 from any of them signs the user out. Cleared on logout and on any token change.
 const ME_CACHE_KEY = 'ecuenta_me'
 type CachedMe = { token: string; user: AuthUser; rights: Record<string, Record<string, boolean>> }
 
@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearCachedMe()
+    clearSessionCache()
     setStoredToken(null)
     setUser(null)
     setRights({})
@@ -107,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('anonymous')
       return
     }
+    // The user and rights were verified at sign-in and are kept with this token: they are not asked for again on every
+    // load. A token the server no longer accepts is still caught by the first protected call (401 signs the user out).
+    if (cached) return
     fetchMe()
       .then((me) => {
         setUser(me.user)

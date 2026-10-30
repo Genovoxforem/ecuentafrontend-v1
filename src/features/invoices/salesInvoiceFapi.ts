@@ -73,17 +73,21 @@ function mapLine(l: Raw, seq: number): SalesInvoiceLine {
   }
 }
 
+// The classic card prints a payment's type as "02 - Credit" and its bank account with the bank line ("Entry #13");
+// get.php sends them as type_code / type_label, bank_account { id, label } and bank_line_id.
 function mapPayment(p: Raw): SalesInvoicePayment {
+  const code = str(p.type_code ?? p.payment_mode?.code)
+  const label = str(p.type_label ?? p.payment_mode?.label ?? p.type)
   return {
     rowid: str(p.id ?? p.rowid),
     ref: str(p.ref),
     date: usDate(p.date),
-    type: str(p.type_label ?? p.type),
-    type_code: str(p.type_code),
-    type_label: str(p.type_label),
-    bank: str(p.bank ?? p.bank_label),
-    bank_id: p.bank_id ?? null,
-    bank_entry_id: p.bank_entry_id ?? null,
+    type: code && label ? `${code} - ${label}` : label || code,
+    type_code: code,
+    type_label: label,
+    bank: str(p.bank ?? p.bank_label ?? p.bank_account?.label),
+    bank_id: p.bank_id ?? p.bank_account?.id ?? null,
+    bank_entry_id: p.bank_entry_id ?? p.bank_line_id ?? null,
     amount: str(p.amount),
     amount_f: money(p.amount),
   }
@@ -124,7 +128,8 @@ export function fapiToSalesInvoice(d: Raw): SalesInvoiceData {
       multicurrency_total_ht_f: money(d.multicurrency_total_ht),
       multicurrency_total_tva_f: money(d.multicurrency_total_tva ?? d.multicurrency_total_vat),
       multicurrency_total_ttc_f: money(d.multicurrency_total_ttc),
-      discount_info: str(d.discount_info),
+      // get.php leaves discount_info null; the classic card then prints "No Discount" (no percent or absolute discount).
+      discount_info: str(d.discount_info) || (!num(d.remise_percent) && !num(d.remise_absolue) ? 'No Discount' : ''),
       mode_reglement: str(d.mode_reglement?.code),
       mode_reglement_label: str(d.mode_reglement?.label),
       mode_reglement_id: num(d.mode_reglement?.id ?? d.mode_reglement_id),
@@ -180,7 +185,7 @@ export function fapiToSalesInvoice(d: Raw): SalesInvoiceData {
     related: d.related ?? [],
     files: (d.files ?? []).map((f: Raw) => ({
       name: str(f.name),
-      date: str(f.date),
+      date: f.date ? usDate(f.date) : '',
       size: str(f.size_label ?? f.size),
       size_raw: str(f.size),
       is_pdf: Boolean(f.is_pdf),

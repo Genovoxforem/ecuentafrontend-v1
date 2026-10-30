@@ -78,12 +78,19 @@ export function InvoiceDetail() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeCls(inv.status_color)}`}>{inv.status_label}</span>
                   ))}
                 </div>
+                {/* The classic banner line: Ref., Ref. customer (only when set), Third-party and its "(Other invoices)" list. */}
                 <p className="text-xs text-text-faint mt-1">
-                  Ref. customer: {inv.ref_client || '—'} · Third-party:{' '}
+                  Ref. {inv.ref}
+                  {inv.ref_client && <> · Ref. customer: {inv.ref_client}</>} · Third-party:{' '}
                   {data.customer.id ? (
-                    <Link to={ROUTES.customerDetail.replace(':id', data.customer.id)} className="text-brand hover:underline">
-                      {data.customer.name}
-                    </Link>
+                    <>
+                      <Link to={ROUTES.customerDetail.replace(':id', data.customer.id)} className="text-brand hover:underline">
+                        {data.customer.name}
+                      </Link>{' '}
+                      <Link to={`${ROUTES.invoiceList}?customerId=${data.customer.id}`} className="text-brand hover:underline">
+                        (Other invoices)
+                      </Link>
+                    </>
                   ) : (
                     data.customer.name || '—'
                   )}

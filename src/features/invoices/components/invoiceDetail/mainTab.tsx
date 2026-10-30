@@ -1,16 +1,17 @@
-import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import { Link } from 'react-router-dom'
-import { RefreshCcw, LoaderCircle, Pencil, Plus, X, CheckCircle2, Copy, Trash2, ExternalLink, FileText, Banknote } from 'lucide-react'
+import { RefreshCcw, LoaderCircle, Pencil, Plus, X, CheckCircle2, Copy, Trash2, ExternalLink, FileText, Banknote, MoreHorizontal, Search, Download } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
-import { LinkDocumentButton } from '../../../../shared/components/LinkDocumentButton'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { useProductOptions } from '../../../products/products.queries'
 import { useAddSalesInvoiceLine, useUpdateSalesInvoiceLine, useDeleteSalesInvoiceLine, useSyncSalesInvoiceZra, fetchSalesProductPricing, type SalesLineInput } from '../../salesInvoice.queries'
 import type { SalesInvoiceData, SalesInvoiceLine } from '../../salesInvoiceApi'
-import { useGenerateSalesDocument, useSalesInvoiceZraPortal } from '../../salesInvoiceTabs.queries'
-import { usePaymentTypeOptions, useBankAccountOptions, useRecordSalesPayment, type RecordPaymentInput } from '../../salesInvoiceActions.queries'
-import { ActionButton, TabTitle, inputCls, parseMarginRows, selectCls } from './InvoiceDetailShared'
+import { useGenerateSalesDocument, useDeleteSalesDocument, useSalesInvoiceZraPortal } from '../../salesInvoiceTabs.queries'
+import { useConfirm } from '../../../../shared/components/ConfirmDialog'
+import { resolveLegacyRoute } from '../../../../shared/legacyRoute'
+import { usePaymentTypeOptions, useBankAccountOptions, useRecordSalesPayment, useCanDeleteInvoicePayment, usePaymentDeleteConditions, useDeleteInvoicePayment, type RecordPaymentInput } from '../../salesInvoiceActions.queries'
+import { ActionButton, TabTitle, inputCls, selectCls } from './InvoiceDetailShared'
 import { InvoiceActionButtons } from './actionButtons'
 
 // inv.payment_status_class from the real API is a literal Bootstrap class
@@ -133,6 +134,86 @@ function RecordPaymentModal({ data, onCancel }: { data: SalesInvoiceData; onCanc
 // Real contract: POST compta/sales/api/zra.php, action=selectinvoice,
 // facid — read verbatim from the inline ZRAOffcanvas script on the real
 // page (see salesInvoiceTabs.queries.ts).
+// The classic card's "Delete Payment" dialog (confirmDeletePayment / executeDeletePayment): the backend first says what goes with
+// the payment (ledger and bank entries), then the payment is deleted, optionally with its bank entry and ledger entry.
+function DeletePaymentModal({ facid, payment, onClose }: { facid: string; payment: { rowid: string; ref: string }; onClose: () => void }) {
+  const conditions = usePaymentDeleteConditions(payment.rowid)
+  const remove = useDeleteInvoicePayment(facid)
+  const [deleteBankEntry, setDeleteBankEntry] = useState(true)
+  const [deleteLedgerEntry, setDeleteLedgerEntry] = useState(true)
+  const c = conditions.data
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-semibold text-text!">Delete Payment {payment.ref}</h3>
+          <button type="button" onClick={onClose} className="text-text-faint hover:text-text" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        {conditions.isLoading && <p className="text-sm text-text-muted">Checking payment conditions...</p>}
+        {conditions.isError && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{conditions.error instanceof Error ? conditions.error.message : 'This payment cannot be deleted.'}</p>}
+        {c && (
+          <div className="space-y-3 text-sm">
+            <ul className="space-y-1">
+              <li>
+                Ledger entries:{' '}
+                {c.hasLedgerEntry && c.ledgerEntryIds.length > 0 ? <span className="text-success-fg">IDs {c.ledgerEntryIds.join(', ')} (will be deleted)</span> : <span className="text-text-faint">None</span>}
+              </li>
+              <li>
+                Bank entries:{' '}
+                {c.hasBankEntry ? (
+                  <span className="text-success-fg">
+                    {c.bankLabel ? `${c.bankLabel} — ` : ''}
+                    {c.bankRef}
+                    {c.bankEntryIds.length > 0 ? ` (IDs: ${c.bankEntryIds.join(', ')})` : ''} (will be deleted)
+                  </span>
+                ) : (
+                  <span className="text-text-faint">None</span>
+                )}
+              </li>
+            </ul>
+            <div className="rounded-md border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-warning-fg">
+              <strong>Warning:</strong> Deleting this payment will remove the payment record from the database and update the invoice status to unpaid.
+            </div>
+            {c.hasBankEntry && (
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={deleteBankEntry} onChange={(e) => setDeleteBankEntry(e.target.checked)} className="mt-0.5" />
+                <span>
+                  Also delete bank entry
+                  <span className="block text-xs text-text-faint">This will remove the corresponding bank transaction</span>
+                </span>
+              </label>
+            )}
+            <label className="flex items-start gap-2">
+              <input type="checkbox" checked={deleteLedgerEntry} onChange={(e) => setDeleteLedgerEntry(e.target.checked)} className="mt-0.5" />
+              <span>
+                Also delete ledger entry
+                <span className="block text-xs text-text-faint">This will remove the corresponding accounting entry</span>
+              </span>
+            </label>
+          </div>
+        )}
+        {remove.isError && <p className="mt-3 text-sm text-danger">{remove.error instanceof Error ? remove.error.message : 'Failed to delete payment'}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-input-border px-3 py-1.5 text-xs font-medium text-text">
+            Cancel
+          </button>
+          <ActionButton
+            tone="danger"
+            icon={Trash2}
+            disabled={!c}
+            pending={remove.isPending}
+            onClick={() => remove.mutate({ payid: payment.rowid, deleteBankEntry: !!c?.hasBankEntry && deleteBankEntry, deleteLedgerEntry }, { onSuccess: onClose })}
+          >
+            Delete Payment
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ZraPortalModal({ facid, onCancel }: { facid: string; onCancel: () => void }) {
   const { data, isLoading, isError, error } = useSalesInvoiceZraPortal(facid, true)
   const rows: [string, string | undefined][] = data
@@ -191,17 +272,27 @@ function ZraPortalModal({ facid, onCancel }: { facid: string; onCancel: () => vo
 export function LinkedFilesMiniCard({ data }: { data: SalesInvoiceData }) {
   const facid = data.invoice.id
   const generateDoc = useGenerateSalesDocument(facid)
+  const deleteDoc = useDeleteSalesDocument(facid)
+  const confirm = useConfirm()
   const [model, setModel] = useState('')
   const selectedModel = model || data.models.find((m) => m.selected)?.value || data.models[0]?.value || ''
   const [lang, setLang] = useState('en_US')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const generate = (copy: boolean) => {
+    setMenuOpen(false)
+    generateDoc.mutate({ model: selectedModel, lang, token: '', copy })
+  }
 
+  // As the classic card (renderLinkedFilesCard): Generate with a "…" menu (Generate PDF / Generate Copy), then each file
+  // as a small card — name, "size · date", preview, download and delete.
   return (
     <Card className="!h-auto">
-      <TabTitle count={data.files.length}>Linked Files</TabTitle>
+      <TabTitle count={data.invoice.nb_files}>Linked Files</TabTitle>
       <div className="mt-3 space-y-2">
         <p className="text-xs font-semibold text-text-faint uppercase tracking-wide">Generate PDF</p>
         <div className="grid grid-cols-2 gap-2">
           <select value={selectedModel} onChange={(e) => setModel(e.target.value)} className={selectCls}>
+            <option value="">Select...</option>
             {data.models.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
@@ -214,24 +305,36 @@ export function LinkedFilesMiniCard({ data }: { data: SalesInvoiceData }) {
             <option value="es_ES">Spanish</option>
           </select>
         </div>
-        <div className="flex gap-2">
+        <div className="relative flex">
           <button
             type="button"
             disabled={!selectedModel || generateDoc.isPending}
-            onClick={() => generateDoc.mutate({ model: selectedModel, lang, token: '' })}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+            onClick={() => generate(false)}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-l-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
-            {generateDoc.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <FileText size={13} />} Generate
+            {generateDoc.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <FileText size={13} />}{' '}
+            {generateDoc.isPending ? (generateDoc.variables?.copy ? 'Generating Copy...' : 'Generating...') : 'Generate'}
           </button>
           <button
             type="button"
             disabled={!selectedModel || generateDoc.isPending}
-            title="Generate Copy"
-            onClick={() => generateDoc.mutate({ model: selectedModel, lang, token: '', copy: true })}
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-input-border px-2.5 py-1.5 text-xs font-medium text-text hover:bg-surface-hover disabled:opacity-60"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="More generate options"
+            aria-expanded={menuOpen}
+            className="inline-flex items-center justify-center rounded-r-lg border-l border-white/30 bg-brand px-3 py-1.5 text-white hover:bg-brand-hover disabled:opacity-60"
           >
-            <Copy size={13} />
+            <MoreHorizontal size={14} />
           </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border border-border bg-surface py-1 text-xs shadow-lg">
+              <button type="button" onClick={() => generate(false)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-text hover:bg-surface-hover">
+                <FileText size={13} /> Generate PDF
+              </button>
+              <button type="button" onClick={() => generate(true)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-text hover:bg-surface-hover">
+                <Copy size={13} /> Generate Copy
+              </button>
+            </div>
+          )}
         </div>
         {generateDoc.isError && <p className="text-xs text-danger">{generateDoc.error instanceof Error ? generateDoc.error.message : 'Could not generate the document.'}</p>}
       </div>
@@ -240,30 +343,78 @@ export function LinkedFilesMiniCard({ data }: { data: SalesInvoiceData }) {
         {data.files.length === 0 ? (
           <p className="text-sm text-text-faint italic">No files yet. Generate PDF above.</p>
         ) : (
-          <ul className="divide-y divide-border">
+          <div className="space-y-2">
             {data.files.map((f) => (
-              <li key={f.name} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <a href={f.download_url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline truncate">
-                  {f.name}
+              <div key={f.name} className="flex items-center gap-2 rounded-lg border border-border p-2">
+                <FileText size={22} className={`shrink-0 ${f.is_pdf ? 'text-danger' : 'text-text-faint'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-text!">{f.name}</p>
+                  <p className="text-xs text-text-faint">
+                    {f.size || '—'} · {f.date}
+                  </p>
+                </div>
+                {f.view_url && (
+                  <a href={f.view_url} target="_blank" rel="noreferrer" title="Preview" aria-label={`Preview ${f.name}`} className="rounded-md border border-input-border p-1.5 text-brand hover:bg-surface-hover">
+                    <Search size={13} />
+                  </a>
+                )}
+                <a href={f.download_url} download title="Download" aria-label={`Download ${f.name}`} className="rounded-md border border-input-border p-1.5 text-text-muted hover:bg-surface-hover">
+                  <Download size={13} />
                 </a>
-                <span className="text-text-muted shrink-0 text-xs">{f.size}</span>
-              </li>
+                <button
+                  type="button"
+                  title="Delete"
+                  aria-label={`Delete ${f.name}`}
+                  disabled={deleteDoc.isPending}
+                  onClick={async () => {
+                    if (await confirm({ title: 'Delete file?', message: `Delete ${f.name}?` })) deleteDoc.mutate(f.name)
+                  }}
+                  className="rounded-md border border-danger/30 p-1.5 text-danger hover:bg-danger-bg disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
+        {deleteDoc.isError && <p className="mt-2 text-xs text-danger">{deleteDoc.error instanceof Error ? deleteDoc.error.message : 'Could not delete the file.'}</p>}
       </div>
     </Card>
   )
 }
 
+// The ZRA receipt's QR (the classic card's #si-qrcode, "Scan to verify").
+function ZraQr({ url }: { url: string }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    let live = true
+    QRCode.toDataURL(url, { width: 140, margin: 1 })
+      .then((d) => {
+        if (live) setSrc(d)
+      })
+      .catch(() => {
+        if (live) setSrc('')
+      })
+    return () => {
+      live = false
+    }
+  }, [url])
+  return src ? (
+    <div className="text-center">
+      <img src={src} alt="ZRA QR code" className="mx-auto h-28 w-28" />
+      <p className="mt-1 text-xs text-text-faint">Scan to verify</p>
+    </div>
+  ) : null
+}
+
 export function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
-  const queryClient = useQueryClient()
   const inv = data.invoice
   const facid = inv.id
   const zraSync = useSyncSalesInvoiceZra(facid)
-  const marginRows = data.margin.enabled ? (data.margin.rows ?? parseMarginRows(data.margin.margin_info)) : []
   const [showZraPortal, setShowZraPortal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const { data: canDeletePayment } = useCanDeleteInvoicePayment(facid)
+  const [deletingPayment, setDeletingPayment] = useState<{ rowid: string; ref: string } | null>(null)
   // Backend bug: inv.currency_symbol always returns the company's base
   // currency (ZMW) regardless of the invoice's own currency, and
   // total_ht_f/total_tva_f/total_ttc_f are always base-currency amounts —
@@ -286,17 +437,20 @@ export function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
           <TabTitle>Invoice Details</TabTitle>
           {/* Three columns with hairline dividers between cells; label above, value below. */}
           <div className="mt-3 grid grid-cols-1 text-sm sm:grid-cols-3">
-            {[
-              ['Type', inv.type_label],
-              ['Discounts', inv.discount_info],
-              ['Invoice Date', inv.date],
-              ['Payment Terms', inv.cond_reglement_label],
-              ['Payment Due On', inv.date_due],
-              ['Payment Type', inv.mode_reglement_label],
-              ['Currency', inv.currency],
-              ['Bank Account', inv.bank_label],
-              ['Incoterms', inv.incoterms],
-            ].map(([label, value]) => (
+            {/* As the classic card: the payment type as "code - label", Bank Account and Incoterms only when set. */}
+            {(
+              [
+                ['Type', inv.type_label],
+                ['Discounts', inv.discount_info],
+                ['Invoice Date', inv.date],
+                ['Payment Terms', inv.cond_reglement_label],
+                ['Payment Due On', inv.date_due],
+                ['Payment Type', inv.mode_reglement ? `${inv.mode_reglement}${inv.mode_reglement_label ? ` - ${inv.mode_reglement_label}` : ''}` : ''],
+                ['Currency', inv.currency],
+                ...(inv.bank_label ? [['Bank Account', inv.bank_label]] : []),
+                ...(inv.incoterms ? [['Incoterms', inv.incoterms]] : []),
+              ] as [string, string][]
+            ).map(([label, value]) => (
               <div
                 key={label}
                 className="border-t border-border px-4 py-3 first:border-t-0 sm:border-l sm:[&:nth-child(-n+3)]:border-t-0 sm:[&:nth-child(3n+1)]:border-l-0 sm:[&:nth-child(3n+1)]:pl-0"
@@ -334,43 +488,73 @@ export function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                    <th className="font-medium px-4 py-2.5">Payment</th>
+                    <th className="font-medium px-4 py-2.5">Payments</th>
                     <th className="font-medium px-4 py-2.5">Date</th>
                     <th className="font-medium px-4 py-2.5">Type</th>
                     <th className="font-medium px-4 py-2.5">Bank Account</th>
                     <th className="font-medium px-4 py-2.5 text-right">Amount</th>
+                    {canDeletePayment && <th className="px-4 py-2.5" />}
                   </tr>
                 </thead>
                 <tbody>
                   {data.payments.map((p) => (
                     <tr key={p.rowid} className="border-b border-border last:border-0">
-                      <td className="px-4 py-2.5 font-medium text-text!">{p.ref}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        <Link to={ROUTES.paymentCard.replace(':ref', encodeURIComponent(p.ref))} className="text-brand hover:underline">
+                          {p.ref}
+                        </Link>
+                      </td>
                       <td className="px-4 py-2.5 text-text-muted">{p.date}</td>
                       <td className="px-4 py-2.5 text-text-muted">{p.type}</td>
-                      <td className="px-4 py-2.5 text-text-muted">{p.bank || '—'}</td>
+                      <td className="px-4 py-2.5 text-text-muted">
+                        {p.bank && p.bank_id ? (
+                          <Link to={ROUTES.bankingAccountDetail.replace(':id', String(p.bank_id))} className="text-brand hover:underline">
+                            {p.bank}
+                          </Link>
+                        ) : (
+                          p.bank || '—'
+                        )}
+                        {p.bank_entry_id != null && <div className="text-xs text-text-faint">Entry #{p.bank_entry_id}</div>}
+                      </td>
                       <td className="px-4 py-2.5 text-right text-text!">{p.amount_f}</td>
+                      {canDeletePayment && (
+                        <td className="px-4 py-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setDeletingPayment({ rowid: p.rowid, ref: p.ref })}
+                            title="Delete payment"
+                            aria-label={`Delete payment ${p.ref}`}
+                            className="rounded-md border border-danger/30 p-1.5 text-danger hover:bg-danger-bg"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          <div className="space-y-1.5 px-4 py-3 border-t border-border text-sm">
-            <div className="flex justify-between">
-              <span className="text-text-muted">Already Paid (Without Credit Notes And Down Payments)</span>
-              <span className="font-medium text-text!">{data.total_paid}</span>
+          {/* The classic card shows only the message when there is no payment. */}
+          {data.payments.length > 0 && (
+            <div className="space-y-1.5 px-4 py-3 border-t border-border text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-muted">Already Paid (Without Credit Notes And Down Payments)</span>
+                <span className="font-medium text-text!">{data.total_paid}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">Billed</span>
+                <span className="font-medium text-text!">
+                  {amountTtc} {amountSymbol}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold text-text!">Remaining Unpaid</span>
+                <span className={`font-bold ${data.balance_raw > 0 ? 'text-danger' : 'text-success'}`}>{data.balance}</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-text-muted">Billed</span>
-              <span className="font-medium text-text!">
-                {amountTtc} {amountSymbol}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-text!">Remaining Unpaid</span>
-              <span className={`font-bold ${data.balance_raw > 0 ? 'text-danger' : 'text-success'}`}>{data.balance}</span>
-            </div>
-          </div>
+          )}
         </Card>
 
         {inv.online_pay_url && (
@@ -409,7 +593,11 @@ export function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-muted">VAT</span>
+              {/* The classic card's rate: total VAT over total excl. tax, when both are above 0. */}
+              <span className="text-text-muted">
+                VAT{' '}
+                {Number(inv.total_tva) > 0 && Number(inv.total_ht) > 0 && <small className="text-text-faint">({((Number(inv.total_tva) / Number(inv.total_ht)) * 100).toFixed(2)}%)</small>}
+              </span>
               <span className="font-medium text-text!">
                 {amountTva} {amountSymbol}
               </span>
@@ -457,6 +645,18 @@ export function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
                 {data.zra.errorcode === '000' ? 'IT IS SUCCEEDED' : data.zra.status || 'Not Submitted'}
               </span>
             </div>
+            {data.zra.errorcode && data.zra.errorcode !== '000' && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-text-muted">Error Code</span>
+                <span className="font-mono text-xs text-danger">{data.zra.errorcode}</span>
+              </div>
+            )}
+            {data.zra.errormessage && (
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-text-muted">Error Message</span>
+                <span className="font-mono text-xs text-danger text-right break-all">{data.zra.errormessage}</span>
+              </div>
+            )}
             {[
               ['Receipt No', data.zra.receipt_no],
               ['Internal Data', data.zra.internal_data],
@@ -473,47 +673,67 @@ export function InvoiceMainTab({ data }: { data: SalesInvoiceData }) {
                 </div>
               ) : null,
             )}
+            {data.zra.qr_url && <ZraQr url={data.zra.qr_url} />}
           </div>
         </Card>
 
         <LinkedFilesMiniCard data={data} />
 
-        <Card className="!h-auto">
-          <div className="flex items-center justify-between gap-2">
+        {/* Linking objects and the margin table are on the Linked Files tab, as on the classic card. */}
+        <Card className="!h-auto !p-0 overflow-hidden">
+          <div className="px-4 pt-4 pb-2">
             <TabTitle>Related Objects</TabTitle>
-            <LinkDocumentButton element="facture" id={Number(data.invoice.id)} onLinked={() => void queryClient.invalidateQueries({ queryKey: ['salesInvoice', String(data.invoice.id)] })} />
           </div>
-          {data.related.length === 0 ? <p className="text-sm text-text-faint italic mt-2">None</p> : <p className="text-sm text-text-faint italic mt-2">{data.related.length} linked object(s).</p>}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-y border-border">
+                <th className="font-medium px-4 py-2">Type</th>
+                <th className="font-medium px-3 py-2">Ref.</th>
+                <th className="font-medium px-3 py-2 text-center">Date</th>
+                <th className="font-medium px-3 py-2 text-right">Amount</th>
+                <th className="font-medium px-4 py-2 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.related.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-2 text-text-faint">
+                    None
+                  </td>
+                </tr>
+              ) : (
+                (data.related as Array<Record<string, unknown>>).map((r, i) => {
+                  const to = resolveLegacyRoute(String(r.url ?? ''))
+                  const s = (k: string) => (r[k] === null || r[k] === undefined || r[k] === '' ? '—' : String(r[k]))
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="px-4 py-2">
+                        <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-text-muted">{s('type_label')}</span>
+                      </td>
+                      <td className="px-3 py-2 font-semibold">
+                        {to ? (
+                          <Link to={to} className="text-brand hover:underline">
+                            {s('ref')}
+                          </Link>
+                        ) : (
+                          s('ref')
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center text-text-muted">{s('date')}</td>
+                      <td className="px-3 py-2 text-right text-text-muted">{s('amount_ht')}</td>
+                      <td className="px-4 py-2 text-center text-text-muted">{s('status')}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
         </Card>
 
-        {marginRows.length > 0 && (
-          <Card className="!h-auto !p-0 overflow-hidden">
-            <p className="text-sm font-semibold text-text! px-4 pt-4 pb-2">Margin Details</p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                  <th className="font-medium py-2 px-4">Margins</th>
-                  <th className="font-medium py-2 px-3 text-right">Selling Price</th>
-                  <th className="font-medium py-2 px-3 text-right">Cost Price</th>
-                  <th className="font-medium py-2 px-4 text-right">Margin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {marginRows.map((r) => (
-                  <tr key={r.label} className={r.label === 'TotalMargin' ? '' : 'border-b border-border'}>
-                    <td className={`py-2 px-4 ${r.label === 'TotalMargin' ? 'font-semibold text-text!' : 'text-text-muted'}`}>{r.label}</td>
-                    <td className={`py-2 px-3 text-right ${r.label === 'TotalMargin' ? 'font-semibold text-text!' : 'text-text-muted'}`}>{r.sellingPrice}</td>
-                    <td className={`py-2 px-3 text-right ${r.label === 'TotalMargin' ? 'font-semibold text-text!' : 'text-text-muted'}`}>{r.costPrice}</td>
-                    <td className={`py-2 px-4 text-right ${r.label === 'TotalMargin' ? 'font-semibold text-text!' : 'text-text-muted'}`}>{r.margin}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
       </div>
       {showZraPortal && <ZraPortalModal facid={facid} onCancel={() => setShowZraPortal(false)} />}
       {showPaymentModal && <RecordPaymentModal data={data} onCancel={() => setShowPaymentModal(false)} />}
+      {deletingPayment && <DeletePaymentModal facid={facid} payment={deletingPayment} onClose={() => setDeletingPayment(null)} />}
     </div>
   )
 }
@@ -675,6 +895,7 @@ function ItemTableCard({ data }: { data: SalesInvoiceData }) {
                   ) : (
                     <span className="font-medium text-text!">{l.label}</span>
                   )}
+                  {l.product_ref && <div className="text-xs text-text-faint">Ref: {l.product_ref}</div>}
                 </td>
                 <td className="px-4 py-2.5 text-text-muted">{l.lot_number || '—'}</td>
                 <td className="px-4 py-2.5 text-text-muted">
@@ -685,7 +906,7 @@ function ItemTableCard({ data }: { data: SalesInvoiceData }) {
                   {isForeignCurrency ? (Number(l.multicurrency_subprice) * (1 + Number(l.tva_tx) / 100)).toFixed(2) : l.pu_ttc_f}
                 </td>
                 <td className="px-4 py-2.5 text-right text-text-muted">{l.qty}</td>
-                <td className="px-4 py-2.5 text-right text-text-muted">{Number(l.remise_percent) > 0 ? `${l.remise_percent}%` : '—'}</td>
+                <td className="px-4 py-2.5 text-right text-text-muted">{l.remise_percent !== '' ? `${Number(l.remise_percent)}%` : '0.00'}</td>
                 <td className="px-4 py-2.5 text-right text-text!">{isForeignCurrency ? l.multicurrency_total_ttc_f : l.total_ttc_f}</td>
                 {isDraft && (
                   <td className="px-4 py-2.5">

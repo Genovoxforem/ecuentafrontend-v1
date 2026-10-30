@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
+import { readSessionCache, writeSessionCache } from '../../utils/sessionCache'
 
 export interface AttendanceStatus {
   isClockedIn: boolean
@@ -19,20 +20,24 @@ interface AttendanceResponse {
 }
 
 const STATUS_KEY = ['attendance', 'status']
+const CACHE_KEY = 'attendance:status'
 
-// GET /api/attendance/.
+// GET /api/attendance/. Asked once per sign-in (kept for the browser session); clocking in or out refreshes it.
 export function useAttendanceStatus() {
   return useQuery({
     queryKey: STATUS_KEY,
     queryFn: async (): Promise<AttendanceStatus> => {
       const { data } = await api.get<AttendanceResponse>('/attendance/')
-      return {
+      const status = {
         isClockedIn: data.data.is_clocked_in,
         clockInTime: data.data.clock_in_time,
         workingHours: data.data.working_hours,
       }
+      writeSessionCache(CACHE_KEY, status)
+      return status
     },
-    staleTime: 1000 * 30,
+    initialData: () => readSessionCache<AttendanceStatus>(CACHE_KEY),
+    staleTime: Infinity,
   })
 }
 

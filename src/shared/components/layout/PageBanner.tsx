@@ -350,8 +350,8 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
       <div className="relative z-10 min-w-0">
         <Breadcrumb sections={sections} isModern />
       </div>
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5 text-white">
+      <div className="relative z-10 flex h-7 items-center justify-between gap-2">
+        <div className="flex min-w-0 shrink items-center gap-2.5 text-white">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-300/35 bg-sky-500/10 text-sky-200">
             <PageIcon size={16} />
           </span>
@@ -387,7 +387,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           ))}
         </div>
       )}
-      <div ref={setBannerSlot} className={`relative z-10 flex min-w-0 flex-wrap items-center gap-3 empty:hidden ${hoisted.length > 0 || actions.length > 0 ? '' : 'ml-auto'}`} />
+      <div ref={setBannerSlot} className={`relative z-10 flex min-w-0 shrink-0 items-center gap-3 empty:hidden ${hoisted.length > 0 || actions.length > 0 ? '' : 'ml-auto'}`} />
       </div>
     </div>
   )
