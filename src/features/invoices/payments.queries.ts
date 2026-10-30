@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchPaymentStats, fetchPayments, type PaymentApiRow, type PaymentStatsData } from '../../api/payments'
+import { fetchPaymentStats, fetchPayments, type PaymentApiInvoice, type PaymentApiRow, type PaymentStatsData } from '../../api/payments'
 
 export interface PaymentRow {
   id: number
+  invoices: PaymentApiInvoice[]
   ref: string
   paymentReference: string | null
   customerName: string | null
@@ -30,6 +31,7 @@ function normalizeDate(date: string): string {
 function toPaymentRow(row: PaymentApiRow): PaymentRow {
   return {
     id: row.id,
+    invoices: row.invoices,
     ref: row.ref,
     paymentReference: row.invoices.map((invoice) => invoice.ref).filter(Boolean).join(', ') || row.num_payment || null,
     customerName: row.thirdparty?.name ?? null,
@@ -65,6 +67,23 @@ export function usePayments(period: PaymentsPeriod) {
       return { items, total: items.length }
     },
     placeholderData: (prev) => prev,
+  })
+}
+
+// compta/paiement/fapi has a list only (no card endpoint): the card is the list row with that ref. The list's
+// search_ref filter answers 500 (an SQL syntax error, BUG-96), so the pages are read unfiltered until the ref is found.
+export function usePayment(ref: string) {
+  return useQuery<PaymentRow | null>({
+    queryKey: ['payments', 'card', ref],
+    queryFn: async () => {
+      for (let page = 1; ; page += 1) {
+        const result = await fetchPayments({ page, limit: 100 })
+        const match = result.items.find((item) => item.ref === ref)
+        if (match) return toPaymentRow(match)
+        if (page >= result.pagination.pages) return null
+      }
+    },
+    enabled: !!ref,
   })
 }
 

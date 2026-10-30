@@ -11,6 +11,7 @@ import { ListPagination, SearchBox } from './ZraListChrome'
 import { isLegacySessionExpired } from '../../../shared/components/BackendUnavailable'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 
 // The approve/cancel/split-approve mutations below all submit to the LIVE
 // ZRA gateway through custom/zra/zraupdateimport.php — a real, working
@@ -27,9 +28,9 @@ function describeUpdateError(err: unknown): string {
 // The **word** markers match the real page's own bolded key terms per
 // bullet (Supplier/Product/Approve/Purchase Invoice) — see NoteLine below.
 const NOTES = [
-  'Create **Supplier** by Selecting Imported Country (expect ZAMBIA) To Make Purchase as ASYCUDA Import',
+  'Create Supplier by Selecting Imported Country (expect ZAMBIA) To Make Purchase as ASYCUDA Import',
   'Create **Product** by the Same Name of Imported Item Name In the ASYCUDA Import List',
-  'Click **Approve** Button To Import Product To Zra Smart Invoice',
+  'Click Approve Button To Import Product To Zra Smart Invoice',
   'Once Succeeded You Get An Alert',
   'Create **Purchase Invoice** For the Approved Item To Update The Stock In Smart Invoice and in ECUENTA',
 ]
@@ -41,6 +42,16 @@ function NoteLine({ text }: { text: string }) {
       {parts.map((part, i) => (i % 2 === 1 ? <b key={i}>{part}</b> : part))}
     </>
   )
+}
+
+// The classic page always shows the Note box; here it can be hidden, and the choice is kept in this browser.
+const NOTE_KEY = 'zra.asycudaImport.noteOpen'
+function initialNoteOpen(): boolean {
+  try {
+    return localStorage.getItem(NOTE_KEY) !== '0'
+  } catch {
+    return true
+  }
 }
 
 const PAGE_SIZE_OPTIONS = [10, 15, 25, 50, 100]
@@ -166,7 +177,19 @@ export function AsycudaImportList() {
   const [splitRow, setSplitRow] = useState<AsycudaImportRow | null>(null)
   const [cancelItem, setCancelItem] = useState<AsycudaUpdateItem | null>(null)
   const [suggestionsRow, setSuggestionsRow] = useState<AsycudaImportRow | null>(null)
-  const [notesOpen, setNotesOpen] = useState(false)
+  // The note also opens as a dialog every time the page is opened (the inline box below has its own show / hide).
+  const [noteModalOpen, setNoteModalOpen] = useState(true)
+  const [notesOpen, setNotesOpenState] = useState(initialNoteOpen)
+  const setNotesOpen = (next: boolean | ((v: boolean) => boolean)) =>
+    setNotesOpenState((cur) => {
+      const value = typeof next === 'function' ? next(cur) : next
+      try {
+        localStorage.setItem(NOTE_KEY, value ? '1' : '0')
+      } catch {
+        // storage unavailable: the choice only lasts for this visit
+      }
+      return value
+    })
 
   const { data, isLoading, isError, error, refetch } = useAsycudaImportList({ page, perPage, declRefNum: declRefFilter, search })
   const { data: totalCount } = useAsycudaImportCount(declRefFilter)
@@ -231,41 +254,73 @@ export function AsycudaImportList() {
             <FileInput size={20} className="text-brand" />
             ZRA ASYCUDA Import Items
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-surface-alt text-text-muted">{totalCount ?? '…'}</span>
-            <span className="relative">
+          </h2>
+          <InBanner>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setNotesOpen((v) => !v)}
-                title="Notes"
-                className="w-7 h-7 rounded-full grid place-items-center text-brand bg-brand/10 hover:bg-brand/20"
+                aria-expanded={notesOpen}
+                title={notesOpen ? 'Hide note' : 'Show note'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border ${notesOpen ? 'border-brand bg-brand/15 text-brand' : 'border-border text-text-muted hover:bg-surface-hover'}`}
               >
-                <Info size={15} />
+                <Info size={14} /> Note
               </button>
-              {notesOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setNotesOpen(false)} />
-                  <div className="absolute left-0 top-full mt-2 z-40 w-80 sm:w-[26rem] rounded-lg bg-gray-900 dark:bg-black/90 text-sm text-gray-100 shadow-xl p-3">
-                    <ul className="space-y-1.5 list-disc list-inside font-normal">
-                      {NOTES.map((note) => (
-                        <li key={note}>
-                          <NoteLine text={note} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </>
-              )}
-            </span>
-          </h2>
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            Sync Imports
-          </button>
+              <button
+                type="button"
+                onClick={handleSync}
+                disabled={syncing}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-brand text-white hover:opacity-90 disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+                Sync Imports
+              </button>
+            </div>
+          </InBanner>
         </div>
+
+        {noteModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16" onClick={() => setNoteModalOpen(false)}>
+            <div role="dialog" aria-modal="true" aria-label="Note" className="w-full max-w-2xl rounded-xl border border-border bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="flex items-center gap-2 font-semibold text-text!">
+                  <Info size={16} className="text-brand" /> Note
+                </h3>
+                <button type="button" onClick={() => setNoteModalOpen(false)} aria-label="Close" className="text-text-faint hover:text-text">
+                  <XCircle size={16} />
+                </button>
+              </div>
+              <ul className="list-disc space-y-1.5 pl-5 text-sm text-text-muted">
+                {NOTES.map((note) => (
+                  <li key={note}>
+                    <NoteLine text={note} />
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex justify-end">
+                <button type="button" onClick={() => setNoteModalOpen(false)} className="rounded-md bg-brand px-4 py-1.5 text-sm font-medium text-white hover:opacity-90">
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {notesOpen && (
+          <div className="relative flex gap-3 rounded-lg border border-border bg-surface-alt px-4 py-3 text-sm text-text-muted">
+            <span className="shrink-0 font-medium">Note</span>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {NOTES.map((note) => (
+                <li key={note}>
+                  * <NoteLine text={note} />
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={() => setNotesOpen(false)} aria-label="Hide note" title="Hide note" className="absolute right-2 top-2 rounded p-1 text-text-faint hover:bg-surface-hover hover:text-text">
+              <XCircle size={14} />
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs font-medium text-text-muted whitespace-nowrap">

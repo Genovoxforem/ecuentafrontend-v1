@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { useBankAccountDictionary, usePaymentModeDictionary } from '../../api/lookups'
+import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // The invoice card's action buttons on compta/facture/fapi (key-authenticated JSON; replaces compta/sales/api/{invoice,email,
 // payment,receipt}.php, which need a PHP session cookie). Send WhatsApp is deliberately not implemented: WhatsAppSender is
@@ -215,6 +216,79 @@ export function useRecordSalesPayment(facid: string | undefined) {
         // payments.php names this close_paid (close_paid_invoices is ignored); a payment that settles the invoice closes it anyway.
         close_paid: input.closepaidinvoices,
       }, { action: 'add' })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
+  })
+}
+
+// --- Delete a payment (the card's trash button on a payment row) -----------------------------------------
+// The button shows when compta/facture/fapi/payments.php?id=N says can_delete (the user's right, like the classic CAN_EDIT).
+// The check and the delete are the classic card's own calls (compta/sales/api/payment.php, see its
+// confirmDeletePayment / executeDeletePayment): no fapi documents a payment delete.
+export function useCanDeleteInvoicePayment(facid: string | undefined) {
+  return useQuery({
+    queryKey: ['salesInvoice', facid, 'paymentRights'],
+    queryFn: async () => !!(await fapiGet<{ can_delete?: boolean }>(`${FAPI}/payments.php`, { id: facid })).can_delete,
+    enabled: !!facid,
+    staleTime: 1000 * 60,
+  })
+}
+
+const CLASSIC_PAYMENT_API = '/compta/sales/api/payment.php'
+
+async function postClassicPayment<T>(fields: Record<string, string>): Promise<T> {
+  const body = new FormData()
+  for (const [k, v] of Object.entries(fields)) body.append(k, v)
+  const res = await fetch(CLASSIC_PAYMENT_API, { method: 'POST', credentials: 'same-origin', body })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  return parseLegacyJson<T>(res)
+}
+
+export interface PaymentDeleteConditions {
+  hasLedgerEntry: boolean
+  ledgerEntryIds: string[]
+  hasBankEntry: boolean
+  bankLabel: string
+  bankRef: string
+  bankEntryIds: string[]
+}
+
+// What deleting the payment also removes (check_delete_conditions); a refusal comes back as { success: false, message }.
+export function usePaymentDeleteConditions(payid: string | null) {
+  return useQuery({
+    queryKey: ['salesInvoice', 'paymentDeleteConditions', payid],
+    queryFn: async (): Promise<PaymentDeleteConditions> => {
+      const d = await postClassicPayment<{ success?: boolean; message?: string; data?: Record<string, unknown> }>({ action: 'check_delete_conditions', payid: payid ?? '' })
+      if (!d.success || !d.data) throw new Error(d.message || 'This payment cannot be deleted.')
+      const x = d.data
+      const ids = (v: unknown) => (Array.isArray(v) ? v.map(String) : [])
+      return {
+        hasLedgerEntry: !!x.has_ledger_entry,
+        ledgerEntryIds: ids(x.ledger_entry_ids),
+        hasBankEntry: !!x.has_bank_entry,
+        bankLabel: String(x.bank_label ?? ''),
+        bankRef: String(x.bank_ref ?? ''),
+        bankEntryIds: ids(x.bank_entry_ids),
+      }
+    },
+    enabled: !!payid,
+    retry: false,
+    staleTime: 0,
+  })
+}
+
+export function useDeleteInvoicePayment(facid: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false,
+    mutationFn: async (input: { payid: string; deleteBankEntry: boolean; deleteLedgerEntry: boolean }) => {
+      const d = await postClassicPayment<{ success?: boolean; message?: string }>({
+        action: 'delete_payment',
+        payid: input.payid,
+        delete_bank_entry: input.deleteBankEntry ? '1' : '0',
+        delete_ledger_entry: input.deleteLedgerEntry ? '1' : '0',
+      })
+      if (!d.success) throw new Error(d.message || 'Failed to delete payment')
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salesInvoice', facid] }),
   })

@@ -29,20 +29,24 @@ export function DictListPage({
   columns: string[]
   // An extra row action that opens a page about the row (the classic "List of accounts" link); null hides it for that row.
   rowLink?: (row: DictRow) => { to: string; title: string } | null
-  // A dictionary with a JSON endpoint: rows come from `load` and the row actions go by row id instead of the scraped links.
-  source?: { load: () => Promise<DictRow[]>; setActive: (rowid: string, active: boolean) => Promise<void>; remove: (rowid: string) => Promise<void> }
+  // A dictionary with a JSON endpoint: rows come from `load`. With `setActive` / `remove` the row actions go by row id; without
+  // them they follow the row's own toggleUrl / deleteUrl like a scraped row.
+  source?: { load: () => Promise<DictRow[]>; setActive?: (rowid: string, active: boolean) => Promise<void>; remove?: (rowid: string) => Promise<void> }
 }) {
   const legacyList = useDictList(path, !source)
-  const jsonList = useQuery({ queryKey: ['generalLedger', 'dict', 'json', path], queryFn: () => source!.load(), enabled: !!source })
+  // Under ['generalLedger', 'dict', path] so the link-based toggle / delete below refresh it too.
+  const jsonList = useQuery({ queryKey: ['generalLedger', 'dict', path, 'json'], queryFn: () => source!.load(), enabled: !!source })
   const { data: rows, isLoading, isError, error, refetch } = source ? jsonList : legacyList
   const queryClient = useQueryClient()
-  const jsonDone = () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'dict', 'json', path] })
-  const jsonToggle = useMutation({ mutationFn: ({ rowid, active }: { rowid: string; active: boolean }) => source!.setActive(rowid, active), onSuccess: jsonDone })
-  const jsonDelete = useMutation({ mutationFn: (rowid: string) => source!.remove(rowid), onSuccess: jsonDone })
+  const jsonDone = () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'dict', path, 'json'] })
+  const jsonToggle = useMutation({ mutationFn: ({ rowid, active }: { rowid: string; active: boolean }) => source!.setActive!(rowid, active), onSuccess: jsonDone })
+  const jsonDelete = useMutation({ mutationFn: (rowid: string) => source!.remove!(rowid), onSuccess: jsonDone })
   const toggle = useToggleDictStatus(path)
   const del = useDeleteDictRow(path)
   const confirm = useConfirm()
-  const actionError = (source ? (jsonToggle.error ?? jsonDelete.error) : null) as Error | null
+  const byIdToggle = !!source?.setActive
+  const byIdDelete = !!source?.remove
+  const actionError = (jsonToggle.error ?? jsonDelete.error ?? toggle.error ?? del.error) as Error | null
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -166,8 +170,8 @@ export function DictListPage({
                           })()}
                           <button
                             type="button"
-                            disabled={source ? jsonToggle.isPending : !r.toggleUrl || toggle.isPending}
-                            onClick={() => (source ? jsonToggle.mutate({ rowid: r.rowid, active: !r.active }) : r.toggleUrl && toggle.mutate(r.toggleUrl))}
+                            disabled={byIdToggle ? jsonToggle.isPending : !r.toggleUrl || toggle.isPending}
+                            onClick={() => (byIdToggle ? jsonToggle.mutate({ rowid: r.rowid, active: !r.active }) : r.toggleUrl && toggle.mutate(r.toggleUrl))}
                             title={r.active ? 'Disable' : 'Enable'}
                             className="text-text-muted hover:text-brand disabled:opacity-40"
                           >
@@ -175,10 +179,10 @@ export function DictListPage({
                           </button>
                           <button
                             type="button"
-                            disabled={source ? jsonDelete.isPending : !r.deleteUrl || del.isPending}
+                            disabled={byIdDelete ? jsonDelete.isPending : !r.deleteUrl || del.isPending}
                             onClick={async () => {
-                              if (!(source || r.deleteUrl) || !(await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) return
-                              if (source) jsonDelete.mutate(r.rowid)
+                              if (!(byIdDelete || r.deleteUrl) || !(await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) return
+                              if (byIdDelete) jsonDelete.mutate(r.rowid)
                               else del.mutate(r.deleteUrl!)
                             }}
                             title="Delete"

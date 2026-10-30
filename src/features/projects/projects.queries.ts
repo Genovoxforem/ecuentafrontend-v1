@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
+import { useAuth } from '../auth/AuthContext'
+import { readSessionCache, writeSessionCache } from '../../utils/sessionCache'
 
 // There is no /api/projects/ (api/projects/index.php) on the active backend
 // (a GET to it returns the legacy login page's HTML; only the unrelated
@@ -176,21 +178,27 @@ function useReadyAfter(ms: number) {
   return ready
 }
 
+// Asked once per sign-in and kept for the browser session (per user and per day): a reload or another tab does not
+// download that page again.
 export function useTodayNewLeadsCount() {
+  const { user } = useAuth()
   const ready = useReadyAfter(6000)
+  const cacheKey = `todayNewLeads:${user?.id}:${new Date().toDateString()}`
   return useQuery({
     enabled: ready,
-    queryKey: ['projects', 'todayNewLeads'],
+    queryKey: ['projects', 'todayNewLeads', user?.id],
+    initialData: () => readSessionCache<number>(cacheKey),
     queryFn: async (): Promise<number> => {
       const res = await fetch(`${buildListUrl('openLeads')}&sortfield=p.datec&sortorder=desc`, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
       const now = new Date()
       const pad = (n: number) => String(n).padStart(2, '0')
       const today = `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()}`
-      return parseProjectListRows(await res.text()).filter((r) => r.creationDate?.startsWith(today)).length
+      const count = parseProjectListRows(await res.text()).filter((r) => r.creationDate?.startsWith(today)).length
+      writeSessionCache(cacheKey, count)
+      return count
     },
-    staleTime: 1000 * 60 * 5,
-    refetchInterval: 1000 * 60 * 10,
+    staleTime: Infinity,
     retry: false,
   })
 }

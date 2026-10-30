@@ -2248,3 +2248,13 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class~='px-6']:is([class~='pb-2'], [class~='pb-3'], [class~='pb-4'], [class~='pb-5'], [class~='pb-6'], [class~='pb-8']):not(#_):not(#_) {
   padding-bottom: var(--page-gap-bottom) !important;
 }
+
+/* Ledger by account: about 50% less height per row than the shared table rows (1.9rem -> 0.95rem, cell padding 0.25rem -> 0.05rem),
+   so more lines fit. Rows with wrapped content still grow. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table.ledger-compact tbody > tr {
+  height: 0.95rem;
+}
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content table.ledger-compact td {
+  padding-top: 0.05rem;
+  padding-bottom: 0.05rem;
+}

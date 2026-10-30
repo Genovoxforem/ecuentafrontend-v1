@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
 import { useAuth } from '../auth/AuthContext'
+import { readSessionCache, writeSessionCache } from '../../utils/sessionCache'
 import { parseNotificationItems, type NotificationItem } from './notificationParser'
 
 export type { NotificationItem }
@@ -19,19 +20,23 @@ async function post(path: string, fields: Record<string, string>): Promise<strin
   return fetchLegacyText(path, { method: 'POST', body: new URLSearchParams(fields) })
 }
 
-// notification_count_ajax.php — the number on the bell, as plain text. The legacy
-// page re-asks every 5 minutes.
+// notification_count_ajax.php — the number on the bell, as plain text. Asked once per sign-in (kept for the browser
+// session), not on a timer and not on every page; opening the bell panel loads the real list.
 export function useNotificationCount() {
   const { user } = useAuth()
+  const cacheKey = `notifcount:${user?.id}`
   return useQuery({
     queryKey: ['notifications', 'count', user?.id],
     queryFn: async (): Promise<number> => {
       const text = await post('/notification_count_ajax.php', { action: 'getNotificationcount', user_id: String(user?.id ?? '') })
       const n = Number(text.trim())
-      return Number.isFinite(n) ? n : 0
+      const count = Number.isFinite(n) ? n : 0
+      writeSessionCache(cacheKey, count)
+      return count
     },
     enabled: !!user,
-    refetchInterval: 1000 * 60 * 5,
+    initialData: () => readSessionCache<number>(cacheKey),
+    staleTime: Infinity,
   })
 }
 
@@ -119,7 +124,7 @@ export function useChatCount() {
       const json = JSON.parse(await post('/ticket_chat_ajax.php', { action: 'get_chat_count' })) as { success: boolean; count?: number }
       return json.success ? Number(json.count) || 0 : 0
     },
-    refetchInterval: 1000 * 60 * 5,
+    staleTime: Infinity,
     retry: false,
   })
 }

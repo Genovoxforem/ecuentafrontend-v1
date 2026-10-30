@@ -29,7 +29,6 @@ import { Card, SectionHeading, ICON_STYLES, ActionGroupCard, type IconColor } fr
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useAllProductsRich, useProductOptions } from '../../products/products.queries'
-import { useWarehouseList } from '../warehouseExtras.queries'
 import { useRecentMovements, type WarehouseSummary } from '../warehouses.queries'
 
 const HERO_WASH: Record<string, string> = {
@@ -230,7 +229,6 @@ function OperationCard({ label, value, validated, listPath, newPath }: { label: 
 export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
   const { data: products = [] } = useProductOptions()
   const { data: richProducts, isLoading: categoriesLoading, isError: categoriesError } = useAllProductsRich(0)
-  const { warehouses } = useWarehouseList()
   const stockProducts = products.filter((product) => product.type === 'product')
   const inStock = stockProducts.filter((product) => product.stock >= 5).length
   const lowStock = stockProducts.filter((product) => product.stock > 0 && product.stock < 5).length
@@ -241,7 +239,7 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
   const stockStatusStyle = {
     background: `conic-gradient(#13c8a3 0% ${inStockPercent}%, #f5b942 ${inStockPercent}% ${inStockPercent + lowStockPercent}%, #f04e78 ${inStockPercent + lowStockPercent}% 100%)`,
   }
-  const warehouseValues = [...warehouses]
+  const warehouseValues = [...summary.byWarehouse]
     .sort((a, b) => b.inputStockValue - a.inputStockValue)
     .slice(0, 5)
   const maxWarehouseValue = Math.max(...warehouseValues.map((warehouse) => warehouse.inputStockValue), 1)

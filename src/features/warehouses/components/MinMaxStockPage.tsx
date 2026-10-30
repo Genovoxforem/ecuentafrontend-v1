@@ -271,6 +271,32 @@ export function MinMaxStockPage() {
               <RotateCcw size={14} /> Clear
             </button>
             <span className="text-xs text-text-faint">Showing {rows.length} products</span>
+            {/* The table's own controls share this row: entries per page, exports and the CSV import. */}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <select
+                value={perPage}
+                onChange={(e) => {
+                  setPerPage(Number(e.target.value))
+                  setPage(1)
+                }}
+                aria-label="Entries per page"
+                className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <TableExportButtons title="Min-Max Stock Levels" getExportData={getExportData} />
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-info-bg text-info-fg hover:brightness-95"
+              >
+                <Upload size={14} /> Import CSV
+              </button>
+            </div>
           </div>
         </Card>
 
@@ -294,25 +320,6 @@ export function MinMaxStockPage() {
         )}
 
         <Card className="!p-0 overflow-hidden flex-1 min-h-0">
-          <div className="flex items-center gap-3 p-4 border-b border-border">
-            <select value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1) }} className="text-sm rounded-md border border-input-border bg-input-bg text-text px-2 py-1.5">
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <div className="ml-auto flex items-center gap-2">
-              <TableExportButtons title="Min-Max Stock Levels" getExportData={getExportData} />
-              <button
-                type="button"
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-info-bg text-info-fg hover:brightness-95"
-              >
-                <Upload size={14} /> Import CSV
-              </button>
-            </div>
-          </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-surface-alt">

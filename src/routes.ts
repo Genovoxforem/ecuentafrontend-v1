@@ -412,6 +412,7 @@ export const ROUTES = {
   customerTags: '/customers/tags',
   importCustomers: '/import/customers',
   paymentsList: '/payments',
+  paymentCard: '/payments/card/:ref',
   paymentsReport: '/payments/report',
   paymentsDue: '/payments/due',
   vendorList: '/vendors',

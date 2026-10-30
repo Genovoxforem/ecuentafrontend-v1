@@ -409,8 +409,24 @@ export interface QuotationStatsData {
   summary: { count: number; total_amount: number; average_amount: number }
 }
 
-export async function fetchQuotationStats(year: number): Promise<QuotationStatsData> {
-  const res = await fapi.get<FapiSuccess<QuotationStatsData>>('/comm/propal/fapi/stats.php', { params: { year } })
+// The classic statistics page's filters (comm/propal/stats/index.php: socid, userid, typent_id, categ_id, object_status);
+// a blank one is not sent.
+export interface QuotationStatsFilters {
+  socid?: string
+  userid?: string
+  typentId?: string
+  categId?: string
+  status?: string
+}
+
+export async function fetchQuotationStats(year: number, filters: QuotationStatsFilters = {}): Promise<QuotationStatsData> {
+  const params: Record<string, string | number> = { year }
+  if (filters.socid) params.socid = filters.socid
+  if (filters.userid) params.userid = filters.userid
+  if (filters.typentId) params.typent_id = filters.typentId
+  if (filters.categId) params.categ_id = filters.categId
+  if (filters.status) params.object_status = filters.status
+  const res = await fapi.get<FapiSuccess<QuotationStatsData>>('/comm/propal/fapi/stats.php', { params })
   return unwrap(res.data)
 }
 

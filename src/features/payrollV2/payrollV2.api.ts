@@ -46,10 +46,44 @@ function failure(e: unknown): never {
   throw e
 }
 
-export async function pv2Get<T>(endpoint: string, action: string, params: Params = {}): Promise<T> {
+// A backend without the payroll_v2/fapi files (they answer a bare 404 there, checked 29 Oct 2026 on newecuenta and
+// the classic server) is served by the session-only payroll_v2/api/* instead: the same actions and params, answering
+// {status:'ok', data, message} / {status:'error', message}. The first 404 is remembered so later calls go straight there.
+const SESSION_PREFIX = '/payroll_v2/api/'
+let fapiMissing = false
+const isNotFound = (e: unknown) => axios.isAxiosError(e) && e.response?.status === 404
+
+interface SessionEnvelope<T> {
+  status: 'ok' | 'error'
+  data?: T
+  message?: string
+}
+
+// The session PHP prints a couple of blank lines before its JSON, so axios may hand it over as a string.
+function unwrapSession<T>(body: SessionEnvelope<T> | string): { data: T; message: string } {
+  let payload: SessionEnvelope<T> | null = null
   try {
-    const res = await fapi.get<Envelope<T> | string>(PREFIX + endpoint, { params: { action, ...clean(params) }, timeout: TIMEOUT })
-    return unwrap<T>(res.data).data
+    payload = typeof body === 'string' ? (JSON.parse(body.trim()) as SessionEnvelope<T>) : body
+  } catch {
+    throw new Error('Payroll is not signed in on this backend — log out and back in, then retry.')
+  }
+  if (!payload || payload.status !== 'ok') throw new Error(payload?.message || 'Payroll request failed')
+  return { data: payload.data as T, message: payload.message ?? '' }
+}
+
+export async function pv2Get<T>(endpoint: string, action: string, params: Params = {}): Promise<T> {
+  if (!fapiMissing) {
+    try {
+      const res = await fapi.get<Envelope<T> | string>(PREFIX + endpoint, { params: { action, ...clean(params) }, timeout: TIMEOUT })
+      return unwrap<T>(res.data).data
+    } catch (e) {
+      if (!isNotFound(e)) return failure(e)
+      fapiMissing = true
+    }
+  }
+  try {
+    const res = await fapi.get<SessionEnvelope<T> | string>(SESSION_PREFIX + endpoint, { params: { action, ...clean(params) }, timeout: TIMEOUT })
+    return unwrapSession<T>(res.data).data
   } catch (e) {
     return failure(e)
   }
@@ -77,10 +111,20 @@ export async function pv2PostResult<T>(endpoint: string, action: string, params:
       })
     } else body.append(key, String(value))
   }
+  if (!fapiMissing) {
+    try {
+      const res = await fapi.post<Envelope<T> | string>(PREFIX + endpoint, body, { params: { action }, timeout: TIMEOUT })
+      const payload = unwrap<T>(res.data)
+      return { data: payload.data, message: payload.message ?? '' }
+    } catch (e) {
+      if (!isNotFound(e)) return failure(e)
+      fapiMissing = true
+    }
+  }
   try {
-    const res = await fapi.post<Envelope<T> | string>(PREFIX + endpoint, body, { params: { action }, timeout: TIMEOUT })
-    const payload = unwrap<T>(res.data)
-    return { data: payload.data, message: payload.message ?? '' }
+    body.set('action', action)
+    const res = await fapi.post<SessionEnvelope<T> | string>(SESSION_PREFIX + endpoint, body, { timeout: TIMEOUT })
+    return unwrapSession<T>(res.data)
   } catch (e) {
     return failure(e)
   }
@@ -101,8 +145,16 @@ export const periodLabel = (month: unknown, year: unknown) => `${MONTHS[num(mont
 // ever linked to directly.
 export async function openPayslipPdf(payrunId: string, employeeId?: string) {
   let data: Blob
+  const fetchPdf = (prefix: string) => fapi.get<Blob>(prefix + 'payslip.php', { params: clean({ action: 'get_pdf', payrun_id: payrunId, employee_id: employeeId }), responseType: 'blob', timeout: 60000 })
   try {
-    data = (await fapi.get<Blob>(PREFIX + 'payslip.php', { params: clean({ action: 'get_pdf', payrun_id: payrunId, employee_id: employeeId }), responseType: 'blob', timeout: 60000 })).data
+    try {
+      if (fapiMissing) throw new Error('fapi-missing')
+      data = (await fetchPdf(PREFIX)).data
+    } catch (e) {
+      if (!(e instanceof Error && e.message === 'fapi-missing') && !isNotFound(e)) throw e
+      fapiMissing = true
+      data = (await fetchPdf(SESSION_PREFIX)).data
+    }
   } catch (e) {
     // An error answers the JSON envelope; with a blob response type it arrives as a Blob.
     if (axios.isAxiosError(e) && e.response?.data instanceof Blob) {
