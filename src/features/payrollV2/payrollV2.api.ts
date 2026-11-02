@@ -42,7 +42,8 @@ function unwrap<T>(body: Envelope<T> | string): Envelope<T> {
 
 function failure(e: unknown): never {
   if (axios.isCancel(e)) throw e
-  if (axios.isAxiosError(e) && e.response) throw new Error(reason(e.response.data) || `Payroll request failed (${e.response.status}).`)
+  // httpStatus lets the query client see a 4xx (a missing file, no access) as permanent instead of retrying it three times.
+  if (axios.isAxiosError(e) && e.response) throw Object.assign(new Error(reason(e.response.data) || `Payroll request failed (${e.response.status}).`), { httpStatus: e.response.status })
   throw e
 }
 

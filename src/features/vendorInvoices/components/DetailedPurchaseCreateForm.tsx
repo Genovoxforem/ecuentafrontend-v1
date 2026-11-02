@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import { FileText, Info, Check, X, LoaderCircle, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
@@ -8,13 +7,13 @@ import { StickyFormShell, WizardStep } from '../../../shared/components/layout/S
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { Avatar } from '../../../shared/components/Avatar'
-import { fapiGet } from '../../../api/fapiEnvelope'
 import { formatMoney, formatNumber } from '../../../utils/format'
 import { useVendorOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useBankAccountOptions, useCreateVendorInvoice, useWarehouseOptionsForPurchaseInvoice } from '../vendorInvoices.queries'
 import { usePurchaseOrderFormOptions } from '../../purchaseOrders/purchaseOrderFapi'
+import { usePurchaseFormOptions } from '../../purchases/purchaseFormOptions.queries'
 
 // GET /api/payment_types.php — same real dictionary Purchase/Sales Order
 // create forms already use for this exact field.
@@ -23,12 +22,7 @@ interface DictionaryOption {
   text: string
 }
 function usePaymentTypes() {
-  return useQuery({
-    queryKey: ['purchase-forms', 'paymentModes'],
-    queryFn: async (): Promise<DictionaryOption[]> =>
-      (await fapiGet<{ payment_modes: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_modes.map((m) => ({ id: String(m.value), text: m.label })),
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePurchaseFormOptions((o): DictionaryOption[] => o.payment_modes.map((m) => ({ id: String(m.value), text: m.label })))
 }
 
 interface InvoiceLine {

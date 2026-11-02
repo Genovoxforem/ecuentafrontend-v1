@@ -157,7 +157,8 @@ export interface BoxBreakHistoryFilters {
 const HISTORY_KEY = 'boxBreak-history'
 export function useBoxBreakHistory(filters: BoxBreakHistoryFilters) {
   return useQuery({
-    queryKey: ['boxBreak', HISTORY_KEY, filters],
+    // page defaults to 1 in the key too, so {} and {page: 1} are one query (the page asked for the same list twice).
+    queryKey: ['boxBreak', HISTORY_KEY, { ...filters, page: filters.page ?? 1 }],
     queryFn: () =>
       boxBreakGet<BoxBreakHistory>('history', {
         fk_product: filters.fkProduct,

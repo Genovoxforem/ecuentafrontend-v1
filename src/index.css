@@ -2258,3 +2258,108 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
   padding-top: 0.05rem;
   padding-bottom: 0.05rem;
 }
+
+/* ==========================================================================
+   Pharmacy suite (src/shared/components/layout/PharmacyLayout.tsx): a separate full-screen app like the classic
+   custom/pharmacy/app.php. It runs at normal browser scale (the main app's ~24% zoom-out scale is reset here) with its
+   own charcoal / green palette; light and dark follow the suite's own toggle, not the main app theme.
+   ========================================================================== */
+.pharmacy-app {
+  /* No scale reset: the suite uses the main app's compact spacing / type scale (--spacing, --text-*), like every other module. */
+  color: var(--color-text);
+  background-color: var(--color-surface);
+}
+.pharmacy-app.ph-dark {
+  color-scheme: dark;
+  --color-surface: #0b1216;
+  --color-surface-alt: #121a1f;
+  --color-surface-hover: #1a252b;
+  --color-input-bg: #0d1519;
+  --color-border: #1f2c32;
+  --color-input-border: #2a3a41;
+  --color-text: #e8eff2;
+  --color-text-muted: #94a7af;
+  --color-text-faint: #6c818a;
+  --color-brand: #10a37f;
+  --color-brand-hover: #0e8e6e;
+  --color-success-bg: rgba(34, 197, 94, 0.14);
+  --color-success-fg: #4ade80;
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-warning-fg: #fbbf24;
+  --color-danger-bg: rgba(239, 68, 68, 0.15);
+  --color-danger-fg: #f87171;
+  --color-info-bg: #0e2a35;
+  --color-info-fg: #67d4ee;
+}
+.pharmacy-app.ph-light {
+  color-scheme: light;
+  --color-surface: #f3f6f5;
+  --color-surface-alt: #ffffff;
+  --color-surface-hover: #eaf0ee;
+  --color-input-bg: #ffffff;
+  --color-border: #dce5e2;
+  --color-input-border: #c4d1cd;
+  --color-text: #10201c;
+  --color-text-muted: #4b5f59;
+  --color-text-faint: #6f827c;
+  --color-brand: #0f8f6f;
+  --color-brand-hover: #0b7a5e;
+  --color-success-bg: #dcf5e6;
+  --color-success-fg: #17783f;
+  --color-warning-bg: #fdf0d2;
+  --color-warning-fg: #9a5b00;
+  --color-danger-bg: #fde2e2;
+  --color-danger-fg: #b42323;
+  --color-info-bg: #dff1f7;
+  --color-info-fg: #0b6b86;
+}
+
+/* The main app styles every <table> (gradient header, 0.6rem type, tight cells, light-theme !important colours). Inside the
+   Pharmacy suite tables keep the classic app's look: flat header, normal type and roomy cells. */
+html[data-theme] .pharmacy-app table {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+html[data-theme] .pharmacy-app table thead,
+html[data-theme] .pharmacy-app table thead tr,
+html[data-theme] .pharmacy-app table thead th {
+  background: var(--color-surface-alt) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-faint) !important;
+}
+html[data-theme] .pharmacy-app table th {
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 4);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+html[data-theme] .pharmacy-app table td {
+  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 4);
+  border-color: var(--color-border);
+}
+html[data-theme] .pharmacy-app table tbody tr {
+  background-color: transparent;
+  border-bottom: 1px solid var(--color-border);
+}
+html[data-theme] .pharmacy-app table tbody tr:nth-child(even) {
+  background-color: transparent;
+}
+html[data-theme] .pharmacy-app table tbody tr:hover {
+  background-color: var(--color-surface-hover);
+}
+html[data-theme] .pharmacy-app table tbody tr.ph-selected,
+html[data-theme] .pharmacy-app table tbody tr.ph-selected:hover {
+  background-color: color-mix(in srgb, var(--color-brand) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-brand);
+}
+html[data-theme] .pharmacy-app table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+/* Column headers stay at the top of the panel's scrolling body. */
+html[data-theme] .pharmacy-app table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}

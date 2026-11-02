@@ -164,7 +164,9 @@ async function rebateFormViaFapi(socid: string): Promise<RebateCreateForm> {
 export function useRebateCreateForm(socid: string) {
   return useQuery({
     queryKey: ['zra', 'rebateCreate', socid],
-    queryFn: (): Promise<RebateCreateForm> => preferNewApi('rebateCreateForm', () => rebateFormViaFapi(socid), () => rebateFormViaClassic(socid)),
+    // The fapi answers "socid is required" (422) without a customer, so the opening form (the customer picker) is read from
+    // the classic page; once a customer is chosen the eligible invoices come from the fapi.
+    queryFn: (): Promise<RebateCreateForm> => (socid ? preferNewApi('rebateCreateForm', () => rebateFormViaFapi(socid), () => rebateFormViaClassic(socid)) : rebateFormViaClassic('')),
     staleTime: 0,
     gcTime: 0, // a classic form's CSRF token must not outlive the page
     placeholderData: keepPreviousData, // keep the form on screen while another customer loads

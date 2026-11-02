@@ -72,6 +72,7 @@ const LIST_ROUTES: { path: string; when?: { param: string; value: string }; rout
   { path: '/product/stock/list.php', route: ROUTES.warehouseList },
   { path: '/custom/zra/zraindex.php', route: ROUTES.zra },
   { path: '/takeposnew/index.php', route: '/pos' },
+  { path: '/custom/pharmacy/app.php', route: ROUTES.pharmacyDashboard },
   { path: '/compta/facture/invoicetemplate_list.php', route: ROUTES.invoiceTemplates },
   { path: '/compta/paiement/list.php', route: ROUTES.paymentsList },
   { path: '/custom/zra/rebate_list.php', route: ROUTES.rebateInvoiceList },

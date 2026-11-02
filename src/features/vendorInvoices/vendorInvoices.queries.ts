@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { createVendorInvoice } from './vendorInvoiceFapi'
 import { fapiGet } from '../../api/fapiEnvelope'
 import { fetchVendorSummary } from '../vendors/vendors.queries'
+import { usePurchaseFormOptions } from '../purchases/purchaseFormOptions.queries'
 
 // The Purchase Invoices views (All / Manual / Automatic / Expense / Imports) and the status filters of its menu,
 // each applied by the server (fourn/facture/fapi/list.php). The Expense view needs llx_facture_fourn.internal_exp,
@@ -156,12 +157,7 @@ export interface WarehouseOption {
 }
 
 export function useWarehouseOptionsForPurchaseInvoice() {
-  return useQuery({
-    queryKey: ['vendor-invoices', 'warehouseOptions'],
-    queryFn: async (): Promise<WarehouseOption[]> =>
-      (await fapiGet<{ warehouses: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).warehouses.map((w) => ({ id: String(w.value), label: w.label })),
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePurchaseFormOptions((o): WarehouseOption[] => o.warehouses.map((w) => ({ id: String(w.value), label: w.label })))
 }
 
 // Bank accounts for the payment, from the same form_options.php.
@@ -170,21 +166,11 @@ export interface BankAccountOption {
   label: string
 }
 export function useBankAccountOptions() {
-  return useQuery({
-    queryKey: ['vendor-invoices', 'bankAccountOptions'],
-    queryFn: async (): Promise<BankAccountOption[]> =>
-      (await fapiGet<{ bank_accounts: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).bank_accounts.map((b) => ({ id: String(b.value), label: b.label })),
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePurchaseFormOptions((o): BankAccountOption[] => o.bank_accounts.map((b) => ({ id: String(b.value), label: b.label })))
 }
 
 export function usePaymentModeOptions() {
-  return useQuery({
-    queryKey: ['vendor-invoices', 'paymentModeOptions'],
-    queryFn: async (): Promise<BankAccountOption[]> =>
-      (await fapiGet<{ payment_modes: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_modes.map((m) => ({ id: String(m.value), label: m.label })),
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePurchaseFormOptions((o): BankAccountOption[] => o.payment_modes.map((m) => ({ id: String(m.value), label: m.label })))
 }
 
 export interface NewVendorInvoiceLine {
