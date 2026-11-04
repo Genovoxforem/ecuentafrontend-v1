@@ -631,7 +631,8 @@ export interface ProductStatsData {
   currency: string
   year: number
   counts: Record<string, number>
-  by_document: Partial<Record<'proposals' | 'orders' | 'invoices' | 'supplier_orders' | 'supplier_invoices' | 'contracts', ProductDocumentStats>>
+  // supplier_proposals, bom and mo were added by the backend on 26 Oct 2026 (report row AN-36 / AN-58).
+  by_document: Partial<Record<'proposals' | 'supplier_proposals' | 'orders' | 'invoices' | 'supplier_orders' | 'supplier_invoices' | 'contracts' | 'bom' | 'mo', ProductDocumentStats>>
 }
 
 export interface ProductInvoiceStatsData {
@@ -733,6 +734,15 @@ export function deleteProductUomConversion(id: number | string, convId: number) 
 /** Turns lot/batch tracking on or off. Switching it off is refused (409) while lots exist, since they would stay attached to an untracked product. */
 export function setProductBatchTracking(id: number | string, enabled: boolean) {
   return postTab<Record<string, unknown>>('uom.php', enabled ? 'enable_batch' : 'disable_batch', { id: Number(id) }, 'Could not change the lot tracking.')
+}
+
+/**
+ * product/fapi/suppliers.php?action=delete_price (added by the backend 27 Oct 2026): removes one supplier price row; `id` is the price row's id.
+ * Only this action is wired: the backend documents just the required keys of add_price / update_price (fk_product, fk_soc) and
+ * set_cost_price (fk_product), not the price fields, so those three stay off until the field list is documented.
+ */
+export function deleteProductSupplierPrice(priceId: number) {
+  return postTab<{ id?: number }>('suppliers.php', 'delete_price', { id: priceId }, 'Could not delete this supplier price.')
 }
 
 export function getProductSuppliers(id: number | string) {

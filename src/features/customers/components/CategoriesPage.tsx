@@ -368,8 +368,8 @@ export function CategoriesPage({ type, title }: { type: CategoryType; title: str
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <TodayStatCard label="Tags/categories" value={stats ? String(stats.total) : '—'} caption="Tags/categories" icon={Tags} color="blue" />
-        <TodayStatCard label="Parent tag/category" value={stats ? String(stats.roots) : '—'} caption="Parent tag/category" icon={Network} color="violet" />
+        <TodayStatCard label="Tags/categories" value={stats ? String(stats.total) : '—'} caption="All records in this list" icon={Tags} color="blue" />
+        <TodayStatCard label="Parent tag/category" value={stats ? String(stats.roots) : '—'} caption="Top-level only (no parent)" icon={Network} color="violet" />
         <TodayStatCard label="Linked items" value={stats ? String(stats.linked) : '—'} caption={`Tag/category / ${ITEM_NOUN[type]}`} icon={Link2} color="cyan" />
         <TodayStatCard label="Created this month" value={createdThisMonth !== null && type === 0 ? String(createdThisMonth) : stats ? String(stats.createdThisMonth) : '—'} caption="New tags/categories" icon={CalendarPlus} color="green" />
       </div>

@@ -2233,6 +2233,12 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
   padding-top: 0 !important;
 }
 
+/* ...but a sticky header that is not a .blue-density-header ends with only ~2px of padding, so the rule above left 0px
+   between it and the first card (tab bars and filter bars of the list pages). Those pages keep the one --page-gap. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content:not([data-detail-page='true']) [class~='sticky'][class~='-top-6']:not(.blue-density-header) + :is([class~='px-6'], [class*='px-['], .blue-density-form-content, .blue-density-list-content):is([class~='py-1'], [class~='py-2'], [class~='py-3'], [class~='py-4'], [class~='py-5'], [class~='py-6'], [class*='py-['], .blue-density-form-content, .blue-density-list-content):not(#_):not(#__) {
+  padding-top: var(--page-gap) !important;
+}
+
 /* Tailwind's own space-y-N also adds a bottom margin to every child; the stacking gap is one --page-gap margin on top
    (see above), so the bottom margins are removed (space-y-1/2/1.5/... pages had 6px extra between blocks). */
 html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content [class*='space-y-'] > :not(:last-child):not(:last-child) {

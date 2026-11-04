@@ -163,7 +163,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
       </InBanner>
 
       <div className="flex-1 flex flex-col min-h-0 space-y-2 px-6 py-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="!p-2 !flex-row items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Products</p>

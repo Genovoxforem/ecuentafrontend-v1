@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Package } from 'lucide-react'
+import { ROUTES } from '../../../routes'
 import { useUnuploadedProductsList, type UnuploadedProductRow } from '../zraLists.queries'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
@@ -155,10 +157,10 @@ export function UnuploadProductsList() {
                       <Package size={15} />
                     </span>
                     <div className="min-w-0">
-                      {row.productUrl ? (
-                        <a href={row.productUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium truncate block">
+                      {row.id ? (
+                        <Link to={ROUTES.productDetail.replace(':id', String(row.id))} className="text-brand hover:underline font-medium truncate block">
                           {row.name}
-                        </a>
+                        </Link>
                       ) : (
                         <p className="text-text! font-medium truncate">{row.name}</p>
                       )}

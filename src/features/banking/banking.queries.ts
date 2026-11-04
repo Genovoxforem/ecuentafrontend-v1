@@ -28,7 +28,7 @@ import {
   updateBankTransactionCategory,
   type NewBankAccountBody,
 } from './bankingFapi'
-import type { BankAccountFormContext } from './bankAccountFormParser'
+import type { BankAccountFormContext } from './bankAccountForm.types'
 import {
   parseBankEntryDetailPage,
   splitMdy,

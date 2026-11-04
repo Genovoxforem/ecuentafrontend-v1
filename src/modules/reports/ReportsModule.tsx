@@ -25,8 +25,9 @@ export function ReportsModule() {
     .filter((cat) => cat.reports.length > 0)
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
+    // The title and the search / category row stay in place; only the report cards scroll beneath them.
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
             <Folder size={20} className="text-brand" /> Reports Center
@@ -35,7 +36,7 @@ export function ReportsModule() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
           <input
@@ -60,10 +61,11 @@ export function ReportsModule() {
         </select>
       </div>
 
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
       {visibleCategories.length === 0 ? (
         <p className="text-sm text-text-faint italic py-6 text-center">No reports match "{search}".</p>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-2">
           {visibleCategories.map((cat) => {
             const Icon = cat.icon
             const isExpanded = expanded[cat.key] ?? false
@@ -115,6 +117,7 @@ export function ReportsModule() {
           })}
         </div>
       )}
+      </div>
     </div>
   )
 }

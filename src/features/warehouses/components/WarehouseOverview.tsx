@@ -67,7 +67,7 @@ function MetricCard({
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <p className="text-sm text-text-muted truncate">{label}</p>
-          <p className={`font-bold text-text! mt-1 ${hero ? 'text-3xl' : 'text-2xl'}`}>{value}</p>
+          <p className={`font-bold text-text! mt-1 text-base leading-tight`}>{value}</p>
           {caption && <p className="text-xs text-text-faint mt-0.5">{caption}</p>}
         </div>
         <span
@@ -216,7 +216,7 @@ function OperationCard({ label, value, validated, listPath, newPath }: { label: 
   return (
     <Card className="!h-auto !p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</p>
-      <p className="mt-1 text-lg font-bold tabular-nums text-text!">{value}</p>
+      <p className="mt-1 text-base leading-tight font-bold tabular-nums text-text!">{value}</p>
       {validated !== undefined && <p className="text-[11px] text-text-faint">{validated} Validated</p>}
       <div className="mt-2 flex gap-3 text-xs font-medium">
         <Link to={listPath} className="text-brand hover:underline">List</Link>

@@ -4,7 +4,7 @@ import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { formatMoney, formatNumber } from '../../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../LegacyReportStates'
-import { useProductSupplierOverview, useProductPriceOverview, useDeletePriceLog, useUpdateProductPrice, type ProductPriceOverview } from '../../products.queries'
+import { useProductSupplierOverview, useProductPriceOverview, useDeletePriceLog, useDeleteSupplierPrice, useUpdateProductPrice, type ProductPriceOverview } from '../../products.queries'
 import { Th, Td, EmptyRow, SectionIcon, SectionHeader, MetricTile, ModalShell, ModalField, modalInputCls } from '../ProductDetailShared'
 
 function UpdatePriceModal({ id, data, onClose }: { id: string; data: ProductPriceOverview; onClose: () => void }) {
@@ -321,9 +321,16 @@ export function SellingPricesTab({ id }: { id: string | undefined }) {
 
 export function BuyingPricesTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useProductSupplierOverview(id)
+  const deletePrice = useDeleteSupplierPrice()
+  const confirm = useConfirm()
   if (isLoading) return <LegacyLoadingCard label="Loading supplier prices..." />
   if (isError) return <LegacyErrorCard title="Couldn't load supplier prices" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   if (!data) return null
+
+  async function handleDeletePrice(priceId: number, supplier: string) {
+    if (!(await confirm({ title: 'Delete Supplier Price?', message: `Are you sure you want to delete the price from ${supplier || 'this supplier'}?` }))) return
+    deletePrice.mutate({ productId: id!, priceId })
+  }
 
   return (
     <div className="space-y-4">
@@ -334,12 +341,13 @@ export function BuyingPricesTab({ id }: { id: string | undefined }) {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* The legacy tab's "Add Supplier Price". product/fapi/suppliers.php answers 405 to every write (GET only), so there is nothing to post yet:
-            the button stays off until the endpoint can create, change and delete a supplier price (report row). */}
+        {/* The legacy tab's "Add Supplier Price". suppliers.php now has add_price / update_price / set_cost_price (27 Oct 2026), but only their
+            required keys are documented (fk_product, fk_soc, id), not the price fields — so adding and editing stay off until the field list is
+            documented. Delete (delete_price, key: id) is wired in the Actions column below. */}
         <button
           type="button"
           disabled
-          title="Needs a supplier-price write endpoint (suppliers.php only reads)"
+          title="Needs the add_price field list (quantity, price, currency, delivery days are not documented yet)"
           className="px-3 py-1.5 rounded-md bg-brand/40 text-white text-sm font-medium cursor-not-allowed"
         >
           Add Supplier Price
@@ -378,11 +386,12 @@ export function BuyingPricesTab({ id }: { id: string | undefined }) {
                 <Th>Currency</Th>
                 <Th>Delivery (Days)</Th>
                 <Th>Reputation</Th>
+                <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
               {data.suppliers.length === 0 ? (
-                <EmptyRow span={9} label="No Supplier Prices Found add supplier prices to see them listed here." />
+                <EmptyRow span={10} label="No Supplier Prices Found add supplier prices to see them listed here." />
               ) : (
                 data.suppliers.map((row) => (
                   <tr key={row.rowid} className="border-b border-border last:border-0">
@@ -399,6 +408,18 @@ export function BuyingPricesTab({ id }: { id: string | undefined }) {
                     <Td muted>{row.currency || '—'}</Td>
                     <Td muted>{row.deliveryDays ?? '—'}</Td>
                     <Td muted>{row.reputation || '—'}</Td>
+                    <Td>
+                      <button
+                        type="button"
+                        title="Delete this supplier price"
+                        aria-label="Delete supplier price"
+                        disabled={deletePrice.isPending}
+                        onClick={() => void handleDeletePrice(row.rowid, row.supplierName)}
+                        className="p-1 rounded-md text-text-faint hover:bg-surface-hover hover:text-danger-fg disabled:opacity-40"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </Td>
                   </tr>
                 ))
               )}
@@ -406,6 +427,7 @@ export function BuyingPricesTab({ id }: { id: string | undefined }) {
           </table>
         </div>
       </Card>
+      {deletePrice.isError && <p className="text-sm text-danger-fg">{deletePrice.error instanceof Error ? deletePrice.error.message : 'Could not delete this supplier price.'}</p>}
     </div>
   )
 }

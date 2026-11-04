@@ -72,7 +72,7 @@ export function MonthlyStatementPage() {
               ['Total days', data.totalDays],
             ].map(([label, value]) => (
               <Card key={label} className="!h-auto">
-                <p className="text-2xl font-bold text-text!">{value}</p>
+                <p className="text-base leading-tight font-bold text-text!">{value}</p>
                 <p className="text-xs text-text-faint">{label}</p>
               </Card>
             ))}

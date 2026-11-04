@@ -247,6 +247,7 @@ export const buildReceiptHtml = (receipt, { thermalWidth = 80 } = {}) => {
 export const printReceipt = (receipt, { thermalWidth = 80 } = {}) => {
     const printWindow = window.open("", "_blank", "width=420,height=720");
     if (!printWindow) return false;
+    printWindow.opener = null; // BUG-112: keep the reference to write the receipt, cut the link back to the app
     printWindow.document.write(buildReceiptHtml(receipt, { thermalWidth }));
     printWindow.document.close();
     printWindow.focus();

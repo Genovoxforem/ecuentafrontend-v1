@@ -538,6 +538,7 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
               </select>
             </Field>
 
+            <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
               <span className="text-sm text-text">Currency</span>
               <select
@@ -577,6 +578,7 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
             <Field label="Note (private)">
               <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={2} className={inputClasses} />
             </Field>
+            </div>
           </div>
         </Card>
 

@@ -648,6 +648,8 @@ function printMovementsTable(table: HTMLTableElement | null) {
   if (!table) return
   const printWindow = window.open('', '_blank')
   if (!printWindow) return
+  // BUG-112: the app writes into this window, so it keeps the reference; cutting the link back to the app stops the page from reaching window.opener.
+  printWindow.opener = null
   printWindow.document.title = 'Stock Movements'
   const style = printWindow.document.createElement('style')
   style.textContent = 'table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f8f9fa}'

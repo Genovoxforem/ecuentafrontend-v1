@@ -89,7 +89,7 @@ export function DuePaymentsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card className="!h-auto">
             <p className="text-xs text-text-faint">Total owed</p>
-            <p className="text-lg font-bold text-text!">
+            <p className="text-base leading-tight font-bold text-text!">
               {formatMoney(data?.totals.remaining ?? 0)} {currency}
             </p>
             <p className="text-xs text-text-muted">
@@ -99,7 +99,7 @@ export function DuePaymentsPage() {
           {BUCKETS.map((b) => (
             <Card key={b.key} className="!h-auto">
               <p className="text-xs text-text-faint">{b.label}</p>
-              <p className={`text-lg font-bold ${b.key === 'current' ? 'text-text!' : 'text-danger'}`}>{formatMoney(data?.aging[b.key] ?? 0)}</p>
+              <p className={`text-base leading-tight font-bold ${b.key === 'current' ? 'text-text!' : 'text-danger'}`}>{formatMoney(data?.aging[b.key] ?? 0)}</p>
             </Card>
           ))}
         </div>

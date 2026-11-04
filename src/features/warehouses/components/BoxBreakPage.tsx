@@ -95,7 +95,7 @@ function KpiCards() {
         <Card key={label} className="!h-auto !px-4 !py-2.5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-            <p className="text-xl font-bold text-text!">{isLoading ? <Loader2 size={18} className="animate-spin" /> : (value ?? 0)}</p>
+            <p className="text-base leading-tight font-bold text-text!">{isLoading ? <Loader2 size={18} className="animate-spin" /> : (value ?? 0)}</p>
           </div>
         </Card>
       ))}

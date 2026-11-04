@@ -13,6 +13,7 @@ import {
   deleteProductDocumentLink,
   linkProductDocument,
   deleteProductPriceLog,
+  deleteProductSupplierPrice,
   deleteProductUomConversion,
   getProduct,
   getProductAgenda,
@@ -1416,6 +1417,17 @@ export function useDeletePriceLog() {
   })
 }
 
+// Supplier Prices tab: delete one price row, then reload the tab's overview.
+export function useDeleteSupplierPrice() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ priceId }: { productId: string; priceId: number }) => deleteProductSupplierPrice(priceId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'supplierOverview', variables.productId] })
+    },
+  })
+}
+
 export interface UpdateProductPriceInput {
   id: string
   price: string
@@ -1789,13 +1801,17 @@ export interface ProductInvoiceStats {
   totalPages: number
 }
 // The document types product/fapi/stats.php totals, as the Related Items table names them.
+// In the classic table's order (Quotations, SupplierProposals, Sales Orders, Purchase Orders, Customers Invoices, Vendors Invoices, Contracts, BOM, MO).
 const REFERER_LABELS = [
   ['proposals', 'Quotations'],
+  ['supplier_proposals', 'Supplier proposals'],
   ['orders', 'Sales orders'],
-  ['invoices', 'Customer invoices'],
   ['supplier_orders', 'Purchase orders'],
+  ['invoices', 'Customer invoices'],
   ['supplier_invoices', 'Vendor invoices'],
   ['contracts', 'Contracts'],
+  ['bom', 'BOM'],
+  ['mo', 'MO'],
 ] as const
 
 // product/fapi/stats.php returns every invoice line at once (scope=invoice) plus

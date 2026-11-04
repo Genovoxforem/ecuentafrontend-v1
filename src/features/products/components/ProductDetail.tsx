@@ -387,7 +387,9 @@ function ProductTab({
   const withCurrency = (amount: number) => `${formatMoney(amount)}${product.currency ? ` ${product.currency}` : ''}`
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
-      <div className="space-y-4">
+      {/* Both columns are flex columns whose last card (Overview / Teams) grows, so whichever column is
+          shorter stretches to the other's bottom edge at any width or content height. */}
+      <div className="flex flex-col gap-4">
         {/* About/Pricing/Product Accountancy each get their own bordered card
             now - previously all three shared one card with only spacing
             between them, which read as one big block instead of distinct
@@ -400,7 +402,7 @@ function ProductTab({
             <SectionHeader icon={Info} color="blue">
               About
             </SectionHeader>
-            <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-8">
               <Field label="Type" value={product.type === 'service' ? 'Service' : 'Product'} />
               <Field label="Item Code" value={product.classification} />
               <Field label="ZRA Updated Product Code" value={product.zraId} />
@@ -453,16 +455,21 @@ function ProductTab({
               <Field label="Default Warehouse" value={product.defaultWarehouse} />
               <Field label="RRP" value={withCurrency(product.rrp)} />
             </div>
-            <div className="mt-3 border-t border-border pt-3">
+          </Card>
+
+          <Card className="!h-auto">
+            <div>
               <SectionHeader icon={Tag} color="green">
                 Pricing
               </SectionHeader>
+              <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-8">
               <Field label="Price (HT)" value={withCurrency(product.priceExclTax)} />
               <Field label="Price (TTC)" value={withCurrency(product.priceInclTax)} />
               <Field label="Tax Rate" value={product.vatRatePct || product.vatCode ? `${product.vatRatePct.toFixed(3)}%${product.vatCode ? ` (${product.vatCode})` : ''}` : ''} />
               <Field label="Total Sold Qty" value={formatNumber(product.totalSoldQty)} />
               <Field label="Total Sold Amount" value={formatMoney(product.totalSoldAmount)} />
               <Field label="Manufacturer / Vendor" value={product.manufacturer} />
+              </div>
             </div>
           </Card>
 
@@ -473,11 +480,11 @@ function ProductTab({
             Origin, Categories, in that order) - a distinct card from About/Pricing above, not
             a guess at grouping. Origin itself now lives in the hero header instead of being
             shown twice. */}
-        <Card className="!h-auto">
+        <Card className="!h-auto flex-1">
           <SectionHeader icon={Eye} color="amber">
             Overview
           </SectionHeader>
-          <div className="grid grid-cols-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-8">
             <Field label="Nature Of Product" value={NATURE_OPTIONS.find((o) => o.value === String(product.finished))?.label ?? ''} />
             <Field label="Weight" value={formatDimension(product.weight, product.weightUnits, WEIGHT_UNITS)} />
             <Field

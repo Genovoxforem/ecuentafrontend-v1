@@ -1,55 +1,89 @@
 import { useState } from 'react'
-import { Link2, FolderPlus, RefreshCw, ExternalLink } from 'lucide-react'
+import { Link2, RefreshCw, Folder, FileText, Download } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import { useEcmAutoFiles, useEcmAutoModules, useEcmFolderFiles, useEcmTree, type EcmFile, type EcmFolderNode } from '../ecm.queries'
 
-// Automatic Tree mirrors the backend's own fixed list — one directory (and
-// ecm/index_auto.php?module=<slug> link) per Dolibarr module that accepts
-// attachments, per the classic page's own tree markup
-// (`<a class="fmdirlia" href="/ecm/index_auto.php?module=...">`) — labels/
-// casing match that markup exactly.
-const AUTOMATIC_DIRECTORIES = [
-  { module: 'banque', label: 'Bank account' },
-  { module: 'recruitment-recruitmentcandidature', label: 'Candidatures' },
-  { module: 'contract', label: 'Contracts' },
-  { module: 'invoice', label: 'Customers invoices' },
-  { module: 'expensereport', label: 'Expense reports' },
-  { module: 'fichinter', label: 'Interventions' },
-  { module: 'holiday', label: 'Leave' },
-  { module: 'product', label: 'Products and Services' },
-  { module: 'project', label: 'Projects' },
-  { module: 'order_supplier', label: 'Purchase orders' },
-  { module: 'propal', label: 'Quotations' },
-  { module: 'order', label: 'Sales Orders' },
-  { module: 'tax', label: 'Social or fiscal taxes' },
-  { module: 'company', label: 'Third-parties' },
-  { module: 'user', label: 'Users' },
-  { module: 'supplier_proposal', label: 'Vendor Quotation' },
-  { module: 'invoice_supplier', label: 'Vendors invoices' },
-]
+// The DMS / ECM "Linked Files Area" on ecm/fapi (26 Oct 2026): the Automatic Tree is the backend's fixed module list with live
+// on-disk counts and file lists; the Manual Tree is the folder tree (newecuenta has no manual folders, so it is empty there).
+// Creating / deleting folders and uploading / deleting files are dry-run only on the backend and are not offered here.
+const fmtDate = (iso: string) => {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString()
+}
 
-// Neither tab has a JSON API on this backend: ecm/index.php (Manual Tree)
-// and ecm/index_auto.php (Automatic Tree) both print raw HTML/jQuery
-// "filetree" markup (core/ajax/ajaxdirtree.php serves the tree nodes as
-// <ul>/<li> fragments, not JSON), and folder create/delete there is a
-// classic <form> POST — confirmed by reading all three files directly, no
-// json_encode/application/json anywhere under ecm/. A real, server-side
-// file store backs both (disk-based, per module dir_output) — this SPA
-// just has no way to browse, create, or upload into it yet. An earlier
-// version of this page worked around that by faking "Manual Tree" folder
-// creation into localStorage — folders that only ever existed in one
-// browser and were never real. Replaced with honest links out to the real
-// legacy area (the whole tab, and — for Automatic Tree — each real
-// directory link individually) instead of pretending to manage them here.
-const LEGACY_MANUAL_URL = '/ecm/index.php'
-const LEGACY_AUTOMATIC_URL = '/ecm/index_auto.php'
-// Real: the Manual Tree toolbar's own "Add directory" button — confirmed
-// live (`href="/ecm/dir_add_card.php?action=create&module=ecm&backtopage=..."`).
-const LEGACY_ADD_DIRECTORY_URL = '/ecm/dir_add_card.php?action=create&module=ecm&backtopage=%2Fecm%2Findex.php'
+function FilesTable({ files, loading, error, emptyText }: { files: EcmFile[] | undefined; loading: boolean; error: unknown; emptyText: string }) {
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
+          <th className="font-medium px-4 py-2.5">Documents</th>
+          <th className="font-medium px-4 py-2.5">Size</th>
+          <th className="font-medium px-4 py-2.5">Date</th>
+          <th className="font-medium px-4 py-2.5 w-10" />
+        </tr>
+      </thead>
+      <tbody>
+        {loading ? (
+          <tr><td className="px-4 py-4 text-text-faint italic" colSpan={4}>Loading…</td></tr>
+        ) : error ? (
+          <tr><td className="px-4 py-4 text-danger-fg" colSpan={4}>{error instanceof Error ? error.message : 'Could not load the files.'}</td></tr>
+        ) : !files || files.length === 0 ? (
+          <tr><td className="px-4 py-4 text-text-faint italic" colSpan={4}>{emptyText}</td></tr>
+        ) : (
+          files.map((f) => (
+            <tr key={f.relative_path} className="border-b border-border last:border-0 hover:bg-surface-hover">
+              <td className="px-4 py-2.5">
+                <span className="flex items-center gap-2 text-text!"><FileText size={14} className="text-text-faint shrink-0" />{f.name}</span>
+                {f.object_ref && f.object_ref !== f.name.replace(/\.[^.]+$/, '') && <span className="ml-6 text-xs text-text-faint">{f.object_ref}</span>}
+              </td>
+              <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{f.size}</td>
+              <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{fmtDate(f.date)}</td>
+              <td className="px-4 py-2.5">
+                <a href={stripBackendPrefix(f.download_url)} target="_blank" rel="noreferrer" title="Download" className="text-brand hover:text-brand-hover"><Download size={14} /></a>
+              </td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  )
+}
+
+function FolderNodeRow({ node, selected, onSelect, depth }: { node: EcmFolderNode; selected: number | null; onSelect: (id: number) => void; depth: number }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => onSelect(node.id)}
+        style={{ paddingLeft: 8 + depth * 16 }}
+        className={`flex w-full items-center gap-2 py-1 pr-2 text-left text-sm hover:bg-surface-hover ${selected === node.id ? 'bg-brand/10 text-brand' : 'text-text'}`}
+      >
+        <Folder size={14} className="shrink-0 text-text-faint" />
+        <span className="truncate">{node.label}</span>
+        <span className="ml-auto text-xs text-text-faint">{node.nb_docs_cached >= 0 ? node.nb_docs_cached : '—'}</span>
+      </button>
+      {(node.children ?? []).map((c) => (
+        <FolderNodeRow key={c.id} node={c} selected={selected} onSelect={onSelect} depth={depth + 1} />
+      ))}
+    </>
+  )
+}
 
 export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manual' | 'automatic' }) {
   const [tab, setTab] = useState<'manual' | 'automatic'>(defaultTab)
-  const legacyUrl = tab === 'manual' ? LEGACY_MANUAL_URL : LEGACY_AUTOMATIC_URL
+  const [module, setModule] = useState<string | null>(null)
+  const [dir, setDir] = useState<number | null>(null)
+  const modules = useEcmAutoModules()
+  const autoFiles = useEcmAutoFiles(tab === 'automatic' ? module : null)
+  const tree = useEcmTree()
+  const folderFiles = useEcmFolderFiles(tab === 'manual' ? dir : null)
+
+  const refresh = () => {
+    void (tab === 'automatic' ? Promise.all([modules.refetch(), module ? autoFiles.refetch() : null]) : Promise.all([tree.refetch(), dir !== null ? folderFiles.refetch() : null]))
+  }
+  const active = tab === 'automatic' ? modules : tree
 
   return (
     <div className="space-y-4">
@@ -63,9 +97,7 @@ export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manua
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${
-              tab === t ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted border border-border hover:bg-surface-hover'
-            }`}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${tab === t ? 'bg-brand text-white' : 'bg-surface-alt text-text-muted border border-border hover:bg-surface-hover'}`}
           >
             {t === 'manual' ? 'Manual Tree' : 'Automatic Tree'}
           </button>
@@ -73,81 +105,56 @@ export function LinkedFilesArea({ defaultTab = 'manual' }: { defaultTab?: 'manua
       </div>
 
       <Card className="!p-0 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 p-3 border-b border-border">
-          <div className="flex items-center gap-1.5">
-            {tab === 'manual' && (
-              <a
-                href={stripBackendPrefix(LEGACY_ADD_DIRECTORY_URL)}
-                target="_blank"
-                rel="noreferrer"
-                title="Add directory"
-                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover"
-              >
-                <FolderPlus size={13} /> Add Directory
-              </a>
-            )}
-            <button
-              type="button"
-              title="Refresh"
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover"
-            >
-              <RefreshCw size={13} />
-            </button>
-          </div>
-          <a
-            href={stripBackendPrefix(legacyUrl)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
-          >
-            Open in Linked Files <ExternalLink size={12} />
-          </a>
+        <div className="flex items-center gap-1.5 p-3 border-b border-border">
+          <button type="button" title="Refresh" onClick={refresh} className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-hover">
+            <RefreshCw size={13} className={active.isFetching ? 'animate-spin' : ''} />
+          </button>
         </div>
 
         <div className="border-b border-border">
           <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-faint bg-surface-alt">Directories</p>
-          {tab === 'automatic' ? (
+          {active.isLoading ? (
+            <LegacyLoadingCard label="Loading directories…" />
+          ) : active.isError ? (
+            <LegacyErrorCard title="Couldn't load the directories" message={active.error instanceof Error ? active.error.message : 'Unknown error.'} onRetry={() => void active.refetch()} />
+          ) : tab === 'automatic' ? (
             <div className="p-2">
-              {AUTOMATIC_DIRECTORIES.map((dir) => (
-                <a
-                  key={dir.module}
-                  href={stripBackendPrefix(`${LEGACY_AUTOMATIC_URL}?module=${dir.module}`)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block px-2 py-1 text-sm text-brand hover:underline"
+              {(modules.data ?? []).map((m) => (
+                <button
+                  key={m.module}
+                  type="button"
+                  disabled={!m.enabled}
+                  onClick={() => setModule(m.module)}
+                  className={`flex w-full items-center gap-2 px-2 py-1 text-left text-sm hover:bg-surface-hover disabled:opacity-50 ${module === m.module ? 'bg-brand/10 text-brand' : 'text-text'}`}
                 >
-                  {dir.label}
-                </a>
+                  <Folder size={14} className="shrink-0 text-text-faint" />
+                  {m.label}
+                  <span className="ml-auto text-xs text-text-faint">{m.nb_docs}</span>
+                </button>
               ))}
             </div>
+          ) : (tree.data?.tree.length ?? 0) === 0 ? (
+            <p className="px-3 py-3 text-xs text-text-faint">No manual directories yet.</p>
           ) : (
-            <p className="px-3 py-3 text-xs text-text-faint">
-              No manual directories are shown here — this SPA has no JSON API to list them.{' '}
-              <a href={stripBackendPrefix(LEGACY_MANUAL_URL)} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                Manage them in Linked Files
-              </a>
-              .
-            </p>
+            <div className="py-1">
+              {tree.data!.tree.map((n) => (
+                <FolderNodeRow key={n.id} node={n} selected={dir} onSelect={setDir} depth={0} />
+              ))}
+            </div>
           )}
         </div>
 
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
-              <th className="font-medium px-4 py-2.5">Documents</th>
-              <th className="font-medium px-4 py-2.5">Size</th>
-              <th className="font-medium px-4 py-2.5">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="px-4 py-4 text-text-faint italic" colSpan={3}>
-                Select a directory in the tree…
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        {tab === 'automatic' ? (
+          module ? (
+            <FilesTable files={autoFiles.data} loading={autoFiles.isLoading} error={autoFiles.error} emptyText="No documents in this directory." />
+          ) : (
+            <FilesTable files={[]} loading={false} error={null} emptyText="Select a directory in the tree…" />
+          )
+        ) : dir !== null ? (
+          <FilesTable files={folderFiles.data} loading={folderFiles.isLoading} error={folderFiles.error} emptyText="No documents in this directory." />
+        ) : (
+          <FilesTable files={[]} loading={false} error={null} emptyText="Select a directory in the tree…" />
+        )}
       </Card>
     </div>
   )

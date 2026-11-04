@@ -191,7 +191,7 @@ export default function WaiterOrderV2() {
                                 {[
                                     [Home, "Home", () => navigate(ROUTES.home)],
                                     [Monitor, "POS screen", () => navigate(ROUTES.posV2)],
-                                    [BookOpen, "Public menu", () => window.open(ROUTES.posPublicMenu, "_blank")],
+                                    [BookOpen, "Public menu", () => window.open(ROUTES.posPublicMenu, "_blank", "noopener")],
                                     [RefreshCw, "Sync products & customers", () => setSyncAsk(true)],
                                 ].map(([I, label, fn]) => (
                                     <button key={label} type="button" onClick={() => { setMenuOpen(false); fn(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700"><I size={15} className="text-slate-500 dark:text-slate-400" /> {label}</button>

@@ -126,7 +126,26 @@ interface BreadcrumbTrail {
   crumbs: string[]
 }
 
+// Each level is named once: a menu group that carries its section's name ("Products" section > "Products" group) or repeats the
+// crumb before it is dropped, so the trail reads "Products > Product List > Product Details".
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase()
+}
+function tidy(trail: BreadcrumbTrail | null): BreadcrumbTrail | null {
+  if (!trail) return trail
+  const crumbs: string[] = []
+  for (const crumb of trail.crumbs) {
+    const previous = crumbs.length ? crumbs[crumbs.length - 1] : trail.sectionLabel
+    if (!sameName(crumb, previous)) crumbs.push(crumb)
+  }
+  return { ...trail, crumbs }
+}
+
 export function buildBreadcrumb(sections: NavSection[], pathname: string): BreadcrumbTrail | null {
+  return tidy(buildTrail(sections, pathname))
+}
+
+function buildTrail(sections: NavSection[], pathname: string): BreadcrumbTrail | null {
   if (pathname === '/dashboard' || pathname === '/') {
     return { sectionLabel: 'Home', sectionKey: 'home', crumbs: ['Main Dashboard'] }
   }

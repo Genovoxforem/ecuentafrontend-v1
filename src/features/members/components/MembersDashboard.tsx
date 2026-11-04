@@ -15,7 +15,7 @@ function KpiCard({ icon: Icon, value, label, color }: { icon: typeof Users; valu
         <Icon size={20} />
       </span>
       <div>
-        <p className="text-xl font-bold text-text!">{value}</p>
+        <p className="text-base leading-tight font-bold text-text!">{value}</p>
         <p className="text-xs text-text-faint">{label}</p>
       </div>
     </Card>
@@ -24,7 +24,7 @@ function KpiCard({ icon: Icon, value, label, color }: { icon: typeof Users; valu
 
 function QuickLinkTile({ icon: Icon, label, to }: { icon: typeof Users; label: string; to: string }) {
   return (
-    <Link to={to} className="flex flex-col items-center justify-center gap-1.5 w-[104px] h-[88px] rounded-lg bg-surface-hover text-text-muted text-center hover:bg-brand/10 hover:text-brand transition-colors">
+    <Link to={to} className="flex h-[88px] w-[84px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg bg-surface-hover text-text-muted text-center hover:bg-brand/10 hover:text-brand transition-colors">
       <Icon size={18} />
       <span className="text-[11px] leading-tight px-1">{label}</span>
     </Link>
@@ -52,10 +52,6 @@ export function MembersDashboard() {
 
   return (
     <div className="space-y-4">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-        <Users size={20} className="text-brand" /> Members Area
-      </h2>
-
       {isLoading && <LegacyLoadingCard label="Loading members…" />}
       {isError && <LegacyErrorCard title="Couldn't load members" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
@@ -138,7 +134,7 @@ export function MembersDashboard() {
               <div className="px-4 py-3 border-b border-border">
                 <h4 className="text-sm font-semibold text-text!">Members</h4>
               </div>
-              <div className="flex flex-wrap gap-2 p-3">
+              <div className="flex flex-nowrap gap-2 overflow-x-auto p-3">
                 <QuickLinkTile icon={UserPlus} label="New member" to={ROUTES.memberNew} />
                 <QuickLinkTile icon={List} label="List" to={ROUTES.memberList} />
                 <QuickLinkTile icon={FileCheck2} label="Statistics" to={ROUTES.memberStatistics} />
@@ -149,7 +145,7 @@ export function MembersDashboard() {
               <div className="px-4 py-3 border-b border-border">
                 <h4 className="text-sm font-semibold text-text!">Subscriptions</h4>
               </div>
-              <div className="flex flex-wrap gap-2 p-3">
+              <div className="flex flex-nowrap gap-2 overflow-x-auto p-3">
                 <QuickLinkTile icon={PlusCircle} label="New subscription" to={ROUTES.memberSubscriptions} />
                 <QuickLinkTile icon={List} label="List" to={ROUTES.memberSubscriptions} />
                 <QuickLinkTile icon={BarChart3} label="Statistics" to={ROUTES.memberStatistics} />
@@ -159,7 +155,7 @@ export function MembersDashboard() {
               <div className="px-4 py-3 border-b border-border">
                 <h4 className="text-sm font-semibold text-text!">Tags/Categories</h4>
               </div>
-              <div className="flex flex-wrap gap-2 p-3">
+              <div className="flex flex-nowrap gap-2 overflow-x-auto p-3">
                 <QuickLinkTile icon={Tag} label="New Category" to={ROUTES.memberList} />
               </div>
             </Card>
@@ -167,7 +163,7 @@ export function MembersDashboard() {
               <div className="px-4 py-3 border-b border-border">
                 <h4 className="text-sm font-semibold text-text!">Members types</h4>
               </div>
-              <div className="flex flex-wrap gap-2 p-3">
+              <div className="flex flex-nowrap gap-2 overflow-x-auto p-3">
                 <QuickLinkTile icon={PlusCircle} label="New" to={ROUTES.memberTypes} />
                 <QuickLinkTile icon={List} label="List" to={ROUTES.memberTypes} />
               </div>

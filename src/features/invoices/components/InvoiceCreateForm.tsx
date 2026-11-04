@@ -381,14 +381,18 @@ export function InvoiceCreateForm({ fixedCustomerId, backTo, initialLines }: { f
           )}
         </Field>
         <div>
-          <p className="text-sm text-danger">Ref.*</p>
+          <p className="text-sm text-text">
+            Ref.<span className="text-danger">*</span>
+          </p>
           <p className="text-sm text-text-faint mt-1">Draft</p>
         </div>
       </Card>
 
       <Card className="!h-auto shrink-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm text-danger">Type*</span>
+          <span className="text-sm text-text">
+            Type<span className="text-danger">*</span>
+          </span>
           <Info size={13} className="text-text-faint" aria-hidden />
         </div>
         <div className="flex flex-wrap gap-2 mb-6" role="tablist" aria-label="Invoice type">

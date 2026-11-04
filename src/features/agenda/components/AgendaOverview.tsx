@@ -424,7 +424,7 @@ export function AgendaOverview() {
           </InBanner>
         </div>
 
-        <div className="flex flex-nowrap items-stretch gap-2">
+        <div className="flex flex-nowrap items-stretch gap-[8px]">
         <Card className="!h-auto !p-3 shrink-0">
           <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto [&_button]:shrink-0 [&_button]:whitespace-nowrap [&_button]:px-2 [&_input[type=date]]:w-[6.8rem] [&_input[type=date]]:px-1 [&_select]:min-w-[4.5rem] [&_select]:[field-sizing:content] [&_select]:px-1.5 [&_select]:h-8 [&_input]:h-8 [&_button]:h-8">
             <div className="relative w-36 shrink-0">

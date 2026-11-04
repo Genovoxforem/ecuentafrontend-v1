@@ -4,7 +4,7 @@ import type { BankAccountListRow, BankAccountReconcile } from './bankAccountsLis
 import type { BankBudget } from './bankBudget.types'
 import type { BankTransactionCategoryList } from './bankTransactionCateg.types'
 import type { BankEntryCategoryOption, BankEntryDetail, BankEntryLedger, BankEntryLink, BankEntryLog } from './bankEntryDetailParser'
-import type { BankAccountFormContext, BankAccountFormOption } from './bankAccountFormParser'
+import type { BankAccountFormContext, BankAccountFormOption } from './bankAccountForm.types'
 import type { BankEntriesFilters, BankEntryRow, BankAccountStatusFilter, LoanRow } from './banking.queries'
 
 // The banking surface on compta/bank/fapi, compta/prelevement/fapi, compta/paiement/fapi and loan/fapi (26 Oct 2026), replacing the session-only

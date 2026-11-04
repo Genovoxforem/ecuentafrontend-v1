@@ -94,7 +94,7 @@ function SummaryCard({
         </span>
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-text-muted">{label}</p>
-          <p className="mt-1 truncate text-xl font-bold tabular-nums text-text!" title={value}>{value}</p>
+          <p className="mt-1 truncate text-base leading-tight font-bold tabular-nums text-text!" title={value}>{value}</p>
         </div>
       </div>
     </Card>

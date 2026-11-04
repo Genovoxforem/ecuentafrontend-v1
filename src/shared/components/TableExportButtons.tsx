@@ -54,6 +54,8 @@ export function TableExportButtons({ title, getExportData }: { title: string; ge
     const { headers, rows } = getExportData()
     const win = window.open('', '_blank')
     if (!win) return
+    // BUG-112: keep the reference to write the page, but cut the link back to the app.
+    win.opener = null
     win.document.write(`<html><head><title>${escapeHtml(title)}</title><style>
       body { font-family: sans-serif; padding: 24px; color: #111; }
       h2 { margin: 0 0 16px; }

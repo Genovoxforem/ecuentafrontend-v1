@@ -3,10 +3,32 @@ import { stripTags } from '../../utils/text'
 // (name="update", action=update) for the transaction's own fields, plus a
 // second, independent form ("Reconciliation", action=setreconcile) for its
 // statement number / reconciled flag. Both post back to this same URL.
-// Parsed the same way as bankAccountFormParser.ts: read this page once for
+// Parsed with extractSelectOptions below (same shape as the New Financial Account form's selects): read this page once for
 // its CSRF token + current field values + dropdown options, submit the
 // field names Dolibarr's own form uses.
-import { extractSelectOptions, type BankAccountFormOption } from './bankAccountFormParser'
+import type { BankAccountFormOption } from './bankAccountForm.types'
+
+// Reads one <select name="..."> of a classic Dolibarr form — same <select name="..."><option value="..." selected>...
+// shape shows up throughout Dolibarr's classic forms, not just this one.
+function extractSelectOptions(formHtml: string, name: string): { options: BankAccountFormOption[]; selected: string } {
+  const openIdx = formHtml.indexOf(`name="${name}"`)
+  if (openIdx < 0) return { options: [], selected: '' }
+  const selectCloseIdx = formHtml.indexOf('</select>', openIdx)
+  const chunk = formHtml.slice(openIdx, selectCloseIdx > -1 ? selectCloseIdx : openIdx + 20000)
+  const options: BankAccountFormOption[] = []
+  let selected = ''
+  const optionRe = /<option\s+(?:class="[^"]*"\s+)?value="([^"]*)"([^>]*)>([^<]*)/g
+  let m: RegExpExecArray | null
+  while ((m = optionRe.exec(chunk))) {
+    const value = m[1]
+    const label = m[3].trim()
+    if (!value || !label) continue
+    options.push({ value, label })
+    if (/\bselected\b/.test(m[2])) selected = value
+  }
+  return { options, selected }
+}
+
 
 export interface BankEntryLink {
   label: string
@@ -154,7 +176,7 @@ export function parseBankEntryDetailPage(html: string, rowid: number): BankEntry
 
 // MM/DD/YYYY (the real form's own display format) -> Dolibarr's day/month/year
 // hidden-field triplet, needed alongside the plain text field for the real
-// action=update POST (see bankAccountFormParser.ts's useCreateBankAccount for
+// action=update POST (see useCreateBankAccount in banking.queries.ts for
 // the same re/reday/remonth/reyear pattern).
 export function splitMdy(mdy: string): { day: string; month: string; year: string } {
   const [month, day, year] = mdy.split('/')

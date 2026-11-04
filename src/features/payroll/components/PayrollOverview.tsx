@@ -29,7 +29,7 @@ function TopStatCard({
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <Icon size={22} className={ICON_COLORS[color]} />
-        <span className="text-3xl font-bold text-text!">{value}</span>
+        <span className="text-base leading-tight font-bold text-text!">{value}</span>
       </div>
       <p className="text-sm text-text-muted">{label}</p>
       <div className="flex items-center gap-3 text-xs">{links}</div>
@@ -53,13 +53,13 @@ function ShiftsCard({ shifts, templates }: { shifts: number; templates: number }
         <p className="flex items-center gap-1.5 text-text!">
           <Clock size={14} className="text-blue-500" /> Shifts
         </p>
-        <span className="text-xl font-bold text-text!">{shifts}</span>
+        <span className="text-base leading-tight font-bold text-text!">{shifts}</span>
       </div>
       <div className="flex items-center justify-between text-sm">
         <p className="flex items-center gap-1.5 text-text!">
           <FileText size={14} className="text-blue-500" /> Templates
         </p>
-        <span className="text-xl font-bold text-text!">{templates}</span>
+        <span className="text-base leading-tight font-bold text-text!">{templates}</span>
       </div>
     </Card>
   )
@@ -69,7 +69,7 @@ function MonthAmountCard({ label, value, caption, valueColor }: { label: string;
   return (
     <Card>
       <p className="text-sm text-text-muted">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${valueColor ?? 'text-text!'}`}>{fmtZMW(value)}</p>
+      <p className={`text-base leading-tight font-bold mt-1 ${valueColor ?? 'text-text!'}`}>{fmtZMW(value)}</p>
       <p className="text-xs text-text-faint mt-1">{caption}</p>
     </Card>
   )
@@ -130,7 +130,7 @@ export function PayrollOverview({ summary }: { summary: PayrollSummary }) {
         <MonthAmountCard label="YTD Amount (Last Month)" value={summary.ytdAmountLastMonth} caption={summary.ytdAmountLastMonthLabel} />
         <Card>
           <p className="text-sm text-text-muted">Salary Paid (This Month)</p>
-          <p className="text-2xl font-bold mt-1 text-success">{fmtZMW(summary.salaryPaidThisMonth)}</p>
+          <p className="text-base leading-tight font-bold mt-1 text-success">{fmtZMW(summary.salaryPaidThisMonth)}</p>
           <StatLink>View Details</StatLink>
         </Card>
         <MonthAmountCard label="Salary Paid (Last Month)" value={summary.salaryPaidLastMonth} caption={summary.salaryPaidLastMonthLabel} valueColor="text-blue-500" />
