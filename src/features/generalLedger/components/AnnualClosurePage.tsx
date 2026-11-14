@@ -9,7 +9,7 @@ export function AnnualClosurePage() {
     <ClosurePivotPage
       icon={CalendarCheck2}
       title="Annual Closure"
-      path="/accountancy/fapi/annual_closure.php"
+      queryKey="/accountancy/fapi/annual_closure.php"
       load={loadAnnualClosure}
       note="Number of movements by month that are not validated yet (needed before a fiscal year can be closed)."
     />

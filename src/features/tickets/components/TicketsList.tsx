@@ -176,13 +176,9 @@ function typeColor(label: string): string {
   return TYPE_PALETTE[hash % TYPE_PALETTE.length]
 }
 
-// Via ticket/ticket_list_ajax.php (list + "My Assigned Tickets", same
-// endpoint with mode=mine) and ticket/ticket_stats_ajax.php (stat cards +
-// per-status colors/icons/counts) — both JSON with permission checks
-// (hasRight('ticket','read')). Search, date-range and assigned/created-by
-// filters all POST straight to that same endpoint's own search_* /
-// datefilter params, not client-side filtering — see tickets.queries.ts's
-// useTicketsList for the exact fields.
+// The rows come from ticket/fapi/list.php (List and My Tickets: status group, type, assigned-to and search are its own parameters, mine=1 for My Tickets;
+// the date range and the author filter are applied to the rows it sent, see useTicketsList in tickets.queries.ts). The cards and the per-status pills
+// still come from the classic ticket/ticket_stats_ajax.php (colors, icons and counts), which needs the classic session: ticket/fapi has no stats endpoint.
 export function TicketsList({ defaultMine = false, projectId, embedded = false }: { defaultMine?: boolean; projectId?: number; embedded?: boolean }) {
   // "Open (All)" first, as the classic Ticket / List / My Tickets menu entries open it.
   const [status, setStatus] = useState('openall')
@@ -215,11 +211,13 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
   const rows = data?.rows ?? []
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<TicketRow, SortKey>(rows, sortValue)
   const cellPad = dense ? 'py-1.5' : 'py-2'
+  // ticket/fapi/list.php does not carry the linked job cards (only the classic handler, used for a project's list, does): the column is shown when a row has some.
+  const showJobcards = rows.some((t) => t.jobcards)
 
   function getExportData() {
     return {
-      headers: ['Ref', 'Author', 'Subject', 'Request Type', 'Third Party', 'Jobcards', 'Created', 'Close Date', 'Assigned To', 'Status'],
-      rows: sortedRows.map((t) => [t.ref, t.author, t.subject, t.type ?? '', t.thirdParty ?? '', t.jobcards, t.dateCreate, t.dateClose, t.assignedTo ?? '', t.status]),
+      headers: ['Ref', 'Author', 'Subject', 'Request Type', 'Third Party', ...(showJobcards ? ['Jobcards'] : []), 'Created', 'Close Date', 'Assigned To', 'Status'],
+      rows: sortedRows.map((t) => [t.ref, t.author, t.subject, t.type ?? '', t.thirdParty ?? '', ...(showJobcards ? [t.jobcards] : []), t.dateCreate, t.dateClose, t.assignedTo ?? '', t.status]),
     }
   }
 
@@ -340,7 +338,7 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
               resetPage()
               setSearchInput(e.target.value)
             }}
-            placeholder="Search by subject, ref, customer, jobcard…"
+            placeholder="Search by subject, ref, customer…"
             className="w-full h-9 pl-8 pr-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
           />
         </div>
@@ -474,7 +472,7 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
                   <Th sortKey="subject" sort={sort} onSort={toggleSort}>Subject</Th>
                   <Th sortKey="type" sort={sort} onSort={toggleSort}>Request Type</Th>
                   <Th sortKey="thirdParty" sort={sort} onSort={toggleSort}>Third-Party</Th>
-                  <Th>Jobcards</Th>
+                  {showJobcards && <Th>Jobcards</Th>}
                   <Th sortKey="dateCreate" sort={sort} onSort={toggleSort}>Creation Date</Th>
                   <Th>Close Date</Th>
                   <Th sortKey="assignedTo" sort={sort} onSort={toggleSort}>Assigned To</Th>
@@ -485,7 +483,7 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
               <tbody>
                 {sortedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-3 py-4 text-text-faint italic">
+                    <td colSpan={showJobcards ? 11 : 10} className="px-3 py-4 text-text-faint italic">
                       No tickets found.
                     </td>
                   </tr>
@@ -545,20 +543,22 @@ export function TicketsList({ defaultMine = false, projectId, embedded = false }
                             <span className="text-text-faint">—</span>
                           )}
                         </td>
-                        <td className={`px-3 ${cellPad}`}>
-                          {jobcardChips.length === 0 ? (
-                            <span className="text-text-faint">—</span>
-                          ) : (
-                            // Every linked job card, as the classic list prints them.
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              {jobcardChips.map((j) => (
-                                <span key={j} className="inline-flex items-center gap-1 text-xs text-text-muted whitespace-nowrap">
-                                  <Truck size={12} className="text-text-faint" /> {j}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
+                        {showJobcards && (
+                          <td className={`px-3 ${cellPad}`}>
+                            {jobcardChips.length === 0 ? (
+                              <span className="text-text-faint">—</span>
+                            ) : (
+                              // Every linked job card, as the classic list prints them.
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                {jobcardChips.map((j) => (
+                                  <span key={j} className="inline-flex items-center gap-1 text-xs text-text-muted whitespace-nowrap">
+                                    <Truck size={12} className="text-text-faint" /> {j}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        )}
                         <td className={`px-3 ${cellPad} text-text-muted whitespace-nowrap`}>{t.dateCreate}</td>
                         <td className={`px-3 ${cellPad} text-text-muted whitespace-nowrap`}>{t.dateClose || '—'}</td>
                         <td className={`px-3 ${cellPad}`}>

@@ -4,7 +4,8 @@ import { CalendarDays, CheckCheck } from 'lucide-react'
 import { StickyListLayout, ScrollCard, STICKY_THEAD } from '../../../shared/components/layout/StickyListLayout'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
-import { useExpenseReportsList, type ExpenseListFilters } from '../expenses.queries'
+import { useExpenseListStats, useExpenseReportsList, type ExpenseListFilters } from '../expenses.queries'
+import type { ExpenseListStats, StatBucket } from '../expenseJsonSource'
 import { controlCls } from '../expenseTable'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { PaidBadge, PartyLink, PerPageSelect, SearchBox, SortTh, StatusBadge } from './expenseParts'
@@ -22,20 +23,82 @@ const STATUS_OPTIONS = [
 
 // The columns the backend's own table sorts by (named like the item's fields; the fapi list takes the same names). Linked To, Paid and
 // Notes are not sortable on the backend's own table either.
-const COLUMNS: { key: string; label: string; sort?: string; align?: 'right' }[] = [
+const COLUMNS: {
+  key: string
+  label: string
+  sort?: string
+  align?: 'right'
+}[] = [
   { key: 'ref', label: 'Ref', sort: 'ref' },
   { key: 'linked', label: 'Linked To' },
   { key: 'user', label: 'User', sort: 'user' },
-  { key: 'start', label: 'Start Date', sort: 'date_debut' },
-  { key: 'end', label: 'End Date', sort: 'date_fin' },
+  { key: 'period', label: 'Period', sort: 'date_debut' },
   { key: 'created', label: 'Created', sort: 'date_create' },
-  { key: 'ht', label: 'Amount HT', sort: 'total_ht', align: 'right' },
-  { key: 'vat', label: 'VAT', sort: 'total_tva', align: 'right' },
-  { key: 'ttc', label: 'Amount TTC', sort: 'total_ttc', align: 'right' },
+  { key: 'amount', label: 'Amount', sort: 'total_ttc', align: 'right' },
   { key: 'status', label: 'Status', sort: 'status' },
   { key: 'paid', label: 'Paid' },
   { key: 'notes', label: 'Notes' },
 ]
+
+const money = (n: number) =>
+  n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+// The four tiles above the list (expense/list.php): totals over every report, whatever the filters say.
+function StatTiles({ stats }: { stats: ExpenseListStats }) {
+  const tiles: {
+    title: string
+    main: StatBucket
+    sub?: { label: string; value: StatBucket }[]
+  }[] = [
+    { title: 'Total expenses', main: stats.total },
+    { title: 'Validated', main: stats.validated },
+    {
+      title: 'Approval',
+      main: stats.approved,
+      sub: [
+        { label: 'Approved', value: stats.approved },
+        { label: 'Unapproved', value: stats.unapproved },
+      ],
+    },
+    {
+      title: 'Payment',
+      main: stats.paid,
+      sub: [
+        { label: 'Paid', value: stats.paid },
+        { label: 'Unpaid', value: stats.unpaid },
+      ],
+    },
+  ]
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {tiles.map((t) => (
+        <div key={t.title} className="rounded-lg border border-border bg-surface p-3">
+          <div className="text-xs text-text-muted">{t.title}</div>
+          {t.sub ? (
+            <div className="mt-1 space-y-0.5 text-sm">
+              {t.sub.map((x) => (
+                <div key={x.label} className="flex items-baseline justify-between gap-2">
+                  <span className="text-text-muted">{x.label}</span>
+                  <span className="tabular-nums text-text!">
+                    <b>{x.value.count}</b> ({money(x.value.amount)})
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-1">
+              <span className="text-xl font-bold text-text!">{t.main.count}</span>
+              <span className="ml-2 text-sm tabular-nums text-text-muted">{money(t.main.amount)}</span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // Waits for typing to pause before the search goes to the server.
 function useDebounced<T>(value: T, ms = 300): T {
@@ -48,7 +111,7 @@ function useDebounced<T>(value: T, ms = 300): T {
 }
 
 // expense/list.php: every expense report, searched, sorted and paged by the backend
-// (expense/fapi/list.php), newest first.
+// (expense/ajax/expense_list.php), newest first.
 export function ExpenseReportsList() {
   const [status, setStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -57,11 +120,22 @@ export function ExpenseReportsList() {
   const search = useDebounced(searchInput.trim())
   const [perPage, setPerPage] = useState(20)
   const [page, setPage] = useState(0)
-  const [sort, setSort] = useState<{ by: string; dir: 'asc' | 'desc' }>({ by: 'date_create', dir: 'desc' })
+  const [sort, setSort] = useState<{ by: string; dir: 'asc' | 'desc' }>({
+    by: 'date_create',
+    dir: 'desc',
+  })
 
-  const filters: ExpenseListFilters = { status, dateFrom, dateTo, search, orderBy: sort.by, orderDir: sort.dir }
+  const filters: ExpenseListFilters = {
+    status,
+    dateFrom,
+    dateTo,
+    search,
+    orderBy: sort.by,
+    orderDir: sort.dir,
+  }
   const { data, isLoading, isError, error, refetch, isFetching } = useExpenseReportsList(filters, page, perPage)
   const rows = data?.rows ?? []
+  const stats = useExpenseListStats().data
 
   const restart =
     <T,>(set: (v: T) => void) =>
@@ -100,19 +174,34 @@ export function ExpenseReportsList() {
             </select>
             <div className="flex items-center gap-2 rounded-md border border-input-border bg-input-bg px-3 text-sm text-text-muted">
               <CalendarDays size={15} className="text-brand" />
-              <input type="date" value={dateFrom} onChange={(e) => restart(setDateFrom)(e.target.value)} className="h-9 bg-transparent text-text outline-none" aria-label="From" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => restart(setDateFrom)(e.target.value)}
+                className="h-9 bg-transparent text-text outline-none"
+                aria-label="From"
+              />
               <span>–</span>
-              <input type="date" value={dateTo} onChange={(e) => restart(setDateTo)(e.target.value)} className="h-9 bg-transparent text-text outline-none" aria-label="To" />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => restart(setDateTo)(e.target.value)}
+                className="h-9 bg-transparent text-text outline-none"
+                aria-label="To"
+              />
             </div>
           </div>
         </>
       }
     >
       {isLoading && <LegacyLoadingCard label="Loading expense reports…" />}
-      {isError && <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {isError && (
+        <LegacyErrorCard title="Couldn't load expense reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+      )}
 
       {data && (
         <>
+          {stats && <StatTiles stats={stats} />}
           <ScrollCard className={`transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
             <table className="w-full text-sm">
               <thead className={STICKY_THEAD}>
@@ -151,12 +240,17 @@ export function ExpenseReportsList() {
                     <td className="px-3 py-2">
                       <PartyLink party={r.userParty} avatar />
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateStart}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateEnd}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-text-muted">
+                      <div>{r.dateStart}</div>
+                      <div>{r.dateEnd}</div>
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2 text-text-muted">{r.dateCreate}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-text-muted">{r.totalHt}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-text-muted">{r.totalTva}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-text!">{r.totalTtc}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      <div className="font-semibold text-text!">{r.totalTtc}</div>
+                      <div className="text-[11px] text-text-faint">
+                        HT {r.totalHt} · VAT {r.totalTva}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">
                       <StatusBadge status={r.status} />
                     </td>

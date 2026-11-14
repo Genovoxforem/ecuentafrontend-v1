@@ -12,7 +12,7 @@ import { useUserIdByName } from '../../../features/users/users.queries'
 import { useTheme, usesBlueLayout } from '../../../context/ThemeContext'
 import { isBannerListPage } from '../layout/PageBanner'
 
-type SortKey = 'name' | 'country' | 'balance' | 'tpin' | 'salesRep' | 'email' | 'nature' | 'trackingId' | 'creation' | 'status'
+type SortKey = 'name' | 'country' | 'balance' | 'tpin' | 'salesRep' | 'email' | 'nature' | 'trackingId' | 'entityType' | 'creation' | 'status'
 
 const COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Third-Party Name', key: 'name' },
@@ -23,6 +23,7 @@ const COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Email & Phone', key: 'email' },
   { label: 'Nature Of Third Party', key: 'nature' },
   { label: 'Tracking Id', key: 'trackingId' },
+  { label: 'Business Entity Type', key: 'entityType' },
   { label: 'Creation Date', key: 'creation' },
   { label: 'Status', key: 'status' },
 ]
@@ -48,6 +49,8 @@ function sortValue(row: ThirdPartyRow, key: SortKey): string | number {
       return row.nature
     case 'trackingId':
       return row.trackingId
+    case 'entityType':
+      return row.businessEntityType ?? ''
     case 'status':
       return row.status
   }
@@ -57,7 +60,7 @@ const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 function matchesSearch(row: ThirdPartyRow, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  return [row.name, row.country, row.tpin, row.email, row.phone, row.nature, row.trackingId, row.salesRep].some((field) => field.toLowerCase().includes(q))
+  return [row.name, row.country, row.tpin, row.email, row.phone, row.nature, row.trackingId, row.businessEntityType ?? '', row.salesRep].some((field) => field.toLowerCase().includes(q))
 }
 
 export interface ThirdPartyRow {
@@ -76,6 +79,8 @@ export interface ThirdPartyRow {
   phone: string
   nature: string
   trackingId: string
+  // The classic list's Business Entity Type (the legal form), when the source row has one.
+  businessEntityType?: string
   // Raw, parseable timestamp (MySQL datetime string) — formatted for
   // display via formatDateTimeAmPm at render time, and parsed directly for
   // the date-range filter below. Keeping it raw here (not pre-formatted by
@@ -307,6 +312,7 @@ export function ThirdPartyList({
       [r.email, r.phone].filter(Boolean).join(' '),
       r.nature,
       r.trackingId,
+      r.businessEntityType ?? '',
       r.creationDate ? formatDateTimeAmPm(r.creationDate) : '',
       r.status,
     ])
@@ -525,6 +531,7 @@ export function ThirdPartyList({
                       )}
                     </td>
                     <td className="px-4 py-3 text-text-muted">{r.trackingId}</td>
+                    <td className="px-4 py-3 text-text-muted">{r.businessEntityType}</td>
                     <td className="px-4 py-3">
                       <CreatorCell id={r.id} name={r.creatorName} date={r.creationDate} />
                     </td>

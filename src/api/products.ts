@@ -110,6 +110,9 @@ export interface ProductListItem {
   tobatch?: number
   /** The backend's label for `tobatch`, e.g. "Disabled". */
   lot_status?: string
+  // llx_product.finished and its label (the classic All Products "Nature" column, e.g. 2 / "Raw Material"); sent since 13 Nov 2026 (AN-201), absent on older backends.
+  finished?: number | null
+  nature?: string | null
   stock_state: string
   weight: number | null
   weight_units: string
@@ -456,7 +459,15 @@ export interface ProductStockData {
     origin_id: number
     by: string
   }[]
-  options: { warehouses: { id: number; ref: string; location: string }[]; batch_enabled: boolean; can_write: boolean; eatby_enabled: boolean; sellby_enabled: boolean }
+  options: { warehouses: { id: number; ref: string; location: string }[]; batch_enabled: boolean
+    /** The lot/batch module switch (the legacy UOM tab's "Lot/Batch Tracking Enabled"); batch_enabled is the per-product flag, so the two can differ. */
+    batch_module_enabled?: boolean
+    /** The product's own tobatch value (0 off, 1 lot, 2 serial). */
+    product_batch_status?: number
+    can_write: boolean
+    eatby_enabled: boolean
+    sellby_enabled: boolean
+  }
 }
 
 export interface ProductStockCorrection {
@@ -605,6 +616,11 @@ export interface ProductMarginsData {
     ref: string
     date: string
     customer: string
+    customer_code?: string
+    /** invoice status (1 = validated / started, 2 = paid), paid flag and the classic wording. */
+    status?: number
+    paid?: number
+    status_label?: string
     qty: number
     unit_price: number
     unit_cost: number
@@ -680,6 +696,8 @@ export interface ProductAgendaData {
   created_by: string
   creation_date: string
   latest_modification_date: string
+  /** The counts and latest dates behind the three tiles; absent on a server that predates it. */
+  events_summary?: { total: number; events_count: number; modifications_count: number; latest_event_date: string | null; latest_modification_date: string | null }
   events: {
     id: number
     ref: string
@@ -689,6 +707,8 @@ export interface ProductAgendaData {
     owner: string
     label: string
     type_code: string
+    /** true for a recorded modification of the product (type AC_PRODUCT_MODIFY), false for an event. */
+    is_modification?: boolean
     location: string
     related_object_ref: string
     related_object_url: string
@@ -1460,4 +1480,43 @@ export interface ProductEditFormData {
 /** The edit wizard in one call. omit=units,countries (88% of the payload) answers null for those lists. */
 export function getProductEditForm(id: number | string, omit: ('units' | 'countries' | 'vat_rates' | 'barcode_types')[] = []) {
   return call<ProductEditFormData>(fapi.get(`${BASE}/edit_form.php`, { params: { id, omit: omit.join(',') || undefined } }), 'Could not load the edit form.')
+}
+
+// product/fapi/zra.php?action=register_many: registers several products with ZRA in one call. The body carries the ids (ids, ids[], product_ids, products
+// and id are all accepted by the server) and confirm: true. Without confirm nothing is sent: the answer is a preview { dry_run, planned[], would_send }.
+// With confirm the answer is { sent, accepted, refused, results[] } where each result carries ZRA's own text for a refused product. The shape of one
+// planned / results entry is not documented, so it is kept as a loose record and read defensively by the screens.
+export interface ZraRegisterManyPreview {
+  dry_run: true
+  planned: Record<string, unknown>[]
+  would_send?: unknown
+}
+export interface ZraRegisterManyResult {
+  sent: number
+  accepted: number
+  refused: number
+  results: Record<string, unknown>[]
+}
+export type ZraRegisterManyAnswer = Partial<ZraRegisterManyPreview> & Partial<ZraRegisterManyResult>
+
+export function registerProductsWithZra(ids: number[], confirm: boolean) {
+  return call<ZraRegisterManyAnswer>(
+    fapi.post(`${BASE}/zra.php`, { ids, ...(confirm ? { confirm: true } : {}) }, { params: { action: 'register_many' } }),
+    'The ZRA upload failed.',
+  )
+}
+
+// product/stock/fapi/mass_transfer_import.php: the description of the stock-transfer CSV (columns, separator, header row, the product syntax and a template).
+export interface MassTransferImportSpec {
+  separator: string
+  has_header: boolean
+  columns: { index: number; key: string; label: string; required: boolean; note: string }[]
+  product_syntax: string
+  example_rows: string[][]
+  template_csv: string
+  applies_with: string
+}
+
+export function getMassTransferImportSpec() {
+  return call<MassTransferImportSpec>(fapi.get(`${STOCK_BASE}/mass_transfer_import.php`), 'Could not load the transfer file description.')
 }

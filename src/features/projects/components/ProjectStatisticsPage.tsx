@@ -5,7 +5,7 @@ import { SearchableSelect } from '../../../shared/components/forms/SearchableSel
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useProjectStats } from '../projectStats.queries'
 import { StatsBarChart } from './StatsBarChart'
-import type { StatsChart, StatsResultsTable } from '../statsHtmlParser'
+import type { StatsChart, StatsResultsTable } from '../projectStats.types'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none w-full'
 

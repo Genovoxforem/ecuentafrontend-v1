@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
-import { selectValue, selectOptions, toggleChecked, csrfToken, type OptionRow } from './posAdminShared'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { selectOptions, currentOnly, csrfToken, constOn, constSelect, loadPosConsts, loadPosPage, requirePosSource, requirePosToken, type OptionRow } from './posAdminShared'
 
 // takepos/admin/bar.php — 8 real toggles (TAKEPOS_BAR_RESTAURANT,
 // TAKEPOS_ORDER_PRINTERS, TAKEPOS_ORDER_NOTES, TAKEPOS_PHONE_BASIC_LAYOUT,
@@ -32,20 +32,21 @@ export function useBarSetup() {
   return useQuery({
     queryKey: ['pos-admin', 'bar-setup'],
     queryFn: async (): Promise<BarSetup> => {
-      const doc = await fetchLegacyDocument('/takepos/admin/bar.php')
+      const [consts, doc] = await Promise.all([loadPosConsts(), loadPosPage('/takepos/admin/bar.php')])
+      requirePosSource(consts, doc)
       return {
-        supplementsCategory: selectValue(doc, 'TAKEPOS_SUPPLEMENTS_CATEGORY') || '-1',
-        modifierCategory: selectValue(doc, 'TAKEPOS_MODIFIER_CATEGORY') || '-1',
-        categoryOptions: selectOptions(doc, 'TAKEPOS_SUPPLEMENTS_CATEGORY'),
-        barRestaurant: toggleChecked(doc, 'TAKEPOS_BAR_RESTAURANT'),
-        orderPrinters: toggleChecked(doc, 'TAKEPOS_ORDER_PRINTERS'),
-        orderNotes: toggleChecked(doc, 'TAKEPOS_ORDER_NOTES'),
-        phoneBasicLayout: toggleChecked(doc, 'TAKEPOS_PHONE_BASIC_LAYOUT'),
-        supplements: toggleChecked(doc, 'TAKEPOS_SUPPLEMENTS'),
-        modifiers: toggleChecked(doc, 'TAKEPOS_MODIFIERS'),
-        qrMenu: toggleChecked(doc, 'TAKEPOS_QR_MENU'),
-        autoOrder: toggleChecked(doc, 'TAKEPOS_AUTO_ORDER'),
-        token: csrfToken(doc),
+        supplementsCategory: constSelect(consts, doc, 'TAKEPOS_SUPPLEMENTS_CATEGORY', '-1'),
+        modifierCategory: constSelect(consts, doc, 'TAKEPOS_MODIFIER_CATEGORY', '-1'),
+        categoryOptions: doc ? selectOptions(doc, 'TAKEPOS_SUPPLEMENTS_CATEGORY') : [...currentOnly(constSelect(consts, doc, 'TAKEPOS_SUPPLEMENTS_CATEGORY', '')), ...currentOnly(constSelect(consts, doc, 'TAKEPOS_MODIFIER_CATEGORY', ''))].filter((o, i, all) => all.findIndex((x) => x.id === o.id) === i),
+        barRestaurant: constOn(consts, doc, 'TAKEPOS_BAR_RESTAURANT'),
+        orderPrinters: constOn(consts, doc, 'TAKEPOS_ORDER_PRINTERS'),
+        orderNotes: constOn(consts, doc, 'TAKEPOS_ORDER_NOTES'),
+        phoneBasicLayout: constOn(consts, doc, 'TAKEPOS_PHONE_BASIC_LAYOUT'),
+        supplements: constOn(consts, doc, 'TAKEPOS_SUPPLEMENTS'),
+        modifiers: constOn(consts, doc, 'TAKEPOS_MODIFIERS'),
+        qrMenu: constOn(consts, doc, 'TAKEPOS_QR_MENU'),
+        autoOrder: constOn(consts, doc, 'TAKEPOS_AUTO_ORDER'),
+        token: doc ? csrfToken(doc) : '',
       }
     },
     staleTime: 1000 * 15,
@@ -56,6 +57,7 @@ export function useSaveBarSetup() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: { token: string; supplementsCategory: string; modifierCategory: string }) => {
+      requirePosToken(input.token)
       const body = new URLSearchParams()
       body.set('token', input.token)
       body.set('action', 'set')

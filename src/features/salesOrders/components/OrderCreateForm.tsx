@@ -257,11 +257,6 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [warehouse, setWarehouse] = useState('')
-  // Real field (Commande::$warehouse_id / stock reservation flag), but this
-  // endpoint's handleCreateOrder() never reads a reserve-stock input at
-  // all — there's nothing to send it as, so it stays visual-only until the
-  // backend accepts it.
-  const [reserveStock, setReserveStock] = useState(true)
   const [deliveryDate, setDeliveryDate] = useState('')
   const [notePublic, setNotePublic] = useState('')
   const [notePrivate, setNotePrivate] = useState('')
@@ -752,7 +747,7 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
                   </select>
                 </Field>
 
-                <Field label="Expected Delivery Date">
+                <Field label="Planned date of delivery">
                   <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className={inputClasses} />
                 </Field>
                 <Field label="Customer Reference">
@@ -769,16 +764,6 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
                   </select>
                 </Field>
 
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-text">Stock Reserve</span>
-                  <label
-                    className="flex items-center gap-1.5 text-sm text-text-muted whitespace-nowrap py-2"
-                    title="Not sent — handleCreateOrder() has no reserve-stock input to accept it"
-                  >
-                    <input type="checkbox" checked={reserveStock} onChange={(e) => setReserveStock(e.target.checked)} className="rounded border-input-border text-brand focus:ring-brand/30" />
-                    Reserve Stock
-                  </label>
-                </div>
                 {/* Bank account/Availability delay/Shipping method/Payment Terms/Payment Type: all real,
                     accepted fields on the create endpoint (fk_account, availability_id, shipping_method_id,
                     cond_reglement_id, mode_reglement_id), backed by 5 real dictionary endpoints — the same
@@ -1096,7 +1081,7 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
                   <p className="text-sm text-text!">{selectedProjectLabel || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-text-faint">Expected Delivery Date</p>
+                  <p className="text-xs text-text-faint">Planned date of delivery</p>
                   <p className="text-sm text-text!">{deliveryDate || '—'}</p>
                 </div>
                 <div>
@@ -1106,10 +1091,6 @@ export function OrderCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId?:
                 <div>
                   <p className="text-xs text-text-faint">Availability Delay</p>
                   <p className="text-sm text-text!">{selectedAvailabilityName || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-faint">Stock Reserve</p>
-                  <p className="text-sm text-text!">{reserveStock ? 'Yes' : 'No'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-faint">Bank Account</p>

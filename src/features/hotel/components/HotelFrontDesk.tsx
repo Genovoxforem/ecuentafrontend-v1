@@ -263,123 +263,126 @@ export function HotelFrontDesk() {
       {active.isLoading && <LegacyLoadingCard label="Loading…" />}
       {active.isError && <LegacyErrorCard title="Couldn't load" message={active.error instanceof Error ? active.error.message : 'Unknown error.'} onRetry={() => active.refetch()} />}
 
-      <Card className="!h-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-text!">{TAB_TITLE[tab]}</h3>
-            <span className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">
-              {activeCount} {TAB_COUNT_LABEL[tab]}
-            </span>
+      {/* A failed load shows only the error card above: the counts and the "No arrivals today." style messages below would read as real data. */}
+      {!active.isError && (
+        <Card className="!h-auto">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-text!">{TAB_TITLE[tab]}</h3>
+              <span className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">
+                {activeCount} {TAB_COUNT_LABEL[tab]}
+              </span>
+            </div>
+            <label className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by guest, booking, suite or date"
+                className="w-72 h-9 pl-9 pr-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
+              />
+            </label>
           </div>
-          <label className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint pointer-events-none" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by guest, booking, suite or date"
-              className="w-72 h-9 pl-9 pr-3 rounded-lg border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-            />
-          </label>
-        </div>
 
-        {tab === 'arr' && (
-          <>
-            {filteredArrivals.length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No arrivals match this search.' : 'No arrivals today.'}</p>
-            ) : (
-              filteredArrivals.map((g) => (
-                <GuestRow key={g.num} guest={g.guest} meta={`${g.btype || ''} · ETA ${g.eta}`}>
-                  <div className="flex items-center gap-1.5">
-                    <AssignAndCheckIn guest={g} onDone={() => arrivals.refetch()} />
-                    <CancelBookingButton num={g.num} onDone={() => arrivals.refetch()} />
-                  </div>
-                </GuestRow>
-              ))
-            )}
-          </>
-        )}
+          {tab === 'arr' && (
+            <>
+              {filteredArrivals.length === 0 ? (
+                <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No arrivals match this search.' : 'No arrivals today.'}</p>
+              ) : (
+                filteredArrivals.map((g) => (
+                  <GuestRow key={g.num} guest={g.guest} meta={`${g.btype || ''} · ETA ${g.eta}`}>
+                    <div className="flex items-center gap-1.5">
+                      <AssignAndCheckIn guest={g} onDone={() => arrivals.refetch()} />
+                      <CancelBookingButton num={g.num} onDone={() => arrivals.refetch()} />
+                    </div>
+                  </GuestRow>
+                ))
+              )}
+            </>
+          )}
 
-        {tab === 'inh' && (
-          <>
-            {filteredInhouse.length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No in-house guests match this search.' : 'No in-house guests.'}</p>
-            ) : (
-              filteredInhouse.map((g) => (
-                <GuestRow key={g.num} guest={g.guest} meta={`Suite ${g.rooms || '—'} · out ${g.co}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">K{Number(g.bal).toLocaleString()}</span>
-                    <MoveRoomAction num={g.num} onDone={() => inhouse.refetch()} />
-                    <EditDatesAction num={g.num} checkIn="" checkOut={g.co} onDone={() => inhouse.refetch()} />
-                    <button
-                      type="button"
-                      disabled={!token}
-                      onClick={() => setCheckingOut({ num: g.num, guest: g.guest })}
-                      className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-md px-2.5 py-1.5 hover:bg-brand-hover disabled:opacity-50"
-                    >
-                      <LogOut size={12} /> Check out
-                    </button>
-                  </div>
-                </GuestRow>
-              ))
-            )}
-          </>
-        )}
+          {tab === 'inh' && (
+            <>
+              {filteredInhouse.length === 0 ? (
+                <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No in-house guests match this search.' : 'No in-house guests.'}</p>
+              ) : (
+                filteredInhouse.map((g) => (
+                  <GuestRow key={g.num} guest={g.guest} meta={`Suite ${g.rooms || '—'} · out ${g.co}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted">K{Number(g.bal).toLocaleString()}</span>
+                      <MoveRoomAction num={g.num} onDone={() => inhouse.refetch()} />
+                      <EditDatesAction num={g.num} checkIn="" checkOut={g.co} onDone={() => inhouse.refetch()} />
+                      <button
+                        type="button"
+                        disabled={!token}
+                        onClick={() => setCheckingOut({ num: g.num, guest: g.guest })}
+                        className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand rounded-md px-2.5 py-1.5 hover:bg-brand-hover disabled:opacity-50"
+                      >
+                        <LogOut size={12} /> Check out
+                      </button>
+                    </div>
+                  </GuestRow>
+                ))
+              )}
+            </>
+          )}
 
-        {tab === 'upc' && (
-          <>
-            {filteredUpcoming.length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No upcoming arrivals match this search.' : 'No upcoming arrivals.'}</p>
-            ) : (
-              filteredUpcoming.map((g) => (
-                <GuestRow
-                  key={g.num}
-                  guest={g.guest}
-                  meta={`${g.btype || ''} · ${g.cidate}${g.rooms ? ` · Suite ${g.rooms}` : ''} · ${g.din <= 1 ? 'tomorrow' : `in ${g.din} days`}`}
-                >
-                  <CancelBookingButton num={g.num} onDone={() => upcoming.refetch()} />
-                </GuestRow>
-              ))
-            )}
-          </>
-        )}
+          {tab === 'upc' && (
+            <>
+              {filteredUpcoming.length === 0 ? (
+                <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No upcoming arrivals match this search.' : 'No upcoming arrivals.'}</p>
+              ) : (
+                filteredUpcoming.map((g) => (
+                  <GuestRow
+                    key={g.num}
+                    guest={g.guest}
+                    meta={`${g.btype || ''} · ${g.cidate}${g.rooms ? ` · Suite ${g.rooms}` : ''} · ${g.din <= 1 ? 'tomorrow' : `in ${g.din} days`}`}
+                  >
+                    <CancelBookingButton num={g.num} onDone={() => upcoming.refetch()} />
+                  </GuestRow>
+                ))
+              )}
+            </>
+          )}
 
-        {tab === 'out' && (
-          <>
-            {filteredCheckouts.length === 0 ? (
-              <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No checkouts match this search.' : 'No checkouts yet.'}</p>
-            ) : (
-              <div className="overflow-auto no-scrollbar">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-                      <th className="font-medium px-2 py-2">Booking</th>
-                      <th className="font-medium px-2 py-2">Guest</th>
-                      <th className="font-medium px-2 py-2">Suite(s)</th>
-                      <th className="font-medium px-2 py-2">Stay</th>
-                      <th className="font-medium px-2 py-2">Checked out</th>
-                      <th className="font-medium px-2 py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCheckouts.map((c) => (
-                      <tr key={c.num} className="border-b border-border last:border-0">
-                        <td className="px-2 py-2 text-text! font-medium">{c.num}</td>
-                        <td className="px-2 py-2 text-text-muted">{c.guest || '—'}</td>
-                        <td className="px-2 py-2 text-text-muted">{c.rooms || '—'}</td>
-                        <td className="px-2 py-2 text-text-muted">
-                          {c.ci} → {c.co}
-                        </td>
-                        <td className="px-2 py-2 text-text-muted">{c.cout || '—'}</td>
-                        <td className="px-2 py-2 text-right text-text!">K{Number(c.total || 0).toLocaleString()}</td>
+          {tab === 'out' && (
+            <>
+              {filteredCheckouts.length === 0 ? (
+                <p className="text-sm text-text-faint italic py-6 text-center">{q ? 'No checkouts match this search.' : 'No checkouts yet.'}</p>
+              ) : (
+                <div className="overflow-auto no-scrollbar">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
+                        <th className="font-medium px-2 py-2">Booking</th>
+                        <th className="font-medium px-2 py-2">Guest</th>
+                        <th className="font-medium px-2 py-2">Suite(s)</th>
+                        <th className="font-medium px-2 py-2">Stay</th>
+                        <th className="font-medium px-2 py-2">Checked out</th>
+                        <th className="font-medium px-2 py-2 text-right">Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+                    </thead>
+                    <tbody>
+                      {filteredCheckouts.map((c) => (
+                        <tr key={c.num} className="border-b border-border last:border-0">
+                          <td className="px-2 py-2 text-text! font-medium">{c.num}</td>
+                          <td className="px-2 py-2 text-text-muted">{c.guest || '—'}</td>
+                          <td className="px-2 py-2 text-text-muted">{c.rooms || '—'}</td>
+                          <td className="px-2 py-2 text-text-muted">
+                            {c.ci} → {c.co}
+                          </td>
+                          <td className="px-2 py-2 text-text-muted">{c.cout || '—'}</td>
+                          <td className="px-2 py-2 text-right text-text!">K{Number(c.total || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      )}
 
       {checkingOut && (
         <HotelCheckoutWizard

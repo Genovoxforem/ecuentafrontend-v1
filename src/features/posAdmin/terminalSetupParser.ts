@@ -70,7 +70,7 @@ function selectOptions(doc: Document, name: string): TerminalSetupOption[] {
     .filter((o) => o.id && o.id !== '-1')
 }
 
-export function parseTerminalSetup(doc: Document, terminal: 1 | 2): TerminalSetup {
+export function parseTerminalSetup(doc: Document, terminal: number): TerminalSetup {
   const n = String(terminal)
   const socidOpt = doc.querySelector('#socid option[selected]')
   const tokenInput = doc.querySelector<HTMLInputElement>('input[name="token"]')
@@ -107,5 +107,64 @@ export function parseTerminalSetup(doc: Document, terminal: 1 | 2): TerminalSetu
     warehouseOptions: selectOptions(doc, `CASHDESK_ID_WAREHOUSE${n}`),
     adminUserOptions: selectOptions(doc, 'admin_user'),
     token: tokenInput?.value ?? '',
+  }
+}
+
+const EMPTY_TERMINAL: TerminalSetup = {
+  socid: '',
+  socidLabel: '',
+  bankAccounts: { cash: '', cheque: '', cb: '', bankCheque041: '', bankTransfer051: '', debitCard061: '', mobileMoney071: '', other081: '' },
+  warehouseId: '',
+  forceDecreaseStock: '0',
+  noDecreaseStock: '0',
+  keycodeForEnter: '',
+  enablePasscode: '0',
+  connectorUrl: '',
+  scaleComPort: '',
+  scaleBaudRate: '',
+  assignUserId: '',
+  adminUserId: '',
+  header: '',
+  footer: '',
+  warehouseOptions: [],
+  adminUserOptions: [],
+  token: '',
+}
+
+// One terminal's values from takepos/fapi/settings.php (key-authenticated JSON, 5 Nov 2026), over what the classic page gave (null
+// without a legacy session). Checked live on newecuenta against terminal.php?terminal=1: third party, the eight bank accounts,
+// warehouse, keycode, passcode flag, baud rate, header and footer are identical; a constant that was never set (connector URL, COM
+// port, force-decrease-stock) is read as the page's default (empty / 0). The assigned and admin user are not in the endpoint under a
+// documented name, so they stay from the classic page. A warehouse the page's list does not offer falls back to the page's own value.
+export function terminalSetupFromConsts(consts: Record<string, string | null> | null, doc: Document | null, terminal: number): TerminalSetup {
+  const base = doc ? parseTerminalSetup(doc, terminal) : EMPTY_TERMINAL
+  if (!consts) return base
+  const n = String(terminal)
+  const v = (name: string, fallback: string) => consts[name] ?? fallback
+  const warehouse = consts[`CASHDESK_ID_WAREHOUSE${n}`]
+  const warehouseListed = warehouse != null && (!doc || base.warehouseOptions.some((o) => o.id === warehouse))
+  return {
+    ...base,
+    socid: v(`CASHDESK_ID_THIRDPARTY${n}`, base.socid),
+    bankAccounts: {
+      cash: v(`CASHDESK_ID_BANKACCOUNT_CASH${n}`, base.bankAccounts.cash),
+      cheque: v(`CASHDESK_ID_BANKACCOUNT_CHEQUE${n}`, base.bankAccounts.cheque),
+      cb: v(`CASHDESK_ID_BANKACCOUNT_CB${n}`, base.bankAccounts.cb),
+      bankCheque041: v('CASHDESK_ID_BANKACCOUNT_041', base.bankAccounts.bankCheque041),
+      bankTransfer051: v('CASHDESK_ID_BANKACCOUNT_051', base.bankAccounts.bankTransfer051),
+      debitCard061: v('CASHDESK_ID_BANKACCOUNT_061', base.bankAccounts.debitCard061),
+      mobileMoney071: v('CASHDESK_ID_BANKACCOUNT_071', base.bankAccounts.mobileMoney071),
+      other081: v('CASHDESK_ID_BANKACCOUNT_081', base.bankAccounts.other081),
+    },
+    warehouseId: warehouseListed ? (warehouse as string) : base.warehouseId,
+    forceDecreaseStock: v('CASHDESK_FORCE_DECREASE_STOCK', '0') as '0' | '1',
+    noDecreaseStock: v(`CASHDESK_NO_DECREASE_STOCK${n}`, '0') as '0' | '1',
+    keycodeForEnter: v(`CASHDESK_READER_KEYCODE_FOR_ENTER${n}`, ''),
+    enablePasscode: v(`TAKEPOS_ENABLE_PASSCODE${n}`, '0') as '0' | '1',
+    connectorUrl: v(`CASHDESK_ID_CONNECTOR_URL${n}`, ''),
+    scaleComPort: v(`TAKEPOS_WEIGHING_SCALE_COM_PORT${n}`, ''),
+    scaleBaudRate: v(`TAKEPOS_WEIGHING_SCALE_BAUD_RATE${n}`, ''),
+    header: v(`TAKEPOS_HEADER${n}`, ''),
+    footer: v(`TAKEPOS_FOOTER${n}`, ''),
   }
 }

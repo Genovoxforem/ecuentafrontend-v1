@@ -7,7 +7,7 @@ const RECEIPT_COLUMNS = ['Date', 'Account', 'No. Of Checks', 'Amount', 'Status']
 
 // Native replacement for compta/paiement/cheque/index.php: the "Checks Awaiting Deposit" count comes from
 // compta/paiement/fapi/cheque_deposits.php. That answer's receipt rows are empty on the instance, so their fields are not
-// known and the table shows the empty state (or only how many came back), same as CheckDepositListView.tsx.
+// known and the table shows the empty state (or only how many came back), the same as the deposit list, which is not available.
 export function CheckDepositsAreaView() {
   const area = useChequeArea()
   return (

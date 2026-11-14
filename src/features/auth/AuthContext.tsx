@@ -169,3 +169,8 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
 }
+
+// The same context for a component that may also be shown outside the provider (a shared error card): null instead of an error.
+export function useOptionalAuth() {
+  return useContext(AuthContext)
+}

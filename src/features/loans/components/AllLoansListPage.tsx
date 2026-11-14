@@ -5,7 +5,7 @@ import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/Le
 import { Field, inputClasses } from '../../../shared/components/forms/FormField'
 import { useLoanManagementForm, useLoanProductInfo, useCustomerAccountOptions, useCreateLoanManagement, type NewLoanManagementInput } from '../loans.queries'
 import { useBankAccountsList } from '../../banking/banking.queries'
-import { isoToMdy } from '../../banking/bankEntryDetailParser'
+import { isoToMdy } from '../../banking/bankEntry.data'
 
 const emptyForm = (loanId: string): NewLoanManagementInput => ({
   loanId,
@@ -23,15 +23,10 @@ const emptyForm = (loanId: string): NewLoanManagementInput => ({
   remarks: '',
 })
 
-// custom/loanmanagement/loanmanagementlist.php — the real custom "Loan
-// Management" plugin (distinct from the core Dolibarr "Loan" tracker under
-// Banking). Its list has no JSON API of its own (a plain server-rendered
-// DataTable, currently 0 rows on this backend), but its "New Loan" panel is
-// a genuine classic form-POST create, wired for real here — see
-// loans.queries.ts / loanManagementParser.ts. Two real quirks reproduced
-// faithfully rather than fixed: no CSRF token on this form at all, and the
-// Customer Account dropdown (dependent on Borrower) currently comes back
-// broken server-side — see the hooks' own comments.
+// The list and the Loan Product / Borrower dropdowns read custom/loanmanagement/fapi (list.php, form_options.php); the New Loan
+// panel is still the classic form-POST create (see loans.queries.ts / loanManagementParser.ts). Two real quirks reproduced
+// rather than fixed: no CSRF token on that form, and the Customer Account dropdown (dependent on Borrower) comes back broken
+// server-side - see the hooks' own comments.
 export function AllLoansListPage() {
   const { data, isLoading, isError, error, refetch } = useLoanManagementForm()
   const { data: bankAccounts } = useBankAccountsList()

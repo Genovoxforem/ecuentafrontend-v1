@@ -24,3 +24,13 @@ export function useLegacyList(path: string, firstHeader: RegExp, params: Record<
     placeholderData: keepPreviousData,
   })
 }
+
+// The classic page as a loader (the same read useLegacyList does), for LegacyListPage.
+export function classicListLoader(path: string, firstHeader: RegExp, hasHeader?: RegExp): (params: Record<string, string>) => Promise<LegacyTable> {
+  return async (params) => {
+    const doc = await fetchLegacyDocument(path, new URLSearchParams(params))
+    const table = hasHeader ? (readAllLegacyTables(doc, firstHeader, 1, hasHeader)[0] ?? null) : readLegacyTable(doc, firstHeader)
+    if (!table) throw legacyMissingContentError(doc, 'The list on this backend page was not recognised.')
+    return table
+  }
+}

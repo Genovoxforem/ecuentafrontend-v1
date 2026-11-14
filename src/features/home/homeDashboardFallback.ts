@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useInvoicesSummary, type InvoiceRow } from '../invoices/invoices.queries'
 import { useVendorInvoices, type VendorInvoiceRow } from '../vendorInvoices/vendorInvoices.queries'
-import { useDashboardStatistics } from './dashboardStats'
+import { useSalesOrdersTotal } from '../salesOrders/orderCount.data'
 import { useZraSummary } from '../zra/zra.queries'
 import { useContractsSummary } from '../contracts/contracts.queries'
 import { useCustomersSummary } from '../customers/customers.queries'
@@ -162,7 +162,7 @@ function todayKpi(key: 'todaySales' | 'todayPurchase', label: string, rows: Move
 }
 
 export function useComputedHomeDashboard(accounts: BankAccountRow[] | undefined) {
-  const stats = useDashboardStatistics()
+  const salesOrders = useSalesOrdersTotal()
   const invoices = useInvoicesSummary()
   const vendorInvoices = useVendorInvoices('all')
   const zra = useZraSummary()
@@ -239,7 +239,7 @@ export function useComputedHomeDashboard(accounts: BankAccountRow[] | undefined)
       sales: {
         donut: donut(sales),
         tiles: [
-          ...(stats.data ? [{ label: 'Sales Orders', value: stats.data.salesOrders?.total ?? 0 }] : []),
+          ...(salesOrders.data !== undefined ? [{ label: 'Sales Orders', value: salesOrders.data }] : []),
           ...(contracts.data ? [{ label: 'Contracts', value: contracts.data.totalContracts }] : []),
         ],
         summary: [
@@ -269,7 +269,7 @@ export function useComputedHomeDashboard(accounts: BankAccountRow[] | undefined)
       attention,
       quickActions: QUICK_ACTIONS,
     }
-  }, [invoices.data, vendorInvoices.data, stats.data, zra.data, contracts.data, customers.data, unmatched.data, accounts])
+  }, [invoices.data, vendorInvoices.data, salesOrders.data, zra.data, contracts.data, customers.data, unmatched.data, accounts])
 
   return { data, isError: invoices.isError || vendorInvoices.isError, error: invoices.error ?? vendorInvoices.error }
 }

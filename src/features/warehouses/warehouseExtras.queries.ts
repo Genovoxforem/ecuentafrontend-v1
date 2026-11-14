@@ -9,6 +9,7 @@ import { customerLookupsQuery } from '../customers/thirdPartyOptions.queries'
 import { stockRowFromApi } from '../products/productTools.queries'
 import type { ReassortData } from '../../api/products'
 import { todayIso } from '../../shared/localCollection'
+import { formatServerDateTime } from '../../utils/format'
 import type {
   WarehouseListRow,
   InventoryListRow,
@@ -129,7 +130,12 @@ export function useWarehouseDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['warehouses', 'detail', id],
     queryFn: async (): Promise<WarehouseCard> => {
-      const [d, stock] = await Promise.all([fapiGet<any>(WH_FAPI, { id }), fapiGet<ReassortData>('/product/stock/fapi/reassort.php', { warehouse: id, limit: 500, type: 0 })])
+      const [d, stock, lastMovement] = await Promise.all([
+        fapiGet<any>(WH_FAPI, { id }),
+        fapiGet<ReassortData>('/product/stock/fapi/reassort.php', { warehouse: id, limit: 500, type: 0 }),
+        // warehouse.php has no latest-movement field; movements.php answers newest first (live: warehouse 1 -> 2026-11-11T05:33:45Z, the classic card's "11/11/2026 05:33 AM").
+        fapiGet<{ items?: { date?: string }[] }>('/product/stock/fapi/movements.php', { warehouse: id, limit: 1 }).catch(() => null),
+      ])
       const w = d.warehouse ?? {}
       const actions = new Map<string, { allowed: boolean; reason: string }>(((d.available_actions ?? []) as any[]).map((a) => [a.action, { allowed: Boolean(a.allowed), reason: a.reason ?? '' }]))
       const address = [w.address, w.zip, w.town].filter(Boolean).join(', ')
@@ -145,7 +151,7 @@ export function useWarehouseDetail(id: string | undefined) {
         differentProductsCount: Number(d.stock?.products) || 0,
         totalProductsCount: Number(d.stock?.qty) || 0,
         inputStockValue: Number(d.stock?.value_at_cost) || 0,
-        latestMovement: '',
+        latestMovement: formatServerDateTime(lastMovement?.items?.[0]?.date),
         tags: [] as string[],
         editUrl: actions.get('update')?.allowed ? 'edit' : '',
         deleteUrl: actions.get('delete')?.allowed ? 'delete' : '',

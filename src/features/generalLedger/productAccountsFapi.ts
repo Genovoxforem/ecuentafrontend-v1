@@ -1,6 +1,6 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { loadBindableAccounts } from './bindingFapi'
-import type { ProductAccountFilters, ProductAccountRow, ProductAccountsPage } from './productAccountsParser'
+import type { ProductAccountFilters, ProductAccountRow, ProductAccountsPage } from './productAccounts.types'
 
 // accountancy/fapi/product_accounts.php (22 Oct 2026): the accounting account of each product for one of the six modes (sell / buy, home /
 // intra-community / export). The list answer was captured from newecuenta on 22 Oct 2026 (tests/fixtures/accountancy-product-accounts.json).

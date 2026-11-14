@@ -4,7 +4,8 @@ import type { NavSection } from '../navTypes'
 
 // The classic "Ticket" left menu (llx_menu, mainmenu='ticket'): a "Ticket"
 // heading — itself a link to the open-ticket list — over New Ticket / List /
-// My Tickets / Statistics, then Intervention (the job cards list,
+// My Tickets / Statistics, a "Knowledge Base" heading over New Article / List
+// Of Articles / Tags/Categories, then Intervention (the job cards list,
 // fichinter/list.php). Every one of those rows has fk_menu=-1, so the backend
 // menu carries no nesting to rebuild: buildNavSections uses this list as the
 // section's tree (ALWAYS_PREFER_LOCAL_NAV_KEYS), as for Hotel/Payroll/ZRA.
@@ -21,6 +22,15 @@ export const nav: NavSection = {
         { label: 'List', path: ROUTES.ticketList },
         { label: 'My Tickets', path: ROUTES.ticketMyAssigned },
         { label: 'Statistics', path: ROUTES.ticketStatistics },
+      ],
+    },
+    {
+      label: 'Knowledge Base',
+      path: ROUTES.ticketKnowledgeList,
+      items: [
+        { label: 'New Article', path: ROUTES.ticketKnowledgeNew },
+        { label: 'List Of Articles', path: ROUTES.ticketKnowledgeList },
+        { label: 'Tags/Categories', path: ROUTES.ticketKnowledgeCategories },
       ],
     },
     { label: 'Intervention', path: ROUTES.ticketIntervention },

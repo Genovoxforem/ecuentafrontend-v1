@@ -19,6 +19,7 @@ import { contractsRoutes } from './app/routes/contractsRoutes'
 import { customersRoutes } from './app/routes/customersRoutes'
 import { expensesRoutes } from './app/routes/expensesRoutes'
 import { fixedAssetRoutes } from './app/routes/fixedAssetRoutes'
+import { installmentRoutes } from './app/routes/installmentRoutes'
 import { hotelRoutes } from './app/routes/hotelRoutes'
 import { invoicesRoutes } from './app/routes/invoicesRoutes'
 import { ledgerRoutes } from './app/routes/ledgerRoutes'
@@ -362,6 +363,7 @@ function App() {
                         {expensesRoutes()}
                         {fixedAssetRoutes()}
                         {hotelRoutes()}
+                        {installmentRoutes()}
                         {invoicesRoutes()}
                         {ledgerRoutes()}
                         {loansRoutes()}

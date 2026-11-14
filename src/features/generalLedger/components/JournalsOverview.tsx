@@ -8,7 +8,7 @@ import { ROUTES } from '../../../routes'
 import { resolveLegacyRoute } from '../../../shared/legacyRoute'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { useDeleteTransaction, useExportJournals, useJournalsList, useSaveJournalColumns, useToggleReexport, type JournalsRequest } from '../journalsList.queries'
-import type { JournalCell, JournalRow, JournalsList } from '../journalsListParser'
+import type { JournalCell, JournalRow, JournalsList } from '../journalsList.types'
 import { LedgerToolbar } from './LedgerControls'
 
 const inputCls = 'h-8 w-full min-w-16 px-2 rounded-md border border-input-border bg-input-bg text-text text-xs outline-none focus:ring-2 focus:ring-brand/30'

@@ -40,6 +40,10 @@ export interface ContactDetail extends ContactRow {
   // Added to get/create/update on 15 Oct 2026. birthday_alert cannot be stored on this fork.
   civility_code?: string | null
   birthday?: string | null
+  // Added on 11 Nov 2026: the state / province id (c_departements) and its resolved name and code; null when none is set.
+  state_id?: number | null
+  state?: string | null
+  state_code?: string | null
   socialnetworks?: Record<string, string> | null
   note_public: string | null
   note_private: string | null
@@ -118,6 +122,8 @@ export interface CreateContactInput {
   zip?: string
   town?: string
   country_id?: number
+  // state / province (alias fk_departement); create refuses an id that is not in c_departements with a 422 before anything is written
+  state_id?: number
   socid?: number
   status?: number
   priv?: number

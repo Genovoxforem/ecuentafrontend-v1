@@ -13,6 +13,8 @@ export interface StockMovementRow {
   dateFormatted: string
   warehouseId: number
   warehouseRef: string
+  // The warehouse's environment (the classic list's Environment / Master entity column); '' when the backend does not send it (AN-202).
+  environment: string
   author: string
   inventoryCode: string | null
   label: string
@@ -21,6 +23,8 @@ export interface StockMovementRow {
   originRef: string
   originUrl: string
   costPrice: string
+  // Unit purchase price of the movement (empty when none).
+  unitValue: string
   qty: string
   zraStatusDisplay: string
   zraStatusClass: string

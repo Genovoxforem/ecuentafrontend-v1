@@ -13,7 +13,7 @@ import {
   type UpdateBankEntryInput,
   type ReconcileBankEntryInput,
 } from '../banking.queries'
-import { mdyToIso, isoToMdy, type BankEntryDetail as BankEntryDetailData } from '../bankEntryDetailParser'
+import { mdyToIso, isoToMdy, type BankEntryDetail as BankEntryDetailData } from '../bankEntry.data'
 import { ROUTES } from '../../../routes'
 
 const selectCls = inputClasses

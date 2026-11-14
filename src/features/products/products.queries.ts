@@ -549,6 +549,9 @@ export function useProductDetail(id: string | undefined) {
         surface_units: data.product.surface_units ?? xr('surface_units'),
         volume: data.product.volume ?? xr('volume'),
         volume_units: data.product.volume_units ?? xr('volume_units'),
+        // "Total Sold Qty / Amount" of the card: /api/products/?action=detail does not send them, get.php does.
+        total_sold_qty: data.product.total_sold_qty ?? xn('total_sold_qty'),
+        total_sold_amount: data.product.total_sold_amount ?? xn('total_sold_amount'),
       }
       const fapiCreated = parseListDate(typeof extra?.product.date_creation === 'string' ? extra.product.date_creation : '')
       const fapiCountryCode = typeof extra?.product.country_code === 'string' ? extra.product.country_code : ''
@@ -653,6 +656,8 @@ export interface ProductMarginLine {
   // null when the source gives no payment state for that invoice.
   paid: boolean | null
   status: number
+  // The classic wording ("Started", "Paid", "Not paid"); '' when the answer has none.
+  statusLabel: string
 }
 export interface ProductMargins {
   lines: ProductMarginLine[]
@@ -662,24 +667,23 @@ export interface ProductMargins {
   costBasis: { linesTotal: number; linesWithRecordedCost: number; currentPmp: number } | null
 }
 
-// product/fapi/margins.php — revenue, cost and margin per invoice line. Its lines
-// carry no payment state, so the invoice statistics (same endpoint family) supply it.
+// product/fapi/margins.php: revenue, cost and margin per invoice, with the customer code and the classic status wording.
 async function fetchProductMargins(id: string): Promise<ProductMargins> {
-  const [m, invoiceStats] = await Promise.all([getProductMargins(id), getProductInvoiceStats(id).catch(() => null)])
-  const paidByInvoice = new Map((invoiceStats?.lines ?? []).map((l) => [l.invoice_id, l.paid === 1]))
+  const m = await getProductMargins(id)
   return {
     lines: m.lines.map((l) => ({
       invoiceId: l.invoice_id,
       ref: l.ref,
       customerName: l.customer,
-      customerCode: '',
+      customerCode: l.customer_code ?? '',
       date: l.date,
       sellingPrice: l.revenue_ht,
       buyingPrice: l.cost_ht,
       qty: l.qty,
       margin: l.margin,
-      paid: paidByInvoice.get(l.invoice_id) ?? null,
-      status: 0,
+      paid: l.paid == null ? null : l.paid === 1,
+      status: l.status ?? 0,
+      statusLabel: l.status_label ?? '',
     })),
     totals: { sellingPrice: m.summary.revenue_ht, buyingPrice: m.summary.cost_ht, qty: m.summary.qty, margin: m.summary.margin },
     costBasis: { linesTotal: m.basis.lines_total, linesWithRecordedCost: m.basis.lines_with_recorded_cost, currentPmp: m.basis.current_pmp },
@@ -957,17 +961,22 @@ async function fetchProductStockOverview(id: string): Promise<ProductStockOvervi
   const ttc = prices?.current.price_base_type === 'TTC'
   const taxed = (n: number | null | undefined) => (n === null || n === undefined ? '' : `${money(n)}${ttc ? ' Inc. Tax' : ''}`)
   const sell = prices ? (ttc ? prices.current.price_ttc : prices.current.price) : null
+  // The warehouse table of the classic stock page prices the stock at the selling price excl. tax (21.55 and -64.65 for 3 units on a 25.00 Inc. tax product).
+  const sellExcl = prices ? prices.current.price : null
+  // The classic stock tab leaves the weighted average price and the input stock value empty while the average price is 0.
+  const moneyIfSet = (n: number | null | undefined) => (n ? money(n) : '')
   const { alert, desired } = s.totals
   return {
     pricing: {
       costPrice: money(prices?.current.cost_price),
-      pmp: money(s.totals.pmp),
+      pmp: moneyIfSet(s.totals.pmp),
       buyingPriceMin: suppliers?.best ? money(suppliers.best.unit_price) : '',
       sellingPrice: taxed(sell),
       minPrice: taxed(prices ? (ttc ? prices.current.price_min_ttc : prices.current.price_min) : null),
     },
-    stockAlertThreshold: alert ? String(alert) : '',
-    desiredStock: desired ? String(desired) : '',
+    // The classic stock tab prints the limits as 0 when none is set.
+    stockAlertThreshold: String(alert),
+    desiredStock: String(desired),
     physicalStock: s.totals.real,
     virtualStock: s.totals.virtual,
     physicalBelowLimit: alert > 0 && s.totals.real < alert,
@@ -979,17 +988,17 @@ async function fetchProductStockOverview(id: string): Promise<ProductStockOvervi
       ref: w.ref,
       place: w.location,
       units: w.real,
-      pmp: money(w.pmp),
-      valuePurchase: money(w.real * w.pmp),
-      sellPriceMin: money(sell),
-      valueSell: sell === null ? '' : money(w.real * sell),
+      pmp: moneyIfSet(w.pmp),
+      valuePurchase: moneyIfSet(w.real * w.pmp),
+      sellPriceMin: money(sellExcl),
+      valueSell: sellExcl === null ? '' : money(w.real * sellExcl),
     })),
     totals: {
       totalQty: s.totals.real,
-      avgPmp: money(s.totals.pmp),
-      totalValuePurchase: money(s.totals.value_pmp),
-      avgSellPrice: money(sell),
-      totalValueSell: sell === null ? '' : money(s.totals.real * sell),
+      avgPmp: moneyIfSet(s.totals.pmp),
+      totalValuePurchase: moneyIfSet(s.totals.value_pmp),
+      avgSellPrice: money(sellExcl),
+      totalValueSell: sellExcl === null ? '' : money(s.totals.real * sellExcl),
     },
     movements: s.movements.map((m) => ({ id: m.id, dateFormatted: m.date, qty: m.qty, label: m.label, warehouse: m.warehouse, user: m.by })),
     warehouseOptions: s.options.warehouses.map((w) => ({ value: String(w.id), label: w.location && w.location !== w.ref ? `${w.ref} (${w.location})` : w.ref })),
@@ -1039,6 +1048,8 @@ export interface CorrectStockInput {
   label: string
   unitPrice: string
   batchNumber: string
+  // The legacy form's "Movement or inventory code" (stock.php correct takes it as `inventorycode`).
+  inventoryCode?: string
 }
 export function useCorrectStock() {
   const queryClient = useQueryClient()
@@ -1053,6 +1064,7 @@ export function useCorrectStock() {
             label: input.label,
             unitprice: input.unitPrice.trim() === '' ? undefined : Number(input.unitPrice),
             batch_number: input.batchNumber || undefined,
+            inventorycode: input.inventoryCode?.trim() || undefined,
           }))(),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'detail', 'stockOverview', variables.id] })
@@ -1095,7 +1107,12 @@ export interface ProductUomOverview {
   // Stock on hand in the base unit, e.g. "0.00 mm" (the classic UOM tab's "Available stock").
   availableStock: string
   productBarcode: string
+  // The lot/batch module switch: what the classic UOM tab prints as "Lot/Batch Tracking Enabled" (stock.php options.batch_module_enabled).
+  batchModuleEnabled: boolean
+  // This product's own tracking flag (options.batch_enabled): the module can be on while the product is off.
   hasBatchTracking: boolean
+  // The classic UOM tab prints its Lot/Batch Tracking section only for a product (product_type 0), never for a service.
+  isService: boolean
   conversions: { id: number; packingUnitId: number; packingLabel: string; uomUnitId: number; uomLabel: string; factor: number; priceOverrideTtc: number; purchasePriceTtc: number | null; sellingPriceTtc: number | null; barcode: string; note: string; isDefault: boolean }[]
   packingUnitOptions: { value: string; label: string }[]
   uomUnitOptions: { value: string; label: string }[]
@@ -1118,7 +1135,9 @@ async function fetchProductUomOverview(id: string): Promise<ProductUomOverview> 
     conversionsCount: u.conversions.length,
     availableStock: stock ? `${Number(stock.totals.real).toFixed(2)}${base?.short_label ? ` ${base.short_label}` : ''}` : '—',
     productBarcode: typeof card?.product.barcode === 'string' ? card.product.barcode : '',
+    batchModuleEnabled: stock?.options.batch_module_enabled ?? !!stock?.options.batch_enabled,
     hasBatchTracking: !!stock?.options.batch_enabled,
+    isService: Number(card?.product.type) === 1,
     conversions: u.conversions.map((c) => ({
       id: c.id,
       packingUnitId: c.packing_unit_id,
@@ -1390,7 +1409,8 @@ export function useProductPriceOverview(id: string | undefined) {
           priceTtc: h.price_ttc,
           priceBaseType: h.base_type,
           priceMin: h.price_min,
-          priceMinTtc: h.price_min,
+          // product/fapi/prices.php sends only the minimum price excl. tax; the classic log prints it with the tax added (17.2414 at 16% = 20.00).
+          priceMinTtc: Math.round(h.price_min * (1 + h.tva_tx / 100) * 100) / 100,
           vatDisplay: vatDisplay(h.tva_tx, h.default_vat_code),
           userName: h.by,
         })),
@@ -1721,6 +1741,8 @@ export interface ProductAgendaEvent {
   id: number
   // the agenda event type: AC_PRODUCT_MODIFY marks a recorded modification of the product
   typeCode: string
+  // the server's is_modification flag (the type code on a server that does not send it)
+  isModification: boolean
   label: string
   date: string
   dateEnd: string | null
@@ -1734,6 +1756,8 @@ export interface ProductAgenda {
   createdBy: string
   creationDate: string
   latestModificationDate: string
+  // The three tiles of the tab, from the server's events_summary (counts and latest dates); derived from the rows when the server has none.
+  summary: { events: number; modifications: number; latestEventDate: string }
 }
 export function useProductAgendaEvents(id: string | undefined) {
   return useQuery({
@@ -1741,13 +1765,22 @@ export function useProductAgendaEvents(id: string | undefined) {
     queryFn: async (): Promise<ProductAgenda> => {
       // product/fapi/agenda.php: each event's progress (percent, -1 = automatic event) and status text; the badge is derived from them.
       const d = await getProductAgenda(id!)
+      const isModification = (e: (typeof d.events)[number]) => e.is_modification ?? e.type_code === 'AC_PRODUCT_MODIFY'
+      const firstEvent = d.events.find((e) => !isModification(e))
+      const s = d.events_summary
       return {
         createdBy: d.created_by,
         creationDate: d.creation_date,
         latestModificationDate: d.latest_modification_date,
+        summary: {
+          events: s?.events_count ?? d.events.filter((e) => !isModification(e)).length,
+          modifications: s?.modifications_count ?? d.events.filter(isModification).length,
+          latestEventDate: (s ? s.latest_event_date : firstEvent?.date) || '',
+        },
         events: d.events.map((e) => ({
           id: e.id,
-          typeCode: e.type_code,
+          typeCode: e.is_modification ? 'AC_PRODUCT_MODIFY' : e.type_code,
+          isModification: isModification(e),
           label: e.label,
           date: e.date,
           dateEnd: e.date_end || null,

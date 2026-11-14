@@ -110,8 +110,9 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
   margin-top: 0 !important;
 }
 
-html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] a[href$='/create'],
-html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] a[href$='/new'] {
+/* A link that is part of a page's own tab strip is not a duplicate of the banner's "New" button: data-keep-visible opts it out. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] a[href$='/create']:not([data-keep-visible]),
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content[data-list-banner='true'] a[href$='/new']:not([data-keep-visible]) {
   display: none;
 }
 
@@ -2368,4 +2369,11 @@ html[data-theme] .pharmacy-app table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+/* Members area headline cards: the icon tile keeps the colour of its card (set as --kpi on the tile) instead of the one muted blue of every other module. */
+html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #route-page-content .blue-stat-card.members-kpi-card span:has(> svg):not(:is(a, button) *) {
+  border-color: transparent !important;
+  background: var(--kpi) !important;
+  color: #fff !important;
 }

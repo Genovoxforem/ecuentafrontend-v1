@@ -1,6 +1,6 @@
 import { fapiGet } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
-import { dmy } from './expenseFapi'
+import { dmy } from './expenseFormat'
 import type { ExpenseReportEvents, ExpenseReportLedgerData } from './expenseReportTabsParser'
 
 // The Events and LedgerEntry tabs of the classic expense report (expensereport/fapi/events.php, ledgerentry.php), replacing the scraped

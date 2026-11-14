@@ -2,7 +2,7 @@ import { fapi } from '../../api/axios'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
 import { loadBindableAccounts } from './bindingFapi'
-import type { JournalCell, JournalColumn, JournalRow, JournalsList } from './journalsListParser'
+import type { JournalCell, JournalColumn, JournalRow, JournalsList } from './journalsList.types'
 import type { JournalsRequest } from './journalsList.queries'
 
 // The ledger list on accountancy/fapi/list.php (one row per ledger line) with its per-user column picker (action=columns) and export

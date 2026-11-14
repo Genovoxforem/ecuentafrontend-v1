@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
-import { selectValue, toggleChecked, csrfToken } from './posAdminShared'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { csrfToken, constOn, constSelect, loadPosConsts, loadPosPage, requirePosSource, requirePosToken } from './posAdminShared'
 
 // takepos/admin/appearance.php — real page has 2 real toggles
 // (TAKEPOS_HIDE_CATEGORY_IMAGES, TAKEPOS_HIDE_PRODUCT_IMAGES, via
@@ -19,13 +19,14 @@ export function useAppearanceSetup() {
   return useQuery({
     queryKey: ['pos-admin', 'appearance-setup'],
     queryFn: async (): Promise<AppearanceSetup> => {
-      const doc = await fetchLegacyDocument('/takepos/admin/appearance.php')
+      const [consts, doc] = await Promise.all([loadPosConsts(), loadPosPage('/takepos/admin/appearance.php')])
+      requirePosSource(consts, doc)
       return {
-        colorTheme: selectValue(doc, 'TAKEPOS_COLOR_THEME') || '0',
-        linesToShow: selectValue(doc, 'TAKEPOS_LINES_TO_SHOW') || '2',
-        hideCategoryImages: toggleChecked(doc, 'TAKEPOS_HIDE_CATEGORY_IMAGES'),
-        hideProductImages: toggleChecked(doc, 'TAKEPOS_HIDE_PRODUCT_IMAGES'),
-        token: csrfToken(doc),
+        colorTheme: constSelect(consts, doc, 'TAKEPOS_COLOR_THEME', '0'),
+        linesToShow: constSelect(consts, doc, 'TAKEPOS_LINES_TO_SHOW', '2'),
+        hideCategoryImages: constOn(consts, doc, 'TAKEPOS_HIDE_CATEGORY_IMAGES'),
+        hideProductImages: constOn(consts, doc, 'TAKEPOS_HIDE_PRODUCT_IMAGES'),
+        token: doc ? csrfToken(doc) : '',
       }
     },
     staleTime: 1000 * 15,
@@ -36,6 +37,7 @@ export function useSaveAppearanceSetup() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: { token: string; colorTheme: string; linesToShow: string }) => {
+      requirePosToken(input.token)
       const body = new URLSearchParams()
       body.set('token', input.token)
       body.set('action', 'set')

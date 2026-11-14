@@ -1,56 +1,26 @@
 import { useQuery } from '@tanstack/react-query'
-import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { parseExpenseCreateForm, type ApprovalRow, type ExpenseCreateForm, type ExpenseDashboard, type PaymentRow } from './expensePagesParser'
-import { loadApprovals, loadOverview, loadPayments } from './expenseFapi'
+import type { ApprovalRow, ExpenseCreateForm, ExpenseDashboard, PaymentRow } from './expensePagesParser'
+import { readApprovals, readCreateForm, readOverview, readPayments } from './expenseJsonSource'
 
-// The dashboard, approvals and payments come from expense/fapi/content.php (expenseFapi.ts). The New Expense form's own dropdowns (VAT
-// rates, products, projects, ...) and the card are still the PHP pages the backend serves as `{ success, html }` from
-// expense/api/expense_content.php?action=<tab>&ajax=1 (the same call its own tab bar makes): the fapi has no feed for them.
-export type Tab = 'overview' | 'approvals' | 'payments' | 'create' | 'card' | 'advances' | 'reimbursements' | 'repayments' | 'recurring' | 'reports' | 'analytics'
-
-export async function fetchExpenseFragment(tab: Tab, id?: string, params?: Record<string, string>): Promise<string> {
-  const query = new URLSearchParams({ action: tab, ajax: '1', ...(id ? { id } : {}), ...params })
-  const res = await fetch(`/expense/api/expense_content.php?${query}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const body = await res.text()
-  if (looksLikeLegacyLoginPageText(body)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-  let json: { success?: boolean; message?: string; html?: string }
-  try {
-    json = JSON.parse(body)
-  } catch {
-    throw new Error('The expense page did not answer as expected.')
-  }
-  if (!json.success) throw new Error(json.message || 'The expense page could not be loaded.')
-  return json.html ?? ''
-}
-
+// The dashboard, approvals and payments are built from the module's JSON (expenseJsonSource.ts): the summary and the report list.
 // The keys start with 'expenses' so every expense mutation's invalidateQueries(['expenses']) refreshes them.
 export function useExpenseDashboard() {
-  return useQuery({
-    queryKey: ['expenses', 'page', 'overview'],
-    queryFn: (): Promise<ExpenseDashboard> => loadOverview(),
-  })
+  return useQuery({ queryKey: ['expenses', 'page', 'overview'], queryFn: (): Promise<ExpenseDashboard> => readOverview() })
 }
 
 export function useExpenseApprovals() {
-  return useQuery({
-    queryKey: ['expenses', 'page', 'approvals'],
-    queryFn: (): Promise<ApprovalRow[]> => loadApprovals(),
-  })
+  return useQuery({ queryKey: ['expenses', 'page', 'approvals'], queryFn: (): Promise<ApprovalRow[]> => readApprovals() })
 }
 
 export function useExpensePayments() {
-  return useQuery({
-    queryKey: ['expenses', 'page', 'payments'],
-    queryFn: (): Promise<{ rows: PaymentRow[]; note: string }> => loadPayments(),
-  })
+  return useQuery({ queryKey: ['expenses', 'page', 'payments'], queryFn: (): Promise<{ rows: PaymentRow[]; note: string }> => readPayments() })
 }
 
 // The New Expense page's own dropdown options (users, approvers, VAT rates, projects, vendors, products).
 export function useExpenseCreateForm() {
   return useQuery({
     queryKey: ['expenses', 'form', 'create'],
-    queryFn: async (): Promise<ExpenseCreateForm> => parseExpenseCreateForm(await fetchExpenseFragment('create')),
+    queryFn: (): Promise<ExpenseCreateForm> => readCreateForm(),
     staleTime: 1000 * 60 * 5,
   })
 }

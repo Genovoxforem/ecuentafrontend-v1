@@ -8,7 +8,7 @@ import { formatMoney } from '../../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import type { CustomerProfile } from '../../customerDetail.queries'
 import { useCustomerTab, useVendorTab, type CustomerTabDocRow, type CustomerTabButton } from '../../customerDetailTabs.queries'
-import { InfoRow, TabTitle } from './CustomerDetailShared'
+import { InfoRow, StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 // Keys of societe/api/customer.php's own buttons[] array (backend-driven:
 // create_proposal/create_order/create_contract/create_job_card/
@@ -71,7 +71,9 @@ export function CustomerTab({ socid, profile }: { socid: string | undefined; pro
 
   return (
     <div className="space-y-4">
-      <TabTitle>Customer</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Customer</TabTitle>
+      </StickyTabHead>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="!h-auto">

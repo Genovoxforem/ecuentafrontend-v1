@@ -2,21 +2,19 @@ import { Coins } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
 import { saveVariousPayment } from '../../specialPaymentsSave'
 import { loadVariousPaymentForm } from '../../specialMetaFapi'
-import { LegacyFormPage } from '../LegacyFormPage'
+import { JsonFormPage } from '../JsonFormPage'
 
 // compta/bank/various_payment/card.php?action=create — the real "New
 // miscellaneous payment" form; Save posts action=add and the backend
 // redirects to the new payment.
 export function MiscPaymentCreatePage() {
   return (
-    <LegacyFormPage
+    <JsonFormPage
       load={loadVariousPaymentForm}
       save={saveVariousPayment}
       icon={Coins}
       title="New Miscellaneous Payment"
-      path="/compta/bank/various_payment/card.php"
-      query={{ action: 'create' }}
-      anchor="sens"
+      queryKey="/compta/bank/various_payment/card.php"
       redirectTo={ROUTES.ledgerMiscPaymentsList}
       fields={[
         { name: 'datep', label: 'Date of payment', kind: 'date', required: true },

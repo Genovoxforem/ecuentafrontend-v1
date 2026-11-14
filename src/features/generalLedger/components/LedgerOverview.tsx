@@ -8,7 +8,6 @@ import {
   CalendarClock,
   Scale,
   Loader2,
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -19,6 +18,7 @@ import {
   Wallet,
   SlidersHorizontal,
 } from 'lucide-react'
+import { ErrorState as SharedErrorState } from '../../../shared/components/ErrorState'
 import { Card, fmtZMW, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
@@ -108,23 +108,13 @@ function MovementCard({ icon: Icon, label, movement }: { icon: typeof CalendarCl
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const isAuthIssue = message.toLowerCase().includes('signed in')
   return (
-    <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
-      <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <p className="text-sm font-semibold text-danger-fg">Couldn't load the ledger</p>
-        <p className="text-xs text-danger-fg/80 mt-0.5">{message}</p>
-        <div className="flex items-center gap-3 mt-2">
-          <button type="button" onClick={onRetry} className="text-xs font-medium text-danger-fg underline">
-            Retry
-          </button>
-          {isAuthIssue && (
-            <Link to={ROUTES.login} className="text-xs font-medium text-danger-fg underline">
-              Go to login
-            </Link>
-          )}
-        </div>
-      </div>
-    </Card>
+    <SharedErrorState title="Couldn't load the ledger" message={message} onRetry={onRetry}>
+      {isAuthIssue && (
+        <Link to={ROUTES.login} className="text-sm font-medium text-brand hover:underline">
+          Go to login
+        </Link>
+      )}
+    </SharedErrorState>
   )
 }
 

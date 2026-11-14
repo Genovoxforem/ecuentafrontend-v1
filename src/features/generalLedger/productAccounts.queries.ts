@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { loadProductAccounts, saveProductAccounts } from './productAccountsFapi'
-import type { ProductAccountFilters } from './productAccountsParser'
+import type { ProductAccountFilters } from './productAccounts.types'
 
 export interface ProductAccountsQuery {
   mode: string

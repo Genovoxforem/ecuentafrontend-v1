@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeftRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
 import { useProductOptions, useTransferStock } from '../../products/products.queries'
 import { useWarehouses } from '../warehouseExtras.queries'
+import { readTransferFile, useMassTransferImportSpec } from '../massTransferImport.data'
 
 const inputCls = 'h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -38,6 +39,8 @@ export function MassStockTransferPage() {
   const warehouses = useWarehouses()
   const transferStock = useTransferStock()
 
+  const importSpec = useMassTransferImportSpec().data
+  const fileInput = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<DraftRow[]>([emptyRow()])
   const [running, setRunning] = useState(false)
   const [transferred, setTransferred] = useState(0)
@@ -56,6 +59,35 @@ export function MassStockTransferPage() {
       const { [id]: _dropped, ...rest } = cur
       return rest
     })
+  }
+
+  // The file's lines become rows of the table (nothing is recorded yet): a line whose warehouse, product or quantity is not found keeps what was found
+  // and shows its reason under it, like a refused transfer.
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const spec = importSpec ?? { separator: ',', has_header: true }
+    const imported = readTransferFile(await file.text(), spec, (products ?? []).filter((p) => p.type === 'product'), warehouses.map((w) => String(w.id)))
+    if (imported.length === 0) {
+      setError('The file has no lines to import.')
+      return
+    }
+    setError('')
+    const next = imported.map((r) => ({ row: { ...emptyRow(), sourceWarehouseId: r.sourceWarehouseId, targetWarehouseId: r.targetWarehouseId, productId: r.productId, lotSerial: r.lotSerial, qty: r.qty }, problem: r.problem }))
+    setRows(next.map((n) => n.row))
+    setRowErrors(Object.fromEntries(next.filter((n) => n.problem).map((n) => [n.row.id, n.problem])))
+  }
+
+  function downloadTemplate() {
+    const csv = importSpec?.template_csv
+    if (!csv) return
+    const url = URL.createObjectURL(new Blob([`${csv}\n`], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'stock_transfer_template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function handleRun() {
@@ -203,9 +235,15 @@ export function MassStockTransferPage() {
 
       <div className="flex items-center gap-3 text-sm text-text-faint">
         <span>or Select A Stock Movement File To Import</span>
-        <button type="button" disabled title="Not built yet" className="rounded-md border border-input-border px-3 py-1.5 text-text-faint cursor-not-allowed">
+        <input ref={fileInput} type="file" accept=".csv,text/csv,text/plain" onChange={handleFile} className="hidden" aria-label="Stock movement file" />
+        <button type="button" onClick={() => fileInput.current?.click()} className="rounded-md border border-input-border px-3 py-1.5 text-text-muted hover:bg-surface-hover">
           Choose File
         </button>
+        {importSpec?.template_csv && (
+          <button type="button" onClick={downloadTemplate} className="text-brand hover:underline">
+            Download template
+          </button>
+        )}
       </div>
     </div>
   )

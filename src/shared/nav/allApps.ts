@@ -158,8 +158,6 @@ export const ALL_APPS: AppSection[] = [
     tiles: [
       { label: 'New Inventory', to: ROUTES.inventoryCreate },
       { label: 'Inventory List', to: ROUTES.inventoryList },
-      { label: 'Trip Details' },
-      { label: 'Fleet Expense' },
     ],
   },
   {
@@ -454,21 +452,21 @@ export const ALL_APPS: AppSection[] = [
     title: 'Assets',
     icon: Archive,
     tiles: [
-      { label: 'Assets Details', to: ROUTES.fixedAssetList },
-      { label: 'Assets types', to: ROUTES.fixedAssetTypes },
-      { label: 'Asset Category', to: ROUTES.fixedAssetCategory },
-      { label: 'Asset Group', to: ROUTES.fixedAssetGroup },
+      { label: 'Asset List', to: ROUTES.fixedAssetList },
+      { label: 'New Asset', to: ROUTES.fixedAssetNew },
+      { label: 'Depreciation Run', to: ROUTES.fixedAssetDepreciation },
+      { label: 'Reports', to: ROUTES.fixedAssetReports },
     ],
   },
   {
-    title: 'Assets Insurance',
+    title: 'Assets Setup',
     icon: ShieldCheck,
-    tiles: [{ label: 'Insurance Company', to: ROUTES.fixedAssetInsuranceCompany }],
-  },
-  {
-    title: 'Assets Journal',
-    icon: BookText,
-    tiles: [{ label: 'List of Asset Transaction Report', to: ROUTES.fixedAssetTransactionReport }],
+    tiles: [
+      { label: 'Asset Types', to: ROUTES.fixedAssetTypes },
+      { label: 'Asset Categories', to: ROUTES.fixedAssetCategory },
+      { label: 'Asset Groups', to: ROUTES.fixedAssetGroup },
+      { label: 'Insurance Companies', to: ROUTES.fixedAssetInsuranceCompany },
+    ],
   },
   {
     title: 'Members',
@@ -476,15 +474,14 @@ export const ALL_APPS: AppSection[] = [
     tiles: [
       { label: 'New member', to: ROUTES.memberNew },
       { label: 'List', to: ROUTES.memberList },
-      // The legacy status shortcuts open its member list pre-filtered; the React list shows every
-      // member with its status, so they all land there.
-      { label: 'Draft members', to: ROUTES.memberList },
-      { label: 'Validated members', to: ROUTES.memberList },
-      { label: 'Members Up To Date', to: ROUTES.memberList },
-      { label: 'Members Not Up To Date', to: ROUTES.memberList },
-      { label: 'Terminated members', to: ROUTES.memberList },
+      // The legacy status shortcuts open its member list pre-filtered; the React list reads the same status / filter words.
+      { label: 'Draft members', to: ROUTES.memberListDraft },
+      { label: 'Validated members', to: ROUTES.memberListValidated },
+      { label: 'Members Up To Date', to: ROUTES.memberListUpToDate },
+      { label: 'Members Not Up To Date', to: ROUTES.memberListOutOfDate },
+      { label: 'Terminated members', to: ROUTES.memberListTerminated },
       { label: 'Statistics', to: ROUTES.memberStatistics },
-      { label: 'Members business cards' },
+      { label: 'Members business cards', to: ROUTES.memberCards },
     ],
   },
   {

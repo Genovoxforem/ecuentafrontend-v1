@@ -6,7 +6,7 @@ import { TableExportButtons } from '../../../../shared/components/TableExportBut
 import { formatMoney } from '../../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useCustomerLedger } from '../../customerDetailTabs.queries'
-import { TabTitle } from './CustomerDetailShared'
+import { StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 const DATE_RANGE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month', 'Last Month', 'This Year', 'Last Year', 'Custom Range'] as const
 
@@ -415,7 +415,9 @@ export function TransactionsTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle>Transactions</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Transactions</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto !p-0 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
         <div className="flex items-center gap-2">

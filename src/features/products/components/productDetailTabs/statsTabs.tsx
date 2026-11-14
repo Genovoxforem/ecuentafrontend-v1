@@ -446,7 +446,7 @@ export function MarginsTab({ id }: { id: string | undefined }) {
                   {l.qty.toFixed(2)}
                 </Td>
                 <Td right>{marginAmount(l.margin)}</Td>
-                <Td muted>{l.paid === null ? '—' : l.paid ? 'Paid' : 'Unpaid'}</Td>
+                <Td muted>{l.statusLabel || (l.paid === null ? '—' : l.paid ? 'Paid' : 'Not paid')}</Td>
               </tr>
             ))
           )}

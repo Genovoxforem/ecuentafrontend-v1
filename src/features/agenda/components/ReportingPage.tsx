@@ -1,17 +1,9 @@
-import { BarChart3, ExternalLink, FileText } from 'lucide-react'
+import { BarChart3, FileText } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 
-// comm/action/rapport/index.php (read directly) is a small, filter-less
-// page: one row per calendar month with an event count (SELECT count(*),
-// date_format(a.datep,'%m/%Y') ... GROUP BY year, month) and a "Build PDF"
-// action that runs CommActionRapport::write_file() server-side
-// (core/modules/action/rapport.pdf.php) to generate the actual report file.
-// No json_encode/application/json anywhere in that file — the count table
-// and the PDF generation are both real, but neither has a JSON API this SPA
-// can call, so this stays an honest link out rather than a faked table of
-// numbers or a client-side PDF we can't actually produce.
-const LEGACY_REPORTING_URL = '/comm/action/rapport/index.php'
+// The classic Agenda report (comm/action/rapport/index.php, read directly) is a small, filter-less page: one row per calendar month with an
+// event count and a "Build PDF" action that runs CommActionRapport::write_file() server-side. Neither has a JSON API this SPA can call (no
+// endpoint in comm/fapi), and the app never links to a backend .php page, so the page says so and keeps the action inert until one exists.
 
 export function ReportingPage() {
   return (
@@ -28,16 +20,16 @@ export function ReportingPage() {
           <div className="space-y-2">
             <p className="text-sm text-text!">
               The Agenda report groups every logged event by calendar month and generates a PDF summary on the server. This backend has no JSON API for either the monthly counts or the PDF
-              generation — both are server-rendered and server-generated, so they open in the legacy app rather than being rebuilt here with placeholder numbers.
+              generation — both are server-rendered and server-generated, so this page cannot show them yet and does not fake the numbers.
             </p>
-            <a
-              href={stripBackendPrefix(LEGACY_REPORTING_URL)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
+            <button
+              type="button"
+              disabled
+              title="No JSON API exists for the monthly event counts or the PDF"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white opacity-60 cursor-not-allowed"
             >
-              Open Reporting <ExternalLink size={12} />
-            </a>
+              Build PDF
+            </button>
           </div>
         </div>
       </Card>

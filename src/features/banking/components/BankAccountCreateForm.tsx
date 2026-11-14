@@ -49,6 +49,7 @@ export function BankAccountCreateForm() {
   const [minAllowed, setMinAllowed] = useState('')
   const [minDesired, setMinDesired] = useState('')
   const [bankName, setBankName] = useState('')
+  const [zraBankCode, setZraBankCode] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [iban, setIban] = useState('')
   const [bic, setBic] = useState('')
@@ -69,6 +70,10 @@ export function BankAccountCreateForm() {
 
   async function handleSubmit() {
     setFormError('')
+    if (options?.zraEnabled && type !== '1' && !zraBankCode) {
+      setFormError('ZRA bank is required for non-cash accounts.')
+      return
+    }
     if (!ref.trim() || !label.trim() || !currencyCode || !countryId || !accountingAccount || !accountingJournal) {
       setFormError('Ref, Bank or cash label, Currency, Account country, Accounting account and Accounting code journal are required.')
       return
@@ -89,6 +94,7 @@ export function BankAccountCreateForm() {
         minAllowedBalance: minAllowed,
         minDesiredBalance: minDesired,
         bankName,
+        zraBankCode,
         accountNumber,
         iban,
         bic,
@@ -215,6 +221,18 @@ export function BankAccountCreateForm() {
           <Field label="Bank name">
             <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className={inputClasses} />
           </Field>
+          {options?.zraEnabled && (
+            <Field label="ZRA bank" required={type !== '1'}>
+              <select value={zraBankCode} onChange={(e) => setZraBankCode(e.target.value)} aria-label="ZRA bank" className={inputClasses}>
+                <option value="" />
+                {(options.zraBanks ?? []).map((b) => (
+                  <option key={b.value} value={b.value}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Account number">
             <input type="text" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className={inputClasses} />
           </Field>

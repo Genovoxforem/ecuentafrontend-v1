@@ -1,5 +1,11 @@
 import { usDate } from '../../api/fapiRow'
+
 import type { SalesInvoiceData, SalesInvoiceLine, SalesInvoiceModeOption, SalesInvoiceOption, SalesInvoicePayment } from './salesInvoiceApi'
+
+function zraDate(v: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2}:\d{2})/.exec(v)
+  return m ? `${m[2]}/${m[3]}/${m[1]} ${m[4]}` : v
+}
 
 // compta/facture/fapi/get.php -> the shape the invoice card renders (SalesInvoiceData). get.php carries the header, lines,
 // payments, balance, customer, files, document models, margin and the payment-term / mode lists, with numbers and ISO dates;
@@ -164,7 +170,8 @@ export function fapiToSalesInvoice(d: Raw): SalesInvoiceData {
       invoice_no: str(zra.invoice_no),
       sdc_id: str(zra.sdc_id),
       mrc: str(zra.mrc),
-      date: str(zra.date),
+      // compta/sales/card.php prints the ZRA date as "11/11/2026 07:33:45", not the raw ISO text the API sends.
+      date: zraDate(str(zra.date)),
       qr_url: str(zra.qr_url),
     },
     customer: {

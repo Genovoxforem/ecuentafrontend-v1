@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { journalCsv, loadJournal, writeJournal } from './accountingJournalFapi'
-import type { JournalPage } from './accountingJournalParser'
+import type { JournalPage } from './accountingJournal.types'
 
 // One entry per accounting journal: its key is the `journal` the accountancy/fapi/journals.php endpoint takes.
 export interface JournalConfig {

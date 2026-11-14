@@ -1,21 +1,17 @@
 import { MessageCircle } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useWhatsappSettings } from '../whatsappCashflow.data'
 import { SetupShell } from './SetupShell'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface disabled:text-text-faint'
 
-// compta/facture/send_whatsapp_settings.php — confirmed no JSON API by
-// reading the file directly: it reads llx_whatsapp_settings with a plain
-// SQL SELECT and prints either a create form (table empty) or a one-row
-// table with an "Edit" link (table has a row), no fetch/AJAX involved in
-// the read at all. The Save button posts to whatsapp_ajax.php, which IS a
-// real write (raw INSERT/UPDATE into llx_whatsapp_settings) but returns
-// plain text ("success"), not JSON, has no permission check of its own, and
-// has no way from here to tell create from update without first scraping
-// this page's own HTML to find an existing row's id — so, consistent with
-// every other page in this Setup/Tools group (Menus, Other Setup, Cashflow
-// Settings), the real write stays disabled rather than fired blind.
+// compta/facture/send_whatsapp_settings.php reads llx_whatsapp_settings with a plain SQL SELECT; the Save button posts to whatsapp_ajax.php, a real write
+// (raw INSERT/UPDATE) that answers plain text, so the save has no key-authenticated API and stays on the classic page (the fields stay disabled).
+// The saved instance id and whether a token exists are read from admin/fapi/whatsapp.php (12 Nov 2026, AN-181 read side); the token itself is never sent.
 export function WhatsappSettings() {
+  const { data, isLoading, isError, error, refetch } = useWhatsappSettings()
+
   return (
     <SetupShell
       icon={MessageCircle}
@@ -26,23 +22,40 @@ export function WhatsappSettings() {
         </a>
       }
     >
-      <Card className="!h-auto space-y-4">
-        <div>
-          <label className="block text-sm mb-1 text-text-muted">Token*</label>
-          <input disabled placeholder="Your WhatsApp API token" title="No real API exists for this page — see the module's other Setup pages" className={inputCls + ' w-full max-w-md'} />
-        </div>
-        <div>
-          <label className="block text-sm mb-1 text-text-muted">Instance ID*</label>
-          <input disabled placeholder="Your WhatsApp Instance ID" title="No real API exists for this page — see the module's other Setup pages" className={inputCls + ' w-full max-w-md'} />
-        </div>
-        <button type="button" disabled title="No real API exists for this page" className="rounded-lg bg-neutral-bg px-6 py-2.5 text-sm font-medium text-text-faint cursor-default">
-          Submit
-        </button>
-      </Card>
-
-      <p className="text-xs text-text-faint italic">
-        No screenshot of this page's current saved state exists — left showing the reference page's empty/create form rather than guessing whether a token is already configured.
-      </p>
+      {isLoading && <LegacyLoadingCard label="Loading the WhatsApp settings…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the WhatsApp settings" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {data && (
+        <>
+          <Card className="!h-auto space-y-4">
+            <div>
+              <label className="block text-sm mb-1 text-text-muted">Token*</label>
+              <input
+                disabled
+                readOnly
+                value={data.tokenSet ? '••••••••' : ''}
+                placeholder="Your WhatsApp API token"
+                title="Saved on the classic page: the API only reads these settings (the token is never sent)"
+                className={inputCls + ' w-full max-w-md'}
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-text-muted">Instance ID*</label>
+              <input
+                disabled
+                readOnly
+                value={data.instance}
+                placeholder="Your WhatsApp Instance ID"
+                title="Saved on the classic page: the API only reads these settings"
+                className={inputCls + ' w-full max-w-md'}
+              />
+            </div>
+            <button type="button" disabled title="Saved on the classic page: the API only reads these settings" className="rounded-lg bg-neutral-bg px-6 py-2.5 text-sm font-medium text-text-faint cursor-default">
+              Submit
+            </button>
+          </Card>
+          {!data.enabled && data.note && <p className="text-xs text-text-faint italic">{data.note}</p>}
+        </>
+      )}
     </SetupShell>
   )
 }

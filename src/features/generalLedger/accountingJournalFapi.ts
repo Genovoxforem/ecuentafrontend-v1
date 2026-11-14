@@ -1,7 +1,7 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
 import { usDateFromIso as usDate } from '../../utils/dates'
-import type { JournalPage, JournalRow } from './accountingJournalParser'
+import type { JournalPage, JournalRow } from './accountingJournal.types'
 
 // The four accounting journals on accountancy/fapi/journals.php (22 Oct 2026): a preview of what would be written to the ledger
 // (GET) and the write itself (POST action=writebookkeeping). The bank journal answer was captured from newecuenta on 22 Oct 2026

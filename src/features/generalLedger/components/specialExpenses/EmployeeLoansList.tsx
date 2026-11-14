@@ -1,9 +1,9 @@
 import { HandCoins } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
 import { loadLoans } from '../../specialPaymentsFapi'
-import { LegacyListPage } from '../LegacyListPage'
+import { JsonListPage } from '../JsonListPage'
 
 // loan/fapi/list.php — the entity's loans with what is paid and what remains.
 export function EmployeeLoansList() {
-  return <LegacyListPage icon={HandCoins} title="Employee Loans" path="/loan/fapi/list.php" firstHeader={/^Ref/} load={loadLoans} addTo={{ label: 'New Loan', to: ROUTES.ledgerLoanCreate }} />
+  return <JsonListPage icon={HandCoins} title="Employee Loans" queryKey="/loan/fapi/list.php" load={loadLoans} addTo={{ label: 'New Loan', to: ROUTES.ledgerLoanCreate }} />
 }

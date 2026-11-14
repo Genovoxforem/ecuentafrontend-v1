@@ -18,7 +18,7 @@ const STATUS_CLASS: Record<number, string> = {
   2: 'bg-surface-hover text-text-muted',
 }
 
-type SortKey = 'ref' | 'customerRef' | 'thirdParty' | 'city' | 'zip' | 'plannedDelivery' | 'tracking' | 'deliveryRef' | 'dateReceived' | 'status' | 'date'
+type SortKey = 'ref' | 'customerRef' | 'thirdParty' | 'city' | 'zip' | 'plannedDelivery' | 'tracking' | 'deliveryRef' | 'dateReceived' | 'status'
 const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
   { label: 'Ref.', key: 'ref' },
   { label: 'Ref. Customer', key: 'customerRef' },
@@ -30,7 +30,6 @@ const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
   { label: 'Ref Delivery', key: 'deliveryRef' },
   { label: 'Date Delivery Received', key: 'dateReceived' },
   { label: 'Status', key: 'status' },
-  { label: 'Date Created', key: 'date' },
 ]
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
@@ -63,8 +62,6 @@ function sortValue(row: ShipmentListRow, key: SortKey): string | number {
       return row.dateDeliveryReceived
     case 'status':
       return row.statusCode
-    case 'date':
-      return row.dateCreation
   }
 }
 
@@ -125,7 +122,6 @@ export function ShipmentStatusList({ title, statusFilter }: { title: string; sta
         s.deliveryRef || '—',
         s.dateDeliveryReceived || '—',
         STATUS_LABEL[s.statusCode] ?? `Status ${s.statusCode}`,
-        s.dateCreation,
       ]),
     }
   }
@@ -247,7 +243,6 @@ export function ShipmentStatusList({ title, statusFilter }: { title: string; sta
                           {STATUS_LABEL[s.statusCode] ?? `Status ${s.statusCode}`}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-text-muted whitespace-nowrap">{s.dateCreation}</td>
                     </tr>
                   ))
                 )}

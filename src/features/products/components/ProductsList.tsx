@@ -15,7 +15,7 @@ import { ProductFilterModal } from './ProductFilterModal'
 import { ProductDetailPanel } from './ProductDetailPanel'
 import { DEFAULT_PRODUCT_FILTERS, activeFilterCount, matchesProductFilters, type ProductFilters } from '../productFilters'
 
-type SortKey = 'product' | 'category' | 'vatCode' | 'price' | 'stock' | 'classification' | 'zraStatus' | 'lotStatus' | 'country' | 'created'
+type SortKey = 'product' | 'category' | 'nature' | 'vatCode' | 'price' | 'stock' | 'classification' | 'zraStatus' | 'lotStatus' | 'country' | 'created'
 
 // Extra columns beyond the base /api/products/ fields mirror the legacy
 // "All Products" report (product/allproducts.php) — see useAllProductsRich.
@@ -26,6 +26,7 @@ type SortKey = 'product' | 'category' | 'vatCode' | 'price' | 'stock' | 'classif
 const ALL_COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Product', key: 'product' },
   { label: 'Category', key: 'category' },
+  { label: 'Nature', key: 'nature' },
   { label: 'VAT Code', key: 'vatCode' },
   { label: 'Selling Price', key: 'price' },
   { label: 'Stock', key: 'stock' },
@@ -97,6 +98,8 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
           return p.label
         case 'category':
           return rich?.category ?? ''
+        case 'nature':
+          return rich?.nature ?? ''
         case 'vatCode':
           return rich?.vatCode ?? ''
         case 'price':
@@ -140,6 +143,7 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
       return [
         `${p.label} (Ref: ${p.ref})`,
         rich?.category ?? '',
+        rich?.nature ?? '',
         rich?.vatCode ?? '',
         rich ? `${formatMoney(Number(rich.price))} ${priceSuffix(rich.priceBaseType)}` : '',
         String(p.stock),
@@ -273,6 +277,9 @@ export function ProductsList({ summary }: { summary: ProductsSummary }) {
                         </td>
                         <td className="px-4 py-3 text-text-muted">
                           <RichCell value={rich?.category} />
+                        </td>
+                        <td className="px-4 py-3 text-text-muted whitespace-nowrap">
+                          <RichCell value={rich?.nature || undefined} />
                         </td>
                         <td className="px-4 py-3 text-text-muted">
                           <RichCell value={rich?.vatCode} />

@@ -3,6 +3,7 @@ import { Shield, Eye, EyeOff } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SetupShell } from './SetupShell'
 import { RealToggle } from './RealToggle'
+import { useSettingConstants } from '../settingConstants.data'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -66,7 +67,10 @@ const PERMISSION_GROUPS: PermGroup[] = [
   },
 ]
 
+const SECURITY_SWITCHES = { MAIN_SECURITY_ENABLECAPTCHA: false, MAIN_USE_ADVANCED_PERMS: false }
+
 export function SecuritySetup() {
+  const consts = useSettingConstants(SECURITY_SWITCHES)
   const [tab, setTab] = useState<Tab>('Miscellaneous')
 
   // Miscellaneous
@@ -125,7 +129,7 @@ export function SecuritySetup() {
       description="All other security related parameters are defined here."
       onSave={tab !== 'Files (upload)' ? handleSave : undefined}
       saveLabel={tab === 'Audit' ? 'Save' : 'Modify'}
-      saved={saved ? 'Saved (session-only — the two Miscellaneous toggles save live; no other security-config endpoint exists on this backend yet).' : undefined}
+      saved={saved ? 'Not saved to the server — only the two Miscellaneous toggles save (live); no other security setting has a save endpoint yet.' : undefined}
       tabs={TABS.map((t) => (
         <button
           key={t}
@@ -150,11 +154,11 @@ export function SecuritySetup() {
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <span className="text-sm text-brand">Use Graphical Code (CAPTCHA) On Login Page</span>
-            <RealToggle constName="MAIN_SECURITY_ENABLECAPTCHA" initial={false} />
+            <RealToggle constName="MAIN_SECURITY_ENABLECAPTCHA" initial={consts.on('MAIN_SECURITY_ENABLECAPTCHA')} loading={!consts.ready} />
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <span className="text-sm text-brand">Use The Advanced Permissions Of Some Modules</span>
-            <RealToggle constName="MAIN_USE_ADVANCED_PERMS" initial={false} />
+            <RealToggle constName="MAIN_USE_ADVANCED_PERMS" initial={consts.on('MAIN_USE_ADVANCED_PERMS')} loading={!consts.ready} />
           </div>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
             <span>Parameters</span>

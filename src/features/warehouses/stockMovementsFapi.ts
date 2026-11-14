@@ -21,10 +21,15 @@ export interface FapiMovement {
   inventory_code: string | null
   batch: string | null
   cost_price: number
+  // The unit purchase price of the movement (the classic list's "Unit purchase price" / "Unit Value" column).
+  unit_price?: number | null
   origin_ref: string | null
   origin_route: string | null
   user_login: string
   user_name: string
+  // Sent since 13 Nov 2026 (AN-202): the warehouse's entity and its name; absent on older backends.
+  entity?: number | null
+  environment?: string | null
   zra_status: string | null
   zra_sent_ok: boolean
 }
@@ -68,6 +73,7 @@ export const mapMovement = (m: FapiMovement): StockMovementRow => ({
   dateFormatted: stamp(m.date),
   warehouseId: m.warehouse_id,
   warehouseRef: m.warehouse_ref,
+  environment: m.environment ?? '',
   author: m.user_name || m.user_login,
   inventoryCode: m.inventory_code,
   label: m.label,
@@ -76,6 +82,7 @@ export const mapMovement = (m: FapiMovement): StockMovementRow => ({
   originRef: m.origin_ref ?? '',
   originUrl: m.origin_route ?? '',
   costPrice: m.cost_price ? String(m.cost_price) : '',
+  unitValue: m.unit_price ? String(m.unit_price) : '',
   qty: String(m.qty),
   zraStatusDisplay: m.zra_status ?? '',
   zraStatusClass: m.zra_sent_ok ? 'badge-success' : m.zra_status ? 'badge-danger' : '',

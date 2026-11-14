@@ -1,56 +1,15 @@
-import { useState } from "react";
 import { Utensils, Check, X, Loader2, ShoppingBasket } from "lucide-react";
 import { useTables } from "../hooks/useTables";
+import { useTableSelection } from "../hooks/useTableSelection";
 import useTableStore from "../stores/tableStore";
-import usePosStore from "../../pos/stores/posStore";
-import { fetchReceipt } from "../../reports/services/receiptApi";
 
 function TableSelectorModal({ onClose }) {
     const { tables, loading } = useTables();
     const selectedTable = useTableStore((state) => state.selectedTable);
-    const selectTable = useTableStore((state) => state.selectTable);
-    const loadInvoiceIntoCart = usePosStore((state) => state.loadInvoiceIntoCart);
-    const clearCart = usePosStore((state) => state.clearCart);
-    const showToast = usePosStore((state) => state.showToast);
-    const [resumingId, setResumingId] = useState(null);
-    const [error, setError] = useState("");
+    const { select, resumingId, error } = useTableSelection();
 
-   
     const handleSelect = async (table) => {
-        if (resumingId) return;
-        setError("");
-        let loadedExisting = false;
-        if (table.occupied && table.invoiceId) {
-            setResumingId(table.id);
-            try {
-                const receipt = await fetchReceipt(table.invoiceId);
-                const items = (receipt.lines || []).map((line) => ({
-                    id: line.product_id,
-                    name: line.product_label || line.description || "Item",
-                    ref: line.product_ref || "",
-                    price: line.qty > 0 ? line.total_ttc / line.qty : line.price_unit,
-                    qty: line.qty,
-                }));
-                if (items.length > 0) {
-                    const totalPaid = (receipt.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                    const remainToPay = Math.max(0, (Number(receipt.total_ttc) || 0) - totalPaid);
-                    loadInvoiceIntoCart({ id: table.invoiceId, ref: receipt.invoice_ref, remainToPay, items });
-                    showToast(`${table.label}'s order loaded — ${items.length} item${items.length === 1 ? "" : "s"}`);
-                    loadedExisting = true;
-                }
-            } catch (err) {
-                setError(err.message || "Failed to load this table's order");
-                setResumingId(null);
-                return;
-            }
-            setResumingId(null);
-        }
-        if (!loadedExisting) {
-            clearCart();
-            showToast(`${table.label} selected — ready for a new order`);
-        }
-        selectTable(table);
-        onClose();
+        if (await select(table)) onClose();
     };
 
     return (

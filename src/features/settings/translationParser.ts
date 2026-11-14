@@ -1,5 +1,5 @@
-// Parses admin/translation.php (Setup > Translation), which has two modes, per the page's
-// markup (search results, empty overwrite list) and its own PHP:
+// Parses the overwrite list of admin/translation.php (Setup > Translation) for the save token and the writes; the key search is on admin/fapi/translation.php. The page has two modes, per its
+// markup and its own PHP:
 //   - `?mode=searchkey&action=search&langcode=&transkey=&transvalue=&limit=&page=` lists the
 //     translation strings read from the backend's language files, one page at a time; the
 //     title carries "(<matches> / <all strings> - <files> Files)". A row's last cell has an
@@ -39,6 +39,8 @@ export interface TranslationSearchPage extends TranslationPageBase {
   totalStrings: number
   files: number
   rows: TranslationSearchRow[]
+  // no search term was given: nothing was asked (the fapi needs a term)
+  noTerm?: boolean
 }
 
 export interface TranslationOverride {
@@ -76,48 +78,6 @@ function parseBase(doc: Document): TranslationPageBase {
 function ruleLink(tr: Element, action: 'edit' | 'delete') {
   const href = tr.querySelector(`a[href*="mode=overwrite"][href*="action=${action}"]`)?.getAttribute('href') ?? ''
   return { rowId: href.match(/[?&]rowid=(\d+)/)?.[1] ?? '', entity: href.match(/[?&]entity=(\d+)/)?.[1] ?? '' }
-}
-
-export function parseTranslationSearchPage(doc: Document): TranslationSearchPage {
-  const base = parseBase(doc)
-  const table = doc.querySelector('input[name="transvalue"]')?.closest('table')
-  if (!table) throw new Error('The translation search on this backend page was not recognised.')
-
-  const rows: TranslationSearchRow[] = []
-  table.querySelectorAll('tr.oddeven').forEach((tr) => {
-    // The first row is the search form itself.
-    if (tr.querySelector('input, select')) return
-    const cells = Array.from(tr.querySelectorAll(':scope > td'))
-    if (cells.length < 4) return
-    const edit = ruleLink(tr, 'edit')
-    const overwriteId = edit.rowId || null
-    let originalValue: string | null = null
-    if (overwriteId) {
-      const tip = Array.from(cells[3].querySelectorAll('[title]')).map((e) => e.getAttribute('title') ?? '').find((t) => t.includes('<i>'))
-      originalValue = tip ? clean(new DOMParser().parseFromString(tip, 'text/html').querySelector('i')?.textContent) : null
-    }
-    rows.push({
-      language: clean(cells[0].textContent),
-      key: clean(cells[1].textContent),
-      value: clean(cells[2].textContent),
-      overwriteId,
-      overwriteEntity: edit.entity,
-      originalValue,
-      canOverwrite: !overwriteId && !!cells[3].querySelector('a[href*="mode=overwrite"][href*="transkey="]'),
-    })
-  })
-
-  // "(<matches> / <all strings> - <files> Files)" — absent when nothing matched.
-  const counts = Array.from(doc.querySelectorAll('span.opacitymedium'))
-    .map((s) => clean(s.textContent).match(/^\((\d+)\s*\/\s*(\d+)\s*-\s*(\d+)\s/))
-    .find(Boolean)
-  return {
-    ...base,
-    matches: counts ? Number(counts[1]) : 0,
-    totalStrings: counts ? Number(counts[2]) : 0,
-    files: counts ? Number(counts[3]) : 0,
-    rows,
-  }
 }
 
 export function parseTranslationOverwritesPage(doc: Document): TranslationOverwritesPage {

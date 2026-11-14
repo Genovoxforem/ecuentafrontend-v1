@@ -4,6 +4,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useTheme } from '../../../context/ThemeContext'
 import { useLanguageOptions } from '../../users/users.queries'
 import { RealToggle } from './RealToggle'
+import { useSettingConstants } from '../settingConstants.data'
 import { SetupShell } from './SetupShell'
 
 function Row({ label, hint, caption, children }: { label: string; hint?: string; caption?: string; children: ReactNode }) {
@@ -66,7 +67,19 @@ const COLOR_FIELDS = [
   { key: 'highlightChecked', label: "Highlight Color Of The Line When It Is Checked (Use 'Ffffff' For No Highlight)", defaultLabel: 'Unknown' },
 ] as const
 
+// The switches of this screen and the position it used to assume (kept only as the fallback when the constants cannot be read).
+const DISPLAY_SWITCHES = {
+  MAIN_MULTILANGS: true,
+  MAIN_DISABLE_JAVASCRIPT: false,
+  MAIN_MENU_HIDE_UNAUTHORIZED: true,
+  MAIN_BUTTON_HIDE_UNAUTHORIZED: true,
+  MAIN_BUGTRACK_ENABLELINK: false,
+  MAIN_HELP_DISABLELINK: false,
+  MAIN_CONSOLE_LOGGING_ENABLED: true,
+}
+
 export function DisplaySetup() {
+  const consts = useSettingConstants(DISPLAY_SWITCHES)
   // Real — the same live theme context the navbar's own sun/moon toggle
   // drives (src/context/ThemeContext.tsx). Unlike every other switch on
   // this page, flipping this one genuinely changes the app's rendered
@@ -132,7 +145,7 @@ export function DisplaySetup() {
       title="Display"
       description="Parameters affecting the look and behaviour of Ecuenta can be modified here."
       onSave={handleSave}
-      saved={saved ? 'Saved (session-only — the toggle switches save live as you flip them; everything else on this page has no backing endpoint yet).' : undefined}
+      saved={saved ? 'Not saved to the server — only the toggle switches save (live, as you flip them); nothing else on this page has a save endpoint yet.' : undefined}
     >
       <Card className="!h-auto">
         <SectionPill>Language</SectionPill>
@@ -159,7 +172,7 @@ export function DisplaySetup() {
           </div>
         </Row>
         <Row label="Enable Multilanguage Support For Customer Or Vendor Relationships">
-          <RealToggle constName="MAIN_MULTILANGS" initial={true} />
+          <RealToggle constName="MAIN_MULTILANGS" initial={consts.on('MAIN_MULTILANGS')} loading={!consts.ready} />
         </Row>
       </Card>
 
@@ -209,7 +222,7 @@ export function DisplaySetup() {
           label="Disable JavaScript And Ajax Functions"
           caption="Note: for test or debug purpose. For optimization for blind person or text browsers, you may prefer to use the setup on the profile of user"
         >
-          <RealToggle constName="MAIN_DISABLE_JAVASCRIPT" initial={false} />
+          <RealToggle constName="MAIN_DISABLE_JAVASCRIPT" initial={consts.on('MAIN_DISABLE_JAVASCRIPT')} loading={!consts.ready} />
         </Row>
         <Row label="Default Max Length For Lists" hint="demo only">
           <input value={maxLengthLists} onChange={(e) => setMaxLengthLists(e.target.value)} className={inputCls + ' max-w-xs'} />
@@ -239,16 +252,16 @@ export function DisplaySetup() {
           </select>
         </Row>
         <Row label="Hide Unauthorized Menus Also For Internal Users (just greyed otherwise)">
-          <RealToggle constName="MAIN_MENU_HIDE_UNAUTHORIZED" initial={true} />
+          <RealToggle constName="MAIN_MENU_HIDE_UNAUTHORIZED" initial={consts.on('MAIN_MENU_HIDE_UNAUTHORIZED')} loading={!consts.ready} />
         </Row>
         <Row label="Hide Unauthorized Action Buttons Also For Internal Users (just greyed otherwise)">
-          <RealToggle constName="MAIN_BUTTON_HIDE_UNAUTHORIZED" initial={true} />
+          <RealToggle constName="MAIN_BUTTON_HIDE_UNAUTHORIZED" initial={consts.on('MAIN_BUTTON_HIDE_UNAUTHORIZED')} loading={!consts.ready} />
         </Row>
         <Row label='Show Link "Report A Bug"'>
-          <RealToggle constName="MAIN_BUGTRACK_ENABLELINK" initial={false} />
+          <RealToggle constName="MAIN_BUGTRACK_ENABLELINK" initial={consts.on('MAIN_BUGTRACK_ENABLELINK')} loading={!consts.ready} />
         </Row>
         <Row label='Hide Link To Online Help "?"'>
-          <RealToggle constName="MAIN_HELP_DISABLELINK" initial={false} />
+          <RealToggle constName="MAIN_HELP_DISABLELINK" initial={consts.on('MAIN_HELP_DISABLELINK')} loading={!consts.ready} />
         </Row>
         <Row label="Message Of The Day" hint="demo only">
           <input value={messageOfTheDay} onChange={(e) => setMessageOfTheDay(e.target.value)} className={inputCls} />
@@ -286,7 +299,7 @@ export function DisplaySetup() {
               label="EnableConsoleLogging"
               caption="Enable console.log, console.warn, and console.info in browser. Disabling improves performance in Chrome/Edge (V8 engine) by 10-20%."
             >
-              <RealToggle constName="MAIN_CONSOLE_LOGGING_ENABLED" initial={true} />
+              <RealToggle constName="MAIN_CONSOLE_LOGGING_ENABLED" initial={consts.on('MAIN_CONSOLE_LOGGING_ENABLED')} loading={!consts.ready} />
             </Row>
           </div>
         )}

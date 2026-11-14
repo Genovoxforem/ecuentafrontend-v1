@@ -60,6 +60,25 @@ function toDisplayDate(iso: string | null): string {
 // commande.lire + sales-rep restrictions applied server-side). Replaces the
 // DataTables endpoint salesoredr_ajax_list.php, whose JSON cells were HTML
 // fragments needing client-side parsing.
+// commande/fapi/list.php?action=summary: the filtered count, the order value and the per-status counts without downloading the rows. total_ttc is the
+// value of the orders including tax, billed_ttc / unbilled_ttc split it by invoicing, and by_status counts each order status. The status filter is
+// not applied to it; search / dates / third party / type and the sales-representative visibility are.
+export interface OrderListTotals {
+  count: number
+  totals: { total_ttc: number; billed_ttc: number; unbilled_ttc: number }
+  by_status: { draft: number; validated: number; process: number; closed: number; cancelled: number }
+}
+
+export async function fetchOrderListTotals(signal?: AbortSignal): Promise<OrderListTotals> {
+  const res = await fapi.get<{ success: boolean; data: OrderListTotals }>('/commande/fapi/list.php', { params: { action: 'summary' }, signal })
+  return res.data.data
+}
+
+// The cards fall back to the figures worked out from the rows when this fails, so no retry loop.
+export function useSalesOrderTotals() {
+  return useQuery({ queryKey: ['salesOrders', 'summary', 'totals'], queryFn: ({ signal }) => fetchOrderListTotals(signal), staleTime: 1000 * 30, retry: false })
+}
+
 export function useSalesOrdersSummary() {
   return useQuery({
     queryKey: ['salesOrders', 'summary'],

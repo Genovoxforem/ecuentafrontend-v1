@@ -8,6 +8,7 @@ import type { SalesInvoiceData } from '../../salesInvoiceApi'
 import { useConvertToRecurringInvoice, type RecurringInvoiceInput } from '../../salesInvoiceTabs.queries'
 import { useCreateCreditNote, useCreateDebitNote, useSalesInvoiceEmailData, useSendSalesInvoiceEmail, useSalesInvoicePosReceipt, CREDIT_NOTE_REASONS, DEBIT_NOTE_REASONS, type CreateCreditNoteInput, type CreateDebitNoteInput, type SendEmailInput } from '../../salesInvoiceActions.queries'
 import { todayIso } from '../../../../utils/dates'
+import { resolveLegacyRoute } from '../../../../shared/legacyRoute'
 import { ActionButton, inputCls, selectCls } from './InvoiceDetailShared'
 
 function WarehouseModal({
@@ -317,6 +318,7 @@ function PosTicketModal({ facid, onCancel }: { facid: string; onCancel: () => vo
 // — see salesInvoiceActions.queries.ts header.
 function CreateCreditNoteModal({ facid, onCancel }: { facid: string; onCancel: () => void }) {
   const createCreditNote = useCreateCreditNote(facid)
+  const navigate = useNavigate()
   const [createtype, setCreatetype] = useState<'lines' | 'remaining'>('lines')
   const [cnDate, setCnDate] = useState(() => {
     const d = new Date()
@@ -329,7 +331,9 @@ function CreateCreditNoteModal({ facid, onCancel }: { facid: string; onCancel: (
     const input: CreateCreditNoteInput = { createtype, cnDate, notePublic, notePrivate }
     createCreditNote.mutate(input, {
       onSuccess: (result) => {
-        if (result.redirect) window.location.href = result.redirect
+        // the backend answers the address of the new note's classic card: open the invoice page of this app instead
+        const route = resolveLegacyRoute(result.redirect)
+        if (route) navigate(route)
         else onCancel()
       },
     })
@@ -388,6 +392,7 @@ function CreateCreditNoteModal({ facid, onCancel }: { facid: string; onCancel: (
 // — see salesInvoiceActions.queries.ts header.
 function CreateDebitNoteModal({ facid, onCancel }: { facid: string; onCancel: () => void }) {
   const createDebitNote = useCreateDebitNote(facid)
+  const navigate = useNavigate()
   const [dnDate, setDnDate] = useState(() => {
     const d = new Date()
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
@@ -400,7 +405,9 @@ function CreateDebitNoteModal({ facid, onCancel }: { facid: string; onCancel: ()
     const input: CreateDebitNoteInput = { dnDate, reasonCode, notePublic, notePrivate }
     createDebitNote.mutate(input, {
       onSuccess: (result) => {
-        if (result.redirect) window.location.href = result.redirect
+        // the backend answers the address of the new note's classic card: open the invoice page of this app instead
+        const route = resolveLegacyRoute(result.redirect)
+        if (route) navigate(route)
         else onCancel()
       },
     })

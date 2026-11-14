@@ -208,7 +208,8 @@ export interface InvoiceListParams {
   direction?: 'asc' | 'desc'
   date_from?: string
   date_to?: string
-  type?: number
+  // 2 = credit notes only, 'all' = invoices AND credit notes in one list (since 11 Nov 2026); the default scope is the invoices
+  type?: number | 'all'
 }
 
 export async function fetchInvoices(params: InvoiceListParams = {}, signal?: AbortSignal): Promise<{
@@ -216,6 +217,24 @@ export async function fetchInvoices(params: InvoiceListParams = {}, signal?: Abo
   pagination: Pagination
 }> {
   const res = await fapi.get<FapiListResponse<InvoiceRow>>('/compta/facture/fapi/list.php', { params, signal })
+  return res.data.data
+}
+
+// compta/facture/fapi/list.php?action=summary: the filtered counts and amounts of the list without its rows. paid_ttc is the amount collected and
+// unpaid_ttc the balance still owed (draft and abandoned invoices are in neither); the status filter is not applied, search / dates / third party /
+// type are. The default scope is the invoices; type 2 answers the credit notes and type=all both together (count 133 = the list total of type=all on newecuenta,
+// 11 Nov 2026).
+export interface InvoiceListTotals {
+  currency: string
+  count: number
+  totals: { total_ttc: number; paid_ttc: number; unpaid_ttc: number }
+  by_status: { draft: number; unpaid: number; paid: number; abandoned: number }
+  // absent on a server that predates the amounts
+  by_status_amount?: { draft: number; unpaid: number; paid: number; abandoned: number }
+}
+
+export async function fetchInvoiceListTotals(params: Omit<InvoiceListParams, 'page' | 'limit' | 'status' | 'sort' | 'direction'> = {}, signal?: AbortSignal): Promise<InvoiceListTotals> {
+  const res = await fapi.get<FapiSuccess<InvoiceListTotals>>('/compta/facture/fapi/list.php', { params: { ...params, action: 'summary' }, signal })
   return res.data.data
 }
 

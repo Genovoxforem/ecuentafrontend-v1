@@ -1,191 +1,116 @@
-import { useState } from 'react'
-import { Receipt } from 'lucide-react'
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { ListPagination } from '../../../shared/components/ListPagination'
-import { TableExportButtons } from '../../../shared/components/TableExportButtons'
-import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
-import { useSalesInvoicesReport, type SalesInvoiceRow } from '../reports.queries'
-import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { formatMoney } from '../../../utils/format'
+import { useMemo, useState } from 'react'
+import { BarChart3, Calculator, FileText, Receipt, Wallet } from 'lucide-react'
+import { LegacyReportTable } from '../../../shared/components/table/LegacyReportTable'
+import { useCustomerOptions } from '../../customers/customerOptions'
+import { fmt, monthEnd, monthStart } from '../reportFormat'
+import {
+  INVOICE_STATUS_OPTIONS,
+  INVOICE_TYPE_OPTIONS,
+  ZRA_STATUS_OPTIONS,
+  invoicesTable,
+  useClassicInvoices,
+  useReportUsers,
+  type InvoiceStatusFilter,
+  type InvoiceTypeFilter,
+  type InvoiceSummary,
+  type PaymentSummaryItem,
+} from '../classicInvoices.data'
+import { KpiCard, RangeBar, ReportError, ReportLoading, SelectField } from './ReportWidgets'
+import { RadioPills } from './RadioPills'
 
-const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
-const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
-
-type SortKey = 'ref' | 'date' | 'customer' | 'paymentMode' | 'totalHt' | 'totalTtc' | 'paid' | 'remain' | 'status'
-
-function sortValue(inv: SalesInvoiceRow, key: SortKey): string | number {
-  switch (key) {
-    case 'ref':
-      return inv.ref
-    case 'date':
-      return inv.date
-    case 'customer':
-      return inv.customer
-    case 'paymentMode':
-      return inv.paymentMode
-    case 'totalHt':
-      return inv.totalHt
-    case 'totalTtc':
-      return inv.totalTtc
-    case 'paid':
-      return inv.paid
-    case 'remain':
-      return inv.remain
-    case 'status':
-      return inv.status
-  }
+// The four cards of the classic page: Total Invoices, Total Amount, Amount (Incl. Tax) and Received / Pending, in the currency of the filter.
+function SummaryCards({ s }: { s: InvoiceSummary }) {
+  const money = (n: number) => `${fmt(n)} ${s.currency}`
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <KpiCard label="Total Invoices" value={s.invoiceCount} sub={`Sales: ${s.salesCount} · Credit Notes: ${s.creditNoteCount}`} tone="blue" icon={FileText} />
+      <KpiCard label="Total Amount" value={money(s.ttc)} sub={`Sales: ${money(s.salesAmount)} · Credit Notes: ${money(s.creditNoteAmount)}`} tone="green" icon={Wallet} />
+      <KpiCard label="Amount (Incl. Tax)" value={money(s.ttc)} sub={`VAT: ${money(s.vat)} · Amount (Excl. Tax): ${money(s.ht)}`} tone="amber" icon={Calculator} />
+      <KpiCard
+        label="Amount"
+        value={money(s.received)}
+        sub={`Received${s.overpaid > 0 ? ` (+${fmt(s.overpaid)} overpaid)` : ''} · Pending: ${money(s.pending)}`}
+        tone="rose"
+        icon={BarChart3}
+      />
+    </div>
+  )
 }
 
-function firstDayOfMonth(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-function today(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// "Payment Summary" of the classic page: one tile per payment mode (amount, number of invoices, share); a tile filters the table to that mode, "Total (All)" clears it.
+export function PaymentSummary({ items, selected, onSelect }: { items: PaymentSummaryItem[]; selected: string; onSelect: (mode: string) => void }) {
+  if (items.length === 0) return null
+  const total = items.reduce((s, i) => s + i.amount, 0)
+  const count = items.reduce((s, i) => s + i.invoiceCount, 0)
+  const tile = (active: boolean) => `flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm ${active ? 'border-brand bg-brand/10' : 'border-border bg-surface hover:bg-surface-hover'}`
+  return (
+    <section aria-label="Payment Summary" className="space-y-2">
+      <h3 className="text-sm font-semibold text-text!">Payment Summary</h3>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {items.map((i) => (
+          <button key={i.mode} type="button" onClick={() => onSelect(i.mode)} className={tile(selected === i.mode)} aria-pressed={selected === i.mode}>
+            <span className="font-medium text-text">{i.mode}</span>
+            <span className="text-right text-text-muted">
+              ZMW {fmt(i.amount)} · {i.invoiceCount} · {total > 0 ? Math.round((i.amount / total) * 1000) / 10 : 0}%
+            </span>
+          </button>
+        ))}
+        <button type="button" onClick={() => onSelect('')} className={tile(selected === '')} aria-pressed={selected === ''}>
+          <span className="font-semibold text-text">Total (All)</span>
+          <span className="text-right text-text-muted">
+            ZMW {fmt(total)} · {count}
+          </span>
+        </button>
+      </div>
+    </section>
+  )
 }
 
-const STATUS_BADGE_CLS: Record<string, string> = {
-  Paid: 'bg-success-bg text-success-fg',
-  Partial: 'bg-warning-bg text-warning-fg',
-  Unpaid: 'bg-danger-bg text-danger-fg',
-  Draft: 'bg-neutral-bg text-neutral-fg',
-  'Written Off': 'bg-neutral-bg text-neutral-fg',
-}
-
-// Real via compta/facture/listreport_api.php — see reports.queries.ts for
-// the full evidence trail. A genuinely real, secured, filterable DataTables
-// report ("Sales Invoices" in the Reports Center's real "Receivables"
-// category).
+// "Sales Invoices" of the Reports Center (classic compta/facture/listreport.php). The list is read from the endpoint the classic page posts its own form
+// to (compta/facture/listreport_ajax.php, see classicInvoices.data.ts), so the rows, the totals and the status labels are the classic page's:
+// Ref. (with the customer reference), Receipt No, Invoice date, Third-party, Payment Type, Amount (excl. tax), Amount (inc. tax), Pending, Received,
+// Author and Status, filtered by period, Customer, Author, ZRA Status, Currency, Sales / Returns and All / Due / Partially Paid / Paid / Canceled.
+// The classic Select column + "Merge Selected PDFs" post to compta/facture/merge_invoice_pdfs.php and are not built; the table's own export buttons
+// export the filtered rows.
 export function SalesInvoicesReportView() {
-  const [dateFrom, setDateFrom] = useState(firstDayOfMonth())
-  const [dateTo, setDateTo] = useState(today())
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(25)
-  const { data, isLoading, isError, error, refetch } = useSalesInvoicesReport(dateFrom, dateTo)
-  const invoices = data?.invoices ?? []
-  const { sorted: sortedInvoices, sort, toggleSort } = useSortableRows<SalesInvoiceRow, SortKey>(invoices, sortValue)
-  const pageInvoices = sortedInvoices.slice((page - 1) * perPage, page * perPage)
-
-  function getExportData() {
-    return {
-      headers: ['Ref', 'Date', 'Customer', 'Payment Mode', 'Total (Excl.)', 'Total (Incl.)', 'Paid', 'Balance Due', 'Status'],
-      rows: sortedInvoices.map((inv) => [
-        inv.ref,
-        inv.date,
-        inv.customer,
-        inv.paymentMode,
-        formatMoney(inv.totalHt),
-        formatMoney(inv.totalTtc),
-        formatMoney(inv.paid),
-        formatMoney(inv.remain),
-        inv.status,
-      ]),
-    }
-  }
+  const [range, setRange] = useState({ start: monthStart(), end: monthEnd() })
+  const [type, setType] = useState<InvoiceTypeFilter>('')
+  const [status, setStatus] = useState<InvoiceStatusFilter>('')
+  const [customer, setCustomer] = useState('')
+  const [author, setAuthor] = useState('')
+  const [zra, setZra] = useState('')
+  const [currency, setCurrency] = useState('')
+  const [mode, setMode] = useState('')
+  const customers = useCustomerOptions()
+  const users = useReportUsers()
+  const q = useClassicInvoices({ from: range.start, to: range.end, type, status, userId: author, customerId: customer, zraStatus: zra, currency })
+  const rows = useMemo(() => (q.data?.invoices ?? []).filter((i) => !mode || i.paymentMode === mode), [q.data, mode])
+  const table = useMemo(() => invoicesTable(rows, 'sales'), [rows])
 
   return (
     <div className="space-y-4">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
         <Receipt size={20} className="text-brand" /> Sales Invoices
       </h2>
+      <RangeBar key={`${range.start}|${range.end}`} start={range.start} end={range.end} label="Report period" buttonLabel="View Report" onApply={(start, end) => setRange({ start, end })}>
+        <SelectField label="Customer" value={customer} onChange={setCustomer} blank="" options={(customers.data ?? []).map((c) => ({ value: c.id, label: c.name }))} />
+        <RadioPills label="Type" value={type} options={INVOICE_TYPE_OPTIONS} onChange={setType} />
+        <RadioPills label="Status" value={status} options={INVOICE_STATUS_OPTIONS} onChange={setStatus} />
+        <SelectField label="ZRA Status" value={zra} onChange={setZra} options={ZRA_STATUS_OPTIONS.filter((o) => o.value)} minWidth="min-w-36" />
+        <SelectField label="Filter by Currency" value={currency} onChange={setCurrency} blank="All Currencies" options={(q.data?.currencies ?? []).map((c) => ({ value: c, label: c }))} minWidth="min-w-36" />
+        <SelectField label="Author" value={author} onChange={setAuthor} options={(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))} minWidth="min-w-36" />
+      </RangeBar>
+      <p className="text-center text-sm text-text-muted">
+        For the period of {range.start} To {range.end}
+      </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputCls} title="From" />
-        <span className="text-text-faint text-sm">to</span>
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputCls} title="To" />
-      </div>
-
-      {isLoading && <LegacyLoadingCard label="Loading sales invoices…" />}
-      {isError && <LegacyErrorCard title="Couldn't load the report" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
-
-      {data && (
+      {q.isLoading && <ReportLoading label="Loading sales invoices…" />}
+      {q.isError && <ReportError error={q.error} onRetry={() => q.refetch()} />}
+      {q.data && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            <Card className="!h-auto">
-              <p className="text-xs text-text-faint">Total (Excl.)</p>
-              <p className="font-semibold text-text!">{data.totals.ht}</p>
-            </Card>
-            <Card className="!h-auto">
-              <p className="text-xs text-text-faint">VAT</p>
-              <p className="font-semibold text-text!">{data.totals.vat}</p>
-            </Card>
-            <Card className="!h-auto">
-              <p className="text-xs text-text-faint">Total (Incl.)</p>
-              <p className="font-semibold text-text!">{data.totals.ttc}</p>
-            </Card>
-            <Card className="!h-auto">
-              <p className="text-xs text-text-faint">Paid</p>
-              <p className="font-semibold text-success-fg">{data.totals.paid}</p>
-            </Card>
-            <Card className="!h-auto">
-              <p className="text-xs text-text-faint">Balance Due</p>
-              <p className="font-semibold text-danger-fg">{data.totals.remain}</p>
-            </Card>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <select
-              value={perPage}
-              onChange={(e) => {
-                setPerPage(Number(e.target.value))
-                setPage(1)
-              }}
-              className="h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <TableExportButtons title="Sales Invoices" getExportData={getExportData} />
-          </div>
-
-          <Card className="!h-auto !p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <TheadRow>
-                  <Th sortKey="ref" sort={sort} onSort={toggleSort}>Ref</Th>
-                  <Th sortKey="date" sort={sort} onSort={toggleSort}>Date</Th>
-                  <Th sortKey="customer" sort={sort} onSort={toggleSort}>Customer</Th>
-                  <Th sortKey="paymentMode" sort={sort} onSort={toggleSort}>Payment Mode</Th>
-                  <Th sortKey="totalHt" sort={sort} onSort={toggleSort} align="right">Total (Excl.)</Th>
-                  <Th sortKey="totalTtc" sort={sort} onSort={toggleSort} align="right">Total (Incl.)</Th>
-                  <Th sortKey="paid" sort={sort} onSort={toggleSort} align="right">Paid</Th>
-                  <Th sortKey="remain" sort={sort} onSort={toggleSort} align="right">Balance Due</Th>
-                  <Th sortKey="status" sort={sort} onSort={toggleSort}>Status</Th>
-                </TheadRow>
-              </thead>
-              <tbody>
-                {pageInvoices.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-3 py-4 text-text-faint italic">
-                      No sales invoices found for the selected period.
-                    </td>
-                  </tr>
-                ) : (
-                  pageInvoices.map((inv, i) => (
-                    <tr key={i} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-text!">{inv.ref}</td>
-                      <td className="px-3 py-2 text-text-muted whitespace-nowrap">{inv.date}</td>
-                      <td className="px-3 py-2 text-text-muted">{inv.customer}</td>
-                      <td className="px-3 py-2 text-text-muted">{inv.paymentMode}</td>
-                      <td className="px-3 py-2 text-right text-text-muted">{formatMoney(inv.totalHt)}</td>
-                      <td className="px-3 py-2 text-right text-text!">{formatMoney(inv.totalTtc)}</td>
-                      <td className="px-3 py-2 text-right text-success-fg">{formatMoney(inv.paid)}</td>
-                      <td className="px-3 py-2 text-right text-danger-fg">{formatMoney(inv.remain)}</td>
-                      <td className="px-3 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE_CLS[inv.status] ?? 'bg-neutral-bg text-neutral-fg'}`}>{inv.status}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </Card>
-
-          <ListPagination page={page} perPage={perPage} total={sortedInvoices.length} onPageChange={setPage} />
+          <SummaryCards s={q.data.summary} />
+          <PaymentSummary items={q.data.payments} selected={mode} onSelect={setMode} />
+          <LegacyReportTable title="Sales Invoices" table={table} />
         </>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
 
 // Via kitchen/dashboard_ajax.php — a different page from
 // kitchen/ordermanagement.php (which KitchenOrdersList.tsx covers):
@@ -28,21 +29,19 @@ export interface KitchenDashboardStats {
   statusCounts: { all: number; pending: number; completed: number }
 }
 
+// kitchen/fapi/dashboard.php?date=: its "pending" means any line unserved, while the classic cards count orders not
+// yet completed (ordercomplete=0), so active / pending here is total minus completed to keep the card's meaning.
+async function fetchStatsFapi(date: string): Promise<KitchenDashboardStats> {
+  const d = await fapiGet<{ stats: { total_orders?: number; completed?: number } }>('/kitchen/fapi/dashboard.php', { date })
+  const total = Number(d.stats?.total_orders) || 0
+  const completed = Number(d.stats?.completed) || 0
+  return { totalOrders: total, active: total - completed, completed, statusCounts: { all: total, pending: total - completed, completed } }
+}
+
 export function useKitchenDashboardStats(date: string) {
   return useQuery({
     queryKey: ['kitchenDashboard', 'stats', date],
-    queryFn: async (): Promise<KitchenDashboardStats> => {
-      const data = await postForm<{
-        stats: { total_orders: number; pending: number; completed: number }
-        status_counts: { all: number; pending: number; completed: number }
-      }>({ action: 'get_stats', date })
-      return {
-        totalOrders: data.stats.total_orders,
-        active: data.stats.pending,
-        completed: data.stats.completed,
-        statusCounts: data.status_counts,
-      }
-    },
+    queryFn: () => fetchStatsFapi(date),
     refetchInterval: 30_000,
   })
 }

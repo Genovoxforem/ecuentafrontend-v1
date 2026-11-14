@@ -1,17 +1,16 @@
 import { Banknote } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
-import { LegacyListPage } from '../LegacyListPage'
+import { JsonListPage } from '../JsonListPage'
 import { loadSalaries } from '../../specialPaymentsFapi'
 
 // salaries/list.php — the real salary payments list, read straight from the page.
 export function SalaryListPage() {
   return (
-    <LegacyListPage
+    <JsonListPage
       load={loadSalaries}
       icon={Banknote}
       title="Salary List"
-      path="/salaries/list.php"
-      firstHeader={/^Ref/}
+      queryKey="/salaries/list.php"
       addTo={{ label: 'New Payment - Salaries', to: ROUTES.ledgerSalaryPaymentCreate }}
     />
   )

@@ -54,7 +54,7 @@ export function PermissionsTab({
         </div>
       )}
       <div className="flex items-center justify-between mb-2 px-1">
-        <p className="text-xs text-text-faint">{data.nbRights} direct right(s) granted</p>
+        <p className="text-xs text-text-faint">{data.nbRights} right(s) granted</p>
         {!data.canEdit && <p className="text-xs text-text-faint italic">Read-only — your account can't edit this user's permissions.</p>}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden">

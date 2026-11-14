@@ -7,7 +7,7 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useInvoiceDrilldown } from '../generalLedgerAccounting.queries'
 import { useFinancialList } from '../financialList.queries'
-import type { FinancialListInvoiceType, FinancialListPage } from '../financialListParser'
+import type { FinancialListInvoiceType, FinancialListPage } from '../financialList.types'
 
 // The four "Invoices Created" lines and the list each one opens.
 const INVOICE_LINES: { key: FinancialListInvoiceType; label: string; title: string }[] = [

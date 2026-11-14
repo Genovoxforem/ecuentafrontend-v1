@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
-import { selectValue, selectOptions, toggleChecked, csrfToken, type OptionRow } from './posAdminShared'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { selectOptions, currentOnly, csrfToken, constOn, constSelect, loadPosConsts, loadPosPage, requirePosSource, requirePosToken, type OptionRow } from './posAdminShared'
 
 // takepos/admin/setup.php — the page has 9 toggles (CASHDESK_SERVICES
 // "Selling services", ECUENTA_POS_ENABLED, TAKEPOS_CONTROL_CASH_OPENING,
@@ -44,30 +44,39 @@ export function useParametersSetup() {
   return useQuery({
     queryKey: ['pos-admin', 'parameters-setup'],
     queryFn: async (): Promise<ParametersSetup> => {
-      const doc = await fetchLegacyDocument('/takepos/admin/setup.php')
-      const hasSimpleSwitchLink = /action=setrefmod[^"]*value=mod_takepos_ref_simple/.test(doc.documentElement.outerHTML)
+      const [consts, doc] = await Promise.all([loadPosConsts(), loadPosPage('/takepos/admin/setup.php')])
+      requirePosSource(consts, doc)
+      // The numbering module in use: from TAKEPOS_REF_ADDON; the classic page shows a switch link to Simple only while Universal is active
+      // (checked live on newecuenta 5 Nov 2026: the constant is mod_takepos_ref_universal and the link is there).
+      const hasSimpleSwitchLink = doc ? /action=setrefmod[^"]*value=mod_takepos_ref_simple/.test(doc.documentElement.outerHTML) : false
+      const activeNumberingModule: ParametersSetup['activeNumberingModule'] = consts
+        ? consts.TAKEPOS_REF_ADDON === 'mod_takepos_ref_simple'
+          ? 'mod_takepos_ref_simple'
+          : 'other'
+        : hasSimpleSwitchLink
+          ? 'other'
+          : 'mod_takepos_ref_simple'
       return {
-        numTerminals: selectValue(doc, 'TAKEPOS_NUM_TERMINALS') || '1',
-        rootCategoryId: selectValue(doc, 'TAKEPOS_ROOT_CATEGORY_ID') || '-1',
-        sortProductField: selectValue(doc, 'TAKEPOS_SORTPRODUCTFIELD') || 'rowid',
-        numpad: selectValue(doc, 'TAKEPOS_NUMPAD') || '0',
-        emailTemplate: selectValue(doc, 'TAKEPOS_EMAIL_TEMPLATE_INVOICE') || '-1',
-        rootCategoryOptions: selectOptions(doc, 'TAKEPOS_ROOT_CATEGORY_ID'),
-        sortProductFieldOptions: selectOptions(doc, 'TAKEPOS_SORTPRODUCTFIELD'),
-        numpadOptions: selectOptions(doc, 'TAKEPOS_NUMPAD'),
-        emailTemplateOptions: selectOptions(doc, 'TAKEPOS_EMAIL_TEMPLATE_INVOICE'),
-        // A visible switch-link to Simple means Universal is currently active.
-        activeNumberingModule: hasSimpleSwitchLink ? 'other' : 'mod_takepos_ref_simple',
-        cashdeskServices: toggleChecked(doc, 'CASHDESK_SERVICES'),
-        ecuentaPosEnabled: toggleChecked(doc, 'ECUENTA_POS_ENABLED'),
-        controlCashOpening: toggleChecked(doc, 'TAKEPOS_CONTROL_CASH_OPENING'),
-        delayedPayment: toggleChecked(doc, 'TAKEPOS_DELAYED_PAYMENT'),
-        directPayment: toggleChecked(doc, 'TAKEPOS_DIRECT_PAYMENT'),
-        giftReceipt: toggleChecked(doc, 'TAKEPOS_GIFT_RECEIPT'),
-        groupSameProduct: toggleChecked(doc, 'TAKEPOS_GROUP_SAME_PRODUCT'),
-        onscreenKeyboard: toggleChecked(doc, 'TAKEPOS_ONSCREEN_KEYBOARD'),
-        quickSynchronize: toggleChecked(doc, 'TAKEPOS_QUICK_SYNCHRONIZE'),
-        token: csrfToken(doc),
+        numTerminals: constSelect(consts, doc, 'TAKEPOS_NUM_TERMINALS', '1'),
+        rootCategoryId: constSelect(consts, doc, 'TAKEPOS_ROOT_CATEGORY_ID', '-1'),
+        sortProductField: constSelect(consts, doc, 'TAKEPOS_SORTPRODUCTFIELD', 'rowid'),
+        numpad: constSelect(consts, doc, 'TAKEPOS_NUMPAD', '0'),
+        emailTemplate: constSelect(consts, doc, 'TAKEPOS_EMAIL_TEMPLATE_INVOICE', '-1'),
+        rootCategoryOptions: doc ? selectOptions(doc, 'TAKEPOS_ROOT_CATEGORY_ID') : currentOnly(constSelect(consts, doc, 'TAKEPOS_ROOT_CATEGORY_ID', '')),
+        sortProductFieldOptions: doc ? selectOptions(doc, 'TAKEPOS_SORTPRODUCTFIELD') : currentOnly(constSelect(consts, doc, 'TAKEPOS_SORTPRODUCTFIELD', '')),
+        numpadOptions: doc ? selectOptions(doc, 'TAKEPOS_NUMPAD') : currentOnly(constSelect(consts, doc, 'TAKEPOS_NUMPAD', '')),
+        emailTemplateOptions: doc ? selectOptions(doc, 'TAKEPOS_EMAIL_TEMPLATE_INVOICE') : currentOnly(constSelect(consts, doc, 'TAKEPOS_EMAIL_TEMPLATE_INVOICE', '')),
+        activeNumberingModule,
+        cashdeskServices: constOn(consts, doc, 'CASHDESK_SERVICES'),
+        ecuentaPosEnabled: constOn(consts, doc, 'ECUENTA_POS_ENABLED'),
+        controlCashOpening: constOn(consts, doc, 'TAKEPOS_CONTROL_CASH_OPENING'),
+        delayedPayment: constOn(consts, doc, 'TAKEPOS_DELAYED_PAYMENT'),
+        directPayment: constOn(consts, doc, 'TAKEPOS_DIRECT_PAYMENT'),
+        giftReceipt: constOn(consts, doc, 'TAKEPOS_GIFT_RECEIPT'),
+        groupSameProduct: constOn(consts, doc, 'TAKEPOS_GROUP_SAME_PRODUCT'),
+        onscreenKeyboard: constOn(consts, doc, 'TAKEPOS_ONSCREEN_KEYBOARD'),
+        quickSynchronize: constOn(consts, doc, 'TAKEPOS_QUICK_SYNCHRONIZE'),
+        token: doc ? csrfToken(doc) : '',
       }
     },
     staleTime: 1000 * 15,
@@ -86,6 +95,7 @@ export function useSaveParametersSetup() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: SaveParametersInput) => {
+      requirePosToken(input.token)
       const body = new URLSearchParams()
       body.set('token', input.token)
       body.set('action', 'set')
@@ -107,6 +117,7 @@ export function useSwitchNumberingModule() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ token }: { token: string }) => {
+      requirePosToken(token)
       await fetchLegacyText(`/takepos/admin/setup.php?action=setrefmod&token=${encodeURIComponent(token)}&value=mod_takepos_ref_simple`)
       return { ok: true }
     },

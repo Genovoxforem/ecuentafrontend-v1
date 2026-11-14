@@ -96,9 +96,14 @@ export function HotelSuiteLayout() {
             <h1 className="text-lg font-bold text-text! truncate">{page?.title ?? page?.label ?? 'Hotel Suite'}</h1>
             {page && <p className="text-xs text-text-faint mt-0.5 truncate">{page.subtitle}</p>}
           </div>
-          <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-success-bg text-success-fg">
-            <span className="w-1.5 h-1.5 rounded-full bg-success-fg" /> Live data
-          </span>
+          {/* "Live data" only once the Suite has answered (r=me): a Suite that is missing or refusing is not live. */}
+          {me ? (
+            <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-success-bg text-success-fg">
+              <span className="w-1.5 h-1.5 rounded-full bg-success-fg" /> Live data
+            </span>
+          ) : (
+            <span className="ml-auto shrink-0" />
+          )}
           {user && (
             <div className="shrink-0 w-8 h-8 rounded-full bg-brand/10 text-brand grid place-items-center text-xs font-bold" title={`${user.firstname} ${user.lastname}`}>
               {initials}

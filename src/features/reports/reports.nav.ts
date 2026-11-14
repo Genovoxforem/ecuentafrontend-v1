@@ -17,7 +17,7 @@ export const nav: NavSection = {
   label: 'Reports',
   icon: FileText,
   items: [
-    { label: 'Reports Center', path: ROUTES.reports },
+    { label: 'All Reports', path: ROUTES.reports },
     ...REPORT_CATEGORIES.map((cat) => ({
       label: cat.label,
       items: cat.reports.map((r) => ({ label: r.label, path: reportPath(cat.key, r.slug) })),

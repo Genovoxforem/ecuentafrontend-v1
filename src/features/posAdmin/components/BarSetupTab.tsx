@@ -1,5 +1,5 @@
 import { useEffect, useState, useImperativeHandle, forwardRef } from 'react'
-import { LoaderCircle, ExternalLink } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import { RealToggle } from '../../settings/components/RealToggle'
 import { useBarSetup, useSaveBarSetup } from '../barSetup.queries'
 import type { TabHandle } from './tabHandle'
@@ -49,14 +49,11 @@ export const BarSetupTab = forwardRef<TabHandle>(function BarSetupTab(_props, re
 
       {/* Real page's own Add floor/Add table/Generate Tables actions have
           no dedicated AJAX endpoint found on this page — read/write here
-          would mean guessing a contract, so this links out to the real
-          page for that one piece instead of fabricating it. */}
+          would mean guessing a contract, so it says so instead of fabricating
+          it (and does not link to the classic page: standing rule). */}
       <div className="rounded-lg border border-border p-4">
         <h3 className="font-semibold text-text! mb-2">Floors &amp; Tables</h3>
-        <p className="text-xs text-text-faint mb-2">Managing floor plans and tables isn't wired here — no real API was found for it (see this file's own comment). Use the real legacy page directly.</p>
-        <a href="/takepos/admin/bar.php" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-brand hover:underline">
-          <ExternalLink size={14} /> Open Floors &amp; Tables on the legacy backend
-        </a>
+        <p className="text-xs text-text-faint mb-2">Managing floor plans and tables isn't available here: no API exists for it yet (master report), so there is no page to open.</p>
       </div>
 
       <div className="rounded-lg border border-border p-2">
@@ -65,9 +62,6 @@ export const BarSetupTab = forwardRef<TabHandle>(function BarSetupTab(_props, re
             <span className="text-sm text-text-muted">Order Printers (enable)</span>
             <RealToggle constName="TAKEPOS_ORDER_PRINTERS" initial={setup.orderPrinters} />
           </div>
-          <a href="/takepos/admin/orderprinters.php?leftmenu=setup" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-brand hover:underline py-1.5">
-            <ExternalLink size={12} /> Order Printers setup (separate real page)
-          </a>
         </div>
         {toggle('Order Notes', 'TAKEPOS_ORDER_NOTES', setup.orderNotes)}
         {toggle('Use Basic Layout For Phones', 'TAKEPOS_PHONE_BASIC_LAYOUT', setup.phoneBasicLayout)}

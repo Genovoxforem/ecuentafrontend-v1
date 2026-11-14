@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Fragment, useDeferredValue, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { User, FileText, Check, TriangleAlert, Search, CreditCard, X, LoaderCircle, QrCode } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -6,11 +6,11 @@ import { Card, ICON_STYLES, fmtZMW } from '../../../shared/components/dashboard/
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { DateRangeButton, useDateRange } from '../../../shared/components/DateRangeFilter'
-import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
+import { Th, TheadRow, type SortState } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
 import { Avatar } from '../../../shared/components/Avatar'
 import { ZraQrDialog } from './ZraQrDialog'
-import { useMarkInvoicePaid, useRecordInvoicePayment, type InvoiceRow, type InvoicesSummary } from '../invoices.queries'
+import { fetchInvoicesForExport, useInvoiceCardTotals, useInvoiceClientCount, useInvoicesPage, useMarkInvoicePaid, useRecordInvoicePayment, type InvoiceRow } from '../invoices.queries'
 
 type SortKey = 'ref' | 'invoiceNo' | 'invoiceDate' | 'thirdParty' | 'city' | 'paymentType' | 'amountInclTax' | 'author' | 'status' | 'zraStatus'
 
@@ -33,35 +33,18 @@ const COLUMNS: { label: string; key: SortKey }[] = [
 const COLUMN_LABELS = COLUMNS.map((c) => c.label)
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-function matchesSearch(row: InvoiceRow, query: string) {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return [row.ref, row.invoiceNo, row.thirdParty, row.city, row.paymentType, row.author, row.status, row.zraStatus].some((field) => field.toLowerCase().includes(q))
-}
-
-function sortValue(row: InvoiceRow, key: SortKey): string | number {
-  switch (key) {
-    case 'ref':
-      return row.ref
-    case 'invoiceNo':
-      return row.invoiceNo
-    case 'invoiceDate':
-      return row.invoiceDate
-    case 'thirdParty':
-      return row.thirdParty
-    case 'city':
-      return row.city
-    case 'paymentType':
-      return row.paymentType
-    case 'amountInclTax':
-      return row.amountInclTax
-    case 'author':
-      return row.author
-    case 'status':
-      return row.status
-    case 'zraStatus':
-      return row.zraStatus
-  }
+// The server sorts: these are the sort names of compta/facture/fapi/list.php for each column.
+const SERVER_SORT: Record<SortKey, string> = {
+  ref: 'ref',
+  invoiceNo: 'invoice_no',
+  invoiceDate: 'date',
+  thirdParty: 'thirdparty',
+  city: 'city',
+  paymentType: 'payment_type',
+  amountInclTax: 'total_ttc',
+  author: 'author',
+  status: 'status',
+  zraStatus: 'zra',
 }
 
 function RecordPaymentForm({ row, onClose }: { row: InvoiceRow; onClose: () => void }) {
@@ -164,15 +147,18 @@ const STATUS_FILTER_LABELS = ['draft', 'unpaid', 'paid', 'abandoned']
 // `statusFilter` narrows the list to one Dolibarr invoice status (the classic page's
 // list.php?search_status=N): the Abandoned Invoices page is this same list with 3.
 // The summary cards stay overall figures, as on the classic page.
-export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSummary; statusFilter?: number }) {
+export function InvoicesList({ statusFilter }: { statusFilter?: number }) {
+  // Invoices / Paid / Unpaid come from the summary endpoint, Clients from compta/facture/fapi/summary.php; the table is read one page at a time.
+  const totals = useInvoiceCardTotals().data
+  const clients = useInvoiceClientCount().data
   const [payingRef, setPayingRef] = useState<string | null>(null)
   const [qrRow, setQrRow] = useState<InvoiceRow | null>(null)
-  const payingRow = summary.rows.find((r) => r.ref === payingRef)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
   const dateRange = useDateRange()
+  const [sort, setSort] = useState<SortState<SortKey>>({ key: null, dir: 'asc' })
   const [searchParams, setSearchParams] = useSearchParams()
   // Real customer-scoping filter — InvoiceRow.socid is a real plain field
   // straight off the JSON API (see invoices.queries.ts), no parsing needed.
@@ -186,19 +172,30 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
   const urlStatus = statusParam !== null && /^[0-3]$/.test(statusParam) ? Number(statusParam) : undefined
   const activeStatus = statusFilter ?? urlStatus
 
-  const scopedRows = useMemo(() => (activeStatus === undefined ? summary.rows : summary.rows.filter((r) => r.rawStatut === activeStatus)), [summary.rows, activeStatus])
-  const customerScoped = useMemo(() => (customerId ? scopedRows.filter((r) => r.socid === customerId) : scopedRows), [scopedRows, customerId])
-  const customerName = customerId ? customerScoped[0]?.thirdParty : null
-  const filteredRows = useMemo(
-    () => customerScoped.filter((r) => matchesSearch(r, deferredSearch) && dateRange.inRange(r.invoiceDate)),
-    [customerScoped, deferredSearch, dateRange],
-  )
-  const { sorted: sortedRows, sort, toggleSort } = useSortableRows<InvoiceRow, SortKey>(filteredRows, sortValue)
-  const pageRows = sortedRows.slice((page - 1) * perPage, page * perPage)
+  const filter = {
+    search: deferredSearch,
+    status: activeStatus,
+    socid: customerId ?? undefined,
+    sort: sort.key ? SERVER_SORT[sort.key] : undefined,
+    direction: sort.dir,
+    dateFrom: dateRange.iso?.from,
+    dateTo: dateRange.iso?.to,
+  }
+  const { page: listPage, isError, error, isFetching, refetch } = useInvoicesPage({ ...filter, page, perPage })
+  const pageRows = listPage?.rows ?? []
+  const total = listPage?.total ?? 0
+  const payingRow = pageRows.find((r) => r.ref === payingRef)
+  const customerName = customerId ? pageRows[0]?.thirdParty : null
+  const filtered = Boolean(deferredSearch.trim() || dateRange.iso || customerId || activeStatus !== undefined)
+
+  function toggleSort(key: SortKey) {
+    setSort((cur) => (cur.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
+    setPage(1)
+  }
 
   useEffect(() => {
     setPage(1)
-  }, [dateRange.key, dateRange.customFrom, dateRange.customTo])
+  }, [dateRange.key, dateRange.customFrom, dateRange.customTo, customerId, activeStatus])
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -210,12 +207,15 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
     setPage(1)
   }
 
-  function getExportData() {
-    const headers = COLUMN_LABELS
-    const rows = sortedRows.map((r) => [
+  // The export buttons take the whole filtered list, read page by page when they are pressed.
+  async function getExportData() {
+    const all = await fetchInvoicesForExport(filter)
+    const headers = [...COLUMN_LABELS.slice(0, 3), 'Due Date', ...COLUMN_LABELS.slice(3)]
+    const rows = all.map((r) => [
       r.ref,
       r.invoiceNo,
       r.invoiceDateLabel || r.invoiceDate,
+      r.dueDate,
       r.thirdParty,
       r.city,
       r.paymentType,
@@ -273,7 +273,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
           <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
               <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Clients</p>
-              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{summary.clients}</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{clients ?? '-'}</p>
               <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Customer records</p>
             </div>
             <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
@@ -283,7 +283,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
           <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
               <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Invoices</p>
-              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{summary.invoices}</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{totals?.invoices ?? '-'}</p>
               <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Sales invoices</p>
             </div>
             <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.cyan}`}>
@@ -293,7 +293,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
           <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
               <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Paid</p>
-              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{fmtZMW(summary.paidAmount)}</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{totals ? fmtZMW(totals.paidAmount) : '-'}</p>
               <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Collected amount</p>
             </div>
             <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.green}`}>
@@ -303,7 +303,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
           <Card className="invoice-summary-card !p-3 !flex-row items-center justify-between gap-3">
             <div>
               <p className="invoice-summary-label text-xs font-semibold text-text-muted uppercase tracking-wide">Unpaid</p>
-              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{fmtZMW(summary.unpaidAmount)}</p>
+              <p className="invoice-summary-value text-xl font-bold text-text! mt-1">{totals ? fmtZMW(totals.unpaidAmount) : '-'}</p>
               <p className="invoice-summary-caption text-xs text-text-faint mt-0.5">Outstanding amount</p>
             </div>
             <span className={`invoice-summary-icon shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.rose}`}>
@@ -338,6 +338,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
               />
             </div>
             <TableExportButtons title="Sales Invoices" getExportData={getExportData} />
+            {isFetching && listPage && <span className="text-xs text-text-faint">Updating…</span>}
             <DateRangeButton state={dateRange} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
@@ -345,25 +346,38 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
               <thead className="sticky top-0 z-10">
                 <TheadRow>
                   {COLUMNS.map((col) => (
-                    <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
-                      {col.label}
-                    </Th>
+                    <Fragment key={col.key}>
+                      <Th sortKey={col.key} sort={sort} onSort={toggleSort}>
+                        {col.label}
+                      </Th>
+                      {/* the classic list prints Due Date right after Invoice Date; no sort is offered for it */}
+                      {col.key === 'invoiceDate' && <Th>Due Date</Th>}
+                    </Fragment>
                   ))}
                   {/* Actions column has no underlying sortable data — plain, non-clickable header. */}
                   <Th>Actions</Th>
                 </TheadRow>
               </thead>
               <tbody>
-                {scopedRows.length === 0 ? (
+                {isError ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
-                      No Data Available In Table
+                    <td className="px-4 py-4 text-danger" colSpan={COLUMN_LABELS.length + 2}>
+                      Could not load the invoices. {error instanceof Error ? error.message : ''}{' '}
+                      <button type="button" onClick={() => refetch()} className="underline">
+                        Retry
+                      </button>
                     </td>
                   </tr>
-                ) : filteredRows.length === 0 ? (
+                ) : !listPage ? (
                   <tr>
-                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 1}>
-                      No invoices match "{search}".
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 2}>
+                      Loading…
+                    </td>
+                  </tr>
+                ) : total === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-text-faint italic" colSpan={COLUMN_LABELS.length + 2}>
+                      {filtered && deferredSearch.trim() ? `No invoices match "${deferredSearch.trim()}".` : 'No Data Available In Table'}
                     </td>
                   </tr>
                 ) : (
@@ -377,8 +391,8 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
                       <td className="px-4 py-3 text-text-muted">{r.invoiceNo}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-text-muted">
                         <div className="text-text!">{r.invoiceDateLabel || r.invoiceDate}</div>
-                        {r.dueDate && <div className="text-xs text-text-faint">Due: {r.dueDate}</div>}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-text-muted">{r.dueDate}</td>
                       <td className="px-4 py-3">
                         {r.socid ? (
                           <Link to={ROUTES.customerDetail.replace(':id', String(r.socid))} className="inline-flex items-center gap-2 whitespace-nowrap text-brand hover:underline">
@@ -440,7 +454,7 @@ export function InvoicesList({ summary, statusFilter }: { summary: InvoicesSumma
         </Card>
       </div>
       {qrRow && <ZraQrDialog url={qrRow.zraQrUrl} invoiceRef={qrRow.ref} onClose={() => setQrRow(null)} />}
-      <ListPagination page={page} perPage={perPage} total={filteredRows.length} onPageChange={setPage} edgeToEdge />
+      <ListPagination page={page} perPage={perPage} total={total} onPageChange={setPage} edgeToEdge />
     </div>
   )
 }

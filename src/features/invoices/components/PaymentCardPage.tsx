@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Loader2, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
 import { formatMoney } from '../../../utils/format'
-import { usePayment } from '../payments.queries'
+import { useDeletePayment, usePayment } from '../payments.queries'
 
 // yyyy-MM-dd -> MM/dd/yyyy (the classic page's own date format)
 const fmtDate = (v: string) => {
@@ -24,10 +26,26 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 // The classic payment card (compta/paiement/card.php): the header with the ref and number, then the payment's
 // date, type, amount, bank account and the invoices it settles. compta/paiement/fapi has a list only, so the
-// card is built from the list row; the bank entry (line id) and the Log tab have no field there yet (AN-142).
+// card is built from the list row (the bank entry id is in it since 13 Nov 2026; the Log tab has no field yet, AN-142). Delete is
+// compta/paiement/fapi/delete.php, which refuses a closed period or a reconciled bank line with its own message.
 export function PaymentCardPage() {
   const { ref = '' } = useParams<{ ref: string }>()
   const { data: payment, isLoading, isError, error, refetch } = usePayment(ref)
+  const remove = useDeletePayment()
+  const confirm = useConfirm()
+  const navigate = useNavigate()
+  const [deleteError, setDeleteError] = useState('')
+
+  async function handleDelete(id: number, label: string) {
+    setDeleteError('')
+    if (!(await confirm({ title: 'Delete payment', message: `Are you sure you want to delete the payment ${label}?` }))) return
+    try {
+      await remove.mutateAsync(id)
+      navigate(ROUTES.paymentsList)
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'The payment was not deleted.')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -47,14 +65,19 @@ export function PaymentCardPage() {
             <span className="text-text-faint">Ref.: </span>
             <span className="font-semibold text-brand">{payment.ref}</span>
           </div>
-          {payment.paymentReference && (
+          <button type="button" onClick={() => handleDelete(payment.id, payment.ref)} disabled={remove.isPending} className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-bg disabled:opacity-60">
+            <Trash2 size={14} /> Delete
+          </button>
+          {(payment.numPayment || payment.paymentReference) && (
             <div>
               <span className="text-text-faint">Number: </span>
-              <span className="font-semibold text-text!">{payment.paymentReference}</span>
+              <span className="font-semibold text-text!">{payment.numPayment || payment.paymentReference}</span>
             </div>
           )}
         </div>
       </Card>
+
+      {deleteError && <p className="text-sm text-danger">{deleteError}</p>}
 
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="border-b border-border px-4 py-2 text-xs font-bold uppercase tracking-wide text-text!">Payment</div>
@@ -83,7 +106,13 @@ export function PaymentCardPage() {
             )}
           </Field>
           <Field label="Bank Entry">
-            <span className="text-text-faint">-</span>
+            {payment.bankEntryId ? (
+              <Link to={ROUTES.bankingEntryDetail.replace(':id', String(payment.bankEntryId))} className="text-brand hover:underline">
+                {payment.bankEntryId}
+              </Link>
+            ) : (
+              <span className="text-text-faint">-</span>
+            )}
           </Field>
         </dl>
       </Card>

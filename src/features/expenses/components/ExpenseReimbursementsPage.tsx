@@ -81,7 +81,6 @@ export function ExpenseReimbursementsPage() {
       ),
     },
     { key: 'gross', header: 'Gross Expense', align: 'right', sortValue: (r) => amount(r.gross), cell: (r) => <span className="tabular-nums">{r.gross}</span> },
-    { key: 'advance', header: 'Advance Deducted', align: 'right', sortValue: (r) => amount(r.advance), cell: (r) => <span className="tabular-nums text-text-muted">{r.advance}</span> },
     { key: 'net', header: 'Net Claim', align: 'right', sortValue: (r) => amount(r.net), cell: (r) => <span className="font-bold tabular-nums text-text!">{r.net}</span> },
     { key: 'paid', header: 'Paid', align: 'right', sortValue: (r) => amount(r.paid), cell: (r) => <span className="tabular-nums">{r.paid}</span> },
     {

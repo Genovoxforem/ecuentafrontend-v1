@@ -58,6 +58,10 @@ const BACKEND_OWNED_PATHS = [
   '/kitchen',
   '/adherents',
   '/asset',
+  // The previous asset module's own pages (asset_old/list.php, type.php, listcategory.php): what the new pages' "Classic view" button opens.
+  '/asset_old',
+  // Installment Sales (installment/*.php and installment/api/*.php); the app's own pages are /installments/..., a different segment.
+  '/installment',
 ] as const
 
 // Production deploys this build's dist/ output onto the backend's own
@@ -408,6 +412,8 @@ export default defineConfig({
       // /fixed-assets, so a plain /asset (singular) prefix is safe, but
       // anchored anyway.
       '^/asset(/|$)': proxyConfig(BACKEND_URL),
+      '^/asset_old(/|$)': proxyConfig(BACKEND_URL),
+      '^/installment(/|$)': proxyConfig(BACKEND_URL),
       // Real Purchase Invoice / Landed Cost Invoice / User dropdown options
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.

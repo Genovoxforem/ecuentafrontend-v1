@@ -30,6 +30,7 @@ export function toThirdPartyRow(item: FapiThirdPartyRow): ThirdPartyRow {
     phone: item.phone || '',
     nature,
     trackingId: item.tracking ?? item.code_client ?? '',
+    businessEntityType: item.legalform_label ?? '',
     creationDate: item.date_creation ?? '',
     creatorName: item.creator_name || '',
     status: item.status === 1 ? 'Active' : 'Inactive',

@@ -1,23 +1,19 @@
 import { useState } from 'react'
 import { Wallet, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { accountLabel, useCashflowSettings, type CashflowSection } from '../whatsappCashflow.data'
 import { SetupShell } from './SetupShell'
 
-// compta/facture/cashflowsettings.php + compta/facture/cashflow_action.php —
-// confirmed no JSON API by reading cashflow_action.php directly: it's a
-// classic form-POST (submit0/submit1/submit2 per tab) that diffs the posted
-// account list against llx_cashinflow_os/llx_cashoutflow_os (and the _in/_fn
-// tables for the other 2 tabs) with raw INSERT/DELETE, then does a plain
-// header() redirect back to cashflowsettings.php?msg=success — no response
-// body, no token check either. The "How to get token and instance id?" link
-// and its adjacent inline <script> (posting to whatsapp_ajax.php) are dead
-// leftover code from the WhatsApp Settings page with no matching form
-// fields on this page at all — not a real feature of Cashflow Settings,
-// kept here only as an inert link to match the reference page exactly.
-const TABS = ['Cash flows from operating activities', 'Cash flows from investing activities', 'Cash flows from financing activities'] as const
-type Tab = (typeof TABS)[number]
-
-const OPERATING_ACCOUNTS = ['1090-Cash in Hand', '1091-Cash coins', '1095-Petty cash account']
+// compta/facture/cashflowsettings.php: one form per section (operating / investing / financing) with Inflow and Outflow lists and a submit. The accounts are read
+// from admin/fapi/cashflow.php (12 Nov 2026, AN-182 read side). The save has no key-authenticated writer yet (the classic page posts to cashflow_action.php on the
+// PHP session, which this app does not use any more: BUG-95), so the lists are read-only and "Create statements" stays disabled until the backend adds one.
+// The "How to get token and instance id?" link and the PHP warning card are what the reference page prints (dead leftovers from the WhatsApp page), kept to match it.
+const TABS: { label: string; key: CashflowSection }[] = [
+  { label: 'Cash flows from operating activities', key: 'operating' },
+  { label: 'Cash flows from investing activities', key: 'investing' },
+  { label: 'Cash flows from financing activities', key: 'financing' },
+]
 
 function AccountPill({ label }: { label: string }) {
   return (
@@ -28,8 +24,21 @@ function AccountPill({ label }: { label: string }) {
   )
 }
 
+function AccountGroup({ title, codes, labels }: { title: string; codes: string[]; labels: ReadonlyMap<string, string> }) {
+  return (
+    <div>
+      <p className="font-semibold text-text! mb-2">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {codes.length === 0 ? <span className="text-sm text-text-faint italic">No account selected.</span> : codes.map((c) => <AccountPill key={c} label={accountLabel(c, labels)} />)}
+      </div>
+    </div>
+  )
+}
+
 export function CashflowSettings() {
-  const [tab, setTab] = useState<Tab>('Cash flows from operating activities')
+  const [tab, setTab] = useState<CashflowSection>('operating')
+  const { data, isLoading, isError, error, refetch } = useCashflowSettings()
+  const section = data?.sections[tab]
 
   return (
     <SetupShell
@@ -43,45 +52,24 @@ export function CashflowSettings() {
       underlinedTabs={false}
       tabs={TABS.map((t) => (
         <button
-          key={t}
+          key={t.key}
           type="button"
-          onClick={() => setTab(t)}
-          className={`rounded-md px-4 py-2 text-sm font-medium ${tab === t ? 'bg-brand text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`}
+          onClick={() => setTab(t.key)}
+          className={`rounded-md px-4 py-2 text-sm font-medium ${tab === t.key ? 'bg-brand text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`}
         >
-          {t}
+          {t.label}
         </button>
       ))}
     >
-      <Card className="!h-auto !bg-warning-bg border-warning/30 text-warning-fg text-sm space-y-1">
-        <p className="font-medium">This warning is real and reproducible on the reference page — not fabricated for this shell:</p>
-        <p className="font-mono text-xs">Warning: Undefined array key "msg" in C:\wamp64\www\ecuenta9\htdocs\compta\facture\cashflowsettings.php on line 147</p>
-      </Card>
-
-      {tab === 'Cash flows from operating activities' ? (
+      {isLoading && <LegacyLoadingCard label="Loading the cash flow accounts…" />}
+      {isError && <LegacyErrorCard title="Couldn't load the cash flow settings" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {data && section && (
         <Card className="!h-auto space-y-4">
-          <div>
-            <p className="font-semibold text-text! mb-2">Select Inflow statement</p>
-            <div className="flex flex-wrap gap-2">
-              {OPERATING_ACCOUNTS.map((a) => (
-                <AccountPill key={a} label={a} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="font-semibold text-text! mb-2">Select Outflow statement</p>
-            <div className="flex flex-wrap gap-2">
-              {OPERATING_ACCOUNTS.map((a) => (
-                <AccountPill key={a} label={a} />
-              ))}
-            </div>
-          </div>
-          <button type="button" disabled title="No real API exists for this page — see the module's other Setup pages" className="rounded-lg bg-neutral-bg px-4 py-2 text-sm font-medium text-text-faint cursor-default">
+          <AccountGroup title="Select Inflow statement" codes={section.inflow} labels={data.labels} />
+          <AccountGroup title="Select Outflow statement" codes={section.outflow} labels={data.labels} />
+          <button type="button" disabled title="The API only reads these accounts: there is no key-authenticated save yet (master AN-182)" className="rounded-lg bg-neutral-bg px-4 py-2 text-sm font-medium text-text-faint cursor-default">
             Create statements
           </button>
-        </Card>
-      ) : (
-        <Card className="!h-auto">
-          <p className="text-sm text-text-faint italic">No accounts configured for this activity type on the reference page (not screenshotted) — left honestly empty rather than guessed.</p>
         </Card>
       )}
     </SetupShell>

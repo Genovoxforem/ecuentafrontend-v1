@@ -1,4 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { Card } from '../dashboard/DashboardKit'
 import { TableExportButtons } from '../TableExportButtons'
@@ -19,10 +20,12 @@ export function LegacyReportTable({ title, table, hiddenColumns = [] }: { title:
 
   const visible = useMemo(() => table.headers.map((h, i) => ({ h, i })).filter(({ h }) => !hiddenColumns.includes(h)), [table.headers, hiddenColumns])
 
+  // each row keeps its position in the table so the links stay with it when the search narrows the rows
   const filtered = useMemo(() => {
     const q = deferred.trim().toLowerCase()
-    if (!q) return table.rows
-    return table.rows.filter((r) => r.some((c) => c.toLowerCase().includes(q)))
+    const all = table.rows.map((r, idx) => ({ r, idx }))
+    if (!q) return all
+    return all.filter(({ r }) => r.some((c) => c.toLowerCase().includes(q)))
   }, [table.rows, deferred])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -32,7 +35,7 @@ export function LegacyReportTable({ title, table, hiddenColumns = [] }: { title:
   function getExportData() {
     return {
       headers: visible.map((v) => v.h),
-      rows: filtered.map((r) => visible.map((v) => (r[v.i] ?? '').replace(/\n/g, ', '))),
+      rows: filtered.map(({ r }) => visible.map((v) => (r[v.i] ?? '').replace(/\n/g, ', '))),
     }
   }
 
@@ -89,15 +92,24 @@ export function LegacyReportTable({ title, table, hiddenColumns = [] }: { title:
                 </td>
               </tr>
             ) : (
-              pageRows.map((r, ri) => {
+              pageRows.map(({ r, idx }, ri) => {
                 const isTotal = r.some((c) => /^Total\s*:/i.test(c))
                 return (
                   <tr key={ri} className={`border-b border-border last:border-0 ${isTotal ? 'font-semibold' : ''}`}>
-                    {visible.map(({ i }) => (
-                      <td key={i} className="px-3 py-2 text-text-muted whitespace-pre-line">
-                        {r[i] ?? ''}
-                      </td>
-                    ))}
+                    {visible.map(({ i }) => {
+                      const to = table.links?.[idx]?.[i]
+                      return (
+                        <td key={i} className="px-3 py-2 text-text-muted whitespace-pre-line">
+                          {to && r[i] ? (
+                            <Link to={to} className="text-brand hover:underline">
+                              {r[i]}
+                            </Link>
+                          ) : (
+                            (r[i] ?? '')
+                          )}
+                        </td>
+                      )
+                    })}
                   </tr>
                 )
               })

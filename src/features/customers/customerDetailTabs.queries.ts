@@ -3,29 +3,19 @@ import { fapi } from '../../api/axios'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { usDate as usDateText } from '../../api/fapiRow'
 
-// The customer card's tabs, all on societe/fapi (key-authenticated JSON; the societe/api/* files they replace need a PHP
-// session cookie and a CSRF token scraped from a page). Reads take ?socid=; writes are POST ?action= with socid in the body.
+// The customer card's tabs, all on societe/fapi (key-authenticated JSON). Every file below was read live on newecuenta for socid 1 (200). Reads take ?socid=; writes are POST ?action= with socid in the body.
 const FAPI = '/societe/fapi'
 
-// The legacy tab file names that differ from their fapi file.
-const TAB_FILE: Record<string, string> = { notify: 'notifications', paymentmodes: 'payment_modes', transactions: 'ledger' }
-
-// These endpoints' own JSON returns legacy page URLs prefixed with this dev environment's document root (e.g.
-// "/ecuenta9/htdocs/contrat/card.php?..."); stripped before the URL is used as a same-origin link.
+// The endpoints' own JSON can return page URLs prefixed with the dev environment's document root (<root>/htdocs/...); the prefix is stripped before the URL is used as a same-origin link.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function stripBackendPrefix(url: string): string {
   return url.replace(/^\/[^/]+\/htdocs(?=\/|$)/, '')
 }
 
-// Reads `/societe/api/<tab>.php?<query>` (the form the hooks below were written in) from `/societe/fapi/<tab>.php`.
-async function fetchJson<T>(url: string): Promise<T> {
-  const u = new URL(url, 'http://local')
-  const name = /^\/societe\/api\/(\w+)\.php$/.exec(u.pathname)?.[1]
-  if (!name) throw new Error(`Not a customer tab URL: ${url}`)
-  return fapiGet<T>(`${FAPI}/${TAB_FILE[name] ?? name}.php`, Object.fromEntries(u.searchParams.entries()))
-}
-
 // --- Transactions (per-account ledger) --------------------------------
+// societe/fapi/transactions.php?socid=&date_from=&date_to= (12 Nov 2026): the ledger of the customer account, {account_code, account_label, account_title,
+// date_from, date_to, rows [{type opening | line | closing, date, entry_type, reference, reference_url, contra, description, debit, credit, cumulative}], totals {debit, credit,
+// balance}}. societe/fapi/ledger.php answers another shape and another opening balance for the same customer and period (master report BUG-137).
 
 export interface LedgerRow {
   type: 'opening' | 'closing' | 'row'
@@ -73,7 +63,7 @@ export function useCustomerLedger(socid: string | undefined, dateFrom: string, d
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'ledger', dateFrom, dateTo],
     queryFn: async () => {
-      const data = await fapiGet<LedgerResponse>(`${FAPI}/ledger.php`, { socid, date_from: isoFromUs(dateFrom), date_to: isoFromUs(dateTo) })
+      const data = await fapiGet<LedgerResponse>(`${FAPI}/transactions.php`, { socid, date_from: isoFromUs(dateFrom), date_to: isoFromUs(dateTo) })
       return { ...data, rows: data.rows.map(normalizeLedgerRow) }
     },
     enabled: !!socid,
@@ -82,7 +72,7 @@ export function useCustomerLedger(socid: string | undefined, dateFrom: string, d
 
 // --- Activities (Tasks / Meetings / Calls) -----------------------------
 //
-// Contract from societe/api/activities.php: sc_act_row() is the field set
+// Contract from societe/fapi/activities.php: sc_act_row() is the field set
 // both the list and the detail=X actions return, and the
 // meta/create/update/schedule/close/delete branches below name their own
 // accepted POST fields. Mirrors the 3-icon Actions column
@@ -118,7 +108,7 @@ export type ActivityType = 'tasks' | 'meetings' | 'calls'
 export function useCustomerActivities(socid: string | undefined, type: ActivityType) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'activities', type],
-    queryFn: () => fetchJson<ActivityListResponse>(`/societe/api/activities.php?type=${type}&socid=${socid}`),
+    queryFn: () => fapiGet<ActivityListResponse>(`${FAPI}/activities.php`, { type, socid }),
     enabled: !!socid,
   })
 }
@@ -165,7 +155,7 @@ export function useActivityDetail(socid: string | undefined, activityId: number 
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'activityDetail', activityId],
     queryFn: async (): Promise<ActivityDetail> => {
-      const data = await fetchJson<{ activity: ActivityDetail }>(`/societe/api/activities.php?action=detail&activity_id=${activityId}&socid=${socid}`)
+      const data = await fapiGet<{ activity: ActivityDetail }>(`${FAPI}/activities.php`, { action: 'detail', activity_id: activityId ?? undefined, socid })
       return data.activity
     },
     enabled: !!socid && !!activityId,
@@ -189,7 +179,7 @@ export interface ActivitiesMeta {
 export function useCustomerActivitiesMeta(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'activitiesMeta'],
-    queryFn: () => fetchJson<ActivitiesMeta>(`/societe/api/activities.php?action=meta&socid=${socid}`),
+    queryFn: () => fapiGet<ActivitiesMeta>(`${FAPI}/activities.php`, { action: 'meta', socid }),
     enabled: !!socid,
     staleTime: 1000 * 60 * 10,
   })
@@ -283,9 +273,9 @@ function activityFormBody(type: ActivityType, input: Partial<ActivityFormInput>)
   return body
 }
 
-// Real POST to the same societe/api/activities.php namespace the list above
+// Real POST to the same societe/fapi/activities.php namespace the list above
 // reads from (?type=tasks|meetings|calls&socid=), CSRF-token-gated exactly
-// like societe/api/contacts.php's own create action (see
+// like contact/fapi/create.php's own create action (see
 // scrapeSocieteToken/useCreateContact below — same token, same third party
 // page it's scraped from). Not live-tested against this instance's database
 // (mutation, requires per-instance approval) — same standing caveat as
@@ -551,7 +541,7 @@ export interface CustomerTabResponse {
   orders: { count: number; rows: CustomerTabDocRow[] }
   invoices: { count: number; rows: CustomerTabDocRow[] }
   buttons: CustomerTabButton[]
-  // Real, ready-made links societe/api/customer.php already returns
+  // Real, ready-made links societe/fapi/customer.php already returns
   // (DOL_URL_ROOT-relative) — confirmed by reading that file directly.
   // discount -> comm/remise.php, the real "manage discounts" page;
   // proposals_list/orders_list/invoices_list -> the real filtered legacy
@@ -572,13 +562,13 @@ export interface CustomerTabResponse {
 export function useCustomerTab(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'customerTab'],
-    queryFn: () => fetchJson<CustomerTabResponse>(`/societe/api/customer.php?socid=${socid}`),
+    queryFn: () => fapiGet<CustomerTabResponse>(`${FAPI}/customer.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Vendor tab (fourn/card.php's data) ------------
-// societe/api/supplier.php is the sibling of customer.php above: KPIs
+// societe/fapi/supplier.php is the sibling of customer.php above: KPIs
 // (proposals_kpi/orders_kpi/supplier_outstanding), payment-term/mode
 // labels, category list, and action-button URLs
 // (create_proposal/create_order/create_invoice point at the
@@ -613,7 +603,7 @@ export interface VendorTabResponse {
 export function useVendorTab(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'vendorTab'],
-    queryFn: () => fetchJson<VendorTabResponse>(`/societe/api/supplier.php?socid=${socid}`),
+    queryFn: () => fapiGet<VendorTabResponse>(`${FAPI}/supplier.php`, { socid }),
     enabled: !!socid,
   })
 }
@@ -677,7 +667,7 @@ export function useCustomerAgenda(socid: string | undefined, filters: AgendaFilt
 }
 
 // --- Pricing Groups ---------------------------------------------------
-// societe/api/pricing_groups.php — real, global custom_group table (not
+// societe/fapi/pricing_groups.php — real, global custom_group table (not
 // scoped to a single third party beyond the assigned group_id). Read-only
 // here since the real page itself only shows a plain table, no inline
 // create/edit UI, per the actual screenshot verified against.
@@ -700,13 +690,13 @@ export interface PricingGroupsResponse {
 export function useCustomerPricingGroups(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'pricingGroups'],
-    queryFn: () => fetchJson<PricingGroupsResponse>(`/societe/api/pricing_groups.php?socid=${socid}`),
+    queryFn: () => fapiGet<PricingGroupsResponse>(`${FAPI}/pricing_groups.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Linked Files (Documents) ------------------------------------------
-// societe/api/documents.php — real files on disk under
+// societe/fapi/documents.php — real files on disk under
 // documents/societe/<id>/, confirmed by reading the file directly
 // (dol_dir_list against the real upload_dir, real download_url via
 // document.php?modulepart=societe).
@@ -727,13 +717,13 @@ export interface DocumentsResponse {
 export function useCustomerDocuments(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'documents'],
-    queryFn: () => fetchJson<DocumentsResponse>(`/societe/api/documents.php?socid=${socid}`),
+    queryFn: () => fapiGet<DocumentsResponse>(`${FAPI}/documents.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Notifications -------------------------------------------------------
-// societe/api/notify.php — real notify_def rows, confirmed by reading the
+// societe/fapi/notifications.php — real notify_def rows, confirmed by reading the
 // file directly (real INNER JOIN against c_action_trigger/socpeople).
 
 export interface NotificationRow {
@@ -762,13 +752,13 @@ export interface NotificationsResponse {
 export function useCustomerNotifications(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'notifications'],
-    queryFn: () => fetchJson<NotificationsResponse>(`/societe/api/notify.php?socid=${socid}`),
+    queryFn: () => fapiGet<NotificationsResponse>(`${FAPI}/notifications.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Related Items (Consumption) ----------------------------------------
-// societe/api/consumption.php — real per-table counts/rows (propal/
+// societe/fapi/consumption.php — real per-table counts/rows (propal/
 // commande/facture/fichinter, or the supplier-side tables for a vendor),
 // confirmed by reading the file directly. Read-only, matches the real
 // page's own "Open list"/"All" links out rather than any inline action.
@@ -791,13 +781,13 @@ export interface ConsumptionResponse {
 export function useCustomerConsumption(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'consumption'],
-    queryFn: () => fetchJson<ConsumptionResponse>(`/societe/api/consumption.php?socid=${socid}`),
+    queryFn: () => fapiGet<ConsumptionResponse>(`${FAPI}/consumption.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Tickets ---------------------------------------------------------------
-// societe/api/tickets.php — real llx_ticket rows scoped to this third
+// societe/fapi/tickets.php — real llx_ticket rows scoped to this third
 // party, confirmed by reading the file directly (real filters/status
 // options straight off c_ticket_type/c_ticket_severity).
 
@@ -840,19 +830,20 @@ export function useCustomerTickets(socid: string | undefined, filters: TicketsFi
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'tickets', filters],
     queryFn: () => {
-      const params = new URLSearchParams({ socid: socid ?? '' })
-      if (filters.search) params.set('search', filters.search)
-      if (filters.status) params.set('search_status', filters.status)
-      if (filters.type) params.set('search_type', filters.type)
-      if (filters.severity) params.set('search_severity', filters.severity)
-      return fetchJson<TicketsResponse>(`/societe/api/tickets.php?${params.toString()}`)
+      return fapiGet<TicketsResponse>(`${FAPI}/tickets.php`, {
+        socid,
+        search: filters.search || undefined,
+        search_status: filters.status || undefined,
+        search_type: filters.type || undefined,
+        search_severity: filters.severity || undefined,
+      })
     },
     enabled: !!socid,
   })
 }
 
 // --- Projects (linked to this third party) --------------------------------
-// societe/api/projects.php — real llx_projet rows scoped to fk_soc,
+// societe/fapi/projects.php — real llx_projet rows scoped to fk_soc,
 // confirmed by reading that file directly.
 
 export interface CustomerProjectRow {
@@ -875,13 +866,13 @@ export interface CustomerProjectsResponse {
 export function useCustomerProjects(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'projects'],
-    queryFn: () => fetchJson<CustomerProjectsResponse>(`/societe/api/projects.php?socid=${socid}`),
+    queryFn: () => fapiGet<CustomerProjectsResponse>(`${FAPI}/projects.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Expenses ---------------------------------------------------------
-// societe/api/expenses.php — real llx_expensereport rows when a fk_soc link
+// societe/fapi/expenses.php — real llx_expensereport rows when a fk_soc link
 // exists; on this deployment (no fk_soc column on expensereport or
 // expensereport_det), it always reports back a real, honest `message`
 // instead of guessing at rows — confirmed by reading that file directly.
@@ -906,13 +897,13 @@ export interface ExpensesResponse {
 export function useCustomerExpenses(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'expenses'],
-    queryFn: () => fetchJson<ExpensesResponse>(`/societe/api/expenses.php?socid=${socid}`),
+    queryFn: () => fapiGet<ExpensesResponse>(`${FAPI}/expenses.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Payment Information (bank accounts / RIB) --------------------------
-// societe/api/paymentmodes.php — real llx_societe_rib rows (or
+// societe/fapi/payment_modes.php — real llx_societe_rib rows (or
 // CompanyBankAccount when that class is present), confirmed by reading
 // that file directly.
 
@@ -934,13 +925,13 @@ export interface PaymentModesResponse {
 export function useCustomerPaymentModes(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'paymentmodes'],
-    queryFn: () => fetchJson<PaymentModesResponse>(`/societe/api/paymentmodes.php?socid=${socid}`),
+    queryFn: () => fapiGet<PaymentModesResponse>(`${FAPI}/payment_modes.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- Accounts Receivable / Accounts Payable ------------------------------
-// societe/api/accounting_ar.php and accounting_ap.php — real open-invoice
+// societe/fapi/accounting_ar.php and accounting_ap.php — real open-invoice
 // summaries (llx_facture / llx_facture_fourn), confirmed by reading both
 // files directly.
 
@@ -973,7 +964,7 @@ export interface AccountingResponse {
 export function useCustomerAccountsReceivable(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'accountingAr'],
-    queryFn: () => fetchJson<AccountingResponse>(`/societe/api/accounting_ar.php?socid=${socid}`),
+    queryFn: () => fapiGet<AccountingResponse>(`${FAPI}/accounting_ar.php`, { socid }),
     enabled: !!socid,
   })
 }
@@ -981,13 +972,13 @@ export function useCustomerAccountsReceivable(socid: string | undefined) {
 export function useCustomerAccountsPayable(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'accountingAp'],
-    queryFn: () => fetchJson<AccountingResponse>(`/societe/api/accounting_ap.php?socid=${socid}`),
+    queryFn: () => fapiGet<AccountingResponse>(`${FAPI}/accounting_ap.php`, { socid }),
     enabled: !!socid,
   })
 }
 
 // --- General Ledger -----------------------------------------------------
-// societe/api/general_ledger.php — real bank movements (via bank_url) plus
+// societe/fapi/general_ledger.php — real bank movements (via bank_url) plus
 // real bookkeeping lines (accounting_bookkeeping matched on this record's
 // own accounting code), confirmed by reading that file directly.
 
@@ -1010,7 +1001,7 @@ export interface GeneralLedgerResponse {
 export function useCustomerGeneralLedger(socid: string | undefined) {
   return useQuery({
     queryKey: ['customers', 'detail', socid, 'generalLedger'],
-    queryFn: () => fetchJson<GeneralLedgerResponse>(`/societe/api/general_ledger.php?socid=${socid}`),
+    queryFn: () => fapiGet<GeneralLedgerResponse>(`${FAPI}/general_ledger.php`, { socid }),
     enabled: !!socid,
   })
 }

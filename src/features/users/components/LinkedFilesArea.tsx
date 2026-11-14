@@ -3,7 +3,7 @@ import { Link2, RefreshCw, Folder, FileText, Download } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
 import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
-import { useEcmAutoFiles, useEcmAutoModules, useEcmFolderFiles, useEcmTree, type EcmFile, type EcmFolderNode } from '../ecm.queries'
+import { useEcmAutoFiles, useEcmAutoModules, useEcmFolderFiles, useEcmTree, type EcmFile, type EcmFolderNode } from '../ecm.data'
 
 // The DMS / ECM "Linked Files Area" on ecm/fapi (26 Oct 2026): the Automatic Tree is the backend's fixed module list with live
 // on-disk counts and file lists; the Manual Tree is the folder tree (newecuenta has no manual folders, so it is empty there).

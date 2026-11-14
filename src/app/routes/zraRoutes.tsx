@@ -20,6 +20,8 @@ const ZraStockListModule = lazy(() => import('../../modules/zra/ZraStockListModu
 const AsycudaPurchaseInvoiceModule = lazy(() => import('../../modules/zra/AsycudaPurchaseInvoiceModule').then((m) => ({ default: m.AsycudaPurchaseInvoiceModule })))
 const RebateInvoicesModule = lazy(() => import('../../modules/zra/ZraRebateModules').then((m) => ({ default: m.RebateInvoicesModule })))
 const CreateRebateInvoiceModule = lazy(() => import('../../modules/zra/ZraRebateModules').then((m) => ({ default: m.CreateRebateInvoiceModule })))
+const ZraCommercialInvoiceModule = lazy(() => import('../../modules/zra/ZraCommercialInvoiceModule').then((m) => ({ default: m.ZraCommercialInvoiceModule })))
+const ZraDebitNotesModule =lazy(() => import('../../modules/zra/ZraDebitNotesModule').then((m) => ({ default: m.ZraDebitNotesModule })))
 
 // Routes of the zra area, rendered inside the app layout (see src/App.tsx).
 export function zraRoutes() {
@@ -150,6 +152,22 @@ export function zraRoutes() {
         element={
           <RouteBoundary>
             <RebateInvoicesModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.zraCommercialInvoice}
+        element={
+          <RouteBoundary>
+            <ZraCommercialInvoiceModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.zraDebitNotes}
+        element={
+          <RouteBoundary>
+            <ZraDebitNotesModule />
           </RouteBoundary>
         }
       />

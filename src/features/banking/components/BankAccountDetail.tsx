@@ -4,7 +4,7 @@ import { Pencil, X, Plus, Printer, Landmark, ChevronLeft } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { Th, TheadRow } from '../../../shared/components/table/SortableTh'
-import { useBankAccountsList, useBankAccountsDetailedList, useBankAccountsDropdown, useBankEntriesList, parseAmount, type BankEntryRow } from '../banking.queries'
+import { useBankAccountsList, useBankAccountsDetailedList, useBankAccountsDropdown, useBankAccountSummary, useBankAccountCard, useBankEntriesList, parseAmount, type BankEntryRow } from '../banking.queries'
 import { BankEntriesList } from './BankEntriesList'
 import { BankMonthlyReportingTab } from './BankMonthlyReportingTab'
 import { BankGraphicsTab } from './BankGraphicsTab'
@@ -69,13 +69,28 @@ export function BankAccountDetail() {
   const { data: accounts, isLoading: accountsLoading, isError: accountsError, error: accountsErr, refetch: refetchAccounts } = useBankAccountsList()
   const { data: dropdownAccounts } = useBankAccountsDropdown()
   const { data: detailedAccounts } = useBankAccountsDetailedList('all')
-  const { data: entriesData, isLoading: entriesLoading } = useBankEntriesList(accountId, 0, 2000)
+  // Today / Overall and the Payment Types come from the entries summary (SQL totals over the whole account); the lines are only fetched and summed on a server
+  // that does not send them.
+  const summary = useBankAccountSummary(accountId)
+  const lineFallback = summary.isFetched && summary.data === null
+  const { data: entriesData, isLoading: entriesLoading } = useBankEntriesList(accountId, 0, 2000, undefined, lineFallback)
 
   const account = accounts?.find((a) => a.id === accountId)
   const detailed = detailedAccounts?.find((a) => a.id === String(accountId))
+  const card = useBankAccountCard(accountId, account?.currencyCode ?? '').data
 
   const stats = useMemo(() => {
-    const rows: BankEntryRow[] = entriesData?.rows ?? []
+    const s = summary.data
+    if (s) {
+      return {
+        todayCredit: s.today.credit,
+        todayDebit: s.today.debit,
+        overallCredit: s.creditTotal,
+        overallDebit: s.debitTotal,
+        byType: s.byType.map((t): [string, { credit: number; debit: number }] => [t.label, { credit: t.credit, debit: t.debit }]),
+      }
+    }
+    const rows: BankEntryRow[] = lineFallback ? (entriesData?.rows ?? []) : []
     const today = todayMDY()
     let todayCredit = 0
     let todayDebit = 0
@@ -100,7 +115,7 @@ export function BankAccountDetail() {
     }
 
     return { todayCredit, todayDebit, overallCredit, overallDebit, byType: Array.from(byType.entries()) }
-  }, [entriesData])
+  }, [summary.data, lineFallback, entriesData])
 
   if (accountsLoading) return <LegacyLoadingCard label="Loading bank account…" />
   if (accountsError || !accounts) return <LegacyErrorCard title="Couldn't load bank account" message={accountsErr instanceof Error ? accountsErr.message : 'Unknown error.'} onRetry={() => refetchAccounts()} />
@@ -196,7 +211,7 @@ export function BankAccountDetail() {
 
           <Card className="!h-auto">
             <p className="text-xs font-semibold text-text-faint uppercase tracking-wide mb-2">Payment Types</p>
-            {entriesLoading ? (
+            {summary.isLoading || (lineFallback && entriesLoading) ? (
               <p className="text-sm text-text-faint italic">Loading…</p>
             ) : stats.byType.length === 0 ? (
               <p className="text-sm text-text-faint italic">No transactions to break down by type.</p>
@@ -219,22 +234,22 @@ export function BankAccountDetail() {
               <div>
                 <InfoRow label="Account Type" value={detailed?.type || '—'} />
                 <InfoRow label="Currency" value={currencyName(account.currencyCode)} />
-                <InfoRow label="Can Be Reconciled" value="—" />
-                <InfoRow label="Minimum Allowed Balance" value="—" />
-                <InfoRow label="Minimum Desired Balance" value="—" />
+                <InfoRow label="Can Be Reconciled" value={card?.canBeReconciled ?? '—'} />
+                <InfoRow label="Minimum Allowed Balance" value={card?.minAllowed ?? '—'} />
+                <InfoRow label="Minimum Desired Balance" value={card?.minDesired ?? '—'} />
                 <InfoRow label="Accounting Account" value={detailed?.accountingAccount || '—'} />
                 <InfoRow label="Accounting Code Journal" value={detailed?.journal || '—'} />
               </div>
               <div>
-                <InfoRow label="Tags/Categories" value="—" />
-                <InfoRow label="Comment" value="—" />
-                <InfoRow label="Bank Name" value={dropdownAccounts?.find((d) => d.id === account.id)?.bank || '—'} />
+                <InfoRow label="Tags/Categories" value={card?.tags ?? '—'} />
+                <InfoRow label="Comment" value={card?.comment ?? '—'} />
+                <InfoRow label="Bank Name" value={card?.bank && card.bank !== '—' ? card.bank : dropdownAccounts?.find((d) => d.id === account.id)?.bank || '—'} />
                 <InfoRow label="Account Number" value={account.accountNumber || '—'} />
-                <InfoRow label="IBAN Account Number" value="—" />
-                <InfoRow label="BIC/SWIFT Code" value="—" />
-                <InfoRow label="Bank Address" value="—" />
-                <InfoRow label="Account Owner Name" value="—" />
-                <InfoRow label="Account Owner Address" value="—" />
+                <InfoRow label="IBAN Account Number" value={card?.iban ?? '—'} />
+                <InfoRow label="BIC/SWIFT Code" value={card?.bic ?? '—'} />
+                <InfoRow label="Bank Address" value={card?.bankAddress ?? '—'} />
+                <InfoRow label="Account Owner Name" value={card?.ownerName ?? '—'} />
+                <InfoRow label="Account Owner Address" value={card?.ownerAddress ?? '—'} />
               </div>
             </div>
           </Card>

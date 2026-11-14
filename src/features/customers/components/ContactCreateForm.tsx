@@ -6,7 +6,7 @@ import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell } from '../../../shared/components/layout/StickyFormShell'
 import { useCustomerOptions, useVendorOptions } from '../customerOptions'
 import { useCreateContact, useContactMeta, type ContactKind } from '../contacts.queries'
-import { useCustomerLookups } from '../thirdPartyOptions.queries'
+import { useCustomerLookups, useStatesByCountry } from '../thirdPartyOptions.queries'
 
 const inputClasses = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
 
@@ -52,12 +52,14 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
   const [phonePerso, setPhonePerso] = useState('')
   const [fax, setFax] = useState('')
   const [countryId, setCountryId] = useState('')
+  const [stateId, setStateId] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [formError, setFormError] = useState('')
   const [civility, setCivility] = useState('')
   const [birthday, setBirthday] = useState('')
   const [socialNetworks, setSocialNetworks] = useState<Record<string, string>>({})
   const { data: lookups, isLoading: lookupsLoading } = useCustomerLookups()
+  const { data: states } = useStatesByCountry(countryId)
   const { data: meta, isLoading: metaLoading } = useContactMeta()
 
   function handleSubmit() {
@@ -71,7 +73,7 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
       return
     }
     createContact.mutate(
-      { companyId, firstName, lastName, jobPosition, address, town, zip, email, phonePro, phoneMobile, phonePerso, fax, countryId, isPrivate, civility, birthday, socialNetworks },
+      { companyId, firstName, lastName, jobPosition, address, town, zip, email, phonePro, phoneMobile, phonePerso, fax, countryId, stateId, isPrivate, civility, birthday, socialNetworks },
       {
         onSuccess: () => navigate(listRoute),
         onError: (err) => setFormError(err instanceof Error ? err.message : 'Could not save this contact — please try again.'),
@@ -157,11 +159,29 @@ export function ContactCreateForm({ kind = 'customer' }: { kind?: ContactKind })
               <input type="text" value={town} onChange={(e) => setTown(e.target.value)} className={inputClasses} />
             </Field>
             <Field label="Country">
-              <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className={inputClasses}>
+              <select
+                value={countryId}
+                onChange={(e) => {
+                  setCountryId(e.target.value)
+                  setStateId('')
+                }}
+                className={inputClasses}
+              >
                 <option value="">{lookupsLoading ? 'Loading…' : 'Select…'}</option>
                 {lookups?.countries.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="State/Province">
+              <select value={stateId} onChange={(e) => setStateId(e.target.value)} className={inputClasses} disabled={!countryId}>
+                <option value="">{countryId ? 'Select…' : 'Select a country first'}</option>
+                {states?.map((st) => (
+                  <option key={st.value} value={st.value}>
+                    {st.label}
                   </option>
                 ))}
               </select>

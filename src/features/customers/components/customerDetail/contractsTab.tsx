@@ -117,8 +117,8 @@ export function ContractsTab({ socid }: { socid: string | undefined }) {
           </button>
         </div>
       </Card>
-      <Card className="!h-auto !p-0 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <Card className="!h-auto !p-0 overflow-clip">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-4 py-3">
           <TabTitle>Contracts</TabTitle>
           <Link
             to={ROUTES.customerContractCreate.replace(':id', socid ?? '')}

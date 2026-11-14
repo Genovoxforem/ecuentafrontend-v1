@@ -10,6 +10,7 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { SearchableSelect } from '../../../shared/components/forms/SearchableSelect'
 import { ROUTES } from '../../../routes'
 import { useWarehouses } from '../warehouseExtras.queries'
+import { useLotTrackingEnabled } from '../moduleSwitch.data'
 import { useStockMovementsList, useBulkUpdateZraStatus, type StockMovementRow, type StockMovementFilters } from '../stockMovementsList.queries'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -42,19 +43,22 @@ function fmtUs(d: Date) {
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`
 }
 
-type SortKey = 'ref' | 'date' | 'productRef' | 'productLabel' | 'warehouse' | 'invCode' | 'label' | 'type' | 'origin' | 'cost' | 'qty' | 'zra'
+type SortKey = 'ref' | 'date' | 'productRef' | 'productLabel' | 'warehouse' | 'environment' | 'author' | 'invCode' | 'label' | 'type' | 'origin' | 'cost' | 'qty' | 'unit' | 'zra'
 const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
   { label: 'Ref.', key: 'ref' },
   { label: 'Date', key: 'date' },
   { label: 'Product Ref.', key: 'productRef' },
   { label: 'Product Label', key: 'productLabel' },
   { label: 'Warehouse', key: 'warehouse' },
+  { label: 'Environment', key: 'environment' },
+  { label: 'Author', key: 'author' },
   { label: 'Inv./Mov. Code', key: 'invCode' },
   { label: 'Label Of Movement', key: 'label' },
   { label: 'Type', key: 'type' },
   { label: 'Origin', key: 'origin' },
   { label: 'Cost Price', key: 'cost' },
   { label: 'Qty', key: 'qty', align: 'right' },
+  { label: 'Unit Value', key: 'unit', align: 'right' },
   { label: 'ZRA Status', key: 'zra' },
 ]
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
@@ -71,6 +75,10 @@ function sortValue(m: StockMovementRow, key: SortKey): string | number {
       return m.productLabel
     case 'warehouse':
       return m.warehouseRef
+    case 'environment':
+      return m.environment
+    case 'author':
+      return m.author
     case 'invCode':
       return m.inventoryCode ?? ''
     case 'label':
@@ -83,6 +91,8 @@ function sortValue(m: StockMovementRow, key: SortKey): string | number {
       return m.costPrice
     case 'qty':
       return Number(m.qty)
+    case 'unit':
+      return Number(m.unitValue) || 0
     case 'zra':
       return m.zraStatusDisplay
   }
@@ -103,6 +113,8 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
   const [dateTo, setDateTo] = useState(lastOfMonth())
   const [productId, setProductId] = useState('')
   const [batch, setBatch] = useState('')
+  // The Lot filter belongs to the Lots/Serials module; hidden only when the module list says it is off.
+  const lotTracking = useLotTrackingEnabled().data
   const [inventoryCode, setInventoryCode] = useState('')
   const [applied, setApplied] = useState<StockMovementFilters>({
     dateRange: `${fmtUs(firstOfMonth())}-${fmtUs(lastOfMonth())}`,
@@ -185,12 +197,15 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
         m.productRef,
         m.productLabel,
         m.warehouseRef,
+        m.environment || '—',
+        m.author || '—',
         m.inventoryCode || '—',
         m.label,
         m.typeLabel,
         m.originRef || '—',
         m.costPrice,
         m.qty,
+        m.unitValue || '—',
         m.zraStatusDisplay,
       ]),
     }
@@ -255,17 +270,19 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
               <label className="block text-xs text-text-faint mb-1">Product</label>
               <SearchableSelect value={productId} onChange={setProductId} options={productOptions} placeholder="Search a product" />
             </div>
-            <div className="w-40">
-              <label className="block text-xs text-text-faint mb-1">BatchNumberShort</label>
-              <select value={batch} onChange={(e) => setBatch(e.target.value)} className={selectCls + ' w-full'}>
-                <option value="">Select a Lot</option>
-                {(data?.batches ?? []).map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {lotTracking !== false && (
+              <div className="w-40">
+                <label className="block text-xs text-text-faint mb-1">Lot / Batch</label>
+                <select value={batch} onChange={(e) => setBatch(e.target.value)} className={selectCls + ' w-full'}>
+                  <option value="">Select a Lot</option>
+                  {(data?.batches ?? []).map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="w-40">
               <label className="block text-xs text-text-faint mb-1">Inv./Mov. Code</label>
               <select value={inventoryCode} onChange={(e) => setInventoryCode(e.target.value)} className={selectCls + ' w-full'}>
@@ -340,6 +357,8 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{m.productRef}</td>
                       <td className="px-4 py-2.5 text-text!">{m.productLabel}</td>
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{m.warehouseRef}</td>
+                      <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{m.environment || '—'}</td>
+                      <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{m.author || '—'}</td>
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{m.inventoryCode || '—'}</td>
                       <td className="px-4 py-2.5 text-text-muted">{m.label}</td>
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{m.typeLabel}</td>
@@ -357,6 +376,7 @@ export function StockMovementsListPage({ embedded = false }: { embedded?: boolea
                         {Number(m.qty) >= 0 ? '+' : ''}
                         {m.qty}
                       </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-text-muted whitespace-nowrap">{m.unitValue || '—'}</td>
                       <td className="px-4 py-2.5">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.zraStatusClass === 'badge-danger' ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg'}`}

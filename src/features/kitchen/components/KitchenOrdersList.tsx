@@ -50,7 +50,7 @@ function sortValue(o: KitchenOrderRow, key: SortKey): string | number {
   }
 }
 
-// Real editable Yes/No control backed by kitchen/order_status_change.php's
+// Real editable Yes/No control backed by kitchen/fapi/order_status.php's
 // order_complete branch (see kitchen.queries.ts) — the backend itself
 // re-checks the invoice is paid before allowing completion and rejects
 // with a real message otherwise, surfaced here inline rather than silently

@@ -4,7 +4,7 @@ import { ROUTES } from '../../../../routes'
 import { formatMoney } from '../../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useCustomerConsumption } from '../../customerDetailTabs.queries'
-import { TabTitle } from './CustomerDetailShared'
+import { StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 const CONSUMPTION_SECTIONS = ['propals', 'orders', 'invoices', 'interventions', 'supplier_orders', 'supplier_invoices'] as const
 
@@ -71,6 +71,7 @@ export function ConsumptionTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
+      <StickyTabHead>
       <TabTitle>Consumption</TabTitle>
       <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${sectionKeys.length > 4 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
         {sectionKeys.map((key) => {
@@ -90,6 +91,7 @@ export function ConsumptionTab({ socid }: { socid: string | undefined }) {
           )
         })}
       </div>
+      </StickyTabHead>
       {sectionKeys.map((key) => {
         const listRoute = socid ? consumptionListRoute(key, socid) : null
         return (

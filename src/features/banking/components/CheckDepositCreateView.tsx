@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Wallet2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useBankAccountsDropdown } from '../banking.queries'
+import { useBankAccountsDropdown, useChequeArea } from '../banking.queries'
 
 const inputCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text-faint px-3 py-2 cursor-not-allowed'
 const selectCls = 'w-full text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand/30'
@@ -14,6 +14,8 @@ const selectCls = 'w-full text-sm rounded-md border border-input-border bg-input
 export function CheckDepositCreateView() {
   const [accountId, setAccountId] = useState('')
   const { data: accounts, isLoading } = useBankAccountsDropdown()
+  const area = useChequeArea()
+  const awaiting = area.data?.awaitingDeposit ?? 0
   return (
     <div className="space-y-4">
       <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
@@ -47,7 +49,11 @@ export function CheckDepositCreateView() {
         <button type="button" disabled className="px-4 py-1.5 rounded-md text-sm font-medium bg-brand/50 text-white cursor-not-allowed w-fit">
           Filter
         </button>
-        <p className="text-sm text-text-faint italic pt-2">No checks awaiting deposit.</p>
+        {awaiting > 0 ? (
+          <p className="text-sm text-text-faint italic pt-2">{awaiting} check(s) awaiting deposit; their list is not available on this backend yet.</p>
+        ) : (
+          <p className="text-sm text-text-faint italic pt-2">{area.isLoading ? 'Loading…' : 'No checks awaiting deposit.'}</p>
+        )}
       </Card>
     </div>
   )

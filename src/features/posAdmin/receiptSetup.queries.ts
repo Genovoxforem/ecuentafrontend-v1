@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText } from '../../shared/legacyHtmlFetch'
-import { selectValue, inputValue, textareaValue, toggleChecked, csrfToken } from './posAdminShared'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { inputValue, textareaValue, csrfToken, constOn, constSelect, constText, loadPosConsts, loadPosPage, requirePosSource, requirePosToken } from './posAdminShared'
 
 export type PrintMethod = 'browser' | 'receiptprinter' | 'takeposconnector'
 
@@ -27,21 +27,32 @@ export function useReceiptSetup() {
   return useQuery({
     queryKey: ['pos-admin', 'receipt-setup'],
     queryFn: async (): Promise<ReceiptSetup> => {
-      const doc = await fetchLegacyDocument('/takepos/admin/receipt.php')
-      const html = doc.documentElement.outerHTML
+      const [consts, doc] = await Promise.all([loadPosConsts(), loadPosPage('/takepos/admin/receipt.php')])
+      requirePosSource(consts, doc)
+      // The print method in use: TAKEPOS_PRINT_METHOD (browser | receiptprinter | takeposconnector; "browser" on newecuenta, where the
+      // classic page shows a switch link to both of the others). Without the constant: the page's links (no link = the active one).
+      const html = doc?.documentElement.outerHTML ?? ''
       const hasReceiptPrinterLink = /action=setmethod[^"]*value=receiptprinter/.test(html)
       const hasConnectorLink = /action=setmethod[^"]*value=takeposconnector/.test(html)
-      const activeMethod: PrintMethod = !hasReceiptPrinterLink ? 'receiptprinter' : !hasConnectorLink ? 'takeposconnector' : 'browser'
+      const method = consts?.TAKEPOS_PRINT_METHOD
+      const activeMethod: PrintMethod =
+        method === 'receiptprinter' || method === 'takeposconnector' || method === 'browser'
+          ? method
+          : !hasReceiptPrinterLink && doc
+            ? 'receiptprinter'
+            : !hasConnectorLink && doc
+              ? 'takeposconnector'
+              : 'browser'
       return {
-        header: textareaValue(doc, 'TAKEPOS_HEADER'),
-        footer: textareaValue(doc, 'TAKEPOS_FOOTER'),
-        receiptName: inputValue(doc, 'TAKEPOS_RECEIPT_NAME'),
-        showCustomer: (selectValue(doc, 'TAKEPOS_SHOW_CUSTOMER') || '0') as '0' | '1',
-        printPaymentMethod: (selectValue(doc, 'TAKEPOS_PRINT_PAYMENT_METHOD') || '0') as '0' | '1',
-        autoPrintTickets: (selectValue(doc, 'TAKEPOS_AUTO_PRINT_TICKETS') || '0') as '0' | '1',
-        vatGrouped: toggleChecked(doc, 'TAKEPOS_TICKET_VAT_GROUPPED'),
+        header: constText(consts, doc, 'TAKEPOS_HEADER', textareaValue),
+        footer: constText(consts, doc, 'TAKEPOS_FOOTER', textareaValue),
+        receiptName: constText(consts, doc, 'TAKEPOS_RECEIPT_NAME', inputValue),
+        showCustomer: constSelect(consts, doc, 'TAKEPOS_SHOW_CUSTOMER', '0') as '0' | '1',
+        printPaymentMethod: constSelect(consts, doc, 'TAKEPOS_PRINT_PAYMENT_METHOD', '0') as '0' | '1',
+        autoPrintTickets: constSelect(consts, doc, 'TAKEPOS_AUTO_PRINT_TICKETS', '0') as '0' | '1',
+        vatGrouped: constOn(consts, doc, 'TAKEPOS_TICKET_VAT_GROUPPED'),
         activeMethod,
-        token: csrfToken(doc),
+        token: doc ? csrfToken(doc) : '',
       }
     },
     staleTime: 1000 * 15,
@@ -61,6 +72,7 @@ export function useSaveReceiptSetup() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: SaveReceiptInput) => {
+      requirePosToken(input.token)
       const body = new URLSearchParams()
       body.set('token', input.token)
       body.set('action', 'set')
@@ -82,6 +94,7 @@ export function useSetPrintMethod() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ token, value }: { token: string; value: 'receiptprinter' | 'takeposconnector' }) => {
+      requirePosToken(token)
       await fetchLegacyText(`/takepos/admin/receipt.php?action=setmethod&token=${encodeURIComponent(token)}&value=${value}`)
       return { ok: true }
     },

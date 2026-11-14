@@ -41,7 +41,7 @@ export function ExpenseAdvancesPage() {
     if (method !== 'salary' && !accountId) return setProblem('Bank account is required.')
     setProblem(null)
     try {
-      await create.mutateAsync({ userId, amount: amountText, method, accountId: method === 'salary' ? '' : accountId, date, note })
+      await create.mutateAsync({ userId, amount: amountText, method, accountId: method === 'salary' ? '' : accountId, date, note, accountCode: data?.ledgerAccount?.code })
       setUserId('')
       setAmountText('')
       setNote('')
@@ -54,26 +54,31 @@ export function ExpenseAdvancesPage() {
     { key: 'n', header: '#', sortValue: (r) => Number(r.n) || 0, cell: (r) => <span className="text-text-muted">{r.n}</span> },
     {
       key: 'ref',
-      header: 'Ref',
+      header: 'Ref / Employee',
       sortValue: (r) => r.ref,
       cell: (r) => (
-        <button type="button" onClick={() => setPrinting(`/expense/advances_receipt.php?id=${r.id}`)} className="font-semibold text-brand hover:underline">
-          {r.ref}
-        </button>
+        <div>
+          <button type="button" onClick={() => setPrinting(`/expense/advances_receipt.php?id=${r.id}`)} className="font-semibold text-brand hover:underline">
+            {r.ref}
+          </button>
+          <div className="text-xs text-text-muted">{r.employee}</div>
+        </div>
       ),
     },
-    { key: 'employee', header: 'Employee', sortValue: (r) => r.employee, cell: (r) => <span className="font-semibold text-text!">{r.employee}</span> },
-    { key: 'amount', header: 'Amount', align: 'right', sortValue: (r) => amount(r.amount), cell: (r) => <span className="tabular-nums">{r.amount}</span> },
-    { key: 'repaid', header: 'Repaid', align: 'right', sortValue: (r) => amount(r.repaid), cell: (r) => <span className="tabular-nums">{r.repaid}</span> },
     {
-      key: 'balance',
-      header: 'Balance',
+      key: 'amount',
+      header: 'Amount / Balance',
       align: 'right',
-      sortValue: (r) => amount(r.balance),
-      cell: (r) => <span className={`font-semibold tabular-nums ${TONE_CLS[r.balanceTone]}`}>{r.balance}</span>,
+      sortValue: (r) => amount(r.amount),
+      cell: (r) => (
+        <div className="text-right tabular-nums">
+          <div className="font-semibold text-text!">{r.amount}</div>
+          <div className="text-xs text-text-muted">{r.repaid}</div>
+          <div className={`text-xs font-semibold ${TONE_CLS[r.balanceTone]}`}>{r.balance}</div>
+        </div>
+      ),
     },
-    { key: 'method', header: 'Method', sortValue: (r) => r.method, cell: (r) => r.method },
-    { key: 'date', header: 'Date', sortValue: (r) => r.date, cell: (r) => r.date },
+    { key: 'date', header: 'Date', sortValue: (r) => r.date.split('/').reverse().join(''), cell: (r) => r.date },
     {
       key: 'status',
       header: 'Status',
@@ -180,6 +185,11 @@ export function ExpenseAdvancesPage() {
                     </select>
                   </Field>
                 )}
+                {data.ledgerAccount && (
+                  <Field label="Ledger Account" className="w-56 max-w-full">
+                    <input value={data.ledgerAccount.label} readOnly title="Configured under Accounting > Default accounts" className={`${controlCls} w-full bg-surface-hover`} />
+                  </Field>
+                )}
                 <Field label="Date" className="w-44">
                   <div className="flex gap-2">
                     <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${controlCls} min-w-0 flex-1`} />
@@ -213,7 +223,7 @@ export function ExpenseAdvancesPage() {
                 .filter((v) => typeof v === 'string')
                 .join(' ')
             }
-            defaultSort={{ key: 'repaid', dir: 'desc' }}
+            defaultSort={{ key: 'date', dir: 'desc' }}
             empty="No advance payments yet."
           />
         </>

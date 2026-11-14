@@ -6,7 +6,7 @@ import { TableExportButtons } from '../../../../shared/components/TableExportBut
 import { resolveLegacyRoute } from '../../../../shared/legacyRoute'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useVatByCustomer, type VatByCustomerFilters } from '../../vatByCustomer.queries'
-import type { VatCustomerLink, VatCustomerSection } from '../../vatByCustomerParser'
+import type { VatCustomerLink, VatCustomerSection } from '../../vatByCustomer.types'
 
 const inputCls = 'h-9 rounded-md border border-input-border bg-input-bg px-3 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
 const th = 'px-3 py-2.5 text-xs font-semibold text-text whitespace-nowrap'

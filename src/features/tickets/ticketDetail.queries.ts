@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { setTicketStatus } from './tickets.queries'
 
 // Every write action below follows the PHP source of
 // ticket/{card,contact,document,followup,chat}.php. None of these scrape a
@@ -42,23 +43,13 @@ function invalidateTicket(queryClient: ReturnType<typeof useQueryClient>, id: st
 
 // ── Status / assignment / subject (ticket tab) ──────────────────────────
 
-// JSON (ticket-status-change-ajax.php): powers the 4 status pills (Read=1,
-// Assigned=2, In Progress=3, "Waiting for feedback"=5/NeedMoreInfo). It
-// CANNOT reopen a closed/cancelled ticket (returns success:false) — that
-// needs useReopenTicket below.
+// ticket/fapi/status.php?action=set_status (API #396): powers the 4 status pills (Read=1, Assigned=2, In Progress=3, "Waiting for feedback"=5).
+// A closed or cancelled ticket answers 409; reopening it is useReopenTicket below.
 export function useChangeTicketStatus(id: string | undefined, trackId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (newStatus: number) => {
-      const token = await scrapeTicketToken(id!)
-      const res = await fetch('/ticket/ticket-status-change-ajax.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: new URLSearchParams({ token, track_id: trackId ?? '', new_status: String(newStatus) }),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data = (await res.json()) as { success: boolean; message?: string }
-      if (!data.success) throw new Error(data.message ?? 'Could not change status.')
+      await setTicketStatus(trackId ?? '', newStatus)
     },
     onSuccess: () => invalidateTicket(queryClient, id),
   })

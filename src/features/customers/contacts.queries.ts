@@ -74,6 +74,7 @@ export interface NewContactInput {
   phonePerso?: string
   fax?: string
   countryId?: string
+  stateId?: string
   isPrivate?: boolean
   // Personal data, accepted by contact/fapi/create.php (civility code from meta.php, birthday as YYYY-MM-DD, social handles by network code).
   civility?: string
@@ -104,6 +105,7 @@ export function useCreateContact() {
         phone_perso: input.phonePerso || '',
         fax: input.fax || '',
         country_id: input.countryId ? Number(input.countryId) : undefined,
+        ...(input.stateId ? { state_id: Number(input.stateId) } : {}),
         priv: input.isPrivate ? 1 : 0,
         socid: input.companyId ? Number(input.companyId) : undefined,
         ...(input.civility ? { civility_code: input.civility } : {}),

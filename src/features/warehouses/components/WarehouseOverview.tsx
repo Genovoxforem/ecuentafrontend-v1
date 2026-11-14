@@ -28,7 +28,6 @@ import { ROUTES } from '../../../routes'
 import { Card, SectionHeading, ICON_STYLES, ActionGroupCard, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 import { formatMoney } from '../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useAllProductsRich, useProductOptions } from '../../products/products.queries'
 import { useRecentMovements, type WarehouseSummary } from '../warehouses.queries'
 
 const HERO_WASH: Record<string, string> = {
@@ -227,12 +226,8 @@ function OperationCard({ label, value, validated, listPath, newPath }: { label: 
 }
 
 export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
-  const { data: products = [] } = useProductOptions()
-  const { data: richProducts, isLoading: categoriesLoading, isError: categoriesError } = useAllProductsRich(0)
-  const stockProducts = products.filter((product) => product.type === 'product')
-  const inStock = stockProducts.filter((product) => product.stock >= 5).length
-  const lowStock = stockProducts.filter((product) => product.stock > 0 && product.stock < 5).length
-  const outOfStock = stockProducts.filter((product) => product.stock <= 0).length
+  const { inStock, lowStock, outOfStock } = summary.statusBuckets
+  const sellableTotal = inStock + lowStock + outOfStock
   const stockStatusTotal = Math.max(inStock + lowStock + outOfStock, 1)
   const inStockPercent = (inStock / stockStatusTotal) * 100
   const lowStockPercent = (lowStock / stockStatusTotal) * 100
@@ -243,17 +238,7 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
     .sort((a, b) => b.inputStockValue - a.inputStockValue)
     .slice(0, 5)
   const maxWarehouseValue = Math.max(...warehouseValues.map((warehouse) => warehouse.inputStockValue), 1)
-  const categoryByProductRef = new Map((richProducts ?? []).map((product) => [product.ref, product.category.trim() || 'Uncategorized']))
-  const stockValueByCategory = products.reduce<Map<string, number>>((totals, product) => {
-    if (product.type !== 'product') return totals
-    const category = categoryByProductRef.get(product.ref) ?? 'Uncategorized'
-    totals.set(category, (totals.get(category) ?? 0) + product.stock * product.priceExclTax)
-    return totals
-  }, new Map())
-  const categoryValues = [...stockValueByCategory.entries()]
-    .map(([category, value]) => ({ category, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5)
+  const categoryValues = [...summary.valueByCategory].sort((a, b) => b.value - a.value).slice(0, 5)
   const maxCategoryValue = Math.max(...categoryValues.map(({ value }) => value), 1)
 
   return (
@@ -348,14 +333,10 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
                   <span className="text-right text-xs font-semibold tabular-nums text-text!">{formatMoney(value)}</span>
                 </div>
               ))}
-              {stockValueByCategory.size > categoryValues.length && (
+              {summary.valueByCategory.length > categoryValues.length && (
                 <p className="text-right text-[11px] text-text-faint">Top {categoryValues.length} categories by stock value</p>
               )}
             </div>
-          ) : categoriesLoading ? (
-            <p className="mt-3 text-sm text-text-faint">Loading product categories…</p>
-          ) : categoriesError ? (
-            <p className="mt-3 text-sm text-warning-fg">Product category stock values could not be loaded.</p>
           ) : (
             <p className="mt-3 text-sm text-text-faint">No categorized stock value is available.</p>
           )}
@@ -366,14 +347,14 @@ export function WarehouseOverview({ summary }: { summary: WarehouseSummary }) {
           <div className="mt-3 flex items-center justify-center gap-5">
             <div className="relative h-32 w-32 shrink-0 rounded-full" style={stockStatusStyle}>
               <div className="absolute inset-4 grid place-content-center rounded-full bg-surface-alt text-center">
-                <span className="text-xl font-bold leading-none text-text!">{stockProducts.length.toLocaleString()}</span>
+                <span className="text-xl font-bold leading-none text-text!">{sellableTotal.toLocaleString()}</span>
                 <span className="mt-1 text-[10px] text-text-faint">Products</span>
               </div>
             </div>
             <div className="min-w-0 space-y-2 text-xs">
-              <StatusLegend color="bg-[#13c8a3]" label="In stock" value={inStock} total={stockProducts.length} />
-              <StatusLegend color="bg-[#f5b942]" label="Low stock" value={lowStock} total={stockProducts.length} />
-              <StatusLegend color="bg-[#f04e78]" label="Out of stock" value={outOfStock} total={stockProducts.length} />
+              <StatusLegend color="bg-[#13c8a3]" label="In stock" value={inStock} total={sellableTotal} />
+              <StatusLegend color="bg-[#f5b942]" label="Low stock" value={lowStock} total={sellableTotal} />
+              <StatusLegend color="bg-[#f04e78]" label="Out of stock" value={outOfStock} total={sellableTotal} />
             </div>
           </div>
         </Card>

@@ -2,21 +2,18 @@ import { useState } from 'react'
 import { Upload, Link2, LoaderCircle, Check, Download, Trash2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useUploadBankDocument, useLinkBankDocument, useBankDocuments, useDeleteBankDocument } from '../banking.queries'
+import { downloadBankDocument } from '../bankingFapi'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 w-full'
 
-// Real via compta/bank/document.php — genuinely POSTs to the same generic
-// core/actions_linkedfiles.inc.php handler already confirmed and used for
-// Project Documents (see banking.queries.ts). No JSON endpoint lists what's
-// already attached/linked though, so both tables stay an honest empty state
-// — "No Documents Uploaded" / "No Registered Links" match the real page's
-// own wording for that case.
-// The attached files are listed (and removed) through compta/bank/fapi/documents.php; no endpoint lists the links.
+// Linked files of a bank account: listed, attached, linked, removed and downloaded through compta/bank/fapi/documents.php (fapi only; the download needs the API key, so it is
+// fetched and saved from memory).
 export function BankLinkedFilesTab({ accountId }: { accountId: number }) {
   const documents = useBankDocuments(accountId)
   const remove = useDeleteBankDocument(accountId)
   const confirm = useConfirm()
+  const [downloadError, setDownloadError] = useState('')
   return (
     <div className="space-y-4">
       <UploadForm accountId={accountId} />
@@ -25,6 +22,7 @@ export function BankLinkedFilesTab({ accountId }: { accountId: number }) {
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold text-text! underline underline-offset-4 decoration-text-faint/50">Attached files and documents</h3>
+          {downloadError && <p role="alert" className="mt-1 text-xs text-danger">{downloadError}</p>}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -51,19 +49,27 @@ export function BankLinkedFilesTab({ accountId }: { accountId: number }) {
                   </td>
                 </tr>
               )}
-              {documents.data && documents.data.length === 0 && (
+              {documents.data && documents.data.files.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-4 text-text-faint italic">
                     No Documents Uploaded
                   </td>
                 </tr>
               )}
-              {documents.data?.map((f) => (
+              {documents.data?.files.map((f) => (
                 <tr key={f.name} className="border-b border-border last:border-0">
                   <td className="px-4 py-2.5">
-                    <a href={f.url} download={f.name} className="flex items-center gap-1.5 text-brand hover:underline">
+                    <button
+                      type="button"
+                      title={`Download ${f.name}`}
+                      onClick={() => {
+                        setDownloadError('')
+                        downloadBankDocument(accountId, f.name).catch((e) => setDownloadError(e instanceof Error ? e.message : 'The file could not be downloaded.'))
+                      }}
+                      className="flex items-center gap-1.5 text-left text-brand hover:underline"
+                    >
                       <Download size={14} /> {f.name}
-                    </a>
+                    </button>
                   </td>
                   <td className="px-4 py-2.5 text-text-muted">{f.size}</td>
                   <td className="px-4 py-2.5 text-text-muted">{f.date}</td>
@@ -100,11 +106,27 @@ export function BankLinkedFilesTab({ accountId }: { accountId: number }) {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={2} className="px-4 py-4 text-text-faint italic text-center">
-                  No Registered Links
-                </td>
-              </tr>
+              {(documents.data?.links.length ?? 0) === 0 && (
+                <tr>
+                  <td colSpan={2} className="px-4 py-4 text-text-faint italic text-center">
+                    No Registered Links
+                  </td>
+                </tr>
+              )}
+              {documents.data?.links.map((l, i) => (
+                <tr key={`${l.url}-${i}`} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5">
+                    {l.url ? (
+                      <a href={l.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-brand hover:underline">
+                        <Link2 size={14} /> {l.label}
+                      </a>
+                    ) : (
+                      l.label
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-text-muted">{l.date}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -138,7 +160,7 @@ function UploadForm({ accountId }: { accountId: number }) {
       {upload.isError && <p className="text-xs text-danger mt-2">{upload.error instanceof Error ? upload.error.message : 'Upload failed.'}</p>}
       {upload.isSuccess && (
         <p className="flex items-center gap-1.5 text-xs text-success mt-2">
-          <Check size={12} /> File uploaded — this page has no listing endpoint to show it below, but the file was genuinely sent.
+          <Check size={12} /> File uploaded.
         </p>
       )}
     </Card>

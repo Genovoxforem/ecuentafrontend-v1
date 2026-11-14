@@ -1,4 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { formatDateTimeAmPm, formatMoney } from '../../utils/format'
+import { preferNewApi } from '../salesOrders/orderApi'
+import type { FapiMovement, FapiMovementList } from '../warehouses/stockMovementsFapi'
 
 export interface StockMovementRow {
   id: number
@@ -17,7 +21,8 @@ export interface StockMovementRow {
 }
 
 export interface StockMovementsData {
-  productHeader: { id: number; ref: string; label: string; totalStock: number; warehouseCount: number } | null
+  // warehouseCount is null when the figure comes from movements.php, whose product header has no warehouse count (this page does not show it).
+  productHeader: { id: number; ref: string; label: string; totalStock: number; warehouseCount: number | null } | null
   warehouseHeader: { id: number; ref: string; label: string; nbDifferentProducts: string; nbProducts: string; stockValue: string; lastMovement: string } | null
   stats: {
     saleUseQty: string
@@ -70,10 +75,7 @@ interface RawResponse {
 // hasRight('stock','mouvement','lire') check. Only the read action
 // (get_page_data) is wired here — the API also exposes correct_stock/
 // transfer_stock/mass_action mutations, left unwired.
-export function useStockMovements(filters: { warehouseId?: number; productId?: number }, page: number, length: number) {
-  return useQuery({
-    queryKey: ['stockMovements', filters, page, length],
-    queryFn: async (): Promise<StockMovementsData> => {
+async function fetchStockMovementsLegacy(filters: { warehouseId?: number; productId?: number }, page: number, length: number): Promise<StockMovementsData> {
       const body = new URLSearchParams({ action: 'get_page_data', page: String(page), limit: String(length) })
       if (filters.warehouseId) body.set('id', String(filters.warehouseId))
       if (filters.productId) body.set('idproduct', String(filters.productId))
@@ -121,7 +123,77 @@ export function useStockMovements(filters: { warehouseId?: number; productId?: n
         })),
         total: Number(d.nbtotalofrecords),
       }
+}
+
+// product/stock/fapi/movements.php (key-authenticated JSON, header added 5 Nov 2026), default period = the current month, newest first.
+// Checked live on newecuenta 5 Nov 2026 against the classic movement_list_api.php: the product header's total stock and the warehouse
+// header's figures agree - different products = by_warehouse.products of product/stock/fapi/dashboard.php (6), products = its qty
+// (-22), stock value = its value_at_cost (0.00, what the classic header prints), last movement = the newest movement of all dates
+// (10/31/2026 06:41). Dates print in the browser's time zone, as the other stock pages do.
+interface FapiMovementsPage extends FapiMovementList {
+  header?: { product?: { id: number; ref: string; label: string; stock: number }; warehouse?: { id: number; ref: string; name: string; location: string } }
+}
+interface FapiWarehouseTotals {
+  by_warehouse?: Array<{ id: number; products: number; qty: number; value_at_cost: number }>
+  stock?: { currency?: string }
+}
+
+const mapMovement = (m: FapiMovement): StockMovementRow => ({
+  id: m.id,
+  productRef: m.product_ref,
+  productLabel: m.product_label,
+  date: formatDateTimeAmPm(m.date),
+  warehouseRef: m.warehouse_ref,
+  author: m.user_name || m.user_login,
+  inventoryCode: m.inventory_code ?? '',
+  label: m.label,
+  typeLabel: m.type_label,
+  qty: Number(m.qty),
+  qtyDisplay: String(m.qty),
+  costPrice: m.cost_price ? String(m.cost_price) : '',
+  batch: m.batch ?? '',
+})
+
+async function fetchStockMovementsFapi(filters: { warehouseId?: number; productId?: number }, page: number, length: number): Promise<StockMovementsData> {
+  const list = await fapiGet<FapiMovementsPage>('/product/stock/fapi/movements.php', { limit: length, page: page + 1, warehouse_id: filters.warehouseId, product_id: filters.productId })
+  const h = list.header
+  let warehouseHeader: StockMovementsData['warehouseHeader'] = null
+  if (h?.warehouse) {
+    const [totals, newest] = await Promise.all([
+      fapiGet<FapiWarehouseTotals>('/product/stock/fapi/dashboard.php'),
+      fapiGet<{ items?: FapiMovement[] }>('/product/stock/fapi/movements.php', { warehouse_id: h.warehouse.id, period: 'all', limit: 1 }),
+    ])
+    const w = totals.by_warehouse?.find((x) => x.id === h.warehouse!.id)
+    warehouseHeader = {
+      id: h.warehouse.id,
+      ref: h.warehouse.ref,
+      label: h.warehouse.name || h.warehouse.ref,
+      nbDifferentProducts: w ? String(w.products) : '',
+      nbProducts: w ? String(w.qty) : '',
+      stockValue: w ? `${formatMoney(w.value_at_cost)} ${totals.stock?.currency ?? ''}`.trim() : '',
+      lastMovement: newest.items?.[0] ? formatDateTimeAmPm(newest.items[0].date) : '',
+    }
+  }
+  const st = list.stats
+  return {
+    productHeader: h?.product ? { id: h.product.id, ref: h.product.ref, label: h.product.label, totalStock: Number(h.product.stock), warehouseCount: null } : null,
+    warehouseHeader,
+    stats: {
+      saleUseQty: String(st.sale_use_qty),
+      soldQty: String(st.sold_qty),
+      purchaseQty: String(st.purchase_qty),
+      lotUsedCount: String(st.lot_used_count),
+      correctionCount: String(st.correction_count),
     },
+    movements: list.items.map(mapMovement),
+    total: Number(list.pagination.total) || 0,
+  }
+}
+
+export function useStockMovements(filters: { warehouseId?: number; productId?: number }, page: number, length: number) {
+  return useQuery({
+    queryKey: ['stockMovements', filters, page, length],
+    queryFn: () => preferNewApi('stockMovementsPage', () => fetchStockMovementsFapi(filters, page, length), () => fetchStockMovementsLegacy(filters, page, length)),
     enabled: Boolean(filters.warehouseId || filters.productId),
   })
 }

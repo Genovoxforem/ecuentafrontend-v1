@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { CalendarCheck, Plus, Pencil, Trash2, X, LoaderCircle, Search } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useHotelSettingsBundle, useHotelSaveType, useHotelDelType, useHotelToken } from '../hotel.queries'
+import { LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 
 const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -87,7 +88,7 @@ export function HotelBookingTypesPage() {
       )}
 
       {isLoading && <p className="text-sm text-text-faint py-2">Loading…</p>}
-      {isError && <p className="text-sm text-danger py-2">{error instanceof Error ? error.message : 'Failed to load.'} <button type="button" onClick={() => refetch()} className="underline">Retry</button></p>}
+      {isError && <LegacyErrorCard title="Couldn't load the booking types" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
       {!isLoading && !isError && (
         <Card className="!p-0 overflow-hidden">

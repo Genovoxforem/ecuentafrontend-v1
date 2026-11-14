@@ -7,7 +7,7 @@ import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../../routes'
 import { useProductAccounts, useSaveProductAccounts } from '../../productAccounts.queries'
-import type { ProductAccountFilters } from '../../productAccountsParser'
+import type { ProductAccountFilters } from '../../productAccounts.types'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const th = 'font-semibold px-3 py-2.5 text-left text-xs text-text whitespace-nowrap'
@@ -21,7 +21,7 @@ const NO_FILTERS: ProductAccountFilters = { ref: '', label: '', vat: '', onsell:
 const INITIAL_FILTERS: ProductAccountFilters = { ...NO_FILTERS, currentAccountValid: 'withoutvalidaccount' }
 
 // accountancy/admin/productaccount.php — the real "Products accounts" screen
-// (see productAccountsParser.ts). Choose the accounting account per product,
+// (see productAccounts.types.ts). Choose the accounting account per product,
 // tick the products and Save: that posts the page's own update action.
 export function ProductAccountsList() {
   const [mode, setMode] = useState('ACCOUNTANCY_SELL')

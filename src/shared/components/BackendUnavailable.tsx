@@ -2,6 +2,7 @@ import axios from 'axios'
 import { CloudOff } from 'lucide-react'
 import { Card } from './dashboard/DashboardKit'
 import { NoDataToast } from './NoDataToast'
+import { LegacyReconnectForm } from './LegacyReconnect'
 
 // The frontend was built and tested all session against one backend
 // (ecnta10). The team switched to a different, currently-active backend
@@ -118,6 +119,7 @@ export function LegacySessionExpiredCard({ feature, onLogout }: { feature: strin
       <p className="text-xs text-text-faint max-w-sm">
         This data loads through a separate session that's only created when you sign in, and yours has expired or was never established. Sign out and back in to fix it.
       </p>
+      <LegacyReconnectForm />
       <button
         type="button"
         onClick={onLogout}

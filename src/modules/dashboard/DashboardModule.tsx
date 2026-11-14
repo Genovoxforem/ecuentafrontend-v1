@@ -1,6 +1,6 @@
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
-import { fromLegacyDashboard, useLegacyHomeDashboard } from '../../features/home/home.queries'
+import { fromLegacyDashboard, useFapiHomeDashboard, useLegacyHomeDashboard, withFapiHome, type FapiHomeDashboard } from '../../features/home/home.queries'
 import { useComputedHomeDashboard } from '../../features/home/homeDashboardFallback'
 import { HomeOverview } from '../../features/home/components/HomeOverview'
 import { useBankAccountsFirstPage, type BankAccountRow } from '../../features/banking/banking.queries'
@@ -34,11 +34,11 @@ function LoadError({ error, onRetry }: { error: unknown; onRetry: () => void }) 
 }
 
 // For a user index.php shows no dashboard to: the same widgets, worked out from the invoice lists.
-function ComputedDashboard({ username, accounts }: { username: string; accounts: BankAccountRow[] | undefined }) {
+function ComputedDashboard({ username, accounts, fapi }: { username: string; accounts: BankAccountRow[] | undefined; fapi: FapiHomeDashboard | undefined }) {
   const { data, isError, error } = useComputedHomeDashboard(accounts)
   if (isError) return <LoadError error={error} onRetry={() => window.location.reload()} />
   if (!data) return <Loading />
-  return <HomeOverview username={username} dashboard={data} />
+  return <HomeOverview username={username} dashboard={withFapiHome(data, fapi)} />
 }
 
 export function DashboardModule() {
@@ -46,9 +46,13 @@ export function DashboardModule() {
   const username = user?.login || 'User'
   const legacy = useLegacyHomeDashboard()
   const accounts = useBankAccountsFirstPage()
+  const fapi = useFapiHomeDashboard()
 
-  if (legacy.isError) return <LoadError error={legacy.error} onRetry={() => void legacy.refetch()} />
+  // No legacy session (the cookie is only made at a sign-in submit) is not an error here: the dashboard is then built from
+  // the invoice lists and home_dashboard.php, which need only the API key.
+  const noSession = legacy.isError && legacy.error instanceof Error && legacy.error.message === NOT_SIGNED_IN_MESSAGE
+  if (legacy.isError && !noSession) return <LoadError error={legacy.error} onRetry={() => void legacy.refetch()} />
   if (legacy.isPending) return <Loading />
-  if (legacy.data === null) return <ComputedDashboard username={username} accounts={accounts.data} />
-  return <HomeOverview username={username} dashboard={fromLegacyDashboard(legacy.data, accounts.data)} />
+  if (noSession || !legacy.data) return <ComputedDashboard username={username} accounts={accounts.data} fapi={fapi.data} />
+  return <HomeOverview username={username} dashboard={withFapiHome(fromLegacyDashboard(legacy.data, accounts.data), fapi.data)} />
 }

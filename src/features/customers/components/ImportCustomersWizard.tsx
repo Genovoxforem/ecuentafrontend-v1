@@ -167,6 +167,9 @@ export function ImportCustomersWizard() {
   const step: WizardStep = rawStep >= 1 && rawStep <= 6 ? rawStep as WizardStep : 1
   const selected = useMemo(() => datasets?.find((item) => item.code === datasetCode) ?? null, [datasets, datasetCode])
   const formatsQuery = useImportFormats(datasetCode)
+  // A dataset opened from Setup > Import Assistant may be outside the customer / vendor list above: the formats answer names it.
+  const shown = selected ?? formatsQuery.data?.dataset ?? null
+  const isCompanyDataset = !datasetCode || !!selected
   const filesQuery = useImportFiles(datasetCode)
   const mappingQuery = useImportMapping({ datatoimport: datasetCode, format: formatCode, filetoimport: fileName, separator, enclosure })
   const profilesQuery = useImportProfiles(datasetCode)
@@ -260,14 +263,14 @@ export function ImportCustomersWizard() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text!"><Users2 size={20} className="text-brand" /> Import Customers/Vendors</h2>
+        <h2 className="flex items-center gap-2 text-lg font-bold text-text!"><Users2 size={20} className="text-brand" /> {isCompanyDataset ? 'Import Customers/Vendors' : 'Import'}</h2>
         <Stepper step={step} />
       </div>
 
-      {selected && (
+      {shown && (
         <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-alt px-4 py-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand"><Users2 size={18} /></span>
-          <div className="min-w-0"><p className="text-xs uppercase tracking-wide text-text-faint">{selected.module}</p><p className="truncate font-semibold text-text!">{selected.label}</p></div>
+          <div className="min-w-0"><p className="text-xs uppercase tracking-wide text-text-faint">{shown.module}</p><p className="truncate font-semibold text-text!">{shown.label}</p></div>
         </div>
       )}
 

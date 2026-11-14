@@ -2,12 +2,16 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useToggleConstant } from '../constantToggle.queries'
 
-// A real toggle backed by core/ajax/constantonoff.php (see
-// constantToggle.queries.ts's header comment for the exact contract and its
-// "no read endpoint" caveat). `initial` is only a locally-assumed starting
-// position (matching the reference screenshot's default), not a confirmed
-// live value — every click after that is a genuine write.
-export function RealToggle({ constName, initial = false, onValue = '1' }: { constName: string; initial?: boolean; onValue?: string | number }) {
+// A real toggle: it writes the constant through admin/fapi/const_save.php / const_delete.php, or the classic core/ajax/constantonoff.php when the
+// instance has no such route (see constantToggle.queries.ts for the write contract). `initial` is the position
+// the switch starts in: the Setup screens read it from core/fapi/constants.php (settingConstants.data.ts) and pass `loading` until that
+// answers, so the switch never shows a position it only assumed; every click after that is a genuine write.
+export function RealToggle({ constName, initial = false, onValue = '1', loading = false }: { constName: string; initial?: boolean; onValue?: string | number; loading?: boolean }) {
+  if (loading) return <span aria-label="Loading" className="inline-block h-5 w-9 animate-pulse rounded-full border border-border bg-surface-alt" />
+  return <ToggleSwitch constName={constName} initial={initial} onValue={onValue} />
+}
+
+function ToggleSwitch({ constName, initial, onValue }: { constName: string; initial: boolean; onValue: string | number }) {
   const [checked, setChecked] = useState(initial)
   const toggle = useToggleConstant()
 
@@ -15,6 +19,9 @@ export function RealToggle({ constName, initial = false, onValue = '1' }: { cons
     <div className="flex items-center gap-2">
       <button
         type="button"
+        role="switch"
+        aria-checked={checked}
+        data-const={constName}
         disabled={toggle.isPending}
         onClick={() => {
           const next = !checked

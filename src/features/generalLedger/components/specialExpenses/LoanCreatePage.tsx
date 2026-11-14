@@ -2,20 +2,18 @@ import { HandCoins } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
 import { saveLoan } from '../../specialPaymentsSave'
 import { loadLoanForm } from '../../specialMetaFapi'
-import { LegacyFormPage } from '../LegacyFormPage'
+import { JsonFormPage } from '../JsonFormPage'
 
 // loan/card.php?action=create — the real "New loan" form; Save posts
 // action=add and the backend redirects to the new loan.
 export function LoanCreatePage() {
   return (
-    <LegacyFormPage
+    <JsonFormPage
       load={loadLoanForm}
       save={saveLoan}
       icon={HandCoins}
       title="New Loan"
-      path="/loan/card.php"
-      query={{ action: 'create' }}
-      anchor="capital"
+      queryKey="/loan/card.php"
       redirectTo={ROUTES.ledgerEmployeeLoansList}
       fields={[
         { name: 'label', label: 'Label', required: true },

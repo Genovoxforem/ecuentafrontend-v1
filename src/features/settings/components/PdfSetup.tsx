@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useLanguageOptions } from '../../users/users.queries'
 import { RealToggle } from './RealToggle'
+import { useSettingConstants } from '../settingConstants.data'
 import { SetupShell } from './SetupShell'
 
 const inputCls = 'w-28 h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30'
@@ -41,7 +42,10 @@ const FOOTER_DETAIL_OPTIONS = ['No', 'Display Company Address', 'Display Company
 
 const PAGE_HEADER = "Global options for PDF generation"
 
+const PDF_SWITCHES = { SHOW_SUBPRODUCT_REF_IN_PDF: false }
+
 export function PdfSetup() {
+  const consts = useSettingConstants(PDF_SWITCHES)
   const { data: languages, isLoading: languagesLoading } = useLanguageOptions()
 
   const [paperFormat, setPaperFormat] = useState(PAPER_FORMATS[0])
@@ -81,7 +85,7 @@ export function PdfSetup() {
       title="PDF"
       description={PAGE_HEADER}
       onSave={handleSave}
-      saved={saved ? 'Saved (session-only — the kit-subproducts toggle saves live; no other PDF-config endpoint exists on this backend yet).' : undefined}
+      saved={saved ? 'Not saved to the server — only the kit-subproducts toggle saves (live); no other PDF setting has a save endpoint yet.' : undefined}
     >
       <div>
         <h3 className="text-base font-semibold text-text! mb-2">Paper formats</h3>
@@ -203,7 +207,7 @@ export function PdfSetup() {
             </select>
           </Row>
           <Row label='If the feature "Enable kits (set of several products)" of module Products is used, show details of subproducts of a kit on PDF.' bold="Enable kits (set of several products)">
-            <RealToggle constName="SHOW_SUBPRODUCT_REF_IN_PDF" initial={false} />
+            <RealToggle constName="SHOW_SUBPRODUCT_REF_IN_PDF" initial={consts.on('SHOW_SUBPRODUCT_REF_IN_PDF')} loading={!consts.ready} />
           </Row>
         </Card>
       </div>

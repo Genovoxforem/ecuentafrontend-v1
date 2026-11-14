@@ -2,7 +2,6 @@ import { lazy } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import { ROUTES } from '../../routes'
 import { RouteBoundary } from '../RouteBoundary'
-import { MEMBER_PLACEHOLDERS } from '../../features/members/membersPlaceholders'
 
 const DashboardModule = lazy(() => import('../../modules/dashboard/DashboardModule').then((m) => ({ default: m.DashboardModule })))
 const SalesModule = lazy(() => import('../../modules/sales/SalesModule').then((m) => ({ default: m.SalesModule })))
@@ -13,7 +12,11 @@ const JobCardCreateFromCustomerModule = lazy(() => import('../../modules/interve
 const ExpenseReportsListPageModule = lazy(() => import('../../modules/expenseReports/ExpenseReportsListPageModule').then((m) => ({ default: m.ExpenseReportsListPageModule })))
 const MembersDashboardModule = lazy(() => import('../../modules/members/MembersDashboardModule').then((m) => ({ default: m.MembersDashboardModule })))
 const MembersListModule = lazy(() => import('../../modules/members/MembersListModule').then((m) => ({ default: m.MembersListModule })))
-const MemberPlaceholderModule = lazy(() => import('../../modules/members/MemberPlaceholderModule').then((m) => ({ default: m.MemberPlaceholderModule })))
+const NewMemberModule = lazy(() => import('../../modules/members/MemberPagesModules').then((m) => ({ default: m.NewMemberModule })))
+const MemberTypesModule = lazy(() => import('../../modules/members/MemberPagesModules').then((m) => ({ default: m.MemberTypesModule })))
+const MemberSubscriptionsModule = lazy(() => import('../../modules/members/MemberPagesModules').then((m) => ({ default: m.MemberSubscriptionsModule })))
+const MemberStatisticsModule = lazy(() => import('../../modules/members/MemberPagesModules').then((m) => ({ default: m.MemberStatisticsModule })))
+const MemberCardsModule = lazy(() => import('../../modules/members/MemberCardsModule').then((m) => ({ default: m.MemberCardsModule })))
 const ReportDetailModule = lazy(() => import('../../modules/reports/ReportDetailModule').then((m) => ({ default: m.ReportDetailModule })))
 const ReportsModule = lazy(() => import('../../modules/reports/ReportsModule').then((m) => ({ default: m.ReportsModule })))
 const StockMovementsModule = lazy(() => import('../../modules/stockMovements/StockMovementsModule').then((m) => ({ default: m.StockMovementsModule })))
@@ -141,17 +144,46 @@ export function miscRoutes() {
           </RouteBoundary>
         }
       />
-      {MEMBER_PLACEHOLDERS.map((p) => (
-        <Route
-          key={p.path}
-          path={p.path}
-          element={
-            <RouteBoundary>
-              <MemberPlaceholderModule />
-            </RouteBoundary>
-          }
-        />
-      ))}
+      <Route
+        path={ROUTES.memberNew}
+        element={
+          <RouteBoundary>
+            <NewMemberModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.memberTypes}
+        element={
+          <RouteBoundary>
+            <MemberTypesModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.memberSubscriptions}
+        element={
+          <RouteBoundary>
+            <MemberSubscriptionsModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.memberStatistics}
+        element={
+          <RouteBoundary>
+            <MemberStatisticsModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.memberCards}
+        element={
+          <RouteBoundary>
+            <MemberCardsModule />
+          </RouteBoundary>
+        }
+      />
       <Route
         path={ROUTES.reportDetail}
         element={

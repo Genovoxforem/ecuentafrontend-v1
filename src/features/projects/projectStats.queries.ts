@@ -1,43 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseYearOptions, parseSelectedYear, parseResultsTable, parseEmbeddedCharts, looksLikeLegacyLoginPage, type SelectOption, type StatsResultsTable, type StatsChart } from './statsHtmlParser'
+import { loadProjectStats, type StatsView } from './projectStatsApi.data'
 
-// No REST API exists for project statistics — reads projet/stats/index.php
-// directly (see statsHtmlParser.ts's header comment for how the embedded
-// Chart.js data is extracted). `socid` is the GETPOSTINT('socid') this
-// page's own PHP reads (it feeds $stats_project->socid); the Third-party
-// dropdown itself is populated from this app's own /api/customers/ list
-// (see useCustomerOptions in customerOptions.ts) rather than scraping this
-// page's own third-party widget, since Dolibarr's select_company() can
-// render as an AJAX-search input with no static <option> list in the DOM
-// at all.
-
-const NOT_SIGNED_IN_MESSAGE =
-  'Not signed into the legacy backend. Project statistics have no usable REST API and read the real Dolibarr page directly — log out and back in to refresh that session, then retry.'
-
-export interface ProjectStats {
-  yearOptions: SelectOption[]
-  selectedYear: string
-  table: StatsResultsTable | null
-  charts: StatsChart[]
-}
+// Project statistics on projet/fapi/stats.php (projectStatsApi.data.ts) instead of the classic projet/stats/index.php.
+export type ProjectStats = StatsView
 
 export function useProjectStats(year?: string, socid?: string) {
   return useQuery({
     queryKey: ['projects', 'stats', year ?? '', socid ?? ''],
-    queryFn: async (): Promise<ProjectStats> => {
-      const params = new URLSearchParams({ mainmenu: 'projectmanagement', leftmenu: '' })
-      if (year) params.set('year', year)
-      if (socid) params.set('socid', socid)
-      const doc = await fetchLegacyDocument('/projet/stats/index.php', params)
-      if (looksLikeLegacyLoginPage(doc)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      return {
-        yearOptions: parseYearOptions(doc),
-        selectedYear: parseSelectedYear(doc),
-        table: parseResultsTable(doc, 'Year'),
-        charts: parseEmbeddedCharts(doc),
-      }
-    },
+    queryFn: (): Promise<ProjectStats> => loadProjectStats(year, socid),
     staleTime: 1000 * 30,
     retry: false,
   })

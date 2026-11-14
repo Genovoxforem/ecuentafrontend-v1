@@ -1,5 +1,5 @@
-import { fapiGet } from '../../api/fapiEnvelope'
-import type { DictRow } from './dolibarrDictParser'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import type { DictRow } from './dictRow.types'
 
 // accountancy/fapi/personalized_groups.php (reads): a custom account group (llx_c_accounting_category) and the chart accounts linked to it,
 // the legacy "List of accounts" page (accountancy/admin/categories.php?action=display&account_category=N). Captured from newecuenta on
@@ -50,20 +50,26 @@ export function mapGroupAccounts(group: FapiPersonalizedGroup, members: FapiGrou
 }
 
 // The classic list (accountancy/admin/categories_list.php?id=32) as DictListPage rows: Code, Label, Comment, Calculated, Formula,
-// Position, Country ("IN - India"), in the classic page's order (by id). Activating / deactivating and deleting still follow the classic
-// page's own links (personalized_groups.php?action=update cannot change the active flag), built the way that page prints them.
-const LEGACY_LIST = '/accountancy/admin/categories_list.php'
-const legacyLink = (g: FapiPersonalizedGroup, action: 'enable' | 'disable' | 'delete') =>
-  `${LEGACY_LIST}?sortfield=&sortorder=&rowid=${g.id}&code=${encodeURIComponent(g.code)}&&id=32&action=${action}`
-
+// Position, Country ("IN - India"), in the classic page's order (by id). Enabling / disabling and deleting go through the fapi by row id (setGroupActive /
+// deleteGroup below); the rows carry no classic links.
 export function groupDictRow(g: FapiPersonalizedGroup): DictRow {
   return {
     rowid: String(g.id),
     cells: [g.code, g.label, g.range_account, g.category_type === 1 ? 'Yes' : 'No', g.formula, String(g.position), g.country_code ? `${g.country_code} - ${g.country}` : g.country],
     active: g.active === 1,
-    toggleUrl: legacyLink(g, g.active === 1 ? 'disable' : 'enable'),
-    deleteUrl: legacyLink(g, 'delete'),
   }
+}
+
+// POST ?action=update { id, active: 0 | 1 } enables / disables a group (the update used to drop active, so the classic switch did nothing through the API; fixed
+// 11 Nov 2026). The body is not run from this app on the live server: it is covered by a test with a mocked answer.
+export async function setGroupActive(rowid: string, active: boolean): Promise<void> {
+  await fapiPost(PATH, { id: Number(rowid), active: active ? 1 : 0 }, { action: 'update' })
+}
+
+// POST ?action=delete { id } (unknown id: 404 "Group not found", nothing changes - read live 12 Nov 2026). The delete of a real group was not run from this app on the
+// live server: it is covered by a test with a mocked answer.
+export async function deleteGroup(rowid: string): Promise<void> {
+  await fapiPost(PATH, { id: Number(rowid) }, { action: 'delete' })
 }
 
 export async function loadGroupsList(): Promise<DictRow[]> {

@@ -31,10 +31,23 @@ export function formatDateTime(value: string | number | Date | null | undefined)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// "2026-11-10T13:01:39+00:00" -> "11/10/2026 01:01 PM": the date and time exactly as the server wrote them, not converted to the browser's time
+// zone (the classic cards print the server's time; converting moved 13:01 to 18:31 on a browser set to India time).
+export function formatServerDateTime(value: string | null | undefined) {
+  if (!value) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(value)
+  if (!m) return formatDateTimeAmPm(value)
+  const hours24 = Number(m[4])
+  return `${m[2]}/${m[3]}/${m[1]} ${String(hours24 % 12 || 12).padStart(2, '0')}:${m[5]} ${hours24 < 12 ? 'AM' : 'PM'}`
+}
+
 // ISO datetime -> "MM/DD/YYYY hh:mm AM/PM", matching the legacy app's "On :
 // <date>" byline under a record's creator name (e.g. "04/30/2026 12:49 PM").
 export function formatDateTimeAmPm(value: string | number | Date | null | undefined) {
   if (!value) return ''
+  // A bare date ("2026-10-31", e.g. user last login) has no time: print the date as it is instead of inventing a time from the browser's time zone (05:30 AM on India time).
+  const bare = typeof value === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null
+  if (bare) return `${bare[2]}/${bare[3]}/${bare[1]}`
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return String(value)
   const pad = (n: number) => String(n).padStart(2, '0')

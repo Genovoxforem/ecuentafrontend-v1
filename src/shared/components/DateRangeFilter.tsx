@@ -69,6 +69,12 @@ export function computeRange(key: RangeKey, customFrom: string, customTo: string
   }
 }
 
+function isoDay(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
 function useClickOutside(ref: RefObject<HTMLElement | null>, onOutside: () => void, active: boolean) {
   useEffect(() => {
     if (!active) return
@@ -92,6 +98,8 @@ export interface DateRangeState {
   // "2026-10-02 06:47:00") falls inside the chosen range; always true when no
   // range is chosen. A row without a usable date doesn't match an active range.
   inRange: (dateValue: string | null | undefined) => boolean
+  // The chosen range as YYYY-MM-DD (local days), for a list that sends it to the server; null when no range is chosen.
+  iso: { from: string; to: string } | null
 }
 
 export function useDateRange(): DateRangeState {
@@ -113,7 +121,8 @@ export function useDateRange(): DateRangeState {
     },
     [range],
   )
-  return { key, customFrom, customTo, setKey, setCustomFrom, setCustomTo, clear, inRange }
+  const iso = useMemo(() => (range ? { from: isoDay(range.from), to: isoDay(range.to) } : null), [range])
+  return { key, customFrom, customTo, setKey, setCustomFrom, setCustomTo, clear, inRange, iso }
 }
 
 export function DateRangeButton({ state, className = 'ml-auto' }: { state: DateRangeState; className?: string }) {

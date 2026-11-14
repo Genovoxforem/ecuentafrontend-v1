@@ -1,5 +1,5 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
-import type { DictRow } from './dolibarrDictParser'
+import type { DictRow } from './dictRow.types'
 
 // accountancy/fapi/coa_models.php (22 Oct 2026): the chart-of-accounts model dictionary (llx_accounting_system). Captured from newecuenta on
 // 22 Oct 2026 (tests/fixtures/accountancy-coa-models.json): 37 models, one active. The table has no entity column, so writes affect every
@@ -13,7 +13,7 @@ export interface FapiCoaModels {
 
 // The columns of the page: code, label and country. The id is the row key the actions use.
 export function mapCoaModels(d: FapiCoaModels): DictRow[] {
-  return d.items.map((m) => ({ rowid: String(m.id), cells: [m.pcg_version, m.label, m.country], active: m.active === 1, toggleUrl: null, deleteUrl: null }))
+  return d.items.map((m) => ({ rowid: String(m.id), cells: [m.pcg_version, m.label, m.country], active: m.active === 1 }))
 }
 
 export const loadCoaModels = async (): Promise<DictRow[]> => mapCoaModels(await fapiGet<FapiCoaModels>(PATH, { limit: 500 }))

@@ -10,10 +10,11 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { useUserGroupsList, type UserGroupRow } from '../userGroupsAndTags.queries'
 import { formatDate } from '../../../utils/format'
 
-type SortKey = 'name' | 'users' | 'created'
+type SortKey = 'name' | 'description' | 'users' | 'created'
 
 const COLUMNS: { label: string; key: SortKey }[] = [
   { label: 'Role Name', key: 'name' },
+  { label: 'Description', key: 'description' },
   { label: 'Users', key: 'users' },
   { label: 'Created', key: 'created' },
 ]
@@ -24,6 +25,8 @@ function sortValue(g: UserGroupRow, key: SortKey): string | number {
   switch (key) {
     case 'name':
       return g.name
+    case 'description':
+      return g.note
     case 'users':
       return g.memberCount
     case 'created':
@@ -60,7 +63,7 @@ export function GroupsList() {
   }
 
   function getExportData() {
-    const rows = sortedRows.map((g) => [g.name, String(g.memberCount), g.createdAt ? formatDate(g.createdAt) : '—'])
+    const rows = sortedRows.map((g) => [g.name, g.note, String(g.memberCount), g.createdAt ? formatDate(g.createdAt) : '—'])
     return { headers: COLUMNS.map((c) => c.label), rows }
   }
 
@@ -137,6 +140,7 @@ export function GroupsList() {
                   pageRows.map((group) => (
                     <tr key={group.id} className="border-b border-border">
                       <td className="px-4 py-3 text-text!">{group.name}</td>
+                      <td className="px-4 py-3 text-text-muted">{group.note || '—'}</td>
                       <td className="px-4 py-3 text-text-muted">{group.memberCount}</td>
                       <td className="px-4 py-3 text-text-muted">{group.createdAt ? formatDate(group.createdAt) : '—'}</td>
                       <td className="px-4 py-3">

@@ -1,8 +1,7 @@
-import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import type { Tab } from './ProductDetailShared'
 import { EventsTab, LinkedFilesTab, NotesTab } from './productDetailTabs/notesFilesEventsTabs'
 import { BuyingPricesTab, SellingPricesTab } from './productDetailTabs/pricingTabs'
-import { InvoiceStatsTab, MarginsTab, StatisticsTab } from './productDetailTabs/statsTabs'
+import { InvoiceStatsTab, StatisticsTab } from './productDetailTabs/statsTabs'
 import { StockTab } from './productDetailTabs/stockTab'
 import { UomSettingsTab } from './productDetailTabs/uomTab'
 import { AssociatedProductsTab, ProductCombinationsTab } from './productDetailTabs/variantTabs'
@@ -37,12 +36,6 @@ export function LazyTabRenderer({ tab, id }: LazyTabRendererProps) {
       return <LinkedFilesTab id={id} />
     case 'Events':
       return <EventsTab id={id} />
-    case 'Margins':
-      return (
-        <Card className="!h-auto">
-          <MarginsTab id={id} />
-        </Card>
-      )
     default:
       return null
   }

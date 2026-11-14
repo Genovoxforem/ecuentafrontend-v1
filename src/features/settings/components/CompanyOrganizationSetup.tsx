@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Wrench, ImageUp } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useGeneralSettings, useEntities } from '../settings.queries'
+import { useCurrencyDictionary } from '../currencyDictionary.data'
 import { useProductFormOptions } from '../../products/productFormOptions.queries'
 import { SetupShell } from './SetupShell'
 
@@ -30,11 +30,9 @@ function SectionGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-3 items-start">{children}</div>
 }
 
-// Common currency choices — no currency-dictionary endpoint exists on this
-// backend (every other form in this app that needs one hardcodes a short
-// list too, e.g. ThirdPartyCreateForm's Currency field), so this is a
-// static list rather than a fetched one. The real active currency (from
-// /api/general/) is always included even if it isn't in this base list.
+// The currency select lists the 127 currencies of accountancy/fapi/currency.php?action=dictionary (currencyDictionary.data.ts), as the classic
+// company page does. This short list is only what shows while that answer loads or on a backend that does not have it. The real active currency
+// (from /api/general/) is always included even if it isn't in the list.
 const BASE_CURRENCIES = [
   { code: 'ZMW', label: 'Zambian Kwacha (ZMW)' },
   { code: 'USD', label: 'US Dollar (USD)' },
@@ -78,7 +76,6 @@ function LogoUpload({ label }: { label: string }) {
 }
 
 export function CompanyOrganizationSetup() {
-  const queryClient = useQueryClient()
   const { data: settings, isLoading } = useGeneralSettings()
   const { data: formOptions } = useProductFormOptions()
   const { data: entities } = useEntities()
@@ -103,10 +100,12 @@ export function CompanyOrganizationSetup() {
     setTpin(settings.tpin || '')
   }, [settings])
 
+  const { data: currencyDictionary } = useCurrencyDictionary()
   const currencyOptions = useMemo(() => {
-    if (!currencyCode || BASE_CURRENCIES.some((c) => c.code === currencyCode)) return BASE_CURRENCIES
-    return [...BASE_CURRENCIES, { code: currencyCode, label: currencyCode }]
-  }, [currencyCode])
+    const list = currencyDictionary && currencyDictionary.length ? currencyDictionary : BASE_CURRENCIES
+    if (!currencyCode || list.some((c) => c.code === currencyCode)) return list
+    return [...list, { code: currencyCode, label: currencyCode }]
+  }, [currencyCode, currencyDictionary])
 
   // Local-only fields (no backend column — see comment above).
   const [address, setAddress] = useState('')
@@ -202,22 +201,11 @@ export function CompanyOrganizationSetup() {
 
   const [saved, setSaved] = useState(false)
 
+  // Nothing on this page has a save endpoint wired: the old handler only edited the cached settings, so the page said "Saved" and the next reload brought the old
+  // values back. It now says so and sends nothing (temporary until the fields are wired to the constants writer).
   function handleSave() {
-    const countryLabel = formOptions?.countries.find((c) => c.value === countryId)?.label
-    queryClient.setQueryData(['settings', 'general'], (current: typeof settings) =>
-      current
-        ? {
-            ...current,
-            app_name: name,
-            currency: currencyCode,
-            tpin,
-            branch_code: branchCode,
-            country: countryLabel ? `${countryId}::${countryLabel}` : current.country,
-          }
-        : current,
-    )
     setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    setTimeout(() => setSaved(false), 4000)
   }
 
   return (
@@ -238,7 +226,7 @@ export function CompanyOrganizationSetup() {
         </button>
       ))}
       onSave={handleSave}
-      saved={saved ? "Saved (Name/Country/Currency/Tpin/Branch Code only — the rest isn't backed by an endpoint yet)." : undefined}
+      saved={saved ? 'Not saved to the server — this page has no save endpoint wired yet, so nothing was changed.' : undefined}
     >
 
       {tab === 'Company' ? (

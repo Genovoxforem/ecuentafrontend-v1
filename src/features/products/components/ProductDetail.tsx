@@ -1,5 +1,5 @@
 ﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
@@ -32,6 +32,7 @@ import { NATURE_OPTIONS, WEIGHT_UNITS, SIZE_UNITS, SURFACE_UNITS, VOLUME_UNITS }
 import { LegacyLoadingCard, LegacyErrorCard } from './LegacyReportStates'
 import {
   useProductDetail,
+  useZraEnabled,
   useAccountNames,
   useProductDocuments,
   useProductDashboard,
@@ -44,13 +45,14 @@ import {
   FieldRow,
   SectionHeader,
   StatusPill,
+  visibleProductTabs,
   TABS,
   sameOriginPath,
   type Tab,
 } from './ProductDetailShared'
 
 // Non-default tabs (Selling Prices, Stock, UOM, Supplier Prices, Variants,
-// Composition, Statistics, Invoice Stats, Notes, Documents, Events, Margins)
+// Composition, Statistics, Invoice Stats, Notes, Documents, Events)
 // are lazy-loaded from a separate chunk — only the active tab's code
 // downloads, cutting the initial ProductDetail chunk significantly.
 // ProductTab stays inline (it's the default, always visible).
@@ -122,7 +124,9 @@ export function ProductDetail() {
   const duplicateProduct = useDuplicateProduct()
   const confirm = useConfirm()
   const [actionError, setActionError] = useState('')
-  const [tab, setTab] = useState<Tab>('Product Card')
+  // ?tab=Stock opens that tab (the Reports Center tables link a product to its stock page)
+  const [searchParams] = useSearchParams()
+  const [requestedTab, setTab] = useState<Tab>(() => (TABS.find((t) => t.label === searchParams.get('tab'))?.label as Tab | undefined) ?? 'Product Card')
   // Fetched here (not just inside LinkedFilesTab) so its real file count can
   // badge the "Documents" tab button, matching legacy's own file-count badge
   // there - same query, react-query just
@@ -203,6 +207,11 @@ export function ProductDetail() {
     })
   }
 
+  // The tabs this product shows (legacy hides Selling Prices / Supplier Prices / Stock by the product's flags); a tab it hides, asked for
+  // by ?tab= or left selected after the product changed, falls back to the Product Card.
+  const tabs = visibleProductTabs(product)
+  const tab: Tab = tabs.some((t) => t.label === requestedTab) ? requestedTab : 'Product Card'
+
   return (
     <div className="-m-6 flex-1 flex flex-col min-h-0 overflow-x-hidden">
       <div className="sticky -top-6 z-10 flex items-center justify-between gap-3 border-b border-border bg-white p-2.5 dark:bg-gray-950">
@@ -258,7 +267,8 @@ export function ProductDetail() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatChip label="Price Inc." value={formatMoney(product.priceInclTax)} />
-                  <StatChip label="Stock" value={formatNumber(product.stock)} />
+                  {/* stock.php: "stock is not tracked for services"; the classic hero shows no stock for them. */}
+                  {product.type !== 'service' && <StatChip label="Stock" value={formatNumber(product.stock)} />}
                 </div>
               </div>
               <div className="flex flex-wrap items-end gap-3">
@@ -318,7 +328,7 @@ export function ProductDetail() {
 
           <div className="border-t border-border">
             <div className="flex flex-wrap items-center gap-0 -mx-6 px-6">
-              {TABS.map(({ label: t, icon: Icon }) => (
+              {tabs.map(({ label: t, icon: Icon }) => (
                 <button
                   key={t}
                   type="button"
@@ -383,6 +393,7 @@ function ProductTab({
 }) {
   const hasAccountCodes = !!(product.accountancySell || product.accountancySellExport || product.accountancyBuy || product.accountancyBuyExport)
   const { data: accountNames } = useAccountNames(hasAccountCodes)
+  const { data: zraEnabled } = useZraEnabled(id)
   const account = (code: string) => (code && accountNames?.get(code) ? `${code} - ${accountNames.get(code)}` : code)
   const withCurrency = (amount: number) => `${formatMoney(amount)}${product.currency ? ` ${product.currency}` : ''}`
   return (
@@ -404,17 +415,17 @@ function ProductTab({
             </SectionHeader>
             <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-8">
               <Field label="Type" value={product.type === 'service' ? 'Service' : 'Product'} />
-              <Field label="Item Code" value={product.classification} />
-              <Field label="ZRA Updated Product Code" value={product.zraId} />
-              <FieldRow label="ZRA Updated Status">
-                {product.zraStatus ? (
+              {/* The classic card (productinfo_card.js) draws Item Code and ZRA Updated Product Code only when the product has one, and the status row only
+                  while ZRA is on, saying "Pending" when the product has no status yet. */}
+              {product.classification && <Field label="Item Code" value={product.classification} />}
+              {product.zraId && <Field label="ZRA Updated Product Code" value={product.zraId} />}
+              {zraEnabled !== false && (
+                <FieldRow label="ZRA Updated Status">
                   <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${/succeed|success|sent|valid|ok/i.test(product.zraStatus) ? 'bg-success-bg text-success' : 'bg-surface-alt text-text-muted'}`}>
-                    {product.zraStatus.replace(/\b\w/g, (c) => c.toUpperCase())}
+                    {(product.zraStatus || 'Pending').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
-                ) : (
-                  '—'
-                )}
-              </FieldRow>
+                </FieldRow>
+              )}
               <FieldRow label="Base Unit">
                 {product.baseUnit ? (
                   <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-info-bg text-info-fg">{product.baseUnit}</span>

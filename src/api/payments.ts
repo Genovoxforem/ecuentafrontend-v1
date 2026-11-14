@@ -18,6 +18,8 @@ export interface PaymentApiRow {
   amount: number
   status: number
   status_label: string
+  // the bank line the payment created (read live on newecuenta: PAY2610-0036 -> 43), null when it has none
+  bank_entry_id?: number | null
   num_payment: string
   type_code: string
   type_label: string
@@ -47,6 +49,13 @@ function unwrap<T>(response: FapiSuccess<T>): T {
     throw new Error([response.message, ...errors].filter(Boolean).join(': ') || 'The payments API returned an unsuccessful response.')
   }
   return response.data
+}
+
+// POST compta/paiement/fapi/delete.php {id} (API #366, Paiement::delete(), no raw SQL): 200 {deleted: true, id}; 400 invalid id, 404 unknown payment, 409 with
+// the reason when the period is closed or the bank line is reconciled ("Could not delete the payment: ..."). Error paths read live (nothing deleted).
+export async function deletePayment(id: number): Promise<void> {
+  const res = await fapi.post<{ success?: boolean; message?: string | null }>('/compta/paiement/fapi/delete.php', { id })
+  if (res.data?.success === false) throw new Error(res.data.message || 'The payment was not deleted.')
 }
 
 export interface PaymentListParams {

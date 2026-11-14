@@ -1,6 +1,6 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import type { LegacyCell, LegacyTable } from './legacyTable'
-import type { ValidateMovements } from './validateMovementsParser'
+import type { ValidateMovements } from './validateMovements.types'
 
 // accountancy/fapi/annual_closure.php and validate_movements.php (22 Oct 2026). The answers were captured from newecuenta on 22 Oct 2026
 // (tests/fixtures/accountancy-annual-closure.json, accountancy-validate-movements.json). The close and validate writes were not run:

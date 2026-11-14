@@ -43,6 +43,7 @@ export function richRowFromListItem(item: ProductListItem): RichProductRow {
     createdDate: created.text,
     createdAt: created.time,
     lotStatus: item.lot_status ?? '',
+    nature: item.nature ?? '',
     toBatch: item.tobatch ?? null,
     avatarBg: null,
     avatarColor: null,

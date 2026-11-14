@@ -14,4 +14,7 @@ export interface BankAccountFormContext {
   accountingJournals: BankAccountFormOption[]
   // the currency the form starts on (compta/bank/fapi/account.php names it; the classic page pre-selects it)
   defaultCurrencyValue?: string
+  // the ZRA module is on: a non-cash account needs a ZRA bank (zra_bank_code)
+  zraEnabled?: boolean
+  zraBanks?: BankAccountFormOption[]
 }

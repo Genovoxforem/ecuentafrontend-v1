@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Hourglass, UserPlus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useAuth } from '../../auth/AuthContext'
-import { useTimeSpentGrid, type TimeSpentMode } from '../timeSpent.queries'
+import { useTimeSpentSummary } from '../timeSpent.queries'
+import { useTimeSpentGrid, type TimeSpentMode } from '../timeSpentGrid.data'
 
 const MODES: { id: TimeSpentMode; label: string }[] = [
   { id: 'month', label: 'Input per month' },
@@ -26,10 +27,8 @@ function formatNavDate(mode: TimeSpentMode, d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: '2-digit', day: '2-digit', year: 'numeric' })
 }
 
-// projet/activity/per{month,week,day}.php — all three tabs share the same
-// grid/nav mechanics (see timeSpent.queries.ts's header comment for how one
-// generic reader covers all three), navigated with the backend's own
-// day/month/year params. "Assign task to me" stays inert: the action
+// The Time Spent grids (the classic projet/activity/per{month,week,day}.php tabs) from userprofile/fapi/time_spent.php
+// (timeSpentGrid.data.ts), navigated with the date the API takes. "Assign task to me" stays inert: the action
 // (Task::add_contact via action=addtime&assigntask=1) exists, but its
 // task-role ("type") dropdown is sourced from c_type_contact, which isn't
 // verified anywhere in this app yet.
@@ -38,6 +37,7 @@ export function TimeSpentPage() {
   const [mode, setMode] = useState<TimeSpentMode>('week')
   const [refDate, setRefDate] = useState(() => new Date())
   const { data, isLoading, isError, error } = useTimeSpentGrid(mode, refDate)
+  const summary = useTimeSpentSummary(mode, refDate.getFullYear())
 
   function step(direction: 1 | -1) {
     setRefDate((d) => (mode === 'month' ? addMonths(d, direction) : addDays(d, direction * (mode === 'week' ? 7 : 1))))
@@ -67,6 +67,36 @@ export function TimeSpentPage() {
       {isError && <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">{error instanceof Error ? error.message : 'Failed to load Time Spent.'}</Card>}
 
       {data?.noticeText && <p className="text-sm text-text-faint">{data.noticeText}</p>}
+
+      {summary.data && (
+        <Card className="!h-auto">
+          <h3 className="mb-2 text-sm font-semibold text-text!">
+            Time spent in {summary.data.year}, per {mode} · {summary.data.totals.duration_hours} h in {summary.data.totals.entries} entries
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" aria-label="Time spent summary">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-text-faint">
+                  {summary.data.buckets.map((b) => (
+                    <th key={b.bucket} className="px-2 py-1.5 text-right font-medium">
+                      {b.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {summary.data.buckets.map((b) => (
+                    <td key={b.bucket} className="px-2 py-1.5 text-right tabular-nums text-text-muted" title={`${b.entries} entries`}>
+                      {b.duration_hours}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card className="!h-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -127,11 +157,13 @@ export function TimeSpentPage() {
               </tr>
             ) : (
               <>
-                {data?.totalRowText && (
-                  <tr className="border-b border-border">
-                    <td colSpan={5 + (data?.extraHeaders.length ?? 0)} className="py-2.5 px-4 font-medium text-text!">
-                      {data.totalRowText}
-                    </td>
+                {data && (
+                  <tr className="border-b border-border font-medium">
+                    {data.totalCells.map((c, j) => (
+                      <td key={j} className="py-2.5 px-4 text-text!">
+                        {c}
+                      </td>
+                    ))}
                   </tr>
                 )}
                 {data?.rows.map((row, i) => (
@@ -139,6 +171,7 @@ export function TimeSpentPage() {
                     {row.cells.map((c, j) => (
                       <td key={j} className="py-2.5 px-4 text-text-muted">
                         {c || '—'}
+                        {j === 0 && row.project && <div className="text-xs text-text-faint">{row.project}</div>}
                       </td>
                     ))}
                   </tr>

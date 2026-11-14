@@ -1,3 +1,4 @@
+import { SectionHeading, TodayStatCard } from '../../../shared/components/dashboard/DashboardKit'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChartLine, CheckCheck, Clock, Inbox, ListChecks, Loader2, Plus, Receipt, RefreshCw, Ticket, Trash2, X } from 'lucide-react'
@@ -10,19 +11,6 @@ import {
   useDeleteDraftOrder,
   type KitchenDashboardStatusFilter,
 } from '../kitchenDashboard.queries'
-
-function StatCard({ label, caption, value, icon: Icon }: { label: string; caption: string; value: number; icon: typeof Receipt }) {
-  return (
-    <div className="relative rounded-lg border border-border bg-surface-alt px-3.5 py-2.5">
-      <p className="text-xs font-bold uppercase tracking-wide text-text-muted">{label}</p>
-      <p className="text-2xl font-semibold leading-tight text-brand">{value}</p>
-      <p className="text-sm font-medium text-text!">{caption}</p>
-      <span className="absolute right-2.5 top-2.5 grid h-9 w-9 place-items-center rounded-md border border-border bg-surface text-text-muted shadow-sm">
-        <Icon size={17} />
-      </span>
-    </div>
-  )
-}
 
 // The KOT status of a line, coloured as on the backend page.
 const KOT_BADGE: Record<string, string> = {
@@ -197,15 +185,13 @@ export function KitchenDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <StatCard label="Total Orders" caption={dayCaption} value={statsLoading ? 0 : stats?.totalOrders ?? 0} icon={Receipt} />
-        <StatCard label="Active Orders" caption="Orders in progress" value={statsLoading ? 0 : stats?.active ?? 0} icon={Clock} />
-        <StatCard label="Completed Orders" caption="Finished orders" value={statsLoading ? 0 : stats?.completed ?? 0} icon={CheckCheck} />
+        <TodayStatCard label="Total Orders" caption={dayCaption} value={String(statsLoading ? 0 : stats?.totalOrders ?? 0)} icon={Receipt} color="blue" />
+        <TodayStatCard label="Active Orders" caption="Orders in progress" value={String(statsLoading ? 0 : stats?.active ?? 0)} icon={Clock} color="amber" />
+        <TodayStatCard label="Completed Orders" caption="Finished orders" value={String(statsLoading ? 0 : stats?.completed ?? 0)} icon={CheckCheck} color="green" />
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
-        <h3 className="flex items-center gap-2 text-xl font-semibold text-text!">
-          <Ticket size={22} className="text-text-muted" /> Token Status Overview
-        </h3>
+        <SectionHeading icon={Ticket}>Token Status Overview</SectionHeading>
         <label className="flex flex-col items-end gap-1 text-sm font-medium text-text!">
           Select Date:
           <span className="flex">
@@ -237,7 +223,7 @@ export function KitchenDashboardPage() {
               role="tab"
               aria-selected={active}
               onClick={() => setStatus(t.key)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold uppercase ${active ? 'border-brand text-brand' : 'border-transparent text-text! hover:text-brand'}`}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold uppercase tracking-wide ${active ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text'}`}
             >
               {t.label} ({t.count})
             </button>

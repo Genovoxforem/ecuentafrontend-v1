@@ -1,21 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, fetchLegacyText, looksLikeLegacyLoginPageText } from '../../shared/legacyHtmlFetch'
-import { parseTerminalSetup, type TerminalSetup } from './terminalSetupParser'
+import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
+import { terminalSetupFromConsts, type TerminalSetup } from './terminalSetupParser'
+import { loadPosConsts, loadPosPage, requirePosSource, requirePosToken } from './posAdminShared'
 
-export function useTerminalSetup(terminal: 1 | 2) {
+export function useTerminalSetup(terminal: number) {
   return useQuery({
     queryKey: ['pos-admin', 'terminal-setup', terminal],
     queryFn: async (): Promise<TerminalSetup> => {
-      const doc = await fetchLegacyDocument(`/takepos/admin/terminal.php`, new URLSearchParams({ terminal: String(terminal) }))
-      if (looksLikeLegacyLoginPageText(doc.documentElement.outerHTML)) throw new Error('Not signed into the legacy backend.')
-      return parseTerminalSetup(doc, terminal)
+      const [consts, doc] = await Promise.all([loadPosConsts(), loadPosPage('/takepos/admin/terminal.php', new URLSearchParams({ terminal: String(terminal) }))])
+      requirePosSource(consts, doc)
+      return terminalSetupFromConsts(consts, doc, terminal)
     },
     staleTime: 1000 * 15,
   })
 }
 
 export interface SaveTerminalSetupInput {
-  terminal: 1 | 2
+  terminal: number
   token: string
   socid: string
   cash: string
@@ -52,6 +53,7 @@ export function useSaveTerminalSetup() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: SaveTerminalSetupInput) => {
+      requirePosToken(input.token)
       const n = String(input.terminal)
       const body = new URLSearchParams()
       body.set('token', input.token)

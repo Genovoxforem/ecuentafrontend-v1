@@ -17,8 +17,12 @@ export const nav: NavSection = {
     {
       label: 'Sales',
       items: [
+        { label: 'Commercial Invoice', path: ROUTES.zraCommercialInvoice },
         { label: 'Invoice Details', path: ROUTES.zraInvoiceDetails },
         { label: 'Pending Sales Invoices', path: ROUTES.zraPendingSales },
+        { label: 'Create Rebate Invoice', path: ROUTES.rebateInvoiceCreate },
+        { label: 'Rebate Invoices', path: ROUTES.rebateInvoiceList },
+        { label: 'Debit Notes', path: ROUTES.zraDebitNotes },
       ],
     },
     {
@@ -42,9 +46,10 @@ export const nav: NavSection = {
         { label: 'Stock List', path: ROUTES.zraStockList },
         { label: 'Unuploaded Stock List', path: ROUTES.zraUnuploadedStockMovements },
         { label: 'RRP Item List', path: ROUTES.zraRrpItemList },
-        { label: 'Un-Upload Products', path: ROUTES.zraUnuploadedProducts },
-        { label: 'Principals(RVAT Agents)', path: ROUTES.zraPrincipals },
       ],
     },
+    // These two sit directly under ZRA, outside the Item Info group.
+    { label: 'Un-Upload Products', path: ROUTES.zraUnuploadedProducts },
+    { label: 'Principals(RVAT Agents)', path: ROUTES.zraPrincipals },
   ],
 }

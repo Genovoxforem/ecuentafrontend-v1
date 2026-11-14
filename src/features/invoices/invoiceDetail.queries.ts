@@ -6,7 +6,6 @@ import type { ContactRow, ContactFormOptions } from '../salesOrders/orderExtraTa
 import { fetchInvoiceAgenda, type InvoiceAgendaEvent } from '../../api/invoices'
 import { fapi } from '../../api/axios'
 import { requireJson } from '../salesOrders/orderApi'
-import { parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // The invoice page's tabs. The page itself and most tabs read the JSON module
 // compta/sales/api/*.php (see salesInvoice.queries.ts / salesInvoiceTabs.queries.ts);
@@ -227,36 +226,14 @@ export function useInvoiceStandingOrders(id: string | undefined) {
 // --- Events/Agenda (read-only) -------------------------------------------
 
 // The Events/Agenda tab's badge: how many events the invoice has, from
-// compta/sales/api/agenda.php (a few hundred bytes). The tab itself reads
-// compta/facture/fapi/agenda.php below, which also has its "Created by /
-// Validated by / Creation date" block.
-// The classic card's own agenda answer (compta/sales/api/agenda.php, session JSON). compta/facture/fapi/agenda.php answers
-// no events for invoices that have some (e.g. invoice 22: 0 there, 2 here), so it is read when the fapi has none.
-interface ClassicAgendaEvent {
-  id: string
-  label: string
-  type: string
-  date: string
-  date_end: string
-  percent: string
-  note: string
-  user: string
-}
-
-async function fetchClassicInvoiceAgenda(id: string): Promise<{ count: number; events: ClassicAgendaEvent[] }> {
-  const res = await fetch(`/compta/sales/api/agenda.php?facid=${encodeURIComponent(id)}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data = await parseLegacyJson<{ success?: boolean; count?: number; events?: ClassicAgendaEvent[] }>(res)
-  return { count: Number(data.count) || 0, events: data.events ?? [] }
-}
+// compta/facture/fapi/agenda.php (count). The tab reads the same endpoint below, which also has its "Created by /
+// Validated by / Creation date" block. Since 11 Nov 2026 it reads the events stored under 'invoice' as well as 'facture' (invoice 22: 0 -> 2), so the old fallback
+// to the classic session answer compta/sales/api/agenda.php is gone.
 
 export function useInvoiceAgendaCount(id: string | undefined) {
   return useQuery<number>({
     queryKey: ['invoices', 'detail', id, 'agendaCount'],
-    queryFn: async () => {
-      const count = (await fapiGet<{ count?: number; events?: unknown[] }>('/compta/facture/fapi/agenda.php', { id })).count ?? 0
-      return count > 0 ? count : (await fetchClassicInvoiceAgenda(id ?? '')).count
-    },
+    queryFn: async () => (await fapiGet<{ count?: number; events?: unknown[] }>('/compta/facture/fapi/agenda.php', { id })).count ?? 0,
     enabled: !!id,
   })
 }
@@ -284,18 +261,6 @@ export interface InvoiceAgendaPageData {
   events: AgendaEventRow[]
 }
 
-// A classic agenda event in the tab's row shape: its status column is the event's percent, as the classic card prints it.
-const classicEvent = (e: ClassicAgendaEvent): AgendaEventRow => ({
-  ref: e.id,
-  url: '',
-  date: e.date,
-  owner: e.user,
-  label: e.label,
-  relatedObjectRef: '',
-  relatedObjectUrl: '',
-  statusLabel: e.percent !== '' ? `${e.percent}%` : '',
-})
-
 export function useInvoiceAgenda(id: string | undefined) {
   return useQuery<InvoiceAgendaPageData>({
     queryKey: ['invoices', 'detail', id, 'agenda'],
@@ -320,7 +285,7 @@ export function useInvoiceAgenda(id: string | undefined) {
         closingDate: agenda.closing_date ?? '',
         zraMessage: '',
         timezone: '',
-        events: agenda.events.length > 0 ? agenda.events.map(mapEvent) : (await fetchClassicInvoiceAgenda(String(id))).events.map(classicEvent),
+        events: agenda.events.map(mapEvent),
       }
     },
     enabled: !!id,
