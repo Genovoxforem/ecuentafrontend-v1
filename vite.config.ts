@@ -190,6 +190,31 @@ export default defineConfig({
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
     },
+    // One copy of React for every dependency: two copies in a dev tab show up as "Cannot read properties of null (reading 'useContext')"
+    // (seen on /asycuda-purchase-invoice, 16 Nov 2026, after Vite re-bundled its dependencies while the tab was open).
+    dedupe: ['react', 'react-dom'],
+  },
+  // Every runtime dependency is bundled when the dev server starts, so a page visited later cannot trigger a re-bundle (and a reload) in the middle of a session.
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+      'react-router-dom',
+      '@tanstack/react-query',
+      '@tanstack/react-query-devtools',
+      'axios',
+      'zustand',
+      'zustand/middleware',
+      'lucide-react',
+      '@phosphor-icons/react',
+      'recharts',
+      'exceljs',
+      'jsbarcode',
+      'qrcode',
+    ],
   },
   build: {
     rollupOptions: {

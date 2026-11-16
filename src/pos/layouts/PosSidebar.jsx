@@ -23,6 +23,7 @@ import { fetchCurrentTerminalConfig } from "../services/terminalConfig";
 import usePosStore from "../features/pos/stores/posStore";
 import { initCache, refreshCache } from "../services/posCache";
 import { getApiBaseUrl } from "../services/apiConfig";
+import { useHotelEnabled } from "../features/tables/hooks/useHotelEnabled";
 
 // Lazy-loaded modals — each is a heavy component (CashDeskModal pulls in
 // cash-session forms, ReportsModal pulls in chart libs, RoomsModal/
@@ -93,6 +94,8 @@ function PosSidebar({ onLogout }) {
     const [cashDeskOpen, setCashDeskOpen] = useState(false);
     const [reportsOpen, setReportsOpen] = useState(false);
     const [roomsOpen, setRoomsOpen] = useState(false);
+    // The classic POS has no Rooms entry while the Hotel module is off.
+    const hotelEnabled = useHotelEnabled();
     const [tablesOpen, setTablesOpen] = useState(false);
     const cashSessionOpen = usePosStore((state) => state.cashSessionOpen);
     const setCashSessionOpen = usePosStore((state) => state.setCashSessionOpen);
@@ -199,7 +202,7 @@ function PosSidebar({ onLogout }) {
             <NavIcon icon={Home} title="Home" onClick={() => navigate("/pos")} />
             <NavIcon icon={theme === "dark" ? Sun : Moon} title="Dark/Light Mode" onClick={toggleTheme} />
             <NavIcon icon={Grid3x3} title="Tables" onClick={() => setTablesOpen(true)} />
-            <NavIcon icon={BedDouble} title="Rooms" onClick={() => setRoomsOpen(true)} />
+            {hotelEnabled !== false && <NavIcon icon={BedDouble} title="Rooms" onClick={() => setRoomsOpen(true)} />}
             <NavIcon
                 icon={Banknote}
                 title={cashSessionOpen ? "Close Cash Desk" : "Open Cash Desk"}

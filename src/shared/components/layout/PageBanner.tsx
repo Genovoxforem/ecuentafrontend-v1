@@ -62,6 +62,13 @@ const TITLE_OVERRIDES: Record<string, string> = {
   ledgerDashboard: 'Operations - View By Accounting Account (Ledger)',
   kitchenBeverageOrders: 'Beverage Order Management',
   kitchenOrderManagement: 'Kitchen Order Management',
+  // The Members pages carry the classic pages' own titles (adherents/index.php, list.php, type.php, subscription/list.php, stats/index.php, cartes/carte.php).
+  memberDashboard: 'Members area',
+  memberList: 'List of members',
+  memberTypes: 'Members types',
+  memberSubscriptions: 'List of subscriptions',
+  memberStatistics: 'Statistics on subscriptions',
+  memberCards: 'Generate visit cards',
   // The "Classic view" copies of the previous asset module's pages carry that module's own page titles.
   fixedAssetClassicList: 'Asset Area',
   fixedAssetClassicTypes: 'Assets Types',

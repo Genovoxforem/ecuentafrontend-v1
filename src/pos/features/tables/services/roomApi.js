@@ -14,3 +14,18 @@ export const fetchRooms = async () => {
 export const saveRoomStatuses = async () => {
     throw new Error("No backend endpoint exists for saving room statuses");
 };
+
+// The classic POS shows its Rooms entry only when the Hotel module is on. Its own getRooms answers, with the module off (newecuenta, 14 Nov 2026):
+// {"success":false,"error":"Hotel module is not enabled"} - the same switch as the page's hotelEnabled flag. true / false when the answer says so,
+// null when it cannot be read (the entry then stays, as before).
+export const fetchHotelEnabled = async () => {
+    try {
+        const res = await fetch("/takeposnew/api/tables.php?action=getRooms", { credentials: "same-origin" });
+        const body = await res.json();
+        if (body && body.success === true) return true;
+        if (body && typeof body.error === "string" && /hotel module is not enabled/i.test(body.error)) return false;
+        return null;
+    } catch {
+        return null;
+    }
+};
