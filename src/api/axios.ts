@@ -30,10 +30,15 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = getStoredToken()
   if (token) {
-    // /api/* backend only allows 'Authorization' in Access-Control-Allow-Headers.
-    // Adding X-API-Key here causes preflight (OPTIONS) to fail with a wildcard CORS
-    // response — do NOT add X-API-Key for core /api/ routes.
+    // Always send Authorization header (accepted by /api/* endpoints)
     config.headers['Authorization'] = token
+    // X-API-Key: only on same-origin deployments (local dev / Vite proxy).
+    // On cross-origin production (separate frontend domain on cPanel), the backend's CORS
+    // preflight for /api/* does NOT whitelist X-API-Key in Access-Control-Allow-Headers —
+    // adding it triggers an OPTIONS preflight failure even with withCredentials: false.
+    if (!crossOrigin) {
+      config.headers['X-API-Key'] = token
+    }
   }
   return config
 })
