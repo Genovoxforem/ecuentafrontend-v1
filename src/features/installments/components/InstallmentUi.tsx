@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../routes'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
-import { Badge } from '../../fixedAsset/components/AssetUi'
+import { Badge, PageHeading } from '../../fixedAsset/components/AssetUi'
 import { STATUS_LABEL, STATUS_TONE } from '../installmentHelpers'
 
 // Building blocks shared by the Installment Sales pages: the in-page tab strip of the classic pages, status badges, the progress meter and
@@ -20,6 +20,15 @@ const TABS: Array<[InstallmentNavKey, string, string]> = [
   ['reports', 'Reports', ROUTES.installmentReports],
   ['settings', 'Settings', ROUTES.installmentSettings],
 ]
+
+// Page heading of every Installment Sales page: the title row as before, but the one-line description goes into the banner (BannerNote).
+export function InstallmentHeading({ icon, title, action, children }: { icon: ComponentType<{ size?: number; className?: string }>; title: string; action?: ReactNode; children?: ReactNode }) {
+  return (
+    <PageHeading icon={icon} title={title} action={action} inBanner>
+      {children}
+    </PageHeading>
+  )
+}
 
 export function InstallmentSubNav({ active }: { active?: InstallmentNavKey }) {
   return (

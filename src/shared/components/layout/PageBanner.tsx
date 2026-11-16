@@ -6,7 +6,7 @@ import { ROUTES } from '../../../routes'
 import { useTheme, usesBlueLayout, type Theme } from '../../../context/ThemeContext'
 import { Breadcrumb, buildBreadcrumb, isDetailPagePath } from './Breadcrumb'
 import { collapsible, findHeaderBlocks, findStatCards, findTitleRow, HIDDEN_CLASS, MERGED_CLASS, onlyActions, STAT_CLASS } from './bannerHeading'
-import { setBannerSlot } from './bannerSlot'
+import { setBannerNoteSlot, setBannerSlot } from './bannerSlot'
 import { pickCurrentSection } from './sidebarCurrent'
 
 type BannerRoute = { key: string; path: string; kind: 'list' | 'detail' }
@@ -374,6 +374,10 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           <div className="min-w-0">
             <h1 className="text-base font-semibold text-white">{shownTitle}</h1>
           </div>
+          <div
+            ref={setBannerNoteSlot}
+            className="banner-note hidden min-w-0 flex-1 truncate border-l border-sky-300/30 pl-3 text-xs italic tracking-wide text-sky-100/85 md:not-empty:block"
+          />
         </div>
       {hoisted.length > 0 && (
         <div className="relative z-10 ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">

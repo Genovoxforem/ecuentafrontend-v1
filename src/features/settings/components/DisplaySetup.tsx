@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Monitor, Pipette } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { useTheme } from '../../../context/ThemeContext'
@@ -27,14 +27,6 @@ const selectCls = inputCls + ' appearance-none max-w-sm'
 
 function SectionPill({ children }: { children: ReactNode }) {
   return <div className="inline-block rounded-md bg-brand/10 text-brand text-sm font-semibold px-4 py-2 mb-2">{children}</div>
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button type="button" onClick={() => onChange(!checked)} className={`w-9 h-5 rounded-full transition-colors shrink-0 ${checked ? 'bg-brand' : 'bg-surface-alt border border-border'}`}>
-      <span className={`block w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
-    </button>
-  )
 }
 
 function ColorField({ label, value, onChange, defaultLabel }: { label: string; value: string; onChange: (v: string) => void; defaultLabel: string }) {
@@ -76,10 +68,14 @@ const DISPLAY_SWITCHES = {
   MAIN_BUGTRACK_ENABLELINK: false,
   MAIN_HELP_DISABLELINK: false,
   MAIN_CONSOLE_LOGGING_ENABLED: true,
+  // Checked live on newecuenta 16 Nov 2026 against admin/ihm.php: logo on, images in the top menu shown, login-page help link hidden.
+  MAIN_SHOW_LOGO: true,
+  THEME_TOPMENU_DISABLE_IMAGE: false,
+  MAIN_HELPCENTER_DISABLELINK: true,
 }
 
 export function DisplaySetup() {
-  const consts = useSettingConstants(DISPLAY_SWITCHES)
+  const consts = useSettingConstants(DISPLAY_SWITCHES, ['MAIN_DEFAULT_WORKING_DAYS', 'MAIN_DEFAULT_WORKING_HOURS'])
   // Real — the same live theme context the navbar's own sun/moon toggle
   // drives (src/context/ThemeContext.tsx). Unlike every other switch on
   // this page, flipping this one genuinely changes the app's rendered
@@ -102,8 +98,6 @@ export function DisplaySetup() {
   // boolean switches marked <RealToggle> below, which genuinely write to
   // core/ajax/constantonoff.php (see RealToggle.tsx).
   const [skinTheme, setSkinTheme] = useState('')
-  const [showLogoInMenu, setShowLogoInMenu] = useState(true)
-  const [hideImagesTopMenu, setHideImagesTopMenu] = useState(false)
   const [colors, setColors] = useState<Record<(typeof COLOR_FIELDS)[number]['key'], string>>({
     bg: '',
     bgTopMenu: '007fff',
@@ -124,10 +118,18 @@ export function DisplaySetup() {
   const [firstDayOfWeek, setFirstDayOfWeek] = useState('Monday')
   const [workingDaysRange, setWorkingDaysRange] = useState('1-5')
   const [workingHoursRange, setWorkingHoursRange] = useState('9-18')
+  // The stored values, as admin/ihm.php prints them (newecuenta 16 Nov 2026: "5-Jan" and "18-Sep", not the "1-5" / "9-18" this screen assumed).
+  const storedWorkingDays = consts.value('MAIN_DEFAULT_WORKING_DAYS')
+  const storedWorkingHours = consts.value('MAIN_DEFAULT_WORKING_HOURS')
+  useEffect(() => {
+    if (storedWorkingDays) setWorkingDaysRange(storedWorkingDays)
+  }, [storedWorkingDays])
+  useEffect(() => {
+    if (storedWorkingHours) setWorkingHoursRange(storedWorkingHours)
+  }, [storedWorkingHours])
   const [namePosition, setNamePosition] = useState('First Name Last Name')
   const [messageOfTheDay, setMessageOfTheDay] = useState('')
 
-  const [hideNeedHelp, setHideNeedHelp] = useState(true)
   const [loginPageMessage, setLoginPageMessage] = useState('')
   const [bgImagePreview, setBgImagePreview] = useState<string | null>(null)
 
@@ -182,11 +184,11 @@ export function DisplaySetup() {
           <span className="text-sm text-brand cursor-default">More Skins To Download</span>
         </div>
         <input value={skinTheme} onChange={(e) => setSkinTheme(e.target.value)} className={inputCls + ' max-w-md mb-2'} />
-        <Row label="Show The Company Logo In The Menu" hint="demo only">
-          <Toggle checked={showLogoInMenu} onChange={setShowLogoInMenu} />
+        <Row label="Show The Company Logo In The Menu">
+          <RealToggle constName="MAIN_SHOW_LOGO" initial={consts.on('MAIN_SHOW_LOGO')} loading={!consts.ready} />
         </Row>
-        <Row label="Hide Images In Top Menu" hint="demo only" caption="Default: No">
-          <Toggle checked={hideImagesTopMenu} onChange={setHideImagesTopMenu} />
+        <Row label="Hide Images In Top Menu" caption="Default: No">
+          <RealToggle constName="THEME_TOPMENU_DISABLE_IMAGE" initial={consts.on('THEME_TOPMENU_DISABLE_IMAGE')} loading={!consts.ready} />
         </Row>
         {COLOR_FIELDS.map((f) => (
           <ColorField key={f.key} label={f.label} value={colors[f.key]} onChange={(v) => setColors((cur) => ({ ...cur, [f.key]: v }))} defaultLabel={f.defaultLabel} />
@@ -270,8 +272,8 @@ export function DisplaySetup() {
 
       <Card className="!h-auto">
         <p className="text-sm font-bold text-text! mb-2">Login Page</p>
-        <Row label='Hide Link "Need Help Or Support" On Login Page' hint="demo only">
-          <Toggle checked={hideNeedHelp} onChange={setHideNeedHelp} />
+        <Row label='Hide Link "Need Help Or Support" On Login Page'>
+          <RealToggle constName="MAIN_HELPCENTER_DISABLELINK" initial={consts.on('MAIN_HELPCENTER_DISABLELINK')} loading={!consts.ready} />
         </Row>
         <Row label="Login Page Message" hint="demo only">
           <input value={loginPageMessage} onChange={(e) => setLoginPageMessage(e.target.value)} className={inputCls} />

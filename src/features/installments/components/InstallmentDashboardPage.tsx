@@ -1,12 +1,12 @@
 import { useState, type ComponentType, type ReactNode } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { AssetKpi, Cur, EmptyState, KpiRow, PageHeading } from '../../fixedAsset/components/AssetUi'
+import { AssetKpi, Cur, EmptyState } from '../../fixedAsset/components/AssetUi'
 import { fmtDate, int, money } from '../../fixedAsset/assetModels'
 import { isoDate } from '../../fixedAsset/assetModels'
 import { useInstallmentCustomers, useInstallmentDashboard, useInstallmentTemplates, type DashboardFilter } from '../installments.data'
 import { CHART_COLORS, monthLabel } from '../installmentHelpers'
-import { FILTER_INPUT, FilterField, InstallmentSubNav, QueryStates } from './InstallmentUi'
+import { FILTER_INPUT, FilterField, InstallmentHeading, InstallmentSubNav, QueryStates } from './InstallmentUi'
 
 const fmtAxis = (v: number) => Number(v).toLocaleString('en-US')
 
@@ -48,9 +48,9 @@ export function InstallmentDashboardPage({ icon }: { icon: ComponentType<{ size?
 
   return (
     <div className="space-y-4">
-      <PageHeading icon={icon} title="Installment dashboard">
+      <InstallmentHeading icon={icon} title="Installment dashboard">
         Collections, outstanding balances and what falls due next.
-      </PageHeading>
+      </InstallmentHeading>
       <InstallmentSubNav active="dashboard" />
 
       <Card className="!h-auto">
@@ -98,7 +98,7 @@ export function InstallmentDashboardPage({ icon }: { icon: ComponentType<{ size?
 
       {d && (
         <div className={`space-y-4 ${q.isPlaceholderData ? 'opacity-60' : ''}`}>
-          <KpiRow>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
             <AssetKpi label="Installment plans" value={int(d.kpi.plans)} />
             <AssetKpi label="Total installment amount" value={<Cur value={d.kpi.total} currency={d.currency} />} />
             <AssetKpi label="Total collected" value={<Cur value={d.kpi.collected} currency={d.currency} />} tone="ok" />
@@ -107,7 +107,7 @@ export function InstallmentDashboardPage({ icon }: { icon: ComponentType<{ size?
             <AssetKpi label="Collection rate" value={`${d.kpi.collection_rate}%`} note="collected / scheduled" />
             <AssetKpi label="Pending installments" value={int(d.kpi.pending)} note={`${int(d.kpi.partial)} partially paid`} />
             <AssetKpi label="Paid installments" value={int(d.kpi.paid)} tone="ok" />
-          </KpiRow>
+          </div>
 
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <ChartCard title="Monthly collection">

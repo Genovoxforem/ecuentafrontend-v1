@@ -1,13 +1,13 @@
 import { useMemo, useState, type ComponentType } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Badge, Banner, DynamicForm, EmptyState, FormDialog, NoticeStrip, PageHeading } from '../../fixedAsset/components/AssetUi'
+import { Badge, Banner, DynamicForm, EmptyState, FormDialog, NoticeStrip } from '../../fixedAsset/components/AssetUi'
 import { DANGER_GHOST_BTN, GHOST_BTN, PRIMARY_BTN, TD, TDR, TH, THR, useNotice, type FormItem, type FormValues } from '../../fixedAsset/assetUiHelpers'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { useInstallmentSettings, useSaveSettings, useTemplateAction } from '../installments.data'
 import type { SettingsData, SettingsTemplate, TemplateLine } from '../installmentModels'
 import { apiFailure } from '../installmentHelpers'
-import { InstallmentSubNav, QueryStates } from './InstallmentUi'
+import { InstallmentHeading, InstallmentSubNav, QueryStates } from './InstallmentUi'
 
 const TABS: Array<[string, string]> = [
   ['general', 'General'],
@@ -393,9 +393,9 @@ export function InstallmentSettingsPage({ icon }: { icon: ComponentType<{ size?:
 
   return (
     <div className="space-y-4">
-      <PageHeading icon={icon} title="Installment settings">
+      <InstallmentHeading icon={icon} title="Installment settings">
         Plans, payment rules, numbering, accounting and notifications.
-      </PageHeading>
+      </InstallmentHeading>
       <InstallmentSubNav active="settings" />
       <nav aria-label="Settings sections" className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface-alt p-1.5">
         {TABS.map(([key, label]) => (

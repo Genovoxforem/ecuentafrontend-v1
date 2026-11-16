@@ -2,15 +2,16 @@ import { useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ScrollCard, STICKY_THEAD, StickyListLayout } from '../../../shared/components/layout/StickyListLayout'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { inputClasses } from '../../../shared/components/forms/FormField'
-import { AssetKpi, Cur, EmptyState, KpiRow, NoticeStrip, PageHeading, Segmented } from '../../fixedAsset/components/AssetUi'
+import { AssetKpi, Cur, EmptyState, KpiRow, NoticeStrip, Segmented } from '../../fixedAsset/components/AssetUi'
 import { GHOST_BTN, TD, TDR, TH, THR, useDebounced, useNotice } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, int } from '../../fixedAsset/assetModels'
 import { usePaymentList, type PaymentQuery } from '../installments.data'
 import { downloadInstallmentFile, openInstallmentPdf } from '../installmentService'
 import { apiFailure, planPath, receiptPath } from '../installmentHelpers'
-import { FILTER_INPUT, InstallmentSubNav, QueryStates, StatusBadge } from './InstallmentUi'
+import { FILTER_INPUT, InstallmentHeading, InstallmentSubNav, QueryStates, StatusBadge } from './InstallmentUi'
 
 const PAGE_SIZE = 25
 const STATUSES: Array<[string, string]> = [
@@ -45,12 +46,17 @@ export function InstallmentPaymentsPage({ icon, receipts = false }: { icon: Comp
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeading icon={icon} title={receipts ? 'Receipts' : 'Installment payments'}>
-        {receipts ? 'One receipt per payment; reversed payments keep their receipt as cancelled.' : 'Every payment recorded against an installment plan.'}
-      </PageHeading>
-      <InstallmentSubNav active={receipts ? 'receipts' : 'payments'} />
-      <NoticeStrip notice={notice} />
+    <StickyListLayout
+      header={
+        <>
+          <InstallmentHeading icon={icon} title={receipts ? 'Receipts' : 'Installment payments'}>
+            {receipts ? 'One receipt per payment; reversed payments keep their receipt as cancelled.' : 'Every payment recorded against an installment plan.'}
+          </InstallmentHeading>
+          <InstallmentSubNav active={receipts ? 'receipts' : 'payments'} />
+          <NoticeStrip notice={notice} />
+        </>
+      }
+    >
       <QueryStates loading={list.isLoading} error={list.error} onRetry={() => list.refetch()} what={receipts ? 'the receipts' : 'the installment payments'} />
 
       {data && (
@@ -60,8 +66,8 @@ export function InstallmentPaymentsPage({ icon, receipts = false }: { icon: Comp
             <AssetKpi label="Collected" value={<Cur value={data.totals.collected} currency="ZMW" />} note="valid payments" tone="ok" />
           </KpiRow>
 
-          <Card className="!h-auto !p-0">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
+          <Card className="!h-auto !p-0 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 p-3">
               <Segmented
                 label="Status"
                 options={STATUSES}
@@ -71,13 +77,6 @@ export function InstallmentPaymentsPage({ icon, receipts = false }: { icon: Comp
                   setPage(1)
                 }}
               />
-              {data.rights.export && (
-                <button type="button" onClick={() => run(() => downloadInstallmentFile('reports.php', { action: 'collection', format: 'csv' }, 'installment-collection.csv'))} className={GHOST_BTN}>
-                  <Download size={14} /> CSV
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
               <input
                 value={search}
                 onChange={(e) => {
@@ -126,14 +125,21 @@ export function InstallmentPaymentsPage({ icon, receipts = false }: { icon: Comp
                   </option>
                 ))}
               </select>
+              {data.rights.export && (
+                <button type="button" onClick={() => run(() => downloadInstallmentFile('reports.php', { action: 'collection', format: 'csv' }, 'installment-collection.csv'))} className={`${GHOST_BTN} ml-auto`}>
+                  <Download size={14} /> CSV
+                </button>
+              )}
             </div>
+          </Card>
 
+          <ScrollCard>
             {data.items.length === 0 ? (
               <EmptyState title={`No ${receipts ? 'receipt' : 'payment'}${filtered ? ' matches' : ' yet'}`}>Record payments from an installment plan.</EmptyState>
             ) : (
-              <div className={`overflow-x-auto ${list.isPlaceholderData ? 'opacity-60' : ''}`}>
+              <div className={list.isPlaceholderData ? 'opacity-60' : ''}>
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className={STICKY_THEAD}>
                     <tr className="border-b border-border bg-surface">
                       <th className={TH}>Date</th>
                       <th className={TH}>Receipt</th>
@@ -187,10 +193,10 @@ export function InstallmentPaymentsPage({ icon, receipts = false }: { icon: Comp
                 </table>
               </div>
             )}
-          </Card>
+          </ScrollCard>
           <ListPagination page={data.pagination.page} perPage={data.pagination.limit} total={data.pagination.total} onPageChange={setPage} />
         </>
       )}
-    </div>
+    </StickyListLayout>
   )
 }

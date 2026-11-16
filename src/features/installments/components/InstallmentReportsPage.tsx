@@ -2,14 +2,15 @@ import { useState, type ComponentType } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Download, Printer } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Banner, EmptyState, NoticeStrip, PageHeading } from '../../fixedAsset/components/AssetUi'
+import { STICKY_TFOOT, STICKY_THEAD, StickyListLayout } from '../../../shared/components/layout/StickyListLayout'
+import { Banner, EmptyState, NoticeStrip } from '../../fixedAsset/components/AssetUi'
 import { GHOST_BTN, TD, TDR, TH, THR, useNotice } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, money } from '../../fixedAsset/assetModels'
 import { useInstallmentCustomers, useInstallmentReport } from '../installments.data'
 import { downloadInstallmentFile } from '../installmentService'
 import { apiFailure } from '../installmentHelpers'
 import { REPORTS } from '../installmentModels'
-import { FILTER_INPUT, InstallmentSubNav, QueryStates } from './InstallmentUi'
+import { FILTER_INPUT, InstallmentHeading, InstallmentSubNav, QueryStates } from './InstallmentUi'
 
 const STATUS_OPTIONS = ['draft', 'active', 'completed', 'cancelled']
 
@@ -38,27 +39,31 @@ export function InstallmentReportsPage({ icon }: { icon: ComponentType<{ size?: 
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeading icon={icon} title="Installment reports">
-        Summary, collections, outstanding, overdue, statements, aging and ledger.
-      </PageHeading>
-      <InstallmentSubNav active="reports" />
-      <nav aria-label="Reports" className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface-alt p-1.5 print:hidden">
-        {REPORTS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-current={report === key ? 'page' : undefined}
-            onClick={() => setSp({ report: key })}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${report === key ? 'bg-brand text-white' : 'text-text hover:bg-surface-hover'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      <NoticeStrip notice={notice} />
-
-      <Card className="!h-auto print:hidden">
+    <StickyListLayout
+      header={
+        <>
+          <InstallmentHeading icon={icon} title="Installment reports">
+            Summary, collections, outstanding, overdue, statements, aging and ledger.
+          </InstallmentHeading>
+          <InstallmentSubNav active="reports" />
+          <nav aria-label="Reports" className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface-alt p-1.5 print:hidden">
+            {REPORTS.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-current={report === key ? 'page' : undefined}
+                onClick={() => setSp({ report: key })}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${report === key ? 'bg-brand text-white' : 'text-text hover:bg-surface-hover'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <NoticeStrip notice={notice} />
+        </>
+      }
+    >
+      <Card className="!h-auto shrink-0 print:hidden">
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" aria-label="From" title="From" value={f.from} onChange={(e) => set('from', e.target.value)} className={FILTER_INPUT} />
           <input type="date" aria-label="To" title="To" value={f.to} onChange={(e) => set('to', e.target.value)} className={FILTER_INPUT} />
@@ -79,10 +84,8 @@ export function InstallmentReportsPage({ icon }: { icon: ComponentType<{ size?: 
               </option>
             ))}
           </select>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-          <span className="text-sm text-text-muted">{d ? `${d.rows.length.toLocaleString('en-US')} row(s)` : ''}</span>
-          <div className="flex gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <span className="text-sm text-text-muted">{d ? `${d.rows.length.toLocaleString('en-US')} row(s)` : ''}</span>
             <button type="button" onClick={exportCsv} className={GHOST_BTN}>
               <Download size={14} /> Excel (CSV)
             </button>
@@ -101,17 +104,17 @@ export function InstallmentReportsPage({ icon }: { icon: ComponentType<{ size?: 
       {!needsCustomer && <QueryStates loading={q.isLoading} error={q.error} onRetry={() => q.refetch()} what="the report" />}
 
       {d && (
-        <Card className="!h-auto !p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <Card className="!h-auto !p-0 overflow-hidden flex-1 min-h-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
             <b className="text-text!">{d.title}</b>
             <span className="text-sm text-text-muted">{`${f.from || '…'} → ${f.to || '…'}`}</span>
           </div>
           {d.rows.length === 0 ? (
             <EmptyState title="Nothing to report">Change the filters.</EmptyState>
           ) : (
-            <div className={`overflow-x-auto ${q.isPlaceholderData ? 'opacity-60' : ''}`}>
+            <div className={`flex-1 min-h-0 overflow-auto ${q.isPlaceholderData ? 'opacity-60' : ''}`}>
               <table className="w-full text-sm">
-                <thead>
+                <thead className={STICKY_THEAD}>
                   <tr className="border-b border-border bg-surface">
                     {d.columns.map((c) => (
                       <th key={c.key} className={c.money ? THR : TH}>
@@ -134,7 +137,7 @@ export function InstallmentReportsPage({ icon }: { icon: ComponentType<{ size?: 
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
+                <tfoot className={STICKY_TFOOT}>
                   <tr className="border-t border-border bg-surface font-bold">
                     {d.columns.map((c, i) => (
                       <td key={c.key} className={c.money ? TDR : TD}>
@@ -147,7 +150,7 @@ export function InstallmentReportsPage({ icon }: { icon: ComponentType<{ size?: 
             </div>
           )}
           {ledgerNote ? (
-            <div className="p-3">
+            <div className="shrink-0 p-3">
               <Banner tone="warn">
                 {d.totals.not_transferred_payments} payment(s) for {money(d.totals.not_transferred_amount)} are not transferred to the ledger yet — run the Bank journal.
               </Banner>
@@ -155,6 +158,6 @@ export function InstallmentReportsPage({ icon }: { icon: ComponentType<{ size?: 
           ) : null}
         </Card>
       )}
-    </div>
+    </StickyListLayout>
   )
 }

@@ -30,3 +30,30 @@ export function InBanner({ children }: { children: ReactNode }) {
   if (usesBlueLayout(theme) && target) return createPortal(children, target)
   return <div className="flex flex-wrap items-center justify-between gap-3">{children}</div>
 }
+
+// The one-line description a page prints under its title ("Plans, payment rules,
+// numbering ...") is drawn inside the banner, right after the title, as a quiet
+// note behind a thin divider. Where the banner is not shown the note stays a
+// plain line under the heading, as before.
+let noteSlot: HTMLElement | null = null
+const noteListeners = new Set<() => void>()
+
+export function setBannerNoteSlot(element: HTMLElement | null) {
+  if (noteSlot === element) return
+  noteSlot = element
+  for (const listener of noteListeners) listener()
+}
+
+const subscribeNote = (listener: () => void) => {
+  noteListeners.add(listener)
+  return () => {
+    noteListeners.delete(listener)
+  }
+}
+
+export function BannerNote({ children }: { children: ReactNode }) {
+  const { theme } = useTheme()
+  const target = useSyncExternalStore(subscribeNote, () => noteSlot)
+  if (usesBlueLayout(theme) && target) return createPortal(children, target)
+  return <p className="mt-0.5 text-sm text-text-muted">{children}</p>
+}

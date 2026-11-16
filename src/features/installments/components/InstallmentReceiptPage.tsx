@@ -2,13 +2,13 @@ import { useEffect, useState, type ComponentType } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Download, FileText, Mail, Printer } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { Banner, FormDialog, NoticeStrip, PageHeading } from '../../fixedAsset/components/AssetUi'
+import { Banner, FormDialog, NoticeStrip } from '../../fixedAsset/components/AssetUi'
 import { GHOST_BTN, useNotice } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, money } from '../../fixedAsset/assetModels'
 import { receiptEmailDraft, receiptEmailSend, receiptPrinted, useReceipt } from '../installments.data'
 import { downloadInstallmentFile, openInstallmentPdf } from '../installmentService'
 import { apiFailure, planPath } from '../installmentHelpers'
-import { QueryStates, StatusBadge } from './InstallmentUi'
+import { InstallmentHeading, QueryStates, StatusBadge } from './InstallmentUi'
 
 // One payment receipt (classic installment/receipt.php): the printable receipt, Print / PDF / Download and the e-mail dialog, from
 // installment/api/receipts.php (action=get, printed, pdf, email).
@@ -35,9 +35,9 @@ export function InstallmentReceiptPage({ icon }: { icon: ComponentType<{ size?: 
 
   return (
     <div className="space-y-4">
-      <PageHeading icon={icon} title="Payment receipt">
+      <InstallmentHeading icon={icon} title="Payment receipt">
         {r ? `${r.ref} · ${r.customer}` : ''}
-      </PageHeading>
+      </InstallmentHeading>
       <NoticeStrip notice={notice} />
       <QueryStates loading={q.isLoading} error={q.error} onRetry={() => q.refetch()} what="the receipt" />
 

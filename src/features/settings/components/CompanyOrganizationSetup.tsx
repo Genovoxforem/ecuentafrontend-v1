@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Wrench, ImageUp } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { useGeneralSettings, useEntities } from '../settings.queries'
+import { useGeneralSettings, useEntities, useCompanyAccountDetails } from '../settings.queries'
 import { useCurrencyDictionary } from '../currencyDictionary.data'
 import { useProductFormOptions } from '../../products/productFormOptions.queries'
 import { SetupShell } from './SetupShell'
@@ -77,6 +77,8 @@ function LogoUpload({ label }: { label: string }) {
 
 export function CompanyOrganizationSetup() {
   const { data: settings, isLoading } = useGeneralSettings()
+  // /api/general/ no longer carries the country, TPIN and branch code; core/fapi/company.php does (live: Zambia 239, 1003222835, 001).
+  const { data: company } = useCompanyAccountDetails()
   const { data: formOptions } = useProductFormOptions()
   const { data: entities } = useEntities()
 
@@ -95,10 +97,16 @@ export function CompanyOrganizationSetup() {
   useEffect(() => {
     if (!settings) return
     setName(settings.app_name || '')
-    setCountryId(settings.country?.split(':')[0] ?? '')
+    setCountryId((cur) => settings.country?.split(':')[0] || cur)
     setCurrencyCode(settings.currency || '')
-    setTpin(settings.tpin || '')
+    setTpin((cur) => settings.tpin || cur)
   }, [settings])
+
+  useEffect(() => {
+    if (!company) return
+    setCountryId((cur) => cur || (company.countryId ? String(company.countryId) : ''))
+    setTpin((cur) => cur || company.tpin)
+  }, [company])
 
   const { data: currencyDictionary } = useCurrencyDictionary()
   const currencyOptions = useMemo(() => {
@@ -196,8 +204,11 @@ export function CompanyOrganizationSetup() {
   }
   const [branchCode, setBranchCode] = useState('')
   useEffect(() => {
-    if (settings) setBranchCode(settings.branch_code || '')
+    if (settings) setBranchCode((cur) => settings.branch_code || cur)
   }, [settings])
+  useEffect(() => {
+    if (company) setBranchCode((cur) => cur || company.branchCode)
+  }, [company])
 
   const [saved, setSaved] = useState(false)
 

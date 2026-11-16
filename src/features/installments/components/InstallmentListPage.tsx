@@ -3,16 +3,17 @@ import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronUp, Download, Plus } from 'lucide-react'
 import { InBanner } from '../../../shared/components/layout/bannerSlot'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ScrollCard, STICKY_THEAD, StickyListLayout } from '../../../shared/components/layout/StickyListLayout'
 import { ListPagination } from '../../../shared/components/ListPagination'
 import { inputClasses } from '../../../shared/components/forms/FormField'
 import { ROUTES } from '../../../routes'
-import { AssetKpi, Cur, EmptyState, KpiRow, NoticeStrip, PageHeading, Segmented } from '../../fixedAsset/components/AssetUi'
+import { AssetKpi, Cur, EmptyState, KpiRow, NoticeStrip, Segmented } from '../../fixedAsset/components/AssetUi'
 import { GHOST_BTN, PRIMARY_BTN, TD, TDR, TH, THR, useDebounced, useNotice } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, int, money } from '../../fixedAsset/assetModels'
 import { useInstallmentTemplates, usePlanList, type PlanQuery } from '../installments.data'
 import { downloadInstallmentFile } from '../installmentService'
 import { apiFailure, payPath, planPath, invoicePath } from '../installmentHelpers'
-import { FILTER_INPUT, InstallmentSubNav, Meter, QueryStates, StatusBadge } from './InstallmentUi'
+import { FILTER_INPUT, InstallmentHeading, InstallmentSubNav, Meter, QueryStates, StatusBadge } from './InstallmentUi'
 
 const PAGE_SIZE = 25
 const STATUSES: Array<[string, string]> = [
@@ -73,19 +74,24 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
 
   const t = data?.totals
   return (
-    <div className="space-y-4">
-      <InBanner>
-        {data?.rights.create && (
-          <Link to={ROUTES.installmentNew} className={PRIMARY_BTN}>
-            <Plus size={14} /> Create installment
-          </Link>
-        )}
-      </InBanner>
-      <PageHeading icon={icon} title="Installment plans">
-        Every installment plan with its progress, next due date and status.
-      </PageHeading>
-      <InstallmentSubNav active="list" />
-      <NoticeStrip notice={notice} />
+    <StickyListLayout
+      header={
+        <>
+          <InBanner>
+            {data?.rights.create && (
+              <Link to={ROUTES.installmentNew} className={PRIMARY_BTN}>
+                <Plus size={14} /> Create installment
+              </Link>
+            )}
+          </InBanner>
+          <InstallmentHeading icon={icon} title="Installment plans">
+            Every installment plan with its progress, next due date and status.
+          </InstallmentHeading>
+          <InstallmentSubNav active="list" />
+          <NoticeStrip notice={notice} />
+        </>
+      }
+    >
       <QueryStates loading={list.isLoading} error={list.error} onRetry={() => list.refetch()} what="the installment plans" />
 
       {data && t && (
@@ -97,8 +103,8 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
             <AssetKpi label="Outstanding" value={<Cur value={t.outstanding} currency="ZMW" />} tone={t.outstanding ? 'warn' : 'ok'} />
           </KpiRow>
 
-          <Card className="!h-auto !p-0">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
+          <Card className="!h-auto !p-0 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 p-3">
               <Segmented
                 label="Status"
                 options={STATUSES}
@@ -108,15 +114,6 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
                   setPage(1)
                 }}
               />
-              <div className="flex flex-wrap items-center gap-2">
-                {data.rights.export && (
-                  <button type="button" onClick={exportCsv} className={GHOST_BTN}>
-                    <Download size={14} /> CSV
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
               <input
                 value={search}
                 onChange={(e) => {
@@ -125,7 +122,7 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
                 }}
                 placeholder="Search plan, invoice, customer…"
                 aria-label="Search plans"
-                className={`${inputClasses} !w-64`}
+                className={`${inputClasses} !w-52`}
               />
               <input type="date" aria-label="Due from" title="Due from" value={f.due_from} onChange={(e) => setFilter('due_from', e.target.value)} className={FILTER_INPUT} />
               <input type="date" aria-label="Due to" title="Due to" value={f.due_to} onChange={(e) => setFilter('due_to', e.target.value)} className={FILTER_INPUT} />
@@ -140,8 +137,15 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
                 ))}
               </select>
               <input aria-label="Currency" placeholder="Currency" value={f.currency} onChange={(e) => setFilter('currency', e.target.value.toUpperCase())} className={`${FILTER_INPUT} !w-28`} />
+              {data.rights.export && (
+                <button type="button" onClick={exportCsv} className={`${GHOST_BTN} ml-auto`}>
+                  <Download size={14} /> CSV
+                </button>
+              )}
             </div>
+          </Card>
 
+          <ScrollCard>
             {data.items.length === 0 ? (
               <EmptyState title={`No installment plan${filtered ? ' matches' : ' yet'}`}>
                 {data.rights.create && (
@@ -155,9 +159,9 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
                 )}
               </EmptyState>
             ) : (
-              <div className={`overflow-x-auto ${list.isPlaceholderData ? 'opacity-60' : ''}`}>
+              <div className={list.isPlaceholderData ? 'opacity-60' : ''}>
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className={STICKY_THEAD}>
                     <tr className="border-b border-border bg-surface">
                       <SortTh label="Plan" sortKey="ref" sort={sort} dir={dir} onSort={onSort} />
                       <th className={TH}>Invoice</th>
@@ -224,10 +228,10 @@ export function InstallmentListPage({ icon }: { icon: ComponentType<{ size?: num
                 </table>
               </div>
             )}
-          </Card>
+          </ScrollCard>
           <ListPagination page={data.pagination.page} perPage={data.pagination.limit} total={data.pagination.total} onPageChange={setPage} />
         </>
       )}
-    </div>
+    </StickyListLayout>
   )
 }

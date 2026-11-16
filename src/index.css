@@ -2377,3 +2377,20 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
   background: var(--kpi) !important;
   color: #fff !important;
 }
+
+/* The one-line page description drawn inside the banner (BannerNote): light type on the dark banners, slate on the light one. */
+html[data-theme='light'] .blue-theme-banner .banner-note {
+  color: #475569;
+  border-color: rgba(71, 85, 105, 0.35);
+}
+
+/* A single auto-pager sits in the page footer, like the footer of the lists that page themselves: at the bottom of the page when the
+   content is short, and stuck to the bottom edge while a long page scrolls. The -1.5rem offsets cancel the page's p-6. */
+.auto-pager--footer {
+  position: sticky;
+  bottom: -1.5rem;
+  z-index: 5;
+  flex-shrink: 0;
+  margin-top: auto;
+  margin-bottom: -1.5rem;
+}

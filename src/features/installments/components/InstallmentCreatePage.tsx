@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
-import { AssetKpi, Banner, Cur, DynamicForm, EmptyState, FormDialog, KpiRow, NoticeStrip, PageHeading, Segmented } from '../../fixedAsset/components/AssetUi'
+import { AssetKpi, Banner, Cur, DynamicForm, EmptyState, FormDialog, KpiRow, NoticeStrip, Segmented } from '../../fixedAsset/components/AssetUi'
 import { DANGER_GHOST_BTN, GHOST_BTN, PRIMARY_BTN, TD, TDR, TH, THR, useDebounced, useNotice, type FormItem, type FormValues } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, isoDate, money, num } from '../../fixedAsset/assetModels'
 import { ROUTES } from '../../../routes'
@@ -11,7 +11,7 @@ import { applyInterest, fetchInvoiceForPlan, fetchProducts, previewPlan, savePla
 import { invoiceApiPost, LINES_API, WIZARD_API } from '../installmentService'
 import { apiFailure, planPath } from '../installmentHelpers'
 import type { CustomerHit, InvoiceForPlan, PlanTemplate, PreviewRow, PreviewTotals, ProductHit } from '../installmentModels'
-import { InstallmentSubNav, StatusBadge } from './InstallmentUi'
+import { InstallmentHeading, InstallmentSubNav, StatusBadge } from './InstallmentUi'
 
 const STEPS = ['Customer & invoice', 'Invoice items', 'Installment plan', 'Schedule', 'Summary']
 
@@ -207,9 +207,9 @@ export function InstallmentCreatePage({ icon }: { icon: ComponentType<{ size?: n
 
   return (
     <div className="space-y-4">
-      <PageHeading icon={icon} title="Create installment plan">
+      <InstallmentHeading icon={icon} title="Create Installment Sale">
         Split a new or existing invoice into dated installments.
-      </PageHeading>
+      </InstallmentHeading>
       <InstallmentSubNav active="new" />
       <NoticeStrip notice={notice} />
 

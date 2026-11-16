@@ -3,12 +3,12 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { inputClasses } from '../../../shared/components/forms/FormField'
-import { AssetKpi, Banner, Cur, EmptyState, FormDialog, KpiRow, PageHeading, Segmented } from '../../fixedAsset/components/AssetUi'
+import { AssetKpi, Banner, Cur, EmptyState, FormDialog, KpiRow, Segmented } from '../../fixedAsset/components/AssetUi'
 import { GHOST_BTN, PRIMARY_BTN, TD, TDR, TH, THR } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, money, num, round2 } from '../../fixedAsset/assetModels'
 import { usePaymentOptions, useRecordPayment } from '../installments.data'
 import { apiFailure, planPath, receiptPath } from '../installmentHelpers'
-import { QueryStates, StatusBadge } from './InstallmentUi'
+import { InstallmentHeading, QueryStates, StatusBadge } from './InstallmentUi'
 
 type Mode = 'auto' | 'manual'
 
@@ -27,7 +27,7 @@ export function InstallmentPayPage({ icon }: { icon: ComponentType<{ size?: numb
 function PayShell({ icon, q, id }: { icon: ComponentType<{ size?: number; className?: string }>; q: ReturnType<typeof usePaymentOptions>; id: number }) {
   return (
     <div className="space-y-4">
-      <PageHeading icon={icon} title="Record installment payment" />
+      <InstallmentHeading icon={icon} title="Record installment payment" />
       <QueryStates loading={q.isLoading} error={q.error} onRetry={() => q.refetch()} what="the payment form" />
       {!q.isLoading && !q.error && (
         <Card className="!h-auto">
@@ -119,10 +119,10 @@ function PayForm({ icon, o, pre }: { icon: ComponentType<{ size?: number; classN
 
   return (
     <div className="space-y-4">
-      <PageHeading icon={icon} title="Record installment payment">
+      <InstallmentHeading icon={icon} title="Record installment payment">
         {p.customer}
         {p.customer_tpin ? ` · TPIN ${p.customer_tpin}` : ''} · invoice {p.invoice_ref}
-      </PageHeading>
+      </InstallmentHeading>
       <div>
         <Link to={planPath(p.id)} className={GHOST_BTN}>
           <ArrowLeft size={14} /> {p.ref}

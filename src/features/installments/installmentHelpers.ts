@@ -5,6 +5,8 @@ import { AssetApiError, errorText } from '../fixedAsset/assetService'
 export const planPath = (id: number | string) => ROUTES.installmentDetail.replace(':id', String(id))
 export const payPath = (id: number | string, installment?: number | string) => `${ROUTES.installmentPay.replace(':id', String(id))}${installment ? `?installment=${installment}` : ''}`
 export const receiptPath = (id: number | string) => ROUTES.installmentReceiptDetail.replace(':id', String(id))
+// A payment that was reversed has no ref any more (live plan 22: payment 89, ref null, status reversed); the Payments tab shows "#89", the timeline printed "null".
+export const paymentName = (x: { ref?: string | null; payment_id: number }) => x.ref || `#${x.payment_id}`
 export const invoicePath = (id: number | string) => ROUTES.invoiceDetail.replace(':id', String(id))
 
 export const STATUS_TONE: Record<string, 'neutral' | 'ok' | 'warn' | 'bad' | 'info'> = {

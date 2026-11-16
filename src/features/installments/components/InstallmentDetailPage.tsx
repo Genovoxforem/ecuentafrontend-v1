@@ -2,14 +2,14 @@ import { Fragment, useState, type ComponentType, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
-import { AssetKpi, Badge, Banner, Cur, EmptyState, FormDialog, KpiRow, NoticeStrip, PageHeading } from '../../fixedAsset/components/AssetUi'
+import { AssetKpi, Badge, Banner, Cur, EmptyState, FormDialog, KpiRow, NoticeStrip } from '../../fixedAsset/components/AssetUi'
 import { DANGER_BTN, DANGER_GHOST_BTN, GHOST_BTN, PRIMARY_BTN, TD, TDR, TH, THR, ledgerPiecePath, useNotice } from '../../fixedAsset/assetUiHelpers'
 import { fmtDate, money } from '../../fixedAsset/assetModels'
 import { ROUTES } from '../../../routes'
 import { useDeletePlan, usePlanAction, usePlanDetail, useReversePayment } from '../installments.data'
 import { openInstallmentPdf } from '../installmentService'
-import { apiFailure, invoicePath, payPath, receiptPath } from '../installmentHelpers'
-import { Meter, QueryStates, StatusBadge } from './InstallmentUi'
+import { apiFailure, invoicePath, paymentName, payPath, receiptPath } from '../installmentHelpers'
+import { InstallmentHeading, Meter, QueryStates, StatusBadge } from './InstallmentUi'
 
 const TABS: Array<[string, string]> = [
   ['overview', 'Overview'],
@@ -48,7 +48,7 @@ export function InstallmentDetailPage({ icon }: { icon: ComponentType<{ size?: n
 
   return (
     <div className="space-y-4">
-      <PageHeading
+      <InstallmentHeading
         icon={icon}
         title={d ? d.plan.ref : 'Installment plan'}
         action={
@@ -61,7 +61,7 @@ export function InstallmentDetailPage({ icon }: { icon: ComponentType<{ size?: n
         }
       >
         {d ? `${d.invoice.customer} · invoice ${d.invoice.ref}` : ''}
-      </PageHeading>
+      </InstallmentHeading>
       <NoticeStrip notice={notice} />
       <QueryStates loading={q.isLoading} error={q.error} onRetry={() => q.refetch()} what="the installment plan" />
 
@@ -230,7 +230,7 @@ export function InstallmentDetailPage({ icon }: { icon: ComponentType<{ size?: n
                       {d.payments.map((x) => (
                         <tr key={x.payment_id} className="border-b border-border last:border-0">
                           <td className={`${TD} whitespace-nowrap`}>{fmtDate(x.date)}</td>
-                          <td className={`${TD} font-bold`}>{x.ref || `#${x.payment_id}`}</td>
+                          <td className={`${TD} font-bold`}>{paymentName(x)}</td>
                           <td className={TD}>
                             {x.mode}
                             <div className="text-xs text-text-muted">{x.bank}</div>
@@ -417,7 +417,7 @@ function Overview({ d }: { d: NonNullable<ReturnType<typeof usePlanDetail>['data
   const { plan: p, invoice: inv } = d
   const events = [
     { date: p.created, text: `Plan ${p.ref} created`, tone: 'info' as const },
-    ...d.payments.map((x) => ({ date: x.date, text: `Payment ${x.ref} — ${money(x.amount)} ${p.currency}${x.status === 'reversed' ? ' (reversed)' : ''}`, tone: x.status === 'reversed' ? ('bad' as const) : ('ok' as const) })),
+    ...d.payments.map((x) => ({ date: x.date, text: `Payment ${paymentName(x)} — ${money(x.amount)} ${p.currency}${x.status === 'reversed' ? ' (reversed)' : ''}`, tone: x.status === 'reversed' ? ('bad' as const) : ('ok' as const) })),
     ...d.schedule
       .filter((x) => x.outstanding > 0)
       .slice(0, 3)
