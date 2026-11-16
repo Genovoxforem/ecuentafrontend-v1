@@ -451,7 +451,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       </aside>
 
       <div
-        className={`h-full flex flex-col bg-surface border-r border-border overflow-y-auto scroll-smooth [scrollbar-width:none] transition-[width] duration-300 ease-in-out translate-x-0 z-[1] ${
+        className={`h-full flex flex-col bg-surface overflow-y-auto scroll-smooth [scrollbar-width:none] transition-[width] duration-300 ease-in-out translate-x-0 z-[1] ${
           expanded ? 'relative w-[230px] flex-1' : `absolute ${RAIL_WIDTH_OFFSET_CLASS} top-0 w-0 !border-transparent invisible`
         }`}
         onMouseEnter={() => !open && setHovering(true)}
