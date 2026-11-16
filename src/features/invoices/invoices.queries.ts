@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapiGet } from '../../api/fapiEnvelope'
 import { api } from '../../api/axios'
 import { loadRemainingPages } from '../../api/paging'
-import { fetchInvoices, type InvoiceListParams, type InvoiceRow as FapiInvoiceRow } from '../../api/invoices'
+import { fetchInvoiceListTotals, fetchInvoiceSummary, fetchInvoices, type InvoiceListParams, type InvoiceRow as FapiInvoiceRow } from '../../api/invoices'
 import { fapiInvoiceToRow, type InvoiceListLookups } from './invoiceListMapper'
 
 export interface InvoiceRow {
@@ -57,7 +58,7 @@ export interface InvoicesSummary {
 // as HTML). Every field is mapped onto the row the screens render by
 // invoiceListMapper.ts.
 //
-// Credit notes are a separate query (`type=2`): the default list leaves them
+// Credit notes come with the invoices in one list (`type=all`, since 11 Nov 2026): the default list leaves them
 // out, while the classic list shows them with the other invoices.
 // The first page carries the page count; the rest load a few at a time, in page order.
 async function fetchEveryInvoice(params: InvoiceListParams, signal?: AbortSignal): Promise<FapiInvoiceRow[]> {
@@ -87,8 +88,8 @@ async function fetchListLookups(signal?: AbortSignal): Promise<InvoiceListLookup
 // third parties; Paid / Unpaid are the sums of the paid rows and the
 // validated-but-owing rows — the same figures as the classic screen's own cards.
 export async function fetchInvoicesSummary(signal?: AbortSignal): Promise<InvoicesSummary> {
-  const [invoices, creditNotes, lookups] = await Promise.all([fetchEveryInvoice({}, signal), fetchEveryInvoice({ type: 2 }, signal), fetchListLookups(signal)])
-  const rows = [...invoices, ...creditNotes]
+  const [everyInvoice, lookups] = await Promise.all([fetchEveryInvoice({ type: 'all' }, signal), fetchListLookups(signal)])
+  const rows = everyInvoice
     .map((item) => fapiInvoiceToRow(item, lookups))
     .sort((a, b) => (a.invoiceDate === b.invoiceDate ? b.id - a.id : a.invoiceDate < b.invoiceDate ? 1 : -1))
   const sum = (status: string) => rows.filter((r) => r.status === status).reduce((total, r) => total + r.amountInclTax, 0)
@@ -99,6 +100,88 @@ export async function fetchInvoicesSummary(signal?: AbortSignal): Promise<Invoic
     unpaidAmount: sum('Unpaid'),
     rows,
   }
+}
+
+export interface InvoiceCardTotals {
+  invoices: number
+  paidAmount: number
+  unpaidAmount: number
+}
+
+// The Invoices / Paid / Unpaid cards from compta/facture/fapi/list.php?action=summary instead of summing every row in the browser. Paid is the amount
+// collected and Unpaid the balance still owed. The summary of type=all covers the invoices and the credit notes the list has always counted with them, in one
+// call (its count equals the list total; two summaries added together disagreed with the list before).
+export async function fetchInvoiceCardTotals(signal?: AbortSignal): Promise<InvoiceCardTotals> {
+  const all = await fetchInvoiceListTotals({ type: 'all' }, signal)
+  return { invoices: all.count, paidAmount: all.totals.paid_ttc, unpaidAmount: all.totals.unpaid_ttc }
+}
+
+// A failure keeps the figures worked out from the rows (the cards fall back to them), so no retry loop.
+export function useInvoiceCardTotals() {
+  return useQuery({ queryKey: ['invoices', 'summary', 'totals'], queryFn: ({ signal }) => fetchInvoiceCardTotals(signal), staleTime: 1000 * 60, retry: false })
+}
+
+// ---- the Sales Invoices list, one page at a time (compta/facture/fapi/list.php, 11 Nov 2026) -----------------------------------------------------------
+// The server filters, sorts and pages: type=all (invoices + credit notes), search (ref, third party, city, author), status, socid, date range and sort
+// (ref, invoice_no, date, thirdparty, city, payment_type, total_ttc, author, status, zra). Checked live on newecuenta: the status totals, the date range
+// and the third-party filter equal the counts worked out from the full list, and every sort key answers 200.
+export interface InvoicePageParams {
+  page: number
+  perPage: number
+  search: string
+  status?: number
+  socid?: number
+  sort?: string
+  direction?: 'asc' | 'desc'
+  dateFrom?: string
+  dateTo?: string
+}
+
+function serverParams(p: Omit<InvoicePageParams, 'page' | 'perPage'>): InvoiceListParams {
+  return {
+    type: 'all',
+    search: p.search.trim() || undefined,
+    status: p.status,
+    socid: p.socid,
+    sort: p.sort,
+    direction: p.sort ? p.direction : undefined,
+    date_from: p.dateFrom,
+    date_to: p.dateTo,
+  }
+}
+
+export interface InvoicePage {
+  rows: InvoiceRow[]
+  total: number
+  pages: number
+}
+
+// Payment-type names and author photos are not in the list rows: read once and kept (a failure only blanks those cells).
+export function useInvoiceListLookups() {
+  return useQuery({ queryKey: ['invoices', 'list-lookups'], queryFn: ({ signal }) => fetchListLookups(signal), staleTime: 1000 * 60 * 10 })
+}
+
+export function useInvoicesPage(p: InvoicePageParams) {
+  const lookups = useInvoiceListLookups().data
+  const query = useQuery({
+    queryKey: ['invoices', 'page', p],
+    queryFn: ({ signal }) => fetchInvoices({ ...serverParams(p), page: p.page, limit: p.perPage }, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 30,
+  })
+  const rows = useMemo(() => (query.data ? query.data.items.map((item) => fapiInvoiceToRow(item, lookups ?? { paymentModes: new Map(), users: new Map() })) : []), [query.data, lookups])
+  return { ...query, page: query.data ? ({ rows, total: query.data.pagination.total, pages: query.data.pagination.pages } satisfies InvoicePage) : undefined }
+}
+
+// Every row of the current filter (the Excel / CSV / PDF buttons export the whole filtered list, not only the page on screen).
+export async function fetchInvoicesForExport(p: Omit<InvoicePageParams, 'page' | 'perPage'>): Promise<InvoiceRow[]> {
+  const [items, lookups] = await Promise.all([fetchEveryInvoice(serverParams(p)), fetchListLookups()])
+  return items.map((item) => fapiInvoiceToRow(item, lookups))
+}
+
+// The Clients card: compta/facture/fapi/summary.php total_customers (2 on newecuenta = the 2 third parties the 133 invoices belong to).
+export function useInvoiceClientCount() {
+  return useQuery({ queryKey: ['invoices', 'client-count'], queryFn: async () => (await fetchInvoiceSummary()).total_customers, staleTime: 1000 * 60, retry: false })
 }
 
 export function useInvoicesSummary() {

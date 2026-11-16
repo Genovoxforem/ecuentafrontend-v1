@@ -1,6 +1,6 @@
 import { fapiGet } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
-import type { VatByCustomerPage, VatCustomerGroup, VatCustomerLine } from './vatByCustomerParser'
+import type { VatByCustomerPage, VatCustomerGroup, VatCustomerLine } from './vatByCustomer.types'
 import type { VatMonthRow, VatReportByMonth } from './vatReportByMonth.types'
 import { usDateFromIso as usDate } from '../../utils/dates'
 import type { VatByRatePage, VatRateDetail } from './vatReportByRate.types'

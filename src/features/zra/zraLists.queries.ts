@@ -115,6 +115,9 @@ export function usePendingSalesList(params: ListParams) {
         start: String((params.page - 1) * params.perPage),
         length: String(params.perPage),
         invtype: 'pending',
+        // Newest invoice date first, as the classic list opens (column 2 = Invoice Date).
+        'order[0][column]': '2',
+        'order[0][dir]': 'desc',
       })
       if (params.search) body.set('search[value]', params.search)
       const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords?: number; aaData: RawPendingSalesRow[] }>('/compta/facture/invoice_ajax_list.php', body)

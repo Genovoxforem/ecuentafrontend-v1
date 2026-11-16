@@ -7,6 +7,7 @@ import { useTheme, usesBlueLayout, type Theme } from '../../../context/ThemeCont
 import { Breadcrumb, buildBreadcrumb, isDetailPagePath } from './Breadcrumb'
 import { collapsible, findHeaderBlocks, findStatCards, findTitleRow, HIDDEN_CLASS, MERGED_CLASS, onlyActions, STAT_CLASS } from './bannerHeading'
 import { setBannerSlot } from './bannerSlot'
+import { pickCurrentSection } from './sidebarCurrent'
 
 type BannerRoute = { key: string; path: string; kind: 'list' | 'detail' }
 
@@ -61,6 +62,19 @@ const TITLE_OVERRIDES: Record<string, string> = {
   ledgerDashboard: 'Operations - View By Accounting Account (Ledger)',
   kitchenBeverageOrders: 'Beverage Order Management',
   kitchenOrderManagement: 'Kitchen Order Management',
+  // The Members pages carry the classic pages' own titles (adherents/index.php, list.php, type.php, subscription/list.php, stats/index.php, cartes/carte.php).
+  memberDashboard: 'Members area',
+  memberList: 'List of members',
+  memberTypes: 'Members types',
+  memberSubscriptions: 'List of subscriptions',
+  memberStatistics: 'Statistics on subscriptions',
+  memberCards: 'Generate visit cards',
+  // The "Classic view" copies of the previous asset module's pages carry that module's own page titles.
+  fixedAssetClassicList: 'Asset Area',
+  fixedAssetClassicTypes: 'Assets Types',
+  fixedAssetClassicCategory: 'Assets Category',
+  fixedAssetClassicGroup: 'Asset Group',
+  fixedAssetClassicInsurance: 'Insurance Company',
 }
 
 function routeMatches(pattern: string, pathname: string) {
@@ -152,7 +166,9 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
   const [hoisted, setHoisted] = useState<HoistedAction[]>([])
   const hoistedEls = useRef<HTMLElement[]>([])
 
-  const section = sections.find((item) => item.key === breadcrumb?.sectionKey || item.items.some((navItem) => itemContainsPath(navItem, pathname)))
+  // The banner's icon follows the same menu as the breadcrumb: the breadcrumb's own section when it has one, else the menu the user clicked in.
+  const section =
+    sections.find((item) => item.key === breadcrumb?.sectionKey) ?? pickCurrentSection(sections.filter((item) => item.items.some((navItem) => itemContainsPath(navItem, pathname))))
   const PageIcon = section?.icon ?? LayoutGrid
   const crumb = breadcrumb?.crumbs.at(-1)
   const routeKey = route?.key ?? appRoute?.[0]
@@ -350,8 +366,8 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
       <div className="relative z-10 min-w-0">
         <Breadcrumb sections={sections} isModern />
       </div>
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5 text-white">
+      <div className="relative z-10 flex h-7 items-center justify-between gap-2">
+        <div className="flex min-w-0 shrink items-center gap-2.5 text-white">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-300/35 bg-sky-500/10 text-sky-200">
             <PageIcon size={16} />
           </span>
@@ -387,7 +403,7 @@ export function PageBanner({ sections, pathname }: { sections: NavSection[]; pat
           ))}
         </div>
       )}
-      <div ref={setBannerSlot} className={`relative z-10 flex min-w-0 flex-wrap items-center gap-3 empty:hidden ${hoisted.length > 0 || actions.length > 0 ? '' : 'ml-auto'}`} />
+      <div ref={setBannerSlot} className={`relative z-10 flex min-w-0 shrink-0 items-center gap-3 empty:hidden ${hoisted.length > 0 || actions.length > 0 ? '' : 'ml-auto'}`} />
       </div>
     </div>
   )

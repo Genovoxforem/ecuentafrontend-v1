@@ -9,7 +9,7 @@ import { DateRangeButton, useDateRange } from '../../../shared/components/DateRa
 import { Avatar } from '../../../shared/components/Avatar'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatMoney } from '../../../utils/format'
-import type { OrderRow, SalesOrdersSummary } from '../salesOrders.queries'
+import { useSalesOrderTotals, type OrderRow, type SalesOrdersSummary } from '../salesOrders.queries'
 import { BillOrdersDialog } from './BillOrdersDialog'
 
 type SortKey = 'ref' | 'refCustomer' | 'projectRef' | 'thirdParty' | 'city' | 'zipCode' | 'orderDate' | 'plannedDelivery' | 'amountExclTax' | 'author' | 'shippable' | 'billed' | 'status'
@@ -81,6 +81,8 @@ function sortValue(row: OrderRow, key: SortKey): string | number {
 }
 
 export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
+  // Total orders, order value and the Validated / Draft counts come from the summary endpoint; the row-derived figures are the fallback.
+  const totals = useSalesOrderTotals().data
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [search, setSearch] = useState('')
@@ -202,7 +204,7 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
           <Card className="!p-3 !flex-row items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Total Orders</p>
-              <p className="text-xl font-bold text-text! mt-1">{summary.totalOrders}</p>
+              <p className="text-xl font-bold text-text! mt-1">{totals?.count ?? summary.totalOrders}</p>
               <p className="text-xs text-text-faint mt-0.5">All order records</p>
             </div>
             <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.blue}`}>
@@ -222,8 +224,8 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
           <Card className="!p-3 !flex-row items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Total Order Amount</p>
-              <p className="text-xl font-bold text-text! mt-1">{fmtZMW(summary.totalOrderAmount)}</p>
-              <p className="text-xs text-text-faint mt-0.5">Total order value</p>
+              <p className="text-xl font-bold text-text! mt-1">{fmtZMW(totals?.totals.total_ttc ?? summary.totalOrderAmount)}</p>
+              <p className="text-xs text-text-faint mt-0.5">{totals ? 'Total order value, incl. tax' : 'Total order value, excl. tax'}</p>
             </div>
             <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.green}`}>
               <DollarSign size={20} />
@@ -233,10 +235,10 @@ export function OrdersList({ summary }: { summary: SalesOrdersSummary }) {
             <div>
               <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">Order Status</p>
               <p className="text-xl font-bold text-text! mt-1">
-                {summary.validatedCount} <span className="text-xs font-normal text-text-faint">Validated</span>
+                {totals?.by_status.validated ?? summary.validatedCount} <span className="text-xs font-normal text-text-faint">Validated</span>
               </p>
               <p className="text-sm font-semibold text-text! mt-0.5">
-                {summary.draftCount} <span className="text-xs font-normal text-text-faint">Draft</span>
+                {totals?.by_status.draft ?? summary.draftCount} <span className="text-xs font-normal text-text-faint">Draft</span>
               </p>
             </div>
             <span className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ICON_STYLES.indigo}`}>

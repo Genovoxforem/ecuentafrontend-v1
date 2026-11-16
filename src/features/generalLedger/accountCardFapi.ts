@@ -18,6 +18,8 @@ export interface FapiCoaAccount {
   active: number
   status: string
   usage?: { ledger_entries: number; child_accounts: number; can_delete: boolean }
+  // The rights of the user on the chart of accounts (can_modify mirrors can_edit; answered since 11 Nov 2026).
+  rights?: { can_edit: boolean; can_modify?: boolean; can_delete: boolean }
 }
 
 export interface AccountCard {
@@ -25,6 +27,9 @@ export interface AccountCard {
   accountNumber: string
   // "Enabled" / "Disabled" as the backend labels it.
   status: string
+  // false when the user has no right to change the chart: Modify is shown as refused. True on a server that sends no rights block.
+  canModify: boolean
+  canDelete: boolean
   rows: { label: string; value: string }[]
 }
 
@@ -34,6 +39,8 @@ export function mapAccountCard(d: FapiCoaAccount): AccountCard {
     id: d.id,
     accountNumber: d.account_number,
     status: d.status,
+    canModify: d.rights ? (d.rights.can_modify ?? d.rights.can_edit) : true,
+    canDelete: d.rights ? d.rights.can_delete : true,
     rows: [
       { label: 'Label', value: d.label },
       { label: 'Short label', value: d.labelshort },

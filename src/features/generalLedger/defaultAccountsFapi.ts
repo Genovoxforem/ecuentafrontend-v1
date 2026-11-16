@@ -1,4 +1,4 @@
-import type { DefaultAccountsPage } from './defaultAccountsParser'
+import type { DefaultAccountsPage } from './defaultAccounts.types'
 
 // accountancy/fapi/default_accounts.php (22 Oct 2026): the default accounting accounts grouped in sections (customer / supplier / salary
 // first, required), each field's stored account number and label, and the chart of accounts as the picker list. Field names are the

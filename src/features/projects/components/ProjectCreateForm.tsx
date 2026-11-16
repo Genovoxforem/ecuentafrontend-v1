@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Network, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { StickyFormShell, WizardStep } from '../../../shared/components/layout/StickyFormShell'
-import { useCustomerOptions } from '../../customers/customerOptions'
+import { useCustomerOptions, useVendorOptions } from '../../customers/customerOptions'
 import { ROUTES } from '../../../routes'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 w-full'
@@ -30,7 +30,15 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
   const { id: idParam } = useParams<{ id: string }>()
   const projectId = projectIdProp ?? (idParam ? Number(idParam) : undefined)
   const isEdit = Boolean(projectId)
+  // The classic Third-party select lists customers, prospects and vendors together (64 entries on 5.10; a vendor like the third party of project #2
+  // is in it), so both lists are merged, once per id, in name order.
   const { data: customers } = useCustomerOptions()
+  const { data: vendors } = useVendorOptions()
+  const thirdParties = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string }>()
+    for (const c of [...(customers ?? []), ...(vendors ?? [])]) if (!byId.has(c.id)) byId.set(c.id, { id: c.id, name: c.name })
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [customers, vendors])
   const [searchParams] = useSearchParams()
 
   const [title, setTitle] = useState('')
@@ -74,7 +82,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
             <label className="block text-xs font-medium text-text-faint mb-1">Third-party</label>
             <select value={thirdPartyId} onChange={(e) => setThirdPartyId(e.target.value)} className={selectCls}>
               <option value="">Select a third party</option>
-              {customers?.map((c) => (
+              {thirdParties.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -91,6 +99,7 @@ export function ProjectCreateForm({ projectId: projectIdProp }: { projectId?: nu
             <label className="block text-xs font-medium text-text-faint mb-1">Visibility</label>
             <select disabled className={disabledCls}>
               <option>Project contacts</option>
+              <option>Everybody</option>
             </select>
           </div>
           <div>

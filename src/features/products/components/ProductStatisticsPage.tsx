@@ -79,7 +79,7 @@ export function ProductStatisticsPage({ type: initialType }: { type: 0 | 1; titl
       ) : (
         <>
           <Card className="!h-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] items-end gap-3">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-text-faint">Products and Services</span>
                 <select value={type} onChange={(e) => setType(Number(e.target.value) as 0 | 1)} className={selectCls}>
@@ -110,14 +110,14 @@ export function ProductStatisticsPage({ type: initialType }: { type: 0 | 1; titl
                   ))}
                 </select>
               </label>
+              <button
+                type="button"
+                onClick={() => setFilters({ ...filters, year: draft.year, categoryId: draft.categoryId })}
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-brand bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+              >
+                <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setFilters({ ...filters, year: draft.year, categoryId: draft.categoryId })}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-            >
-              <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh
-            </button>
           </Card>
 
           <div className="flex flex-wrap items-center gap-3 text-sm">

@@ -8,7 +8,8 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { ROUTES } from '../../../routes'
-import { useCreateRebate, useRebateCreateForm, useRebatesEnabled } from '../rebate.queries'
+import { useCreateRebate, useRebatesEnabled } from '../rebate.queries'
+import { useRebateCreateForm } from '../rebateCreateForm.data'
 
 const inputCls = 'h-9 w-full px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const areaCls = 'w-full px-3 py-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -26,11 +27,8 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-// custom/zra/rebate_create.php — "Create Rebate Invoice (Value Credit Note)".
-// The customer list, each customer's invoices (with their ZRA status) and the
-// form's own validation messages all come from the backend page. Choosing a
-// customer loads that customer's invoices, exactly as the original page does
-// by reloading itself with ?socid=…; Create posts the same fields it posts.
+// "Create Rebate Invoice (Value Credit Note)". The customer list comes from societe/fapi/list.php and each customer's invoices (with their
+// ZRA status) from custom/zra/fapi/rebate_create.php?socid= (see rebateCreateForm.data.ts); Create posts to the same route.
 export function CreateRebateInvoicePage() {
   const navigate = useNavigate()
   const confirm = useConfirm()
@@ -85,7 +83,7 @@ export function CreateRebateInvoicePage() {
     })
     if (!ok) return
     create.mutate(
-      { token: data.token, socid: data.socid, percentage, reason: reason.trim(), invoiceIds: [...selected] },
+      { socid: data.socid, percentage, reason: reason.trim(), invoiceIds: [...selected] },
       {
         onSuccess: (message) => {
           setCreated(message || 'The backend accepted the rebate request.')

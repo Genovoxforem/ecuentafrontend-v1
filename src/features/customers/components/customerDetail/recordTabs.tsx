@@ -5,7 +5,7 @@ import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useSaveCustomerNotes, useUploadCustomerDocument, useAddCustomerNotification, type CustomerProfile } from '../../customerDetail.queries'
 import { useCustomerContacts, useCustomerPricingGroups, useCustomerDocuments, useCustomerNotifications, stripBackendPrefix } from '../../customerDetailTabs.queries'
-import { TabTitle } from './CustomerDetailShared'
+import { StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 // societe/api/notes.php — real, editable Public/Private notes (confirmed by
 // reading that file directly: Societe::update_note() under the hood, real
@@ -19,7 +19,9 @@ export function NotesTab({ data, socid }: { data: CustomerProfile; socid: string
 
   return (
     <div className="space-y-3">
-      <TabTitle>Notes</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Notes</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto">
         <div className="space-y-4">
           <div>
@@ -83,8 +85,8 @@ export function ContactsTab({ socid }: { socid: string | undefined }) {
   if (isLoading) return <LegacyLoadingCard label="Loading contacts…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load contacts" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
   return (
-    <Card className="!h-auto !p-0 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+    <Card className="!h-auto !p-0 overflow-clip">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-4 py-3">
         <TabTitle>Contacts</TabTitle>
         <button
           type="button"
@@ -147,7 +149,9 @@ export function PricingGroupsTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle>Pricing groups</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Pricing groups</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto !p-0 overflow-hidden">
         {data.groups.length === 0 ? (
           <p className="text-sm text-text-faint italic py-6 text-center">No pricing groups found.</p>
@@ -197,7 +201,9 @@ export function DocumentsTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle>Documents</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Documents</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto">
         {data.documents.length === 0 ? (
           <p className="text-sm text-text-faint italic mb-4">No documents yet.</p>
@@ -261,7 +267,9 @@ export function NotificationsTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle>Notifications</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Notifications</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto">
         {data.assigned.length === 0 ? (
           <p className="text-sm text-text-faint italic mb-4">No notifications assigned.</p>

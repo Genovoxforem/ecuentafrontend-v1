@@ -13,6 +13,7 @@ import { ClockInPanel } from './navbar/ClockInPanel'
 import { AllAppsDrawer } from './navbar/AllAppsDrawer'
 import { useAttendanceStatus } from '../../../features/attendance/attendance.queries'
 import { useNotificationCount } from '../../../features/notifications/notifications.queries'
+import { useCompanyAccountDetails, useEntities, useGeneralSettings } from '../../../features/settings/settings.queries'
 import { useTodayNewLeadsCount } from '../../../features/projects/projects.queries'
 import { Avatar } from '../Avatar'
 import { MODERN_GLASS_BG, MODERN_GLASS_SHEEN, MODERN_CONTENT_SHADOW, MODERN_ICON_REST_COLOR } from './modernGlass'
@@ -94,6 +95,11 @@ function SidebarToggleIcon({ expanded }: { expanded: boolean }) {
 // /pos in src/App.tsx), so it shares this session and just needs an SPA
 // navigation.
 export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen: boolean; onToggleSidebar: () => void; onLogout: () => void }) {
+  // The My Account panel reads these three (company settings, entities, company details). Each is a separate round trip, and the first call after idle is
+  // slow on the server, so they are started here, at sign-in, and are already cached (10 minutes) when the panel is opened.
+  useGeneralSettings()
+  useEntities()
+  useCompanyAccountDetails()
   const navigate = useNavigate()
   const { data: notificationCount = 0 } = useNotificationCount()
   const { data: todayNewLeads } = useTodayNewLeadsCount()

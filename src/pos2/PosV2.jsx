@@ -361,7 +361,7 @@ function PosV2() {
                                     <MenuItem icon={FileText} onClick={() => { setMenu(null); setReportsOpen(true); }}>Invoice history &amp; reports</MenuItem>
                                     <MenuItem icon={Undo2} onClick={() => { setMenu(null); setCreditOpen(true); }}>Credit note</MenuItem>
                                     <MenuItem icon={UtensilsCrossed} onClick={() => go(ROUTES.posWaiter)}>Kitchen orders (KOT)</MenuItem>
-                                    <MenuItem icon={Monitor} onClick={() => { setMenu(null); window.open(`${ROUTES.posCustomerDisplay}?place=${activePlace}&terminal=${terminal}`, "pos_customer_display", "width=1100,height=700"); }}>Customer display</MenuItem>
+                                    <MenuItem icon={Monitor} onClick={() => { setMenu(null); const display = window.open(`${ROUTES.posCustomerDisplay}?place=${activePlace}&terminal=${terminal}`, "pos_customer_display", "width=1100,height=700"); if (display) display.opener = null; }}>Customer display</MenuItem>
                                     <MenuItem icon={RefreshCw} onClick={() => { setMenu(null); setSyncAsk(true); }} disabled={syncing}>{syncing ? "Syncing…" : "Sync products & customers"}</MenuItem>
                                 </div>
                                 <div className="my-2 border-t border-slate-200 dark:border-slate-600" />

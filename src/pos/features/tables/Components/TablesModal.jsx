@@ -1,95 +1,51 @@
 import { useEffect, useState } from "react";
-import { Check, Grid3x3, Pencil, Save, X } from "lucide-react";
-import { fetchFloorTables, saveTableStatuses, FLOOR_COUNT } from "../services/tableFloorApi";
-import { STATUS_META, STATUS_ORDER } from "../statusMeta";
+import { Check, Grid3x3, Loader2, X } from "lucide-react";
+import { fetchFloorPlan } from "../services/tables.data";
+import { useTableSelection } from "../hooks/useTableSelection";
+import { STATUS_META } from "../statusMeta";
 import useTableStore from "../stores/tableStore";
-import usePosStore from "../../pos/stores/posStore";
-import Toast from "../../../components/Toast";
 
+// The restaurant floors and their tables from takepos/fapi/tables.php: a table is Occupied while it has an open (unpaid) POS invoice,
+// otherwise Available. Those are the only two states the backend knows, so those are the only two shown (the old Reserved / Billing /
+// Disabled / Maintenance states and the "Edit table statuses" mode had no backend, and saving always failed).
 function TablesModal({ open, onClose }) {
-    const [floor, setFloor] = useState(1);
-    const [tables, setTables] = useState([]);
+    const [plan, setPlan] = useState({ floors: [], tables: [] });
+    const [floor, setFloor] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [editMode, setEditMode] = useState(false);
-    const [pendingChanges, setPendingChanges] = useState({});
-    const [savedToast, setSavedToast] = useState(false);
     const selectedTable = useTableStore((state) => state.selectedTable);
-    const selectTable = useTableStore((state) => state.selectTable);
-    const clearCart = usePosStore((state) => state.clearCart);
-    const showToast = usePosStore((state) => state.showToast);
+    const { select, resumingId, error: selectError } = useTableSelection();
 
     useEffect(() => {
-        if (!open) return;
+        if (!open) return undefined;
+        let stale = false;
         setLoading(true);
         setError("");
-        fetchFloorTables(floor)
+        fetchFloorPlan()
             .then((data) => {
-                setTables(data);
+                if (stale) return;
+                setPlan(data);
+                setFloor(data.floors[0]?.floor ?? null);
                 setLoading(false);
             })
             .catch((err) => {
+                if (stale) return;
                 setError(err.message || "Failed to load tables");
-                setTables([]);
+                setPlan({ floors: [], tables: [] });
                 setLoading(false);
             });
-    }, [open, floor]);
-
-    useEffect(() => {
-        if (open) {
-            setFloor(1);
-            setEditMode(false);
-            setPendingChanges({});
-            setSavedToast(false);
-        }
+        return () => {
+            stale = true;
+        };
     }, [open]);
-
-    const handleFloorChange = (f) => {
-        setFloor(f);
-        setEditMode(false);
-        setPendingChanges({});
-    };
 
     if (!open) return null;
 
-    
-    const handleSelectTable = (table) => {
-        if (table.status === "disabled" || table.status === "maintenance") return;
-        clearCart();
-        selectTable({ id: `floor${floor}-${table.id}`, label: table.label });
-        const statusLabel = STATUS_META[table.status]?.label;
-        showToast(
-            table.status === "available"
-                ? `${table.label} selected — ready for a new order`
-                : `${table.label} selected (${statusLabel}) — ready to add items`
-        );
-        onClose();
-    };
+    const shown = plan.tables.filter((table) => String(table.floor) === String(floor));
+    const occupiedCount = shown.filter((table) => table.occupied).length;
 
-    const handleTileClick = (table) => {
-        if (!editMode) {
-            handleSelectTable(table);
-            return;
-        }
-        const current = pendingChanges[table.id] ?? table.status;
-        const nextIndex = (STATUS_ORDER.indexOf(current) + 1) % STATUS_ORDER.length;
-        setPendingChanges((prev) => ({ ...prev, [table.id]: STATUS_ORDER[nextIndex] }));
-    };
-
-    const handleCancelEdit = () => {
-        setEditMode(false);
-        setPendingChanges({});
-    };
-
-    const handleSaveChanges = async () => {
-        await saveTableStatuses(floor, pendingChanges);
-        setTables((current) =>
-            current.map((table) => (table.id in pendingChanges ? { ...table, status: pendingChanges[table.id] } : table))
-        );
-        setPendingChanges({});
-        setEditMode(false);
-        setSavedToast(true);
-        setTimeout(() => setSavedToast(false), 2500);
+    const handleSelectTable = async (table) => {
+        if (await select(table)) onClose();
     };
 
     return (
@@ -99,50 +55,27 @@ function TablesModal({ open, onClose }) {
                     <div className="flex items-center gap-2.5 text-lg font-semibold">
                         <Grid3x3 size={20} />
                         Tables
-                        {editMode && (
-                            <span className="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full bg-amber-400 text-amber-950">
-                                Editing
-                            </span>
-                        )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        {!editMode && (
-                            <button
-                                type="button"
-                                onClick={() => setEditMode(true)}
-                                title="Edit table statuses"
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/15 hover:bg-white/25"
-                            >
-                                <Pencil size={13} />
-                                Edit
-                            </button>
-                        )}
-                        <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/20">
-                            <X size={20} />
-                        </button>
-                    </div>
+                    <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/20">
+                        <X size={20} />
+                    </button>
                 </div>
 
-                <Toast message={savedToast ? "Table statuses saved" : null} />
-
-                <div className="shrink-0 flex items-center gap-1.5 px-6 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60">
-                    {Array.from({ length: FLOOR_COUNT }).map((_, i) => {
-                        const f = i + 1;
-                        return (
-                            <button
-                                key={f}
-                                type="button"
-                                onClick={() => handleFloorChange(f)}
-                                className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
-                                    floor === f
-                                        ? "bg-[#2f6fe4] text-white shadow-sm"
-                                        : "bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-600"
-                                }`}
-                            >
-                                Floor {f}
-                            </button>
-                        );
-                    })}
+                <div className="shrink-0 flex flex-wrap items-center gap-1.5 px-6 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60">
+                    {plan.floors.map((f) => (
+                        <button
+                            key={f.floor}
+                            type="button"
+                            onClick={() => setFloor(f.floor)}
+                            className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
+                                floor === f.floor
+                                    ? "bg-[#2f6fe4] text-white shadow-sm"
+                                    : "bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-600"
+                            }`}
+                        >
+                            Floor {f.floor} ({f.tables})
+                        </button>
+                    ))}
                 </div>
 
                 <div className="flex-1 min-h-[220px] overflow-y-auto soft-scrollbar p-6">
@@ -156,61 +89,49 @@ function TablesModal({ open, onClose }) {
                         <div className="flex flex-col items-center justify-center py-12 text-center">
                             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{error}</p>
                         </div>
+                    ) : plan.tables.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">No tables are set up.</p>
+                        </div>
                     ) : (
                         <>
-                            {/* Legend */}
-                            <div className="flex items-center gap-4 mb-4 px-1 text-xs font-medium text-gray-500 dark:text-slate-400">
-                                {Object.entries(STATUS_META).map(([key, meta]) => (
-                                    <span key={key} className="flex items-center gap-1.5">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${meta.badge}`} />
-                                        {meta.label}
-                                    </span>
-                                ))}
-                            </div>
-
-                            {editMode && (
-                                <p className="text-xs text-gray-500 dark:text-slate-400 mb-3 -mt-1">
-                                    Click a table to cycle its status, then Save Changes.
-                                </p>
+                            {selectError && (
+                                <p className="mb-3 text-xs text-red-600 bg-red-50 dark:bg-red-500/10 rounded-lg px-3 py-2">{selectError}</p>
                             )}
 
-                            {/* Floor-plan grid: a fixed 7 tables per row, mirroring legacy
-                                takeposnew's #tablesContainer / .pos-table tile styling. */}
+                            <div className="flex items-center gap-4 mb-4 px-1 text-xs font-medium text-gray-500 dark:text-slate-400">
+                                <span className="flex items-center gap-1.5">
+                                    <span className={`w-2.5 h-2.5 rounded-full ${STATUS_META.available.badge}`} />
+                                    {STATUS_META.available.label} ({shown.length - occupiedCount})
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <span className={`w-2.5 h-2.5 rounded-full ${STATUS_META.occupied.badge}`} />
+                                    {STATUS_META.occupied.label} ({occupiedCount})
+                                </span>
+                            </div>
+
                             <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-800 dark:to-slate-900 p-4">
                                 <div className="grid grid-cols-7 gap-3">
-                                    {tables.map((table) => {
-                                        const effectiveStatus = pendingChanges[table.id] ?? table.status;
-                                        const isDirty = table.id in pendingChanges;
-                                        const isSelectable =
-                                            !editMode && effectiveStatus !== "disabled" && effectiveStatus !== "maintenance";
-                                        const isSelected = !editMode && selectedTable?.id === `floor${floor}-${table.id}`;
-                                        const meta = STATUS_META[effectiveStatus] || STATUS_META.available;
+                                    {shown.map((table) => {
+                                        const meta = table.occupied ? STATUS_META.occupied : STATUS_META.available;
                                         const StatusIcon = meta.icon;
+                                        const isSelected = selectedTable?.id === table.id;
+                                        const isResuming = resumingId === table.id;
 
                                         return (
                                             <button
                                                 key={table.id}
                                                 type="button"
-                                                disabled={!editMode && !isSelectable}
-                                                onClick={() => handleTileClick(table)}
-                                                className={`relative flex flex-col items-center justify-center gap-1.5 aspect-square rounded-2xl bg-white dark:bg-slate-800 border-[3px] shadow-md transition-all ${meta.border} ${
-                                                    isSelected
-                                                        ? "ring-2 ring-[#2f6fe4] ring-offset-2 ring-offset-blue-50 dark:ring-offset-slate-900"
-                                                        : isDirty
-                                                        ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-blue-50 dark:ring-offset-slate-900"
-                                                        : ""
-                                                } ${
-                                                    editMode
-                                                        ? "cursor-pointer hover:-translate-y-1 hover:shadow-xl"
-                                                        : isSelectable
-                                                        ? `cursor-pointer hover:-translate-y-1 hover:shadow-xl ${meta.glow}`
-                                                        : "cursor-not-allowed opacity-90"
-                                                }`}
+                                                disabled={!!resumingId}
+                                                onClick={() => handleSelectTable(table)}
+                                                title={table.occupied && table.invoiceRef ? `${table.label} — open order ${table.invoiceRef}` : table.label}
+                                                className={`relative flex flex-col items-center justify-center gap-1.5 aspect-square rounded-2xl bg-white dark:bg-slate-800 border-[3px] shadow-md transition-all cursor-pointer hover:-translate-y-1 hover:shadow-xl ${meta.border} ${meta.glow} ${
+                                                    isSelected ? "ring-2 ring-[#2f6fe4] ring-offset-2 ring-offset-blue-50 dark:ring-offset-slate-900" : ""
+                                                } ${resumingId && !isResuming ? "opacity-50" : ""}`}
                                             >
-                                                {isDirty && (
-                                                    <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white dark:border-slate-800" />
-                                                )}
-                                                {isSelected ? (
+                                                {isResuming ? (
+                                                    <Loader2 size={16} className="animate-spin text-gray-500 dark:text-slate-400" />
+                                                ) : isSelected ? (
                                                     <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#2f6fe4] text-white">
                                                         <Check size={13} />
                                                     </span>
@@ -233,34 +154,13 @@ function TablesModal({ open, onClose }) {
                 </div>
 
                 <div className="shrink-0 flex items-center justify-end gap-2 px-6 py-3 border-t border-gray-200 dark:border-slate-700">
-                    {editMode ? (
-                        <>
-                            <button
-                                type="button"
-                                onClick={handleCancelEdit}
-                                className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSaveChanges}
-                                disabled={Object.keys(pendingChanges).length === 0}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <Save size={14} />
-                                Save Changes
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700"
-                        >
-                            Close
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700"
+                    >
+                        Close
+                    </button>
                 </div>
             </div>
         </div>

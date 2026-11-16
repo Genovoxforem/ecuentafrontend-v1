@@ -14,11 +14,11 @@ export function ProspectsList({
   statusMessage?: string
 }) {
   const stats: ThirdPartyStatSpec[] = [
-    { label: 'Total Customers', value: summary?.totalCustomers ?? '—', caption: 'All customer records', icon: Users, color: 'blue' },
-    { label: 'Created This Month', value: summary?.createdThisMonth ?? '—', caption: 'New Customers', icon: CalendarPlus, color: 'cyan' },
+    { label: 'Total Prospects', value: summary?.totalCustomers ?? '—', caption: 'All prospect records', icon: Users, color: 'blue' },
+    { label: 'Created This Month', value: summary?.createdThisMonth ?? '—', caption: 'New Prospects', icon: CalendarPlus, color: 'cyan' },
     { label: 'Outstanding Balance', value: summary?.outstandingBalance != null ? fmtZMW(summary.outstandingBalance) : '—', caption: 'Open sales balance', icon: Scale, color: 'indigo' },
-    { label: 'Default Customers', value: summary?.defaultCountryCustomers ?? '—', caption: 'Default country Customers', icon: Home, color: 'green' },
-    { label: 'Other Country Customers', value: summary?.otherCountryCustomers ?? '—', caption: 'Foreign Customers', icon: Globe, color: 'amber' },
+    { label: 'Default Prospects', value: summary?.defaultCountryCustomers ?? '—', caption: 'Default country Prospects', icon: Home, color: 'green' },
+    { label: 'Other Country Prospects', value: summary?.otherCountryCustomers ?? '—', caption: 'Foreign Prospects', icon: Globe, color: 'amber' },
   ]
 
   return (

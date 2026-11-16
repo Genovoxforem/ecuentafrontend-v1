@@ -21,7 +21,11 @@ const PAYOUT_COLUMNS: BankingColumn<StripeRow>[] = [
   { label: 'Status', text: (r) => r.status },
 ]
 
-// stripe/fapi answers 409 "Stripe module is not enabled on this instance" until the module and its keys are set up: that message is what shows.
+// stripe/fapi answers 409 "Stripe module is not enabled on this instance" until the module and its keys are set up. The classic page then prints its empty
+// table with the headers, so the page does the same and says why in the empty row (any other failure still shows the error card).
+const MODULE_OFF = 'The Stripe module is not enabled on this instance.'
+const moduleOff = (error: unknown) => error instanceof Error && /not enabled/i.test(error.message)
+
 export function StripeTransactionsPage() {
   const q = useStripeTransactions()
   return (
@@ -30,12 +34,12 @@ export function StripeTransactionsPage() {
       note="(Stripe connection with keys from Stripe module setup)"
       icon={CreditCard}
       columns={TRANSACTION_COLUMNS}
-      rows={q.data}
       isLoading={q.isLoading}
-      error={q.error}
+      rows={moduleOff(q.error) ? [] : q.data}
+      error={moduleOff(q.error) ? null : q.error}
       onRetry={() => q.refetch()}
       rowKey={(r) => r.key}
-      emptyText="None"
+      emptyText={moduleOff(q.error) ? MODULE_OFF : 'None'}
     />
   )
 }
@@ -48,12 +52,12 @@ export function StripePayoutsPage() {
       note="(Stripe connection with keys from Stripe module setup)"
       icon={CreditCard}
       columns={PAYOUT_COLUMNS}
-      rows={q.data}
       isLoading={q.isLoading}
-      error={q.error}
+      rows={moduleOff(q.error) ? [] : q.data}
+      error={moduleOff(q.error) ? null : q.error}
       onRetry={() => q.refetch()}
       rowKey={(r) => r.key}
-      emptyText="None"
+      emptyText={moduleOff(q.error) ? MODULE_OFF : 'None'}
     />
   )
 }

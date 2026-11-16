@@ -30,7 +30,7 @@ function Field({ label, required, hint, children }: { label: string; required?: 
 
 // terminal.php?terminal=<n> — see terminalSetupParser.ts / terminalSetup.queries.ts
 // for the real field names, form action, and live-confirmed round-trip.
-export const TerminalSetupTab = forwardRef<TabHandle, { terminal: 1 | 2 }>(function TerminalSetupTab({ terminal }, ref) {
+export const TerminalSetupTab = forwardRef<TabHandle, { terminal: number }>(function TerminalSetupTab({ terminal }, ref) {
   const { data: setup, isLoading, isError, error, refetch } = useTerminalSetup(terminal)
   const { data: bankAccounts } = useBankAccountsDropdown()
   const warehouses = useWarehouses()

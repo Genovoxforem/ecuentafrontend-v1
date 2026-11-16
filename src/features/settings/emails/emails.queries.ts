@@ -1,42 +1,38 @@
+import { fapiGet } from '../../../api/fapiEnvelope'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyDocument } from '../../../shared/legacyHtmlFetch'
 import { legacyAdminSend } from '../legacyAdminRequest'
-import { parseMailSettingsForm, type MailSettingsForm } from './mailSettingsParser'
+import { loadMailSettings, mailChanges, type MailPageKey, type MailSettingsForm } from './mailSettings.data'
+import { saveStoredSettings } from '../storedSettings.data'
 import { parseEmailTemplateEdit, parseEmailTemplatesPage, type EmailTemplateEdit, type EmailTemplatesPage } from './emailTemplatesParser'
 import { parseSenderProfileForm, parseSenderProfilesPage, type SenderProfileForm, type SenderProfileRow } from './senderProfilesParser'
 
-// Setup > Emails — four backend pages: admin/mails.php (outgoing emails), mails_ticket.php
-// (outgoing emails for Ticket), mails_templates.php and mails_senderprofile_list.php. Reading
-// is the page itself; every write is the request the page's own form or link sends, and is
-// confirmed by reading the page again (the backend answers each with the whole page).
+// Setup > Emails — outgoing emails and outgoing emails for Ticket are on the constants API (below); the templates and the sender profiles still read the classic pages
+// mails_templates.php and mails_senderprofile_list.php (every write is the request the page's own form or link sends).
 
 const KEY = ['settings', 'emails'] as const
 
 // ---------------------------------------------------------------- Outgoing emails
 
+// Outgoing emails are the MAIN_MAIL_* constants: read with core/fapi/constants.php, saved with admin/fapi/const_save.php (mailSettings.data.ts). Only "Test server
+// connectivity" still opens the classic page (it has no fapi: AN-185).
 export const MAIL_PAGES = {
-  outgoing: { path: '/admin/mails.php', verify: ['MAIN_MAIL_EMAIL_FROM', 'MAIN_MAIL_SENDMODE'] },
-  ticket: { path: '/admin/mails_ticket.php', verify: ['MAIN_MAIL_SENDMODE_TICKET'] },
+  outgoing: { path: '/admin/mails.php' },
+  ticket: { path: '/admin/mails_ticket.php' },
 } as const
-export type MailPageKey = keyof typeof MAIL_PAGES
-
-const fetchMailForm = async (page: MailPageKey): Promise<MailSettingsForm> => parseMailSettingsForm(await fetchLegacyDocument(`${MAIL_PAGES[page].path}?action=edit`))
+export type { MailPageKey }
 
 export function useMailSettings(page: MailPageKey) {
-  return useQuery({ queryKey: [...KEY, 'mail', page], queryFn: () => fetchMailForm(page), staleTime: 1000 * 30 })
+  return useQuery({ queryKey: [...KEY, 'mail', page], queryFn: (): Promise<MailSettingsForm> => loadMailSettings(page), staleTime: 1000 * 30, retry: false })
 }
 
-// "Save" of the edit form: the form's own `action=update` POST with the fields to send.
+// "Save": only the constants that changed are written.
 export function useSaveMailSettings(page: MailPageKey) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (values: Record<string, string>) => {
-      const before = await fetchMailForm(page)
-      const body = new URLSearchParams({ token: before.token, action: 'update', ...values, save: 'Save' })
-      await legacyAdminSend(MAIL_PAGES[page].path, { method: 'POST', body })
-      const after = await fetchMailForm(page)
-      const mismatch = MAIL_PAGES[page].verify.find((name) => name in values && after.fields[name]?.value !== values[name])
-      if (mismatch) throw new Error('The backend did not save these settings.')
+      const form = await loadMailSettings(page)
+      await saveStoredSettings(mailChanges(form, values))
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: [...KEY, 'mail', page] }),
   })
@@ -179,8 +175,25 @@ const PROFILES = '/admin/mails_senderprofile_list.php'
 
 const fetchProfiles = async (): Promise<{ token: string; rows: SenderProfileRow[] }> => parseSenderProfilesPage(await fetchLegacyDocument(PROFILES))
 
+// admin/fapi/email_senderprofiles.php (13 Nov 2026, #407, key-authenticated, read-only): {items, pagination} (llx_c_email_senderprofile). newecuenta
+// has no profile, so the row fields are read under the classic column names (id, label, email, position, active / status) and not seen. Create, edit
+// and delete are still the classic form posts (they need the classic page's token, so they read the classic list).
+type ApiProfile = Record<string, unknown>
+async function fetchProfilesApi(): Promise<{ token: string; rows: SenderProfileRow[] }> {
+  const rows: SenderProfileRow[] = []
+  for (let page = 1; page <= 50; page++) {
+    const d = await fapiGet<{ items: ApiProfile[]; pagination?: { pages?: number } }>('/admin/fapi/email_senderprofiles.php', { page, limit: 100 })
+    for (const r of d.items) {
+      const active = r.active ?? r.status
+      rows.push({ id: String(r.id ?? r.rowid ?? ''), label: String(r.label ?? ''), email: String(r.email ?? ''), position: String(r.position ?? ''), active: active === 1 || active === '1' || active === true })
+    }
+    if (page >= (d.pagination?.pages ?? 1)) break
+  }
+  return { token: '', rows }
+}
+
 export function useSenderProfiles() {
-  return useQuery({ queryKey: [...KEY, 'profiles'], queryFn: fetchProfiles, staleTime: 1000 * 30 })
+  return useQuery({ queryKey: [...KEY, 'profiles'], queryFn: fetchProfilesApi, staleTime: 1000 * 30 })
 }
 
 // `null` = closed, `'new'` = the create form, otherwise the id of the profile to edit.

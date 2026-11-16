@@ -1,40 +1,30 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { legacyAdminSend } from '../settings/legacyAdminRequest'
-import { toastMessages } from './bindLines.queries'
 import { bindAutomatically, loadBindingOverview, overviewKindOf } from './bindingOverviewFapi'
-import { readBindingIndex } from './bindingIndexParser'
 
-// accountancy/{customer,supplier,expensereport}/index.php — see bindingIndexParser.ts.
+// The binding overview of customer invoices, vendor invoices and expense reports: the lines bound and still to bind per account and month, from
+// accountancy/fapi/binding_customer.php | binding_vendor.php | binding_expensereport.php (action=by_account_month, bindingOverviewFapi.ts).
 export function useBindingIndex(path: string, year: number) {
   return useQuery({
     queryKey: ['generalLedger', 'bindingIndex', path, year],
     queryFn: async () => {
       const kind = overviewKindOf(path)
-      if (kind) return loadBindingOverview(kind, year)
-      return readBindingIndex(await fetchLegacyDocument(path, new URLSearchParams({ year: String(year) })))
+      if (!kind) throw new Error(`No binding overview is known for ${path}.`)
+      return loadBindingOverview(kind, year)
     },
     staleTime: 0,
     placeholderData: keepPreviousData,
   })
 }
 
-// "Bind Automatically": the page's own link (`action=validatehistory`, with the page's token),
-// taken from the freshly read page. The backend binds every line whose product has an accounting
-// account and answers with the same page and a message; that message is what is reported.
+// "Bind Automatically": the same file's automatic action; it binds every line whose product has an accounting account and answers with the message that
+// is reported.
 export function useBindAutomatically(path: string, year: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (): Promise<string> => {
       const kind = overviewKindOf(path)
-      if (kind) return bindAutomatically(kind, year)
-      const page = readBindingIndex(await fetchLegacyDocument(path, new URLSearchParams({ year: String(year) })))
-      const href = page.sections.find((s) => s.action)?.action?.href
-      if (!href) throw new Error('You are not allowed to bind automatically.')
-      const html = await legacyAdminSend(href, { method: 'GET' })
-      return toastMessages(html)
-        .map((m) => m.message)
-        .join('\n')
+      if (!kind) throw new Error(`No automatic binding is known for ${path}.`)
+      return bindAutomatically(kind, year)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })

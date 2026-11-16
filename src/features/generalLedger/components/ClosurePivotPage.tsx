@@ -1,30 +1,36 @@
 import { useState, type ComponentType } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useLegacyList } from '../legacyList.queries'
 import type { LegacyTable } from '../legacyTable'
 
 // The 12-month "movements by month" pivot shared by accountancy/closure/index.php
 // (Annual closure) and closure/validate.php (Validate movements): a header row
 // Jan … Dec / Total and one row of movement counts for the chosen year, both
-// read from the backend page. `year` is the page's own GET parameter.
+// read from the JSON endpoint. `year` is its own parameter.
 export function ClosurePivotPage({
   icon: Icon,
   title,
-  path,
+  queryKey,
   note,
   load,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
-  path: string
+  // names the page in the query cache
+  queryKey: string
   note?: string
-  // Reads the counts from a JSON endpoint instead of the backend page.
-  load?: (params: Record<string, string>) => Promise<LegacyTable>
+  // Reads the counts of the year (accountancy/fapi/annual_closure.php).
+  load: (params: Record<string, string>) => Promise<LegacyTable>
 }) {
   const [year, setYear] = useState(new Date().getFullYear())
-  const { data, isLoading, isFetching, isError, error, refetch } = useLegacyList(path, /^Jan/, { year: String(year) }, undefined, load)
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
+    queryKey: ['generalLedger', 'legacyList', queryKey, { year: String(year) }],
+    queryFn: () => load({ year: String(year) }),
+    staleTime: 0,
+    placeholderData: keepPreviousData,
+  })
 
   return (
     <div className="space-y-4">

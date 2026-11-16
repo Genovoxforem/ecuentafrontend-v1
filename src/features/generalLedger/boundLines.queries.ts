@@ -1,10 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { toastMessages } from './bindLines.queries'
-import { bindKindOf, loadBoundLines, rebindLines } from './bindingFapi'
-import { parseBoundLines } from './boundLinesParser'
-import { parseBoundExpenseLines } from './boundExpenseLinesParser'
+import { bindKindOf, loadBoundExpenseLines, loadBoundLines, rebindLines, writeKindOf } from './bindingFapi'
 
+// The bound lines (customer, vendor and expense-report lines) come from accountancy/fapi/binding_customer.php, binding_vendor.php and
+// binding_expensereport.php (action=dispatched, bindingFapi.ts); the paths below only name which of the three a page is for.
 export const CUSTOMER_LINES_PATH = '/accountancy/customer/lines.php'
 export const VENDOR_LINES_PATH = '/accountancy/supplier/lines.php'
 const PATH = CUSTOMER_LINES_PATH
@@ -13,7 +11,7 @@ export const EXPENSE_LINES_PATH = '/accountancy/expensereport/lines.php'
 export function useBoundExpenseLines(limit: number, page: number) {
   return useQuery({
     queryKey: ['generalLedger', 'boundLines', 'expense', limit, page],
-    queryFn: async () => parseBoundExpenseLines(await fetchLegacyDocument(EXPENSE_LINES_PATH, new URLSearchParams({ limit: String(limit), page: String(page) }))),
+    queryFn: () => loadBoundExpenseLines(limit, page),
     staleTime: 0,
     placeholderData: (prev) => prev,
   })
@@ -24,8 +22,8 @@ export function useBoundLines(limit: number, page: number, path: string = CUSTOM
     queryKey: ['generalLedger', 'boundLines', path, limit, page],
     queryFn: async () => {
       const kind = bindKindOf(path)
-      if (kind) return loadBoundLines(kind, limit, page)
-      return parseBoundLines(await fetchLegacyDocument(path, new URLSearchParams({ limit: String(limit), page: String(page) })))
+      if (!kind) throw new Error(`No bound list is known for ${path}.`)
+      return loadBoundLines(kind, limit, page)
     },
     staleTime: 0,
     placeholderData: (prev) => prev,
@@ -40,34 +38,14 @@ export interface RebindInput {
   account: string // account option value; "0" = none
 }
 
-// The real "Change the binding" POST: token + changeaccount[] + account_parent.
+// "Change the binding": account "0" unbinds the lines, any other account binds them in its place (binding_*.php action=unbind / bind).
 export function useRebindLines(path: string = PATH) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: RebindInput): Promise<string> => {
-      const kind = bindKindOf(path)
-      if (kind) return rebindLines(kind, input.lineIds, input.account)
-      const body = new URLSearchParams({
-        token: input.token,
-        formfilteraction: 'list',
-        limit: String(input.limit),
-        page: String(input.page),
-        account_parent: input.account,
-      })
-      for (const id of input.lineIds) body.append('changeaccount[]', id)
-      const res = await fetch(`${path}?limit=${input.limit}&page=${input.page}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const msgs = toastMessages(html)
-      const err = msgs.find((m) => m.type === 'error')
-      if (err) throw new Error(err.message)
-      return msgs.map((m) => m.message).join('\n')
+      const kind = writeKindOf(path)
+      if (!kind) throw new Error(`No binding is known for ${path}.`)
+      return rebindLines(kind, input.lineIds, input.account)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })

@@ -26,8 +26,8 @@ function Field({ label, required, children }: { label: string; required?: boolea
 // (`correct_stock`, the same call the product's Stock tab makes), so the
 // movement shows up in the list below and in every stock figure. Only the
 // fields that call accepts are offered: warehouse, product, add/remove, units,
-// unit purchase price (adds only, like the legacy form), label, and a batch
-// number for lot/serial-tracked products.
+// unit purchase price (adds only, like the legacy form), label, the movement or
+// inventory code, and a batch number for lot/serial-tracked products.
 export function StockCorrectionPage() {
   const queryClient = useQueryClient()
   const { data: products } = useProductOptions()
@@ -41,6 +41,7 @@ export function StockCorrectionPage() {
   const [unitPrice, setUnitPrice] = useState('')
   const [batchNumber, setBatchNumber] = useState('')
   const [label, setLabel] = useState('')
+  const [inventoryCode, setInventoryCode] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState('')
 
@@ -56,7 +57,7 @@ export function StockCorrectionPage() {
     if (hasBatch && !batchNumber.trim()) return setError('Batch number is required for lot/serial tracked products.')
     setError('')
     correctStock.mutate(
-      { id: productId, warehouseId, qty: units, mouvement, label, unitPrice: mouvement === '0' ? unitPrice : '', batchNumber: batchNumber.trim() },
+      { id: productId, warehouseId, qty: units, mouvement, label, unitPrice: mouvement === '0' ? unitPrice : '', batchNumber: batchNumber.trim(), inventoryCode },
       {
         onSuccess: () => {
           setSaved(`Stock corrected: ${mouvement === '0' ? 'added' : 'removed'} ${units} × ${selectedProduct.ref}.`)
@@ -64,6 +65,7 @@ export function StockCorrectionPage() {
           setUnitPrice('')
           setBatchNumber('')
           setLabel('')
+          setInventoryCode('')
           // The list below, the warehouse pages and the product stock figures all read the real movements.
           queryClient.invalidateQueries({ queryKey: ['warehouses'] })
           queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -80,6 +82,7 @@ export function StockCorrectionPage() {
     setUnitPrice('')
     setBatchNumber('')
     setLabel('')
+    setInventoryCode('')
   }
 
   return (
@@ -112,7 +115,7 @@ export function StockCorrectionPage() {
             </p>
           )}
           {/* One line on a wide screen: warehouse, product, movement, units, price, label (and the lot number for tracked products). */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 ${hasBatch ? 'xl:grid-cols-7' : 'xl:grid-cols-6'}`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 ${hasBatch ? 'xl:grid-cols-8' : 'xl:grid-cols-7'}`}>
             <Field label="Warehouse" required>
               <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className={selectCls}>
                 <option value="">Select a warehouse</option>
@@ -154,6 +157,9 @@ export function StockCorrectionPage() {
             )}
             <Field label="Label of movement">
               <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Stock correction for product" className={inputCls} />
+            </Field>
+            <Field label="Movement or inventory code">
+              <input value={inventoryCode} onChange={(e) => setInventoryCode(e.target.value)} className={inputCls} />
             </Field>
           </div>
         </Card>

@@ -1,8 +1,7 @@
 import { FileSpreadsheet } from 'lucide-react'
-import { DictionaryPage } from './DictionaryPage'
+import { AccountDictionaryPage } from './AccountDictionaryPage'
 
-// General Ledger > Setup > Expense report accounts: the backend's own dictionary of expense report
-// line types (admin/dict.php?id=17), with the accounting account each one posts to.
+// General Ledger > Setup > Expense report accounts (accountancy/fapi/expensereport_accounts.php): see accountDictionaries.data.ts.
 export function ExpenseReportAccountsList() {
-  return <DictionaryPage id="17" title="Dictionary setup - Expense report - Types of expense report lines" dictionaryName="expense report line type" icon={FileSpreadsheet} />
+  return <AccountDictionaryPage dictionary='expense' icon={FileSpreadsheet} />
 }

@@ -5,7 +5,7 @@ import { SearchableSelect } from '../../../shared/components/forms/SearchableSel
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useProjectStats } from '../projectStats.queries'
 import { StatsBarChart } from './StatsBarChart'
-import type { StatsChart, StatsResultsTable } from '../statsHtmlParser'
+import type { StatsChart, StatsResultsTable } from '../projectStats.types'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none w-full'
 
@@ -94,7 +94,7 @@ function SummaryCard({
         </span>
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-text-muted">{label}</p>
-          <p className="mt-1 truncate text-xl font-bold tabular-nums text-text!" title={value}>{value}</p>
+          <p className="mt-1 truncate text-base leading-tight font-bold tabular-nums text-text!" title={value}>{value}</p>
         </div>
       </div>
     </Card>

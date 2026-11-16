@@ -1,10 +1,7 @@
-import { useState } from 'react'
-import { ChartPie } from 'lucide-react'
-import { SalesStatsPage } from '../../../shared/components/dashboard/SalesStatsPage'
-import { usePurchaseOrderStats } from '../purchaseOrderStats.queries'
+import { PurchaseStatsPage } from '../../purchases/components/PurchaseStatsPage'
 
+// fourn/commande/fapi/stats.php: CommandeStats in supplier mode, the class the chart page instantiates, with the same filters
+// as the vendor invoice and vendor proposal statistics.
 export function PurchaseOrderStatistics() {
-  const [year, setYear] = useState(String(new Date().getFullYear()))
-  const { data: stats, isLoading } = usePurchaseOrderStats(Number(year))
-  return <SalesStatsPage icon={ChartPie} title="Purchase order statistics" entityLabel="Orders" stats={stats} isLoading={isLoading} year={year} onYearChange={setYear} />
+  return <PurchaseStatsPage base="/fourn/commande/fapi" title="Purchase order statistics" entityLabel="Orders" />
 }

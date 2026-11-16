@@ -10,6 +10,8 @@
 export interface ReportTable {
   headers: string[]
   rows: string[][]
+  // The React page each cell links to (a row of cells, null = plain text), when the classic page links the cell and that page has a React equivalent.
+  links?: Array<Array<string | null>>
 }
 
 function cellText(td: Element): string {

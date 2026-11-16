@@ -24,8 +24,6 @@ export const nav: NavSection = {
         { label: 'Inventory List', path: ROUTES.inventoryList },
         { label: 'Landed Cost', path: ROUTES.landedCostCreate },
         { label: 'Landed List', path: ROUTES.landedCostList },
-        { label: 'Trip Details' },
-        { label: 'Fleet Expense' },
       ],
     },
     {

@@ -23,6 +23,11 @@ export interface WarehouseSummary {
   shipments: { total: number; validated: number }
   receptions: { total: number; validated: number }
   reservations: { active: number; totalReservedQty: number; released: number; consumed: number }
+  // Per-warehouse stock value at cost, from the same dashboard call (the "Stock Value by Warehouse" chart).
+  byWarehouse: Array<{ id: number; ref: string; shortName: string; inputStockValue: number }>
+  // Sellable products by stock status and stock value (at selling price) per category, from the same call.
+  statusBuckets: { inStock: number; lowStock: number; outOfStock: number }
+  valueByCategory: Array<{ category: string; value: number }>
   // Set when the dashboard call failed, so the tiles show zeros with the reason.
   loadError?: string
 }
@@ -40,7 +45,13 @@ const EMPTY: WarehouseSummary = {
   shipments: { total: 0, validated: 0 },
   receptions: { total: 0, validated: 0 },
   reservations: { active: 0, totalReservedQty: 0, released: 0, consumed: 0 },
+  byWarehouse: [],
+  statusBuckets: { inStock: 0, lowStock: 0, outOfStock: 0 },
+  valueByCategory: [],
 }
+
+const bucketCount = (buckets: unknown, status: string): number =>
+  Number(((buckets ?? []) as Array<Record<string, unknown>>).find((b) => b.status === status)?.count) || 0
 
 // product/stock/fapi/dashboard.php: every tile of the warehouse home in one call (stock counts and values,
 // warehouses, today's movements, inventories, shipments, receptions). `value_at_sale` is what the classic page calls
@@ -65,6 +76,21 @@ export function useWarehouseSummary() {
         shipments: { total: Number(d.shipments?.total) || 0, validated: Number(d.shipments?.validated) || 0 },
         receptions: { total: Number(d.receptions?.total) || 0, validated: Number(d.receptions?.validated) || 0 },
         reservations: { active: 0, totalReservedQty: 0, released: 0, consumed: 0 },
+        byWarehouse: ((d.by_warehouse ?? []) as Array<Record<string, unknown>>).map((w) => ({
+          id: Number(w.id),
+          ref: String(w.ref ?? ''),
+          shortName: String(w.location ?? ''),
+          inputStockValue: Number(w.value_at_cost) || 0,
+        })),
+        statusBuckets: {
+          inStock: bucketCount(d.stock_status_buckets, 'in_stock'),
+          lowStock: bucketCount(d.stock_status_buckets, 'low_stock'),
+          outOfStock: bucketCount(d.stock_status_buckets, 'out_of_stock'),
+        },
+        valueByCategory: ((d.value_by_category ?? []) as Array<Record<string, unknown>>).map((c) => ({
+          category: String(c.category ?? '') || 'Uncategorised',
+          value: Number(c.value_at_sale) || 0,
+        })),
       }
     },
     staleTime: 1000 * 30,

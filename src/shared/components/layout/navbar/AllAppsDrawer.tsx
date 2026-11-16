@@ -210,23 +210,24 @@ export function AllAppsDrawer({
           {sections.length === 0 ? (
             <p className="text-sm text-text-faint text-center py-10">No apps match &ldquo;{query}&rdquo;.</p>
           ) : (
-            sections.map((section, sectionIndex) => {
+            <div className="grid grid-cols-1 gap-x-6 md:grid-cols-2">
+            {sections.map((section, sectionIndex) => {
               const color = SECTION_COLORS[sectionIndex % SECTION_COLORS.length]
               return (
-                <div key={section.title} className="mb-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-text-faint mb-2">{section.title}</p>
-                  <div className={`grid gap-2 ${wide ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6' : 'grid-cols-3 lg:grid-cols-4'}`}>
+                <div key={section.title} className="mb-3">
+                  <p className="mb-1.5 border-b border-border pb-1 text-[13px] font-bold uppercase tracking-wide text-brand brightness-125">{section.title}</p>
+                  <div className={`grid gap-1 ${wide ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-3'}`}>
                     {section.tiles.map((tile) => {
                       const Icon = pickItemIcon(tile.label, section.icon)
                       const body = (
                         <>
-                          <span className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 ${ICON_STYLES[color]}`}>
+                          <span className={`w-9 h-9 rounded-full flex items-center justify-center brightness-125 transition-transform group-hover:scale-110 ${ICON_STYLES[color]}`}>
                             <Icon size={18} />
                           </span>
-                          <span className="text-[11px] leading-tight text-text-muted line-clamp-2">{tile.label}</span>
+                          <span className="text-[12.5px] font-medium leading-tight text-text line-clamp-2">{tile.label}</span>
                         </>
                       )
-                      const tileCls = 'group flex flex-col items-center justify-center gap-1.5 rounded-lg p-2.5 text-center'
+                      const tileCls = 'group flex flex-col items-center justify-center gap-1 rounded-lg p-1.5 text-center'
                       return tile.to ? (
                         <Link key={tile.label} to={tile.to} onClick={onClose} className={`${tileCls} hover:bg-surface-hover transition-colors`}>
                           {body}
@@ -240,7 +241,8 @@ export function AllAppsDrawer({
                   </div>
                 </div>
               )
-            })
+            })}
+            </div>
           )}
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import type { LegacyFormData, LegacyFormField } from './legacyForm'
+import { loadJournalNames, translatedJournalLabel } from './journalNames.data'
 
 // The accounting setup forms that have a JSON endpoint under accountancy/fapi, in the shape the generic form page renders.
 // Field names and values are the ones captured from newecuenta on 22 Oct 2026 (tests/fixtures/accountancy-export-options.json,
@@ -79,9 +80,9 @@ export interface FapiClosureAccounts {
 // -1 is how the endpoint reports "not set".
 const UNSET = '-1'
 
-export function mapClosureAccounts(d: FapiClosureAccounts): LegacyFormData {
+export function mapClosureAccounts(d: FapiClosureAccounts, names: Map<string, string> = new Map()): LegacyFormData {
   const accounts = [{ value: UNSET, label: '' }, ...d.options.map((a) => ({ value: a.number, label: a.label }))]
-  const journals = [{ value: UNSET, label: '' }, ...d.journals.map((j) => ({ value: String(j.id), label: `${j.code} - ${j.label} (${j.nature_label}${j.active ? '' : ', inactive'})` }))]
+  const journals = [{ value: UNSET, label: '' }, ...d.journals.map((j) => ({ value: String(j.id), label: `${j.code} - ${translatedJournalLabel(names, j.code, j.label)} (${j.nature_label}${j.active ? '' : ', inactive'})` }))]
   return form(
     [select('ACCOUNTING_RESULT_PROFIT', d.profit_account.value, accounts), select('ACCOUNTING_RESULT_LOSS', d.loss_account.value, accounts), select('ACCOUNTING_CLOSURE_DEFAULT_JOURNAL', d.default_journal.value, journals)],
     {
@@ -92,7 +93,10 @@ export function mapClosureAccounts(d: FapiClosureAccounts): LegacyFormData {
   )
 }
 
-export const loadClosureAccounts = async (): Promise<LegacyFormData> => mapClosureAccounts(await fapiGet<FapiClosureAccounts>('/accountancy/fapi/closure_accounts.php'))
+export const loadClosureAccounts = async (): Promise<LegacyFormData> => {
+  const [d, names] = await Promise.all([fapiGet<FapiClosureAccounts>('/accountancy/fapi/closure_accounts.php'), loadJournalNames()])
+  return mapClosureAccounts(d, names)
+}
 
 // The journal is required (the endpoint refuses without it, and says so); an unset result account is sent empty, which clears it.
 export function closureAccountsBody(values: Record<string, string>): Record<string, string | number> {

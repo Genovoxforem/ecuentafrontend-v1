@@ -1,18 +1,17 @@
 import { Coins } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
-import { LegacyListPage } from '../LegacyListPage'
+import { JsonListPage } from '../JsonListPage'
 import { loadVariousPayments } from '../../specialPaymentsFapi'
 
 // compta/bank/various_payment/list.php — the real list of miscellaneous
 // payments. The bank account and bank entry cells open the native banking pages.
 export function MiscPaymentsList() {
   return (
-    <LegacyListPage
+    <JsonListPage
       load={loadVariousPayments}
       icon={Coins}
       title="Miscellaneous Payments"
-      path="/compta/bank/various_payment/list.php"
-      firstHeader={/^Ref/}
+      queryKey="/compta/bank/various_payment/list.php"
       addTo={{ label: 'New Miscellaneous Payments', to: ROUTES.ledgerMiscPaymentCreate }}
       linkFor={(header, cell) => {
         const id = new URLSearchParams((cell.href ?? '').split('?')[1] ?? '')

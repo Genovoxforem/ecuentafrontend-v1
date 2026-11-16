@@ -1,120 +1,94 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Folder, Search, ChevronRight, ChevronDown, Zap } from 'lucide-react'
-import { Card } from '../../shared/components/dashboard/DashboardKit'
+import { Folder, Search } from 'lucide-react'
 import { REPORT_CATEGORIES, reportPath } from '../../features/reports/reportsStructure'
 
-const PREVIEW_LIMIT = 6
-
-// The "Reports Center" (custom/reports/reportsindex.php). Its own menu
-// descriptor (modReports.class.php) never wires this into llx_menu at all,
-// so it's unreachable from the sidebar in the classic app too — this hub
-// is the only way in. Categories, report labels, and grouping are read
-// from that PHP file; the card design itself (icons/colors/descriptions)
-// is this app's own presentation choice. Only "Purchase Invoices" and
-// "Sales Invoices" (marked with a lightning bolt) have a secured JSON API —
-// every other entry routes to an inert page rather than a PHP link.
+// The "Reports Center" laid out as the classic page (custom/reports/reportsindex.php): the title and a search box, the categories in a list on the left, and
+// "All Reports" on the right as a grid of report cards (three to a row) under a sub-header per category. A category in the list shows only its reports (a second
+// click shows all again); the search keeps the report names that contain the text, and a category whose own name matches keeps all of its reports.
 export function ReportsModule() {
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [selected, setSelected] = useState<string | null>(null)
 
   const q = search.trim().toLowerCase()
-  const visibleCategories = REPORT_CATEGORIES.filter((cat) => !categoryFilter || cat.key === categoryFilter)
-    .map((cat) => ({ ...cat, reports: cat.reports.filter((r) => !q || r.label.toLowerCase().includes(q)) }))
-    .filter((cat) => cat.reports.length > 0)
+  const groups = useMemo(
+    () =>
+      REPORT_CATEGORIES.filter((cat) => !selected || cat.key === selected)
+        .map((cat) => ({ cat, reports: !q || cat.label.toLowerCase().includes(q) ? cat.reports : cat.reports.filter((r) => r.label.toLowerCase().includes(q)) }))
+        .filter((g) => g.reports.length > 0),
+    [q, selected],
+  )
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
-            <Folder size={20} className="text-brand" /> Reports Center
-          </h2>
-          <p className="text-sm text-text-faint mt-0.5">Access and generate important business reports</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search reports by name or category…"
-            className="w-full text-sm rounded-md border border-input-border bg-input-bg text-text pl-8 pr-3 py-2.5"
-          />
-        </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="text-sm rounded-md border border-input-border bg-input-bg text-text px-3 py-2.5 sm:w-56"
-        >
-          <option value="">All Categories</option>
-          {REPORT_CATEGORIES.map((cat) => (
-            <option key={cat.key} value={cat.key}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {visibleCategories.length === 0 ? (
-        <p className="text-sm text-text-faint italic py-6 text-center">No reports match "{search}".</p>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {visibleCategories.map((cat) => {
-            const Icon = cat.icon
-            const isExpanded = expanded[cat.key] ?? false
-            const showAll = isExpanded || Boolean(q) || cat.reports.length <= PREVIEW_LIMIT
-            const visibleReports = showAll ? cat.reports : cat.reports.slice(0, PREVIEW_LIMIT)
-            const remaining = cat.reports.length - visibleReports.length
-
-            return (
-              <Card key={cat.key} className="!h-auto space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <span className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${cat.colorClass}`}>
-                      <Icon size={18} />
-                    </span>
-                    <div>
-                      <p className="font-semibold text-text!">{cat.label}</p>
-                      <p className="text-xs text-text-faint mt-0.5">{cat.description}</p>
-                    </div>
-                  </div>
-                  {cat.reports.length > PREVIEW_LIMIT && !q && (
-                    <button
-                      type="button"
-                      onClick={() => setExpanded((prev) => ({ ...prev, [cat.key]: !isExpanded }))}
-                      className="shrink-0 p-1 rounded-md text-text-faint hover:bg-surface-hover hover:text-text"
-                      title={isExpanded ? 'Show fewer' : 'Show all'}
-                    >
-                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 pl-1">
-                  {visibleReports.map((r) => (
-                    <Link key={r.slug} to={reportPath(cat.key, r.slug)} className="flex items-center gap-1.5 text-sm text-brand hover:underline py-0.5">
-                      <span className="w-1 h-1 rounded-full bg-brand/50 shrink-0" />
-                      {r.label}
-                      {r.real && <Zap size={10} className="text-success-fg shrink-0" />}
-                    </Link>
-                  ))}
-                </div>
-
-                {!showAll && remaining > 0 && (
-                  <button type="button" onClick={() => setExpanded((prev) => ({ ...prev, [cat.key]: true }))} className="text-xs text-text-faint hover:text-brand pl-1">
-                    +{remaining} more
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <h2 className="flex shrink-0 items-center justify-center gap-2 text-lg font-bold text-text!">
+        <Folder size={20} className="text-brand" /> Reports Center
+      </h2>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[18rem_1fr]">
+        <nav aria-label="Report categories" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface-alt">
+          {/* The header of the left panel keeps the search box; only the list below it scrolls. */}
+          <div className="shrink-0 border-b border-border p-2">
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search reports"
+                aria-label="Search reports"
+                style={{ paddingLeft: '2.25rem' }}
+                className="h-9 w-full rounded-md border border-input-border bg-input-bg pr-3 text-sm text-text"
+              />
+            </div>
+          </div>
+          <ul className="soft-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+            {REPORT_CATEGORIES.map((cat) => {
+              const Icon = cat.icon
+              const active = selected === cat.key
+              return (
+                <li key={cat.key}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(active ? null : cat.key)}
+                    aria-pressed={active}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-brand/10 text-brand' : 'text-text hover:bg-surface-hover'}`}
+                  >
+                    <Icon size={16} className="shrink-0 text-text-faint" />
+                    {cat.label}
                   </button>
-                )}
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+
+        <section aria-label="All Reports" className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface-alt">
+          <div className="flex h-11 shrink-0 items-center border-b border-border bg-surface px-4">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-text!">Report Name</h3>
+          </div>
+          <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {groups.length === 0 && <p className="px-4 py-8 text-center italic text-text-faint">No reports match "{search}".</p>}
+            {groups.map(({ cat, reports }) => (
+              <div key={cat.key} className="px-4 pb-4">
+                <h4 className="sticky top-0 z-10 -mx-4 border-b border-border bg-surface-alt px-4 py-2 text-sm font-bold text-text!">{cat.label}</h4>
+                <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {reports.map((r) => (
+                    <li key={r.slug}>
+                      <Link
+                        to={reportPath(cat.key, r.slug)}
+                        className="flex h-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-3 text-sm font-medium text-brand hover:border-brand/50 hover:bg-surface-hover"
+                      >
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-text" />
+                        {r.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   )
 }

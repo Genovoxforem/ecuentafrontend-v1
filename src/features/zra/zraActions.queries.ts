@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { fetchLegacyDocument, fetchLegacyText, parseLegacyJson } from '../../shared/legacyHtmlFetch'
 
 // The two ZRA actions that run against the live ZRA gateway, wired to the same
 // requests the backend's own pages send (custom/zra/zraindex.php and
@@ -69,5 +69,70 @@ export function useUploadStockMovements() {
     },
     // The list shows each movement's ZRA status, which the upload changes.
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'legacyList'] }),
+  })
+}
+
+// "Sync to ZRA" on Pending Sales Invoices: the ticked invoices (their ids) are posted to compta/facture/pendingsales.php
+// with action=sync_zra and the token the page prints for that call, which sends each one to the ZRA gateway and answers
+// { ok, success, failed, total, results: [{ id, ref, ok, msg }] } (the page's own syncSelectedToZra()).
+export interface PendingSalesSyncResult {
+  ok: boolean
+  success: number
+  failed: number
+  total: number
+  results: Array<{ id: number; ref?: string; ok: boolean; msg?: string }>
+}
+
+const PENDING_SALES_PAGE = '/compta/facture/pendingsales.php'
+
+async function pendingSalesToken(): Promise<string> {
+  const html = await fetchLegacyText(PENDING_SALES_PAGE)
+  const fromScript = /action:\s*'sync_zra',\s*token:\s*'([^']+)'/.exec(html)?.[1]
+  const fromMeta = /<meta name="anti-csrf-currenttoken" content="([^"]+)"/.exec(html)?.[1]
+  const token = fromScript ?? fromMeta ?? ''
+  if (!token) throw new Error('Could not read the backend session token — sign out and back in, then retry.')
+  return token
+}
+
+export function useSyncPendingSalesToZra() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false, // never re-submit invoices to the gateway automatically
+    mutationFn: async (ids: number[]): Promise<PendingSalesSyncResult> => {
+      const body = new URLSearchParams({ action: 'sync_zra', token: await pendingSalesToken() })
+      for (const id of ids) body.append('toselect[]', String(id))
+      const res = await fetch(PENDING_SALES_PAGE, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body,
+      })
+      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+      const data = await parseLegacyJson<Partial<PendingSalesSyncResult>>(res)
+      if (typeof data.total !== 'number') throw new Error('The backend did not report a result for the sync.')
+      return { ok: !!data.ok, success: Number(data.success) || 0, failed: Number(data.failed) || 0, total: data.total, results: data.results ?? [] }
+    },
+    // Synced invoices leave the pending list.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['zra', 'pending-sales'] }),
+  })
+}
+
+// The per-row refresh the backend prints in the ZRA status cell for some errors: fnupdatezrainvoice(ref) posts
+// quicklinks_ajax.php type=getzraresponseinvoice&cisInvcNo=<ref>, which re-fetches the invoice's stored ZRA response;
+// the page then reloads the list (the invoice drops out once its upload error is cleared).
+export function useRefreshZraInvoiceResponse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false,
+    mutationFn: async (ref: string): Promise<void> => {
+      const res = await fetch('/quicklinks_ajax.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: new URLSearchParams({ type: 'getzraresponseinvoice', cisInvcNo: ref }),
+      })
+      if (!res.ok) throw new Error(`Failed to refresh ZRA response for invoice #${ref}`)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['zra', 'pending-sales'] }),
   })
 }

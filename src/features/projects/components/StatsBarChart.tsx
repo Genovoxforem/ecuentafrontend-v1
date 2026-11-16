@@ -1,5 +1,5 @@
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from 'recharts'
-import type { StatsChart } from '../statsHtmlParser'
+import type { StatsChart } from '../projectStats.types'
 
 // Fixed categorical order (never reassigned by which series happens to be
 // present) — matches the dataviz skill's default validated palette, slots

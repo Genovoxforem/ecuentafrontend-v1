@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../api/axios'
+import { fapiGet } from '../../api/fapiEnvelope'
 import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 import { parseJobCardAccessories, type JobCardAccessory } from './jobCardAccessoriesParser'
 
@@ -140,22 +140,22 @@ interface ProjectOption {
   title: string
 }
 
-// GET /api/projects.php — same real, already-working endpoint (queries
-// llx_projet WHERE fk_statut = 1) used by every other Create form in this
-// app for its Project field (Quotations/Sales+Purchase Orders/Contracts).
-// Reused as-is rather than the real page's own Project dropdown, which
-// instead calls Dolibarr's core REST API (/api/index.php/projects) under a
-// per-user DOLAPIKEY header — a different auth scheme this app has no
-// existing infrastructure for. Real data either way; this is just the
-// simpler already-proven path to it. Same reasoning is why "Ticket" isn't
-// reproduced at all below (its real dropdown needs that same DOLAPIKEY
-// endpoint, and it's an optional field on the real form).
-export function useJobCardProjectOptions() {
+// fichinter/fapi/form_options.php: the Project and "Job Alloted To" dropdowns (key-authenticated JSON; the classic page
+// fills them from Dolibarr's core REST API under a per-user DOLAPIKEY, an auth scheme this app does not have). It also
+// returns statuses and contracts, which this form has no field for. The third party uses the shared customer picker.
+interface FapiJobCardFormOptions {
+  users?: Array<{ id: number; name: string }>
+  projects?: Array<{ id: number; ref: string; title: string }>
+}
+export function useJobCardFormOptions() {
   return useQuery({
-    queryKey: ['projects', 'open'],
+    queryKey: ['interventions', 'formOptions'],
     queryFn: async () => {
-      const { data } = await api.get<{ success: boolean; results: ProjectOption[] }>('/projects.php')
-      return data.results ?? []
+      const d = await fapiGet<FapiJobCardFormOptions>('/fichinter/fapi/form_options.php')
+      return {
+        users: (d.users ?? []).map((u) => ({ value: String(u.id), label: u.name })),
+        projects: (d.projects ?? []).map((p): ProjectOption => ({ id: String(p.id), ref: p.ref, title: p.title })),
+      }
     },
     staleTime: 1000 * 60,
   })

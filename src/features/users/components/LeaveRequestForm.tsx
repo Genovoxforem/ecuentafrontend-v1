@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarPlus, Loader2 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
@@ -29,12 +29,13 @@ const DAY_PORTION_OPTIONS: { value: LeaveDayPortion; label: string }[] = [
   { value: 'afternoon', label: 'Afternoon Half Day' },
 ]
 
-// holiday/card.php?action=create — the dropdowns are the real form's own
-// (employees, leave types, approvers) and Save sends the same POST it does.
+// holiday/fapi/leave.php?action=form / ?action=create (#393) — served by the FAPI endpoint
+// with leave types, approvers, per-type balances and permissions, falling back to classic holiday/card.php.
 export function LeaveRequestForm() {
   const navigate = useNavigate()
   const { data: form, isLoading, isError, error, refetch } = useLeaveCreateForm()
-  const { data: leaveTypes } = useLeaveTypes()
+  const { data: legacyLeaveTypes } = useLeaveTypes()
+  const leaveTypes = form?.leaveTypes?.length ? form.leaveTypes : legacyLeaveTypes
   const createLeaveRequest = useCreateLeaveRequest()
 
   const [employeeId, setEmployeeId] = useState('')
@@ -49,8 +50,27 @@ export function LeaveRequestForm() {
   const [formError, setFormError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  // Auto-select target user or single employee when loaded
+  useEffect(() => {
+    if (!employeeId) {
+      if (form?.defaultEmployeeId) {
+        setEmployeeId(form.defaultEmployeeId)
+      } else if (form?.employees?.length === 1) {
+        setEmployeeId(form.employees[0].value)
+      }
+    }
+  }, [form, employeeId])
+
+  // Auto-select approver if only one exists
+  useEffect(() => {
+    if (!approverId && form?.approvers?.length === 1) {
+      setApproverId(form.approvers[0].value)
+    }
+  }, [form, approverId])
+
   function handleSubmit() {
     setFormError('')
+    if (form?.canCreate === false) return setFormError('You do not have permission to create a leave request.')
     if (!employeeId) return setFormError('User is required!')
     if (!typeId) return setFormError('Please select Leave Type')
     if (!startDate) return setFormError('You must select a start date.')
@@ -88,6 +108,11 @@ export function LeaveRequestForm() {
       {formError && (
         <Card className="!h-auto !bg-danger-bg border-danger/40 text-danger-fg text-sm font-medium">
           <p role="alert">{formError}</p>
+        </Card>
+      )}
+      {form?.canCreate === false && (
+        <Card className="!h-auto !bg-warning-bg border-warning/40 text-warning-fg text-sm font-medium">
+          <p role="alert">You do not have permission to create a leave request.</p>
         </Card>
       )}
 
@@ -164,7 +189,7 @@ export function LeaveRequestForm() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={createLeaveRequest.isPending || success}
+              disabled={createLeaveRequest.isPending || success || form?.canCreate === false}
               className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
             >
               {createLeaveRequest.isPending ? <Loader2 size={14} className="animate-spin" /> : <CalendarPlus size={14} />} Create leave request
@@ -186,13 +211,21 @@ export function LeaveRequestForm() {
             </tr>
           </thead>
           <tbody>
-            {(leaveTypes ?? []).map((t, i) => (
-              <tr key={t.code} className="border-b border-border last:border-0">
-                <td className="px-4 py-2.5 text-text-muted">{i + 1}</td>
-                <td className="px-4 py-2.5 text-text!">{t.label}</td>
-                <td className="px-4 py-2.5 text-right text-text-muted">{t.balanceDays}</td>
+            {(leaveTypes ?? []).length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-4 text-center text-text-muted italic">
+                  No leave types configured.
+                </td>
               </tr>
-            ))}
+            ) : (
+              (leaveTypes ?? []).map((t, i) => (
+                <tr key={t.code || t.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5 text-text-muted">{i + 1}</td>
+                  <td className="px-4 py-2.5 text-text!">{t.label}</td>
+                  <td className="px-4 py-2.5 text-right text-text-muted">{t.balanceDays}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </Card>

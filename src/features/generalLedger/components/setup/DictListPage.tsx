@@ -5,16 +5,13 @@ import { List, Loader2, Plus, Power, Trash2 } from 'lucide-react'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { ListPagination } from '../../../../shared/components/ListPagination'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
-import { useDictList, useToggleDictStatus, useDeleteDictRow } from '../../dolibarrDict.queries'
-import type { DictRow } from '../../dolibarrDictParser'
+import type { DictRow } from '../../dictRow.types'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const PAGE_SIZE_OPTIONS = [15, 25, 50, 100]
 
-// Shared real list for every Dolibarr generic-dictionary page in this
-// module — see dolibarrDictParser.ts's own top comment for which pages
-// share this exact template and why Add/Edit stay unwired (each
-// dictionary's own field set differs too much to reproduce generically).
+// Shared list for the dictionary-style pages of this module (Chart of Accounts Models, Personalized Groups). Rows, the enable / disable
+// switch and the delete all go through a JSON endpoint by row id (`source`); Add/Edit stay unwired (each dictionary's own field set differs).
 export function DictListPage({
   icon: Icon,
   title,
@@ -29,20 +26,16 @@ export function DictListPage({
   columns: string[]
   // An extra row action that opens a page about the row (the classic "List of accounts" link); null hides it for that row.
   rowLink?: (row: DictRow) => { to: string; title: string } | null
-  // A dictionary with a JSON endpoint: rows come from `load` and the row actions go by row id instead of the scraped links.
-  source?: { load: () => Promise<DictRow[]>; setActive: (rowid: string, active: boolean) => Promise<void>; remove: (rowid: string) => Promise<void> }
+  // The dictionary's JSON endpoint: rows come from `load`, the switch and the delete act by row id.
+  source: { load: () => Promise<DictRow[]>; setActive: (rowid: string, active: boolean) => Promise<void>; remove: (rowid: string) => Promise<void> }
 }) {
-  const legacyList = useDictList(path, !source)
-  const jsonList = useQuery({ queryKey: ['generalLedger', 'dict', 'json', path], queryFn: () => source!.load(), enabled: !!source })
-  const { data: rows, isLoading, isError, error, refetch } = source ? jsonList : legacyList
+  const { data: rows, isLoading, isError, error, refetch } = useQuery({ queryKey: ['generalLedger', 'dict', path, 'json'], queryFn: () => source.load() })
   const queryClient = useQueryClient()
-  const jsonDone = () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'dict', 'json', path] })
-  const jsonToggle = useMutation({ mutationFn: ({ rowid, active }: { rowid: string; active: boolean }) => source!.setActive(rowid, active), onSuccess: jsonDone })
-  const jsonDelete = useMutation({ mutationFn: (rowid: string) => source!.remove(rowid), onSuccess: jsonDone })
-  const toggle = useToggleDictStatus(path)
-  const del = useDeleteDictRow(path)
+  const done = () => queryClient.invalidateQueries({ queryKey: ['generalLedger', 'dict', path, 'json'] })
+  const toggle = useMutation({ mutationFn: ({ rowid, active }: { rowid: string; active: boolean }) => source.setActive(rowid, active), onSuccess: done })
+  const del = useMutation({ mutationFn: (rowid: string) => source.remove(rowid), onSuccess: done })
   const confirm = useConfirm()
-  const actionError = (source ? (jsonToggle.error ?? jsonDelete.error) : null) as Error | null
+  const actionError = (toggle.error ?? del.error) as Error | null
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -166,8 +159,8 @@ export function DictListPage({
                           })()}
                           <button
                             type="button"
-                            disabled={source ? jsonToggle.isPending : !r.toggleUrl || toggle.isPending}
-                            onClick={() => (source ? jsonToggle.mutate({ rowid: r.rowid, active: !r.active }) : r.toggleUrl && toggle.mutate(r.toggleUrl))}
+                            disabled={toggle.isPending}
+                            onClick={() => toggle.mutate({ rowid: r.rowid, active: !r.active })}
                             title={r.active ? 'Disable' : 'Enable'}
                             className="text-text-muted hover:text-brand disabled:opacity-40"
                           >
@@ -175,11 +168,9 @@ export function DictListPage({
                           </button>
                           <button
                             type="button"
-                            disabled={source ? jsonDelete.isPending : !r.deleteUrl || del.isPending}
+                            disabled={del.isPending}
                             onClick={async () => {
-                              if (!(source || r.deleteUrl) || !(await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' }))) return
-                              if (source) jsonDelete.mutate(r.rowid)
-                              else del.mutate(r.deleteUrl!)
+                              if (await confirm({ title: 'Delete Entry?', message: 'Delete this entry on the real backend?' })) del.mutate(r.rowid)
                             }}
                             title="Delete"
                             className="text-danger hover:text-danger-fg disabled:opacity-40"

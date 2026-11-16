@@ -5,7 +5,7 @@ import { formatMoney } from '../../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useCreatePaymentMode } from '../../customerDetail.queries'
 import { useCustomerPaymentModes, useCustomerAccountsReceivable, useCustomerAccountsPayable, useCustomerGeneralLedger, type AccountingResponse } from '../../customerDetailTabs.queries'
-import { TabTitle } from './CustomerDetailShared'
+import { StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 // societe/api/paymentmodes.php — real llx_societe_rib rows (or
 // CompanyBankAccount when present), confirmed by reading that file
@@ -32,6 +32,7 @@ export function PaymentModesTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
+      <StickyTabHead>
       <div className="flex items-center justify-between">
         <TabTitle>Payment modes</TabTitle>
         {data.can_edit && (
@@ -44,6 +45,7 @@ export function PaymentModesTab({ socid }: { socid: string | undefined }) {
           </button>
         )}
       </div>
+      </StickyTabHead>
       {showForm && (
         <Card className="!h-auto">
           {createMode.isError && <p className="text-sm text-danger mb-2">{createMode.error instanceof Error ? createMode.error.message : 'Failed to add payment mode.'}</p>}
@@ -119,7 +121,9 @@ function AccountingSummaryTab({
 
     return (
       <div className="space-y-3">
-        <TabTitle>{title}</TabTitle>
+        <StickyTabHead>
+          <TabTitle>{title}</TabTitle>
+        </StickyTabHead>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="!h-auto">
             <p className="text-xs text-text-faint uppercase tracking-wide">Total invoiced</p>
@@ -195,7 +199,9 @@ export function GeneralLedgerTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle>General ledger</TabTitle>
+      <StickyTabHead>
+        <TabTitle>General ledger</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto">
         {data.movements.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-10 text-center">

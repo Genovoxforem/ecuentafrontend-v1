@@ -1,7 +1,9 @@
-import { Loader2, AlertTriangle } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../routes'
+import { ErrorState } from '../../../shared/components/ErrorState'
+import { LegacyReconnectForm } from '../../../shared/components/LegacyReconnect'
 
 // Shared loading/error states for the report pages that scrape real legacy
 // pages client-side (Stocks, Stocks By Lot, Lots/Serials, Variant
@@ -31,22 +33,13 @@ export function SaleStatusBadge({ value }: { value: string }) {
 export function LegacyErrorCard({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
   const isAuthIssue = message.toLowerCase().includes('signed in')
   return (
-    <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
-      <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <p className="text-sm font-semibold text-danger-fg">{title}</p>
-        <p className="text-xs text-danger-fg/80 mt-0.5">{message}</p>
-        <div className="flex items-center gap-3 mt-2">
-          <button type="button" onClick={onRetry} className="text-xs font-medium text-danger-fg underline">
-            Retry
-          </button>
-          {isAuthIssue && (
-            <Link to={ROUTES.login} className="text-xs font-medium text-danger-fg underline">
-              Go to login
-            </Link>
-          )}
-        </div>
-      </div>
-    </Card>
+    <ErrorState title={title} message={message} onRetry={onRetry}>
+      {isAuthIssue && (
+        <Link to={ROUTES.login} className="text-sm font-medium text-brand hover:underline">
+          Go to login
+        </Link>
+      )}
+      {isAuthIssue && <LegacyReconnectForm />}
+    </ErrorState>
   )
 }

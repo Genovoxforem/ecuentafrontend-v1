@@ -19,6 +19,7 @@ import { contractsRoutes } from './app/routes/contractsRoutes'
 import { customersRoutes } from './app/routes/customersRoutes'
 import { expensesRoutes } from './app/routes/expensesRoutes'
 import { fixedAssetRoutes } from './app/routes/fixedAssetRoutes'
+import { installmentRoutes } from './app/routes/installmentRoutes'
 import { hotelRoutes } from './app/routes/hotelRoutes'
 import { invoicesRoutes } from './app/routes/invoicesRoutes'
 import { ledgerRoutes } from './app/routes/ledgerRoutes'
@@ -26,6 +27,7 @@ import { loansRoutes } from './app/routes/loansRoutes'
 import { miscRoutes } from './app/routes/miscRoutes'
 import { payrollRoutes } from './app/routes/payrollRoutes'
 import { payrollV2Routes } from './app/routes/payrollV2Routes'
+import { pharmacyRoutes } from './app/routes/pharmacyRoutes'
 import { productsRoutes } from './app/routes/productsRoutes'
 import { projectsRoutes } from './app/routes/projectsRoutes'
 import { purchasesRoutes } from './app/routes/purchasesRoutes'
@@ -352,6 +354,8 @@ function App() {
                           }
                         />
                       </Route>
+                      {/* Standalone Pharmacy suite (custom/pharmacy/app.php): own sidebar/header, outside AppLayout like the Hotel Suite. */}
+                      {pharmacyRoutes()}
                       <Route element={<AppLayout />}>
                         {bankingRoutes()}
                         {contractsRoutes()}
@@ -359,6 +363,7 @@ function App() {
                         {expensesRoutes()}
                         {fixedAssetRoutes()}
                         {hotelRoutes()}
+                        {installmentRoutes()}
                         {invoicesRoutes()}
                         {ledgerRoutes()}
                         {loansRoutes()}

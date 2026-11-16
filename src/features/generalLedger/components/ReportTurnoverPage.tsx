@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FileSpreadsheet, Loader2, Printer, TrendingUp } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
@@ -34,7 +35,10 @@ function exportCsv(d: TurnoverReport) {
 // turnoverInvoiced.types.ts). Read-only: period and accounting basis are the
 // backend page's own parameters.
 export function ReportTurnoverPage() {
-  const [applied, setApplied] = useState<TurnoverFilters>({ start: '', end: '', basis: 'BOOKKEEPING' })
+  // The Reports Center entries open this page with the basis of the classic link (?basis=CREANCES-DETTES for Turnover Invoices, RECETTES-DEPENSES for Turnover collected).
+  const [search] = useSearchParams()
+  const asked = search.get('basis') ?? ''
+  const [applied, setApplied] = useState<TurnoverFilters>({ start: '', end: '', basis: TURNOVER_BASIS_OPTIONS.some((o) => o.value === asked) ? asked : 'BOOKKEEPING' })
   const [draft, setDraft] = useState<TurnoverFilters | null>(null)
   const { data, isLoading, isFetching, isError, error, refetch } = useTurnoverInvoiced(applied)
 

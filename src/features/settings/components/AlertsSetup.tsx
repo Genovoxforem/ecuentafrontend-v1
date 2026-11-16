@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   CalendarClock,
@@ -15,56 +15,82 @@ import {
 } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { SetupShell } from './SetupShell'
+import { changedSettings, useSaveStoredSettings, useStoredSettings, type StoredValues } from '../storedSettings.data'
 
-const inputCls = 'w-16 h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30'
+const inputCls = 'w-16 h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm text-right outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60'
 
 interface AlertRow {
-  key: string
+  // the setting constant the classic admin/delais.php edit form posts (read from that form on newecuenta, 6 Nov 2026: the same 16 inputs in this order)
+  constant: string
   icon: LucideIcon
   label: string
-  days: number
 }
 
-// The reference app's own real alert catalog (its GET /admin/delais.php
-// content, reproduced from the screenshot) — each is a "warn after N days"
-// threshold, not a live alert feed, so there's nothing to fetch beyond the
-// threshold value itself. No alerts-config endpoint exists on this backend
-// (this is a Dolibarr llx_const-table page), so these are local-only,
-// same convention as Widgets/Default Values elsewhere in this app.
-const DEFAULT_ALERTS: AlertRow[] = [
-  { key: 'agenda_events', icon: CalendarClock, label: 'Planned Events (Agenda Events) Not Completed', days: 7 },
-  { key: 'project_not_closed', icon: Network, label: 'Project Not Closed In Time', days: 7 },
-  { key: 'task_not_completed', icon: ListChecks, label: 'Planned Task (Project Tasks) Not Completed', days: 7 },
-  { key: 'proposal_not_closed', icon: FileEdit, label: 'Proposal Not Closed', days: 31 },
-  { key: 'proposal_not_billed', icon: FileEdit, label: 'Proposal Not Billed', days: 7 },
-  { key: 'order_not_processed', icon: FileText, label: 'Order Not Processed', days: 2 },
-  { key: 'unpaid_customer_invoice', icon: FileText, label: 'Unpaid Customer Invoice', days: 31 },
-  { key: 'purchase_order_not_processed', icon: FileText, label: 'Purchase Order Not Processed', days: 7 },
-  { key: 'unpaid_vendor_invoice', icon: FileText, label: 'Unpaid Vendor Invoice', days: 2 },
-  { key: 'service_to_activate', icon: Cloud, label: 'Service To Activate', days: 0 },
-  { key: 'expired_service', icon: Cloud, label: 'Expired Service', days: 0 },
-  { key: 'pending_bank_reconciliation', icon: Landmark, label: 'Pending Bank Reconciliation', days: 62 },
-  { key: 'check_deposit_not_done', icon: Landmark, label: 'Check Deposit Not Done', days: 0 },
-  { key: 'delayed_membership_fee', icon: User, label: 'Delayed Membership Fee', days: 31 },
-  { key: 'expense_report_to_approve', icon: Briefcase, label: 'Expense Report To Approve', days: 15 },
-  { key: 'leave_requests_to_approve', icon: CalendarOff, label: 'Leave Requests To Approve', days: 0 },
+const ALERTS: AlertRow[] = [
+  { constant: 'MAIN_DELAY_ACTIONS_TODO', icon: CalendarClock, label: 'Planned Events (Agenda Events) Not Completed' },
+  { constant: 'MAIN_DELAY_PROJECT_TO_CLOSE', icon: Network, label: 'Project Not Closed In Time' },
+  { constant: 'MAIN_DELAY_TASKS_TODO', icon: ListChecks, label: 'Planned Task (Project Tasks) Not Completed' },
+  { constant: 'MAIN_DELAY_PROPALS_TO_CLOSE', icon: FileEdit, label: 'Proposal Not Closed' },
+  { constant: 'MAIN_DELAY_PROPALS_TO_BILL', icon: FileEdit, label: 'Proposal Not Billed' },
+  { constant: 'MAIN_DELAY_ORDERS_TO_PROCESS', icon: FileText, label: 'Order Not Processed' },
+  { constant: 'MAIN_DELAY_CUSTOMER_BILLS_UNPAYED', icon: FileText, label: 'Unpaid Customer Invoice' },
+  { constant: 'MAIN_DELAY_SUPPLIER_ORDERS_TO_PROCESS', icon: FileText, label: 'Purchase Order Not Processed' },
+  { constant: 'MAIN_DELAY_SUPPLIER_BILLS_TO_PAY', icon: FileText, label: 'Unpaid Vendor Invoice' },
+  { constant: 'MAIN_DELAY_NOT_ACTIVATED_SERVICES', icon: Cloud, label: 'Service To Activate' },
+  { constant: 'MAIN_DELAY_RUNNING_SERVICES', icon: Cloud, label: 'Expired Service' },
+  { constant: 'MAIN_DELAY_TRANSACTIONS_TO_CONCILIATE', icon: Landmark, label: 'Pending Bank Reconciliation' },
+  { constant: 'MAIN_DELAY_CHEQUES_TO_DEPOSIT', icon: Landmark, label: 'Check Deposit Not Done' },
+  { constant: 'MAIN_DELAY_MEMBERS', icon: User, label: 'Delayed Membership Fee' },
+  { constant: 'MAIN_DELAY_EXPENSEREPORTS', icon: Briefcase, label: 'Expense Report To Approve' },
+  { constant: 'MAIN_DELAY_HOLIDAYS', icon: CalendarOff, label: 'Leave Requests To Approve' },
 ]
 
-const IMAGE_THRESHOLDS = ['<= 0', '<= 10', '<= 20', '<= 30', '> 30']
+// "Disable meteorological view": the select of the classic form (values 0 / 1 / 2).
+const METEO_OPTIONS = [
+  { value: '0', label: 'No' },
+  { value: '1', label: 'Yes' },
+  { value: '2', label: 'On small screen (smartphone) only' },
+]
+const METEO_LEVELS = ['MAIN_METEO_LEVEL0', 'MAIN_METEO_LEVEL1', 'MAIN_METEO_LEVEL2', 'MAIN_METEO_LEVEL3']
 
+// What the classic form shows for a setting that is not stored: a delay of 0 and the meteo defaults (0 / 10 / 20 / 30).
+const DEFAULTS: StoredValues = {
+  ...Object.fromEntries(ALERTS.map((a) => [a.constant, '0'])),
+  MAIN_DISABLE_METEO: '0',
+  MAIN_METEO_LEVEL0: '0',
+  MAIN_METEO_LEVEL1: '10',
+  MAIN_METEO_LEVEL2: '20',
+  MAIN_METEO_LEVEL3: '30',
+}
+
+// Setup > Alerts: the delays are the MAIN_DELAY_* constants and the weather-icon setting, read with core/fapi/constants.php and saved with
+// admin/fapi/const_save.php (only the ones that changed). The image thresholds are drawn from the stored MAIN_METEO_LEVEL values.
 export function AlertsSetup() {
-  const [alerts, setAlerts] = useState(DEFAULT_ALERTS)
-  const [disableMeteo, setDisableMeteo] = useState('No')
-  const [saved, setSaved] = useState(false)
+  const stored = useStoredSettings(DEFAULTS)
+  const save = useSaveStoredSettings()
+  const [form, setForm] = useState<StoredValues>(DEFAULTS)
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
-  function setDays(key: string, days: number) {
-    setAlerts((cur) => cur.map((a) => (a.key === key ? { ...a, days } : a)))
+  useEffect(() => {
+    if (stored.data) setForm(stored.data.values)
+  }, [stored.data])
+
+  const set = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }))
+
+  async function handleModify() {
+    setMessage(null)
+    const changes = changedSettings(stored.data?.values ?? DEFAULTS, form)
+    if (Object.keys(changes).length === 0) return setMessage({ ok: true, text: 'Nothing to save: no setting was changed.' })
+    try {
+      const n = await save.mutateAsync(changes)
+      setMessage({ ok: true, text: `Saved (${n} setting${n === 1 ? '' : 's'}).` })
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof Error ? e.message : 'Could not save the settings.' })
+    }
   }
 
-  function handleModify() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
+  const levels = METEO_LEVELS.map((n) => form[n])
+  const thresholds = [`<= ${levels[0]}`, `<= ${levels[1]}`, `<= ${levels[2]}`, `<= ${levels[3]}`, `> ${levels[3]}`]
 
   return (
     <SetupShell
@@ -77,21 +103,23 @@ export function AlertsSetup() {
       }
       onSave={handleModify}
       saveLabel="Modify"
-      saved={saved ? 'Saved (session-only — no alerts-config endpoint exists on this backend yet).' : undefined}
+      saving={save.isPending}
+      saveDisabled={!stored.data}
+      saved={message ? <span className={message.ok ? undefined : 'text-danger'}>{message.text}</span> : stored.isError ? <span className="text-danger">The stored delays could not be read (administrators only).</span> : undefined}
     >
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
           <span>Delay Before Displaying A Warning Alert For:</span>
           <span>Value</span>
         </div>
-        {alerts.map((a) => (
-          <div key={a.key} className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0 gap-4">
+        {ALERTS.map((a) => (
+          <div key={a.constant} className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0 gap-4">
             <span className="flex items-center gap-2.5 text-sm text-brand min-w-0">
               <a.icon size={15} className="shrink-0 text-text-muted" />
               <span className="truncate">{a.label}</span>
             </span>
             <span className="flex items-center gap-1.5 shrink-0">
-              <input type="number" min={0} value={a.days} onChange={(e) => setDays(a.key, Number(e.target.value))} className={inputCls} />
+              <input type="number" min={0} value={form[a.constant]} onChange={(e) => set(a.constant, e.target.value)} disabled={!stored.data} aria-label={a.label} className={inputCls} />
               <span className="text-sm text-text-muted">Days</span>
             </span>
           </div>
@@ -103,9 +131,12 @@ export function AlertsSetup() {
         </div>
         <div className="flex items-center justify-between px-4 py-2.5">
           <span className="text-sm text-brand">Disable Meteorological View</span>
-          <select value={disableMeteo} onChange={(e) => setDisableMeteo(e.target.value)} className="h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
-            <option>No</option>
-            <option>Yes</option>
+          <select value={form.MAIN_DISABLE_METEO} onChange={(e) => set('MAIN_DISABLE_METEO', e.target.value)} disabled={!stored.data} aria-label="Disable Meteorological View" className="h-8 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none">
+            {METEO_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </div>
       </Card>
@@ -113,12 +144,11 @@ export function AlertsSetup() {
       <Card className="!h-auto">
         <p className="text-sm text-text-muted mb-2">The following images will be shown on the dashboard when the number of late actions reach the following values: Standard mode enabled</p>
         <ul className="text-sm text-text-muted space-y-1">
-          {IMAGE_THRESHOLDS.map((t) => (
-            <li key={t}>{t}</li>
+          {thresholds.map((t, i) => (
+            <li key={i}>{t}</li>
           ))}
         </ul>
       </Card>
-
     </SetupShell>
   )
 }

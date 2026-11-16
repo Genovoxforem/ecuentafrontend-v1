@@ -2,17 +2,15 @@ import { useState } from 'react'
 import { PackageSearch, Info, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { DisabledFormModal } from '../../../shared/components/forms/DisabledFormModal'
+import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
+import { useLoanProducts } from '../loans.queries'
 
-// Design only: custom/loanmanagement/loan_product.php (read directly) is a
-// genuine llx_loan_product CRUD page, but its create/update/delete actions
-// are all plain PHP POST + redirect (action=save_loan_product) or ajax.php
-// actions with no JSON response contract — no fetchable list either.
-// Columns match the real table exactly (Name, Interest Rate, Interest Type,
-// Max Term, Term Period, Action); Interest Type options are the same 5 real
-// values loan_calculator.php implements (see loans.queries.ts's
-// LoanInterestType), not invented here.
+// The list reads custom/loanmanagement/fapi/products.php. The Add New form stays disabled and the Action column empty: the
+// create / update / delete of loan_product.php are plain PHP POST + redirect (action=save_loan_product) or ajax.php actions
+// with no JSON contract. Interest Type is shown as the API prints it (for example "flat").
 export function LoanProductsPage() {
   const [showAddProduct, setShowAddProduct] = useState(false)
+  const { data: products, isLoading, isError, error, refetch } = useLoanProducts()
 
   return (
     <div className="space-y-4">
@@ -53,6 +51,9 @@ export function LoanProductsPage() {
         />
       )}
 
+      {isLoading && <LegacyLoadingCard label="Loading…" />}
+      {isError && <LegacyErrorCard title="Couldn't load loan products" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+
       <Card className="!h-auto !p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -66,11 +67,23 @@ export function LoanProductsPage() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
-                No live listing API on this backend — loan_product.php renders its table as server-side HTML with no JSON source.
-              </td>
-            </tr>
+            {products && products.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-text-faint italic text-center">
+                  No loan products found.
+                </td>
+              </tr>
+            )}
+            {(products ?? []).map((p) => (
+              <tr key={p.id} className="border-b border-border last:border-0">
+                <td className="px-4 py-2 text-text!">{p.name}</td>
+                <td className="px-4 py-2 text-text-muted">{p.interestRate}%</td>
+                <td className="px-4 py-2 text-text-muted">{p.interestType}</td>
+                <td className="px-4 py-2 text-text-muted">{p.term}</td>
+                <td className="px-4 py-2 text-text-muted">{p.termPeriod}</td>
+                <td className="px-4 py-2" />
+              </tr>
+            ))}
           </tbody>
         </table>
       </Card>

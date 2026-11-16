@@ -1,5 +1,6 @@
 import { fapiGet } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
+import { usDateFromIso } from '../../utils/dates'
 import type { LegacyCell, LegacyFilter, LegacyTable } from './legacyTable'
 
 // The special-payment lists on compta/sociales|tva|bank/various_payment/fapi, salaries/fapi, loan/fapi and don/fapi (22 Oct 2026), shown as
@@ -13,6 +14,29 @@ const bank = (b: { ref?: string; label?: string } | null | undefined) => (b ? [b
 const pageParams = (p: Record<string, string>, base: 0 | 1) => ({ page: Number(p.page ?? 0) + base, limit: Number(p.limit ?? 25) })
 
 interface BankAccount { id: number; ref: string; label: string }
+
+// Amounts as the classic lists print them (read on 172.16.5.10, 6 Nov 2026): "1,010.00", "-500.00" and "7,446.5465" - two decimals, more only when the
+// amount has them (up to four).
+const shown = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+
+// The payment types (code -> label) and the chart of accounts ("2072 - Sales Tax payable") the lists print in words: the meta answers of the two
+// forms carry them. One read per session.
+interface PaymentMode { code: string; label: string }
+const metaCache = new Map<string, Promise<Record<string, unknown>>>()
+const meta = (path: string) => {
+  let hit = metaCache.get(path)
+  if (!hit) {
+    hit = fapiGet<Record<string, unknown>>(path).catch((e) => {
+      metaCache.delete(path)
+      throw e
+    })
+    metaCache.set(path, hit)
+  }
+  return hit
+}
+const modeLabels = (m: Record<string, unknown>): Record<string, string> => Object.fromEntries(((m.payment_modes as PaymentMode[] | undefined) ?? []).map((x) => [x.code, x.label]))
+const accountDisplays = (m: Record<string, unknown>): Record<string, string> =>
+  Object.fromEntries(((m.accounting_accounts as Array<{ account_number: string; display: string }> | undefined) ?? []).map((x) => [x.account_number, x.display]))
 
 // ---- Social / fiscal taxes: compta/sociales/fapi/list.php ------------------------------------------------------------------------
 
@@ -72,49 +96,86 @@ export interface FapiVatPayments {
   totals: { amount: number }
 }
 
-export function mapVatPayments(d: FapiVatPayments, params: Record<string, string> = {}): LegacyTable {
+// Columns of the classic compta/tva/list.php, compared row by row with the API on 172.16.5.10 (2 payments, 6 Nov 2026): the classic page prints the
+// payment type in words ("Credit" for code 02), the bank entry id (54) and the bank account ref (Cash_Account) in two columns, dates in the instance
+// format and the amount with its decimals (1,010.00 / -500.00).
+export function mapVatPayments(d: FapiVatPayments, params: Record<string, string> = {}, modes: Record<string, string> = {}): LegacyTable {
   return {
-    headers: ['Ref', 'Label', 'End date for period', 'Payment date', 'Payment type', 'Number', 'Bank account', 'Amount'],
-    filters: [textFilter('search_ref', params), textFilter('search_label', params), null, null, null, textFilter('search_cheque', params), null, textFilter('search_amount', params)],
-    rows: d.items.map((v) => [cell(v.ref), cell(v.label), cell(v.date_period_end), cell(v.date_payment), cell(v.payment_type_code), cell(v.num_payment), cell(bank(v.bank_account)), cell(money(v.amount))]),
-    totals: d.items.length ? [[cell('Total'), cell(''), cell(''), cell(''), cell(''), cell(''), cell(''), cell(money(d.totals.amount))]] : [],
+    headers: ['Ref.', 'Label', 'End date for period', 'Date of payment', 'Type', 'Number', 'Bank entry', 'Account', 'Paid by this payment'],
+    filters: [textFilter('search_ref', params), textFilter('search_label', params), null, null, null, textFilter('search_cheque', params), null, null, textFilter('search_amount', params)],
+    rows: d.items.map((v) => [
+      cell(v.ref),
+      cell(v.label),
+      cell(usDateFromIso(v.date_period_end)),
+      cell(usDateFromIso(v.date_payment)),
+      cell(v.payment_type_code ? (modes[v.payment_type_code] ?? v.payment_type_code) : ''),
+      cell(v.num_payment),
+      cell(v.fk_bank),
+      { ...cell(v.bank_account?.ref), href: v.bank_account ? `/compta/bank/card.php?id=${v.bank_account.id}` : null },
+      cell(shown(v.amount)),
+    ]),
+    totals: d.items.length ? [[cell('Total'), ...Array(7).fill(cell('')), cell(shown(d.totals.amount))]] : [],
     fields: {},
   }
 }
 
-export const loadVatPayments = async (p: Record<string, string>) =>
-  mapVatPayments(await fapiGet<FapiVatPayments>('/compta/tva/fapi/list.php', { ...pageParams(p, 0), search_ref: p.search_ref, search_label: p.search_label, search_cheque: p.search_cheque, search_amount: p.search_amount }), p)
+export const loadVatPayments = async (p: Record<string, string>) => {
+  const [list, m] = await Promise.all([
+    fapiGet<FapiVatPayments>('/compta/tva/fapi/list.php', { ...pageParams(p, 0), search_ref: p.search_ref, search_label: p.search_label, search_cheque: p.search_cheque, search_amount: p.search_amount }),
+    meta('/compta/tva/fapi/meta.php').catch(() => ({})),
+  ])
+  return mapVatPayments(list, p, modeLabels(m))
+}
 
 // ---- Miscellaneous payments: compta/bank/various_payment/fapi/list.php ------------------------------------------------------------
 
 export interface FapiVariousPayments {
   items: Array<{
-    id: number; ref: string; label: string; date_payment: string | null; date_value: string | null; sens: number; payment_type_code: string | null
-    num_payment: string | null; fk_bank: number | null; bank_account: BankAccount | null; accountancy_code: string | null; subledger_account: string | null
-    debit: number; credit: number
+    id: number; ref: string; label: string; date_payment: string | null; date_value: string | null; sens: number; payment_type_code: string | null; payment_type_label?: string | null
+    num_payment: string | null; fk_bank: number | null; bank_line_id?: number | null; bank_account: BankAccount | null; accountancy_code: string | null; subledger_account: string | null
+    project_id?: number | null; debit: number; credit: number
   }>
   totals: { debit: number; credit: number }
 }
 
-export function mapVariousPayments(d: FapiVariousPayments, params: Record<string, string> = {}): LegacyTable {
+// Columns of the classic compta/bank/various_payment/list.php, compared row by row with the API on 172.16.5.10 (2 payments, 6 Nov 2026): Ref. | Label | Date
+// of payment | Value date | Payment Type (in words) | Project | Bank account (the ref only) | Bank entry (the bank line id) | Account ("2072 - Sales Tax payable",
+// from the chart of accounts) | Subledger account | Debit | Credit. There is no Number column. The row has the project id only, where the classic page prints
+// the project ref (no payment with a project exists to compare), so a project shows as its id.
+export function mapVariousPayments(d: FapiVariousPayments, params: Record<string, string> = {}, accounts: Record<string, string> = {}): LegacyTable {
   return {
-    headers: ['Ref', 'Label', 'Payment date', 'Value date', 'Payment type', 'Number', 'Bank account', 'Account', 'Subledger account', 'Debit', 'Credit'],
-    filters: [textFilter('search_ref', params), textFilter('search_label', params), null, null, null, null, null, textFilter('search_accountancy_account', params), textFilter('search_accountancy_subledger', params), textFilter('search_amount_deb', params), textFilter('search_amount_cred', params)],
-    rows: d.items.map((v) => [{ ...cell(v.ref), href: `/compta/bank/various_payment/card.php?id=${v.id}` }, cell(v.label), cell(v.date_payment), cell(v.date_value), cell(v.payment_type_code), cell(v.num_payment), cell(bank(v.bank_account)), cell(v.accountancy_code), cell(v.subledger_account), cell(v.debit ? money(v.debit) : ''), cell(v.credit ? money(v.credit) : '')]),
-    totals: d.items.length ? [[cell('Total'), ...Array(8).fill(cell('')), cell(money(d.totals.debit)), cell(money(d.totals.credit))]] : [],
+    headers: ['Ref.', 'Label', 'Date of payment', 'Value date', 'Payment Type', 'Project', 'Bank account', 'Bank entry', 'Account', 'Subledger account', 'Debit', 'Credit'],
+    filters: [textFilter('search_ref', params), textFilter('search_label', params), null, null, null, null, null, null, textFilter('search_accountancy_account', params), textFilter('search_accountancy_subledger', params), textFilter('search_amount_deb', params), textFilter('search_amount_cred', params)],
+    rows: d.items.map((v) => [
+      { ...cell(v.ref), href: `/compta/bank/various_payment/card.php?id=${v.id}` },
+      cell(v.label),
+      cell(usDateFromIso(v.date_payment)),
+      cell(usDateFromIso(v.date_value)),
+      cell(v.payment_type_label ?? v.payment_type_code),
+      cell(v.project_id ? `#${v.project_id}` : ''),
+      { ...cell(v.bank_account?.ref), href: v.bank_account ? `/compta/bank/card.php?id=${v.bank_account.id}` : null },
+      { ...cell(v.bank_line_id ?? v.fk_bank), href: v.bank_line_id ?? v.fk_bank ? `/compta/bank/line.php?rowid=${v.bank_line_id ?? v.fk_bank}` : null },
+      cell(v.accountancy_code ? (accounts[v.accountancy_code] ?? v.accountancy_code) : ''),
+      cell(v.subledger_account),
+      cell(v.debit ? shown(v.debit) : ''),
+      cell(v.credit ? shown(v.credit) : ''),
+    ]),
+    totals: d.items.length ? [[cell('Total'), ...Array(9).fill(cell('')), cell(shown(d.totals.debit)), cell(shown(d.totals.credit))]] : [],
     fields: {},
   }
 }
 
-export const loadVariousPayments = async (p: Record<string, string>) =>
-  mapVariousPayments(
-    await fapiGet<FapiVariousPayments>('/compta/bank/various_payment/fapi/list.php', {
+export const loadVariousPayments = async (p: Record<string, string>) => {
+  const [list, m] = await Promise.all([
+    fapiGet<FapiVariousPayments>('/compta/bank/various_payment/fapi/list.php', {
       ...pageParams(p, 0),
       search_ref: p.search_ref, search_label: p.search_label, search_amount_deb: p.search_amount_deb, search_amount_cred: p.search_amount_cred,
       search_accountancy_account: p.search_accountancy_account, search_accountancy_subledger: p.search_accountancy_subledger,
     }),
-    p,
-  )
+    meta('/compta/bank/various_payment/fapi/meta.php').catch(() => ({})),
+  ])
+  return mapVariousPayments(list, p, accountDisplays(m))
+}
 
 // ---- Salary payments: salaries/fapi/list.php (page is 1-based) --------------------------------------------------------------------
 

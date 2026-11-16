@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
 import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import type { BankAccountRow } from '../banking/banking.queries'
 import {
   parseLegacyHomeDashboard,
   type DashAttention,
   type DashBank,
+  type DashInvoiceRow,
   type DashKpi,
   type DashKpiKey,
   type DashQuickAction,
@@ -106,4 +108,40 @@ export function fromLegacyDashboard(legacy: LegacyHomeDashboard, accounts: BankA
     attention: legacy.attention,
     quickActions: legacy.quickActions.length ? legacy.quickActions : QUICK_ACTIONS,
   }
+}
+
+// core/fapi/home_dashboard.php: the figures the dashboard's own SQL gives, as JSON with the API key (no session
+// cookie). It carries the KPIs, the sales / purchase period totals, the newest 7 invoices of each side, the bank
+// balances and the attention list. It has no donut, order / quotation tiles, period charts or country map, so those
+// stay with the classic page (or the computed fallback) and this answer only fills what they lack.
+export interface FapiHomeDashboard {
+  currency: string
+  kpis: DashKpi[]
+  sales: { last7: DashInvoiceRow[] }
+  purchase: { last7: DashInvoiceRow[] }
+  attention: DashAttention[]
+}
+
+export function useFapiHomeDashboard() {
+  return useQuery({
+    queryKey: ['dashboard', 'fapi-home'],
+    queryFn: () => fapiGet<FapiHomeDashboard>('/core/fapi/home_dashboard.php'),
+    staleTime: 1000 * 60,
+    retry: false,
+  })
+}
+
+// Fills a dashboard from the home_dashboard.php answer: the newest invoices where the page shows none ("No sales yet"
+// on the scraped page while the table has rows), and, for the computed fallback, the exact unpaid / ZRA-signed KPIs
+// and the attention list the invoice lists cannot give. A dashboard read from the classic page keeps its own figures.
+export function withFapiHome(base: HomeDashboard, f: FapiHomeDashboard | undefined): HomeDashboard {
+  if (!f) return base
+  const fill = (side: HomeDashboard['sales'], rows: DashInvoiceRow[] | undefined) => (side.last7.length === 0 && rows?.length ? { ...side, last7: rows } : side)
+  const next: HomeDashboard = { ...base, sales: fill(base.sales, f.sales?.last7), purchase: fill(base.purchase, f.purchase?.last7) }
+  if (base.source !== 'computed') return next
+  const kpis = { ...base.kpis }
+  for (const k of f.kpis ?? []) {
+    if ((k.key === 'unpaid' || k.key === 'zraSigned') && k.value !== null) kpis[k.key] = { ...k, label: kpis[k.key]?.label ?? k.label, trend: k.trend ?? null, spark: k.spark ?? [] }
+  }
+  return { ...next, kpis, attention: f.attention?.length ? f.attention : base.attention }
 }

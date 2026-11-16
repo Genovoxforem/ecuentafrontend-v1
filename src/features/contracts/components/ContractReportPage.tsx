@@ -5,6 +5,8 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { useContractsList, type ContractRow } from '../contracts.queries'
+import { useCustomerOptions } from '../../customers/customerOptions'
+import { useUsersSummary } from '../../users/users.queries'
 
 const selectCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30 appearance-none'
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
@@ -87,16 +89,28 @@ export function ContractReportPage() {
   const { data: contractRows } = useContractsList()
   const [thirdPartyFilter, setThirdPartyFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [salesRepFilter, setSalesRepFilter] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
+  // The third-party and user pickers list every customer and user, as the classic report's selects do, not only those
+  // that already appear on a contract (a list built from the contracts is empty on an install without any).
+  const { data: customers } = useCustomerOptions()
+  const { data: usersSummary } = useUsersSummary()
 
   const contracts = useMemo(() => contractRows ?? [], [contractRows])
   const thirdParties = useMemo(() => Array.from(new Set(contracts.map((c) => c.thirdParty))).sort(), [contracts])
+  const userNames = useMemo(() => (usersSummary?.users ?? []).filter((u) => u.status === 'Enabled').map((u) => u.name).sort((a, b) => a.localeCompare(b)), [usersSummary])
 
   const filtered = useMemo(
-    () => contracts.filter((c) => (!thirdPartyFilter || c.thirdParty === thirdPartyFilter) && (!statusFilter || statusOf(c) === statusFilter)),
-    [contracts, thirdPartyFilter, statusFilter],
+    () =>
+      contracts.filter(
+        (c) =>
+          (!thirdPartyFilter || c.thirdPartyId === thirdPartyFilter) &&
+          (!statusFilter || statusOf(c) === statusFilter) &&
+          (!salesRepFilter || c.salesRep.split(', ').includes(salesRepFilter)),
+      ),
+    [contracts, thirdPartyFilter, statusFilter, salesRepFilter],
   )
   const searched = useMemo(() => filtered.filter((c) => matchesSearch(c, search)), [filtered, search])
   const { sorted, sort, toggleSort } = useSortableRows<ContractRow, SortKey>(searched, sortValue)
@@ -132,9 +146,9 @@ export function ContractReportPage() {
               <label className="block text-xs text-text-faint mb-1">Third Party</label>
               <select value={thirdPartyFilter} onChange={(e) => setThirdPartyFilter(e.target.value)} className={selectCls}>
                 <option value="">Select a third party</option>
-                {thirdParties.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {(customers ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -151,13 +165,19 @@ export function ContractReportPage() {
             </div>
             <div>
               <label className="block text-xs text-text-faint mb-1">Sales representatives</label>
-              <select className={selectCls} disabled>
-                <option>Select a users</option>
+              <select value={salesRepFilter} onChange={(e) => setSalesRepFilter(e.target.value)} className={selectCls}>
+                <option value="">Select a users</option>
+                {userNames.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-xs text-text-faint mb-1">Technical representatives</label>
-              <select className={selectCls} disabled>
+              {/* contrat/fapi/list.php rows carry the sales reps only, so there is nothing to filter a technical rep on yet. */}
+              <select className={selectCls} disabled title="The contract list has no technical representative to filter on">
                 <option>Select a users</option>
               </select>
             </div>

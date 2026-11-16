@@ -8,7 +8,7 @@ import { ListPagination } from '../../../shared/components/ListPagination'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { useBankAccountsDetailedList, type BankAccountStatusFilter } from '../banking.queries'
-import type { BankAccountListRow } from '../bankAccountsListParser'
+import type { BankAccountListRow } from '../bankAccountsList.types'
 import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 

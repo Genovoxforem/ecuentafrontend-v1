@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2 } from 'lucide-react'
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { LegacyErrorCard, LegacyLoadingCard } from '../../../products/components/LegacyReportStates'
 import { useMailSettings, useSaveMailSettings, useTestMailConnection, type MailPageKey } from '../../emails/emails.queries'
-import type { MailFormField } from '../../emails/mailSettingsParser'
+import type { MailFormField } from '../../emails/mailSettings.data'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = inputCls + ' appearance-none'
@@ -131,9 +131,8 @@ function Control({ field, value, onChange, label }: { field: MailFormField; valu
   )
 }
 
-// Emails setup > Outgoing emails, and Outgoing emails (for module Ticket): the backend's
-// own settings form (admin/mails.php / mails_ticket.php `?action=edit`), read and saved
-// through the same requests the page sends.
+// Emails setup > Outgoing emails, and Outgoing emails (for module Ticket): the MAIN_MAIL_* constants, read from core/fapi/constants.php and saved with
+// admin/fapi/const_save.php (the SMTP password and the DKIM key come back redacted: shown empty, saved only when typed).
 export function OutgoingEmailsTab({ page }: { page: MailPageKey }) {
   const config = PAGES[page]
   const { data: form, isLoading, isError, error, refetch } = useMailSettings(page)

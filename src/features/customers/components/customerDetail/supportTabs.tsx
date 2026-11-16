@@ -6,7 +6,7 @@ import { ROUTES } from '../../../../routes'
 import { formatMoney } from '../../../../utils/format'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useCustomerTickets, useCustomerProjects, useCustomerExpenses, type TicketsFilters } from '../../customerDetailTabs.queries'
-import { TabTitle } from './CustomerDetailShared'
+import { StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 // societe/api/tickets.php — real llx_ticket rows scoped to this third
 // party, confirmed by reading that file directly (real filters/status
@@ -35,6 +35,7 @@ export function TicketsTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
+      <StickyTabHead>
       <div className="flex items-center justify-between">
         <TabTitle>Tickets</TabTitle>
         {data.can_create && (
@@ -130,6 +131,7 @@ export function TicketsTab({ socid }: { socid: string | undefined }) {
           </div>
         )}
       </Card>
+      </StickyTabHead>
     </div>
   )
 }
@@ -143,6 +145,7 @@ export function ProjectsTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
+      <StickyTabHead>
       <div className="flex items-center justify-between">
         <TabTitle>Projects</TabTitle>
         <Link
@@ -153,6 +156,7 @@ export function ProjectsTab({ socid }: { socid: string | undefined }) {
           <Plus size={14} /> New project
         </Link>
       </div>
+      </StickyTabHead>
       <Card className="!h-auto">
         {data.projects.length === 0 ? (
           <p className="text-sm text-text-faint italic text-center py-6">No projects linked to this third party.</p>
@@ -204,7 +208,9 @@ export function ExpensesTab({ socid }: { socid: string | undefined }) {
 
   return (
     <div className="space-y-3">
-      <TabTitle>Expenses</TabTitle>
+      <StickyTabHead>
+        <TabTitle>Expenses</TabTitle>
+      </StickyTabHead>
       <Card className="!h-auto">
         {data.expenses.length === 0 ? (
           <p className="text-sm text-text-faint italic text-center py-6">{data.message || 'No expense reports linked to this third party.'}</p>

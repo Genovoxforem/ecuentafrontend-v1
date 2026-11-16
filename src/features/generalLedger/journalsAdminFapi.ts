@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
+import { loadJournalNames, translatedJournalLabel } from './journalNames.data'
 
 // accountancy/fapi/journals_admin.php (22-23 Oct 2026): the accounting journals (llx_accounting_journal, per entity) with create, delete and
 // toggle_active. The list answer was captured from newecuenta on 22 Oct 2026 (nine journals). The writes are "representative" in the document
@@ -34,17 +35,30 @@ export const NATURES: Array<{ value: number; label: string }> = [
   { value: 9, label: 'Has-new' },
 ]
 
-export const mapJournalsAdmin = (d: { items: FapiJournalAdmin[] }): JournalAdminRow[] =>
-  d.items.map((j) => ({ id: String(j.id), code: j.code, label: j.label, natureLabel: j.natureLabel, active: j.active === 1 }))
+export const mapJournalsAdmin = (d: { items: FapiJournalAdmin[] }, names: Map<string, string> = new Map()): JournalAdminRow[] =>
+  d.items.map((j) => ({
+    id: String(j.id),
+    code: j.code,
+    label: translatedJournalLabel(names, j.code, j.label),
+    natureLabel: j.natureLabel,
+    active: j.active === 1,
+  }))
 
 export function useJournalsAdmin() {
-  return useQuery({ queryKey: [...KEY, 'fapi'], queryFn: async () => mapJournalsAdmin(await fapiGet<{ items: FapiJournalAdmin[] }>(PATH, { limit: 500 })) })
+  return useQuery({
+    queryKey: [...KEY, 'fapi'],
+    queryFn: async () => {
+      const [list, names] = await Promise.all([fapiGet<{ items: FapiJournalAdmin[] }>(PATH, { limit: 500 }), loadJournalNames()])
+      return mapJournalsAdmin(list, names)
+    },
+  })
 }
 
 export function useCreateJournal() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (v: { code: string; label: string; nature: number }) => fapiPost(PATH, { code: v.code.trim(), label: v.label.trim(), nature: v.nature }, { action: 'create' }),
+    mutationFn: (v: { code: string; label: string; nature: number }) =>
+      fapiPost(PATH, { code: v.code.trim(), label: v.label.trim(), nature: v.nature }, { action: 'create' }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: KEY }),
   })
 }

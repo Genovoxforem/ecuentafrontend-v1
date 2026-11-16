@@ -10,10 +10,36 @@ const TicketStatisticsModule = lazy(() => import('../../modules/tickets/TicketSt
 const TicketCreateModule = lazy(() => import('../../modules/tickets/TicketCreateModule').then((m) => ({ default: m.TicketCreateModule })))
 const TicketDetailModule = lazy(() => import('../../modules/tickets/TicketDetailModule').then((m) => ({ default: m.TicketDetailModule })))
 
+const KnowledgeBaseModule = lazy(() => import('../../modules/tickets/KnowledgeBaseModule').then((m) => ({ default: m.KnowledgeBaseModule })))
+
 // Routes of the tickets area, rendered inside the app layout (see src/App.tsx).
 export function ticketsRoutes() {
   return (
     <>
+      <Route
+        path={ROUTES.ticketKnowledgeList}
+        element={
+          <RouteBoundary>
+            <KnowledgeBaseModule kind="articles" />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.ticketKnowledgeNew}
+        element={
+          <RouteBoundary>
+            <KnowledgeBaseModule kind="new" />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.ticketKnowledgeCategories}
+        element={
+          <RouteBoundary>
+            <KnowledgeBaseModule kind="categories" />
+          </RouteBoundary>
+        }
+      />
       <Route
         path={ROUTES.ticketList}
         element={

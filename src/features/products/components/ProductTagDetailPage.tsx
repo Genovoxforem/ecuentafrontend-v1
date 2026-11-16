@@ -156,9 +156,9 @@ export function ProductTagDetailPage() {
       {error && <p className="text-sm font-medium text-danger">{error}</p>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <TodayStatCard label="Sub-categories" value={String(t.child_count)} caption="Sub-categories" icon={FolderTree} color="blue" />
+        <TodayStatCard label="Sub-categories" value={String(t.child_count)} caption="Direct children" icon={FolderTree} color="blue" />
         <TodayStatCard label="Linked items" value={String(t.product_count)} caption="Products" icon={Link2} color="cyan" />
-        <TodayStatCard label="Parent tag/category" value={parent?.label ?? '—'} caption="Parent tag/category" icon={FolderTree} color="violet" />
+        <TodayStatCard label="Parent tag/category" value={parent?.label ?? '—'} caption="Parent of this tag/category" icon={FolderTree} color="violet" />
         <TodayStatCard label="Creation date" value={t.date_creation ? new Date(t.date_creation * 1000).toLocaleDateString('en-GB') : '—'} caption={t.created_by ? `Created by ${t.created_by}` : 'Creation date'} icon={CalendarPlus} color="green" />
       </div>
 

@@ -12,7 +12,10 @@ const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 // (same bug as Room Type), with no fallback read-only resource here.
 export function HotelFloorTypesPage() {
   const confirm = useConfirm()
-  const { data: settings } = useHotelSettingsBundle()
+  const { data: settings, isError, error, refetch } = useHotelSettingsBundle()
+  // A failed load must not read as "no floor types": the row says why and offers a retry.
+  const errorText = error instanceof Error ? error.message : 'Failed to load.'
+  const retry = () => refetch()
   const { data: token } = useHotelToken()
   const save = useHotelSaveType()
   const del = useHotelDelType()
@@ -84,7 +87,16 @@ export function HotelFloorTypesPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 ? (
+            {isError ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-4 text-danger">
+                  {errorText}{' '}
+                  <button type="button" onClick={retry} className="underline">
+                    Retry
+                  </button>
+                </td>
+              </tr>
+            ) : filteredRows.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-4 text-text-faint italic">
                   No floor types found.

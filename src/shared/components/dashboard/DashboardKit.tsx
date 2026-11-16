@@ -205,7 +205,7 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-          <p className={`${compact ? 'text-sm mt-0' : 'text-2xl mt-1'} font-bold text-text!`}>{count}</p>
+          <p className={`${compact ? 'text-base leading-tight mt-0.5' : 'text-2xl mt-1'} font-bold text-text!`}>{count}</p>
         </div>
         <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-9 h-9 rounded-lg'} flex items-center justify-center ${ICON_STYLES[color]}`}>
           <Icon size={compact ? 14 : 18} />
@@ -251,7 +251,7 @@ export function TodayStatCard({
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div>
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className={`${compact ? 'text-sm mt-0' : 'text-xl mt-1'} font-bold text-text!`}>{value}</p>
+        <p className={`${compact ? 'text-base leading-tight mt-0.5' : 'text-xl mt-1'} font-bold text-text!`}>{value}</p>
         <div className="text-xs text-text-faint mt-0.5">{caption}</div>
       </div>
       <span className={`shrink-0 ${compact ? 'w-6 h-6 rounded-md' : 'w-10 h-10 rounded-lg'} flex items-center justify-center ${ICON_STYLES[color]}`}>
@@ -288,7 +288,7 @@ export function TwoValueStatCard({
     <Card className={`${compact ? 'blue-compact-card gap-2' : '!p-3 gap-3'} !flex-row items-center justify-between`}>
       <div>
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{label}</p>
-        <p className={`${compact ? 'text-sm mt-0' : 'text-xl mt-1'} font-bold text-text!`}>
+        <p className={`${compact ? 'text-base leading-tight mt-0.5' : 'text-xl mt-1'} font-bold text-text!`}>
           {primary} <span className="text-xs font-normal text-text-faint">{primaryLabel}</span>
         </p>
         <p className={`${compact ? 'text-xs mt-0' : 'text-sm mt-0.5'} font-semibold text-text!`}>

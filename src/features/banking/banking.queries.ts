@@ -1,8 +1,8 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { listBankAccounts } from '../../api/bank'
-import { isMissingEndpoint } from '../../api/products'
-import { parseLegacyJson, fetchLegacyText, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import type { BankAccountListRow } from './bankAccountsListParser'
+import { fetchLegacyText, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { loadTagRows } from '../customers/tagTree.data'
+import type { BankAccountListRow } from './bankAccountsList.types'
 import {
   addBankTransactionCategory,
   countUnreconciled,
@@ -13,6 +13,8 @@ import {
   loadAccountOptions,
   loadBankAccountsDetailed,
   loadBankDocuments,
+  loadBankAccountSummary,
+  loadBankAccountCard,
   loadBankStatements,
   loadChequeArea,
   loadBankStatsDay,
@@ -21,6 +23,9 @@ import {
   loadBankBudget,
   loadBankEntries,
   loadBankEntryDetail,
+  reconcileBankEntry,
+  uploadBankDocument,
+  linkBankDocument,
   loadBankEntryLedger,
   loadBankEntryLog,
   loadBankTransactionCategories,
@@ -28,14 +33,13 @@ import {
   updateBankTransactionCategory,
   type NewBankAccountBody,
 } from './bankingFapi'
-import type { BankAccountFormContext } from './bankAccountFormParser'
+import type { BankAccountFormContext } from './bankAccountForm.types'
 import {
-  parseBankEntryDetailPage,
   splitMdy,
   type BankEntryDetail,
   type BankEntryLog,
   type BankEntryLedger,
-} from './bankEntryDetailParser'
+} from './bankEntry.data'
 import type { BankBudget } from './bankBudget.types'
 import type { BankTransactionCategoryList } from './bankTransactionCateg.types'
 import { stripTags } from '../../utils/text'
@@ -54,43 +58,26 @@ export function parseAmount(cell: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
-// ── Bank Accounts dropdown (api/bank_accounts.php) — a 5th real JSON
-// endpoint found on a later pass, genuinely returns a `bank` (bank name)
-// field the sidebar-list endpoint above doesn't. Its own SQL hardcodes
-// `WHERE clos = 0` though (open accounts only), so a closed account simply
-// won't appear here — this is used only to enrich the detail page's "Bank
-// Name" field (falling back to "—" if not found), not as a list source.
+// ── Bank Accounts dropdown (compta/bank/fapi/list.php): open accounts with their bank name; used to enrich the detail page's "Bank Name" field (a closed account
+// does not appear), not as a list source.
 export interface BankAccountDropdownRow {
   id: number
   label: string
   ref: string
   bank: string
 }
-interface RawBankAccountDropdownResponse {
-  success: boolean
-  results: Array<{ id: number; label: string; ref: string; bank: string | null }>
-}
 export function useBankAccountsDropdown() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'dropdown'],
     queryFn: async (): Promise<BankAccountDropdownRow[]> => {
-      try {
-        // compta/bank/fapi/list.php carries the bank name too.
-        return (await listBankAccounts()).map((a) => ({ id: a.id, label: a.label, ref: a.ref, bank: a.bank ?? '' }))
-      } catch (error) {
-        if (!isMissingEndpoint(error)) throw error
-      }
-      const res = await fetch('/api/bank_accounts.php', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data = await parseLegacyJson<RawBankAccountDropdownResponse>(res)
-      if (!data.success) return []
-      return data.results.map((r) => ({ id: r.id, label: r.label, ref: r.ref, bank: r.bank ?? '' }))
+      // compta/bank/fapi/list.php carries the bank name too (the old /api/bank_accounts.php is no longer read).
+      return (await listBankAccounts()).map((a) => ({ id: a.id, label: a.label, ref: a.ref, bank: a.bank ?? '' }))
     },
     staleTime: 1000 * 30,
   })
 }
 
-// ── Bank Accounts (bank-sidebar-list-ajax.php) ───────────────────────────
+// ── Bank Accounts (compta/bank/fapi/list.php) ───────────────────────────
 export interface BankAccountRow {
   id: number
   label: string
@@ -98,84 +85,30 @@ export interface BankAccountRow {
   currencyCode: string
   balance: number
 }
-interface RawBankAccountRow {
-  rowid: string
-  totbank: string | null
-  label: string
-  number: string | null
-  currency_code: string
-}
-interface RawSidebarListResponse<T> {
-  recordsTotal: string
-  recordsFiltered: string
-  data: T[]
-}
-async function fetchBankSidebarPage(start: number): Promise<RawSidebarListResponse<RawBankAccountRow>> {
-  const res = await fetch(`/compta/bank/bank-sidebar-list-ajax.php?draw=1&start=${start}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  return parseLegacyJson<RawSidebarListResponse<RawBankAccountRow>>(res)
-}
-
-function mapBankSidebarRows(page: RawSidebarListResponse<RawBankAccountRow>): BankAccountRow[] {
-  return page.data.map((r) => ({
-    id: Number(r.rowid),
-    label: r.label,
-    accountNumber: r.number ?? '',
-    currencyCode: r.currency_code,
-    balance: Number(r.totbank ?? 0),
+// compta/bank/fapi/list.php answers with every account and its balance in one JSON call (the classic bank-sidebar-list-ajax.php, which paged 25 at a time, is no longer read).
+async function fetchBankAccountsFromApi(): Promise<BankAccountRow[]> {
+  return (await listBankAccounts({ withBalance: true })).map((a) => ({
+    id: a.id,
+    label: a.label,
+    accountNumber: a.number || a.account_number || '',
+    currencyCode: a.currency,
+    balance: Number(a.balance ?? 0),
   }))
-}
-
-// bank-sidebar-list-ajax.php returns one fixed-size page of accounts per request
-// (25 on the local backend, more on newer ones; `start` is the offset). Its
-// recordsTotal is NOT the number of accounts (it is the bank-line count of the
-// first account), so the pages are read until one comes back short. Without
-// this, any account past the first page (e.g. id 89 on the demo backend) was
-// "not found" on its detail page. Screens that only need a glimpse (the Home
-// dashboard) use useBankAccountsFirstPage instead.
-const BANK_SIDEBAR_FULL_PAGE = 25
-const BANK_SIDEBAR_MAX_PAGES = 40
-// compta/bank/fapi/list.php answers with every account and its balance in one JSON call, so
-// the paging below only applies to a backend that does not have it.
-async function fetchBankAccountsFromApi(): Promise<BankAccountRow[] | null> {
-  try {
-    return (await listBankAccounts({ withBalance: true })).map((a) => ({
-      id: a.id,
-      label: a.label,
-      accountNumber: a.number || a.account_number || '',
-      currencyCode: a.currency,
-      balance: Number(a.balance ?? 0),
-    }))
-  } catch (error) {
-    if (isMissingEndpoint(error)) return null
-    throw error
-  }
 }
 
 export function useBankAccountsList() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'list'],
-    queryFn: async (): Promise<BankAccountRow[]> => {
-      const fromApi = await fetchBankAccountsFromApi()
-      if (fromApi) return fromApi
-      const all: BankAccountRow[] = []
-      for (let page = 0; page < BANK_SIDEBAR_MAX_PAGES; page++) {
-        const rows = (await fetchBankSidebarPage(all.length)).data
-        if (rows.length === 0) break
-        all.push(...mapBankSidebarRows({ recordsTotal: '', recordsFiltered: '', data: rows }))
-        if (rows.length < BANK_SIDEBAR_FULL_PAGE) break
-      }
-      return all
-    },
+    queryFn: fetchBankAccountsFromApi,
     staleTime: 1000 * 30,
   })
 }
 
-// Only the first page of accounts: one request, however many accounts exist.
+// The accounts for the Home dashboard (one request: list.php answers every account).
 export function useBankAccountsFirstPage() {
   return useQuery({
     queryKey: ['banking', 'accounts', 'first-page'],
-    queryFn: async (): Promise<BankAccountRow[]> => (await fetchBankAccountsFromApi()) ?? mapBankSidebarRows(await fetchBankSidebarPage(0)),
+    queryFn: fetchBankAccountsFromApi,
     staleTime: 1000 * 30,
   })
 }
@@ -240,8 +173,9 @@ export interface BankEntriesFilters {
   dateValueTo?: string
   unreconciledOnly?: boolean
 }
-export function useBankEntriesList(accountId: number | undefined, page: number, length: number, filters?: BankEntriesFilters) {
+export function useBankEntriesList(accountId: number | undefined, page: number, length: number, filters?: BankEntriesFilters, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ['banking', 'entries', 'fapi', accountId, page, length, filters ?? null],
     // compta/bank/fapi/entries.php: the lines newest first with their running balance, filtered by account, operation / value date, text and state
     queryFn: (): Promise<{ rows: BankEntryRow[]; total: number; filtered: number }> => loadBankEntries(accountId, page, length, filters),
@@ -284,28 +218,19 @@ export function useReconcileCounts(accountIds: number[]) {
   })
 }
 
-// ── Categories (categories/tag-sidebarlist-ajax.php?type_id=5) — the
-// generic llx_categorie list also used for Users Tags, here for
-// Categorie::TYPE_ACCOUNT (=5) ────────────────────────────
+// ── Categories (categories/fapi/list.php?type=account, tag type 5) — the generic llx_categorie tree, here for Categorie::TYPE_ACCOUNT. The tags carry no
+// creation date, so Created stays empty. ────────────────────────────
 export interface BankAccountCategoryRow {
   id: number
   name: string
   color: string
   createdAt: string
 }
-interface RawTagListResponse {
-  data: Array<{ rowid: string; nom: string; code_client: string | null; phone: string | null }>
-}
 export function useBankAccountCategoriesList() {
   return useQuery({
     queryKey: ['banking', 'categories', 'list'],
     queryFn: async (): Promise<BankAccountCategoryRow[]> => {
-      const res = await fetch('/categories/tag-sidebarlist-ajax.php?draw=1&start=0&type_id=5', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data = await parseLegacyJson<RawTagListResponse>(res)
-      return data.data
-        .map((r) => ({ id: Number(r.rowid), name: r.nom, color: r.code_client || '', createdAt: r.phone ?? '' }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+      return (await loadTagRows('account')).map((t) => ({ id: t.id, name: t.fullLabel, color: t.color, createdAt: '' })).sort((a, b) => a.name.localeCompare(b.name))
     },
     staleTime: 1000 * 30,
   })
@@ -370,6 +295,26 @@ export function useBankStatsType(accountId: number | undefined) {
 }
 
 // ── Linked Files: the attached files are listed and removed through compta/bank/fapi/documents.php
+// The account card's Today / Overall boxes and Payment Types (entries.php summary) and its nine own fields (account.php?id=).
+export function useBankAccountSummary(accountId: number | undefined) {
+  return useQuery({
+    queryKey: ['banking', 'accounts', 'detail', accountId, 'summary'],
+    queryFn: () => loadBankAccountSummary(accountId as number),
+    enabled: accountId !== undefined,
+    staleTime: 1000 * 30,
+  })
+}
+
+export function useBankAccountCard(accountId: number | undefined, currency: string) {
+  return useQuery({
+    queryKey: ['banking', 'accounts', 'detail', accountId, 'card'],
+    queryFn: () => loadBankAccountCard(accountId as number, currency),
+    enabled: accountId !== undefined,
+    staleTime: 1000 * 60,
+    retry: false,
+  })
+}
+
 export function useBankDocuments(accountId: number | undefined) {
   return useQuery({
     queryKey: ['banking', 'accounts', 'detail', accountId, 'documents'],
@@ -397,13 +342,8 @@ export function useDeleteBankDocument(accountId: number | undefined) {
 export function useUploadBankDocument(accountId: number | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File) => {
-      const body = new FormData()
-      body.set('sendit', '1')
-      body.set('userfile', file)
-      const res = await fetch(`/compta/bank/document.php?account=${accountId}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
+    // compta/bank/fapi/documents.php?action=upload (multipart userfile)
+    mutationFn: (file: File) => uploadBankDocument(accountId as number, file),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'accounts', 'detail', accountId, 'documents'] }),
   })
 }
@@ -411,11 +351,8 @@ export function useUploadBankDocument(accountId: number | undefined) {
 export function useLinkBankDocument(accountId: number | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { url: string; label: string }) => {
-      const body = new URLSearchParams({ linkit: '1', link: input.url, label: input.label })
-      const res = await fetch(`/compta/bank/document.php?account=${accountId}`, { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-    },
+    // compta/bank/fapi/documents.php?action=link ({url, label})
+    mutationFn: (input: { url: string; label: string }) => linkBankDocument(accountId as number, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['banking', 'accounts', 'detail', accountId, 'documents'] }),
   })
 }
@@ -460,7 +397,7 @@ function extractLegacyErrorMessage(html: string, fallback: string): string {
 // form-POST page, not read-only. "Bank entry" (action=update) edits the
 // transaction's own fields; "Reconciliation" (action=setreconcile) is a
 // separate form further down the same page for the statement number /
-// reconciled flag — see bankEntryDetailParser.ts. Both POST back to this
+// reconciled flag — see bankEntry.data.ts. Both POST back to this
 // same URL and Dolibarr redirects (302, followed transparently by fetch)
 // back to it on success, so the POST response is parsed the exact same way
 // as the initial GET rather than issuing a third round-trip.
@@ -469,7 +406,7 @@ export function useBankEntryDetail(rowid: number | undefined) {
     queryKey: ['banking', 'entries', 'detail', rowid],
     queryFn: async (): Promise<BankEntryDetail> => {
       if (rowid === undefined) throw new Error('Missing bank entry id.')
-      // compta/bank/fapi/entry.php (+ transfer.php for the account and payment type lists, categories.php for the tags)
+      // compta/bank/fapi/entry.php (+ entry.php?tab=form_options for the payment type, account and tag lists)
       return loadBankEntryDetail(rowid)
     },
     enabled: rowid !== undefined,
@@ -494,7 +431,10 @@ export function useUpdateBankEntry(rowid: number | undefined) {
   return useMutation({
     mutationFn: async (input: UpdateBankEntryInput): Promise<BankEntryDetail> => {
       if (rowid === undefined) throw new Error('Missing bank entry id.')
-      const { token } = parseBankEntryDetailPage(await fetchLegacyText(`/compta/bank/line.php?rowid=${rowid}`), rowid)
+      // the Save is the one write still on the classic page (the fapi update writes only amount and dates: AN-62): its form token is read from that page
+      const page = await fetchLegacyText(`/compta/bank/line.php?rowid=${rowid}`)
+      const token = /name=["']token["'][^>]*value=["']([^"']+)["']/i.exec(page)?.[1] ?? ''
+      if (!token) throw new Error(looksLikeLegacyLoginPageText(page) ? NOT_SIGNED_IN_MESSAGE : 'The backend page did not hand out a save token.')
 
       const dateo = splitMdy(input.dateOps)
       const datev = splitMdy(input.dateValue)
@@ -528,7 +468,8 @@ export function useUpdateBankEntry(rowid: number | undefined) {
       if (/<div class="error"/.test(html)) {
         throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this update (a required field may be missing or invalid).'))
       }
-      return parseBankEntryDetailPage(html, rowid)
+      // the entry is read again from the fapi, not from the page the backend answered
+      return loadBankEntryDetail(rowid)
     },
     onSuccess: (detail) => {
       queryClient.setQueryData(['banking', 'entries', 'detail', rowid], detail)
@@ -566,21 +507,10 @@ export interface ReconcileBankEntryInput {
 export function useReconcileBankEntry(rowid: number | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
+    // compta/bank/fapi/entry.php?action=reconcile with confirm:true (no classic token, no line.php)
     mutationFn: async (input: ReconcileBankEntryInput): Promise<BankEntryDetail> => {
       if (rowid === undefined) throw new Error('Missing bank entry id.')
-      const { token } = parseBankEntryDetailPage(await fetchLegacyText(`/compta/bank/line.php?rowid=${rowid}`), rowid)
-
-      const body = new URLSearchParams({ token, action: 'setreconcile', orig_account: '', backtopage: '', num_rel: input.statement })
-      if (input.reconciled) body.set('reconciled', 'on')
-
-      const res = await fetch(`/compta/bank/line.php?rowid=${rowid}`, { method: 'POST', credentials: 'same-origin', body, redirect: 'follow' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      if (/<div class="error"/.test(html)) {
-        throw new Error(extractLegacyErrorMessage(html, 'The backend rejected this reconciliation update.'))
-      }
-      return parseBankEntryDetailPage(html, rowid)
+      return reconcileBankEntry(rowid, input)
     },
     onSuccess: (detail) => {
       queryClient.setQueryData(['banking', 'entries', 'detail', rowid], detail)
@@ -629,8 +559,7 @@ export function useCreateInternalTransfer() {
 
 // ── Tags/Categories Of Transactions (compta/bank/categ.php) — manages
 // llx_bank_categ, distinct from the account-level Categories page
-// (categories/tag-sidebarlist-ajax.php?type_id=5, which already has a real
-// JSON API — see useBankAccountCategoriesList above). No JSON API here, but
+// (categories/fapi/list.php?type=account — see useBankAccountCategoriesList above). No JSON API here, but
 // a genuine classic form-POST list with real add/edit/delete — see
 // bankTransactionCateg.types.ts.
 export function useBankTransactionCategories() {

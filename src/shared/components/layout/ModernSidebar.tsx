@@ -2,7 +2,8 @@ import { useContext, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation, type NavigateFunction, type Location } from 'react-router-dom'
 import { LayoutGrid, Loader2 } from 'lucide-react'
 import { EMPTY_SECTION_HOME_PATH, MENU_UNAVAILABLE_SECTIONS } from '../../nav/pathSourceSections'
-import { CurrentNavItem, navContains, pickCurrentItem, rememberNavClick } from './sidebarCurrent'
+import { detailParentLocation } from './Breadcrumb'
+import { CurrentNavItem, NavSectionKey, navContains, pickCurrentItem, pickCurrentSection, rememberNavClick, reportsMenuHolds } from './sidebarCurrent'
 import {
   House,
   Shield,
@@ -47,6 +48,7 @@ import { nav as budgetNav } from '../../../features/budget/budget.nav'
 import { nav as kitchenNav } from '../../../features/kitchen/kitchen.nav'
 import { nav as supplementNav } from '../../../features/kitchen/supplement.nav'
 import { nav as fixedAssetNav } from '../../../features/fixedAsset/fixedAsset.nav'
+import { nav as installmentNav } from '../../../features/installments/installments.nav'
 import { nav as generalLedgerNav } from '../../../features/generalLedger/generalLedger.nav'
 import { nav as ticketNav } from '../../../features/ticket/ticket.nav'
 import { nav as membersNav } from '../../../features/members/members.nav'
@@ -84,6 +86,7 @@ const PATH_SOURCE_SECTIONS: NavSection[] = [
   kitchenNav,
   supplementNav,
   fixedAssetNav,
+  installmentNav,
   generalLedgerNav,
   ticketNav,
   membersNav,
@@ -120,6 +123,7 @@ const PHOSPHOR_ICON: Record<string, PhosphorIcon> = {
   hotel: Bed,
   kitchen: ForkKnife,
   'fixed-asset': Buildings,
+  installment: CurrencyCircleDollar,
   'general-ledger': BookOpenText,
   ticket: Ticket,
   administrator: Gear,
@@ -139,6 +143,11 @@ function pathMatchesLocation(path: string | undefined, pathname: string, current
 function sectionContainsCurrent(section: NavSection, location: Location): boolean {
   // An expense's own card (/expenses/card/:id) is not a menu item but belongs to Expenses.
   if (section.key === 'expenses' && location.pathname.startsWith('/expenses/card/')) return true
+  // An asset's own card (/fixed-assets/view/:id) is opened from the asset lists and belongs to Fixed Asset.
+  if (section.key === 'fixed-asset' && location.pathname.startsWith('/fixed-assets/')) return true
+  // A plan, its payment form and a receipt (/installments/view|pay|receipt/:id) open from the installment lists.
+  if (section.key === 'installment' && location.pathname.startsWith('/installments/')) return true
+  if (reportsMenuHolds(section.key, location.pathname)) return true
   return section.items.some((item) => itemContainsCurrent(item, location.pathname, location.search))
 }
 function isGroupItem(item: NavItem): item is { label: string; items: NavItem[] } {
@@ -164,6 +173,7 @@ function NavLeaf({ item, depth = 0, navigate, location, blueMetal }: { item: Nav
   // target duplicates a more specific sibling below it), so only the later,
   // more specific row lights up instead of both at once.
   const current = useContext(CurrentNavItem)
+  const sectionKey = useContext(NavSectionKey)
   const isCurrent = isLink && item === current
   const ItemIcon = getNavItemIcon(item.label)
   const [loading, setLoading] = useState(false)
@@ -180,7 +190,7 @@ function NavLeaf({ item, depth = 0, navigate, location, blueMetal }: { item: Nav
         isLink
           ? () => {
               setLoading(true)
-              rememberNavClick(item)
+              rememberNavClick(item, sectionKey)
               navigate(item.path!)
             }
           : undefined
@@ -235,9 +245,10 @@ function NavGroup({
   // currentUrl comment: search string included since a group's path can
   // carry one too.
   const current = useContext(CurrentNavItem)
-  const hasActiveDescendant = item.items.some((sub) => navContains(sub, current))
+  const sectionKey = useContext(NavSectionKey)
+  // Only the entry that was clicked is lit, not a group that merely holds it (see Sidebar.tsx).
   const isCurrent = item === current
-  const isActive = isCurrent || hasActiveDescendant
+  const isActive = isCurrent
   const ItemIcon = getNavItemIcon(item.label)
   return (
     <div>
@@ -245,7 +256,7 @@ function NavGroup({
         type="button"
         onClick={() => {
           if (item.path) {
-            rememberNavClick(item)
+            rememberNavClick(item, sectionKey)
             navigate(item.path)
             if (!isOpen) onToggle()
           } else {
@@ -336,7 +347,8 @@ function NavItemList({ items, depth, navigate, location, blueMetal }: { items: N
 // model a single-column "modern" sidebar like the reference actually uses,
 // vs. the legacy rail+flyout split.
 function MenuList({ sections, navigate, location, blueMetal }: { sections: NavSection[]; navigate: NavigateFunction; location: Location; blueMetal: boolean }) {
-  const currentSectionKey = sections.find((section) => sectionContainsCurrent(section, location))?.key
+  // One current menu: when several menus list the same page, the one the user clicked in (not every menu that holds it, not just the first).
+  const currentSectionKey = pickCurrentSection(sections.filter((section) => sectionContainsCurrent(section, location)))?.key
   const [openSection, setOpenSection] = useState<string | null>(() => currentSectionKey ?? null)
   useEffect(() => {
     if (currentSectionKey) setOpenSection(currentSectionKey)
@@ -347,7 +359,7 @@ function MenuList({ sections, navigate, location, blueMetal }: { sections: NavSe
       {sections.map((section) => {
         const Icon = PHOSPHOR_ICON[section.key] ?? section.icon
         const isOpen = openSection === section.key
-        const isCurrent = sectionContainsCurrent(section, location)
+        const isCurrent = section.key === currentSectionKey
         return (
           <div key={section.key}>
             <button
@@ -389,9 +401,11 @@ function MenuList({ sections, navigate, location, blueMetal }: { sections: NavSe
             {isOpen && (
               <div className="mt-0.5 mb-1 space-y-0.5">
                 {section.items.length === 0 && <p className="text-xs italic text-white/30 pl-6 py-1">Nothing here yet.</p>}
-                <CurrentNavItem.Provider value={pickCurrentItem(section.items, location)}>
-                  <NavItemList items={section.items} depth={0} navigate={navigate} location={location} blueMetal={blueMetal} />
-                </CurrentNavItem.Provider>
+                <NavSectionKey.Provider value={section.key}>
+                  <CurrentNavItem.Provider value={isCurrent ? pickCurrentItem(section.items, location) : null}>
+                    <NavItemList items={section.items} depth={0} navigate={navigate} location={location} blueMetal={blueMetal} />
+                  </CurrentNavItem.Provider>
+                </NavSectionKey.Provider>
               </div>
             )}
           </div>
@@ -411,7 +425,9 @@ function MenuList({ sections, navigate, location, blueMetal }: { sections: NavSe
 // that's still reachable from the Navbar's own avatar menu.
 export function ModernSidebar({ open = true, onLogout, onOpen }: { open?: boolean; onLogout: () => void; onOpen?: () => void }) {
   const navigate = useNavigate()
-  const location = useLocation()
+  const realLocation = useLocation()
+  // A detail page is shown under the menu entry it is opened from (see detailParentLocation).
+  const location = useMemo(() => detailParentLocation(realLocation), [realLocation])
   const { theme } = useTheme()
   const { data: menu } = useAppMenu()
   // GET /api/menu/'s real backend response drives the section list itself;

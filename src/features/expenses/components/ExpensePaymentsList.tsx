@@ -19,6 +19,8 @@ function sortValue(r: PaymentRow, key: string): string | number {
       return r.n
     case 'ref':
       return r.ref
+    case 'type':
+      return r.type
     case 'employee':
       return r.employee
     case 'period':
@@ -35,7 +37,7 @@ function sortValue(r: PaymentRow, key: string): string | number {
       return r.status
   }
 }
-const searchText = (r: PaymentRow) => [r.ref, r.employee, r.period, r.totalTtc, r.netPayable, r.status, r.paid ? 'Paid' : 'Unpaid'].join(' ')
+const searchText = (r: PaymentRow) => [r.ref, r.type, r.employee, r.period, r.totalTtc, r.netPayable, r.status, r.paid ? 'Paid' : 'Unpaid'].join(' ')
 
 const NET_CLS = { owed: 'text-brand', surplus: 'text-warning-fg', settled: 'text-success-fg' }
 
@@ -58,9 +60,10 @@ export function ExpensePaymentsList() {
           <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
             <Banknote size={20} className="text-brand" /> Expense Payments
           </h2>
-          {data?.note && (
+          {/* The page's own line under the title (printed by the backend's page shell, not by the tab's fragment). */}
+          {data && (
             <div className="flex items-center gap-2 rounded-lg border border-info-fg/30 bg-info-bg/40 px-3 py-2 text-sm text-info-fg">
-              <Info size={14} className="shrink-0" /> {data.note}
+              <Info size={14} className="shrink-0" /> {data.note || 'Approved expense reports pending or completed payment.'}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
@@ -81,12 +84,14 @@ export function ExpensePaymentsList() {
                 <tr className="border-b border-border bg-surface">
                   {th('n', '#')}
                   {th('ref', 'Ref')}
+                  {th('type', 'Type')}
                   {th('employee', 'Employee')}
                   {th('period', 'Period')}
                   {th('totalTtc', 'Total TTC', 'right')}
                   {th('advance', 'Advance', 'right')}
                   {th('net', 'Net Payable', 'right')}
                   {th('paidAmount', 'Total Paid', 'right')}
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold">Linked</th>
                   {th('status', 'Status')}
                   <th className="px-3 py-2.5 text-left text-xs font-semibold">Paid</th>
                   <th className="px-3 py-2.5 text-center text-xs font-semibold">Actions</th>
@@ -95,7 +100,7 @@ export function ExpensePaymentsList() {
               <tbody>
                 {t.pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center italic text-text-faint">
+                    <td colSpan={13} className="px-4 py-8 text-center italic text-text-faint">
                       {t.all === 0 ? 'No approved expense reports awaiting payment.' : 'No matching records found'}
                     </td>
                   </tr>
@@ -108,12 +113,16 @@ export function ExpensePaymentsList() {
                         {r.ref}
                       </Link>
                     </td>
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      <span className="rounded-full bg-surface-hover px-2.5 py-0.5 text-xs font-medium text-text-muted">{r.type}</span>
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-text-muted">{r.employee}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-text-muted">{r.period}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-text!">{r.totalTtc}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-text-muted">{r.advance}</td>
                     <td className={`whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums ${NET_CLS[r.netTone]}`}>{r.netPayable}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-text!">{r.totalPaid}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-center text-text-muted">{r.linked}</td>
                     <td className="px-3 py-2.5">
                       <StatusBadge status={r.status} />
                     </td>

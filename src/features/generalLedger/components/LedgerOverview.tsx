@@ -8,7 +8,6 @@ import {
   CalendarClock,
   Scale,
   Loader2,
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -19,6 +18,7 @@ import {
   Wallet,
   SlidersHorizontal,
 } from 'lucide-react'
+import { ErrorState as SharedErrorState } from '../../../shared/components/ErrorState'
 import { Card, fmtZMW, SectionHeading } from '../../../shared/components/dashboard/DashboardKit'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../routes'
@@ -108,23 +108,13 @@ function MovementCard({ icon: Icon, label, movement }: { icon: typeof CalendarCl
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const isAuthIssue = message.toLowerCase().includes('signed in')
   return (
-    <Card className="!bg-danger-bg border-danger/40 flex items-start gap-3">
-      <AlertTriangle size={18} className="text-danger-fg shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <p className="text-sm font-semibold text-danger-fg">Couldn't load the ledger</p>
-        <p className="text-xs text-danger-fg/80 mt-0.5">{message}</p>
-        <div className="flex items-center gap-3 mt-2">
-          <button type="button" onClick={onRetry} className="text-xs font-medium text-danger-fg underline">
-            Retry
-          </button>
-          {isAuthIssue && (
-            <Link to={ROUTES.login} className="text-xs font-medium text-danger-fg underline">
-              Go to login
-            </Link>
-          )}
-        </div>
-      </div>
-    </Card>
+    <SharedErrorState title="Couldn't load the ledger" message={message} onRetry={onRetry}>
+      {isAuthIssue && (
+        <Link to={ROUTES.login} className="text-sm font-medium text-brand hover:underline">
+          Go to login
+        </Link>
+      )}
+    </SharedErrorState>
   )
 }
 
@@ -154,7 +144,7 @@ export function LedgerOverview() {
   // Expanded by default, like the legacy page — every account's lines show;
   // a group can still be folded away to just its totals/balance.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  const [showFilters, toggleFilters] = useRememberedToggle('ecuenta:ledger-dashboard:filters', true)
+  const [showFilters, toggleFilters] = useRememberedToggle('ecuenta:ledger-dashboard:filters:v2', false)
   const [showSummary, toggleSummary] = useRememberedToggle('ecuenta:ledger-dashboard:summary', true)
   const toggleGroup = (code: string) =>
     setCollapsed((prev) => {
@@ -218,7 +208,7 @@ export function LedgerOverview() {
         )}
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 space-y-3 px-6 py-3">
+      <div className="flex-1 flex flex-col min-h-0 space-y-2 px-6 py-2">
         {isError && <ErrorState message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
 
         {isLoading && (
@@ -232,7 +222,7 @@ export function LedgerOverview() {
           <>
             <Card className="!p-0 overflow-hidden flex-1 min-h-0">
               {/* Only has something to show when there are groups. */}
-              <div className={`${report.groups.length > 0 ? 'flex' : 'hidden'} items-center justify-between px-3 py-2 border-b border-border bg-surface`}>
+              <div className={`${report.groups.length > 0 ? 'flex' : 'hidden'} items-center justify-between px-3 py-1 border-b border-border bg-surface`}>
                 <p className="text-xs text-text-faint">
                   {report.groups.length > 0 &&
                     `${report.groups.length} account${report.groups.length === 1 ? '' : 's'} · click one to fold its transaction lines`}
@@ -259,11 +249,11 @@ export function LedgerOverview() {
                 </div>
               </div>
             <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-sm">
+              <table className="ledger-compact w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border bg-surface">
                     {COLUMNS.map((col) => (
-                      <th key={col} className={`font-medium px-3 py-2 whitespace-nowrap ${col === 'Debit' || col === 'Credit' ? 'text-right' : ''}`}>
+                      <th key={col} className={`font-medium px-3 py-1.5 whitespace-nowrap ${col === 'Debit' || col === 'Credit' ? 'text-right' : ''}`}>
                         {col}
                       </th>
                     ))}
@@ -282,10 +272,10 @@ export function LedgerOverview() {
                       return (
                       <Fragment key={group.accountCode}>
                         <tr className="bg-brand/5 cursor-pointer hover:bg-brand/10" onClick={() => toggleGroup(group.accountCode)}>
-                          <td colSpan={COLUMNS.length} className="px-3 py-2.5">
+                          <td colSpan={COLUMNS.length} className="px-3 py-1.5">
                             <span className="inline-flex items-center gap-2">
                               {isOpen ? <ChevronDown size={14} className="text-brand" /> : <ChevronRight size={14} className="text-brand" />}
-                              <span className="inline-block px-2 py-0.5 rounded-md bg-brand text-white text-xs font-bold tabular-nums">{group.accountCode}</span>
+                              <span className="inline-block px-2 py-0 rounded-md bg-brand text-white text-xs font-bold tabular-nums">{group.accountCode}</span>
                               <span className="font-semibold text-text!">{group.accountLabel}</span>
                               <span className="text-xs text-text-faint">
                                 ({group.rows.length} line{group.rows.length === 1 ? '' : 's'})
@@ -295,7 +285,7 @@ export function LedgerOverview() {
                         </tr>
                         {isOpen && group.rows.map((entry, i) => (
                           <tr key={`${group.accountCode}-${entry.transactionNum}-${i}`} className="border-b border-border hover:bg-surface-hover">
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-1">
                               {entry.transactionNum ? (
                                 <Link to={ROUTES.ledgerPieceDetail.replace(':pieceNum', entry.transactionNum)} className="flex items-center gap-1 text-brand hover:underline">
                                   <FileText size={12} />
@@ -305,8 +295,8 @@ export function LedgerOverview() {
                                 entry.transactionNum
                               )}
                             </td>
-                            <td className="px-3 py-2">
-                              <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold ${journalBadgeColor(entry.journal)}`}>{entry.journal}</span>
+                            <td className="px-3 py-1">
+                              <span className={`inline-block px-1.5 py-0 rounded text-[11px] leading-4 font-semibold ${journalBadgeColor(entry.journal)}`}>{entry.journal}</span>
                             </td>
                             <td className="px-3 py-2 text-text-muted whitespace-nowrap">{entry.date}</td>
                             <td className="px-3 py-2 text-text-muted">
@@ -321,7 +311,7 @@ export function LedgerOverview() {
                             <td className="px-3 py-2 text-right tabular-nums text-text!">{entry.debit > 0 ? fmtZMW(entry.debit) : '-'}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-text!">{entry.credit > 0 ? fmtZMW(entry.credit) : '-'}</td>
                             <td className="px-3 py-2 text-text-faint text-xs">{entry.letteringCode || '-'}</td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-1">
                               <div className="flex items-center gap-1">
                                 {entry.canEdit && entry.editUrl && entry.transactionNum && (
                                   <Link to={ROUTES.ledgerPieceDetail.replace(':pieceNum', entry.transactionNum)} title="View / edit this transaction" className="p-1 rounded text-text-faint hover:text-brand hover:bg-brand/10">
@@ -346,18 +336,18 @@ export function LedgerOverview() {
                           </tr>
                         ))}
                         <tr key={`t-${group.accountCode}`} className="bg-surface-hover font-medium">
-                          <td colSpan={COLUMNS.length - 4} className="px-3 py-1.5 text-right text-text-muted">
+                          <td colSpan={COLUMNS.length - 4} className="px-3 py-1 text-right text-text-muted">
                             Total for account {group.accountCode}
                           </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-text!">{fmtZMW(group.totalDebit)}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-text!">{fmtZMW(group.totalCredit)}</td>
+                          <td className="px-3 py-1 text-right tabular-nums text-text!">{fmtZMW(group.totalDebit)}</td>
+                          <td className="px-3 py-1 text-right tabular-nums text-text!">{fmtZMW(group.totalCredit)}</td>
                           <td colSpan={2}></td>
                         </tr>
                         <tr key={`b-${group.accountCode}`} className="bg-surface-hover/60">
-                          <td colSpan={COLUMNS.length - 4} className="px-3 py-1.5 text-right text-text-muted">
+                          <td colSpan={COLUMNS.length - 4} className="px-3 py-1 text-right text-text-muted">
                             Balance
                           </td>
-                          <td colSpan={2} className={`px-3 py-1.5 text-right tabular-nums font-semibold ${group.balanceSide === 'Cr' ? 'text-danger' : 'text-success'}`}>
+                          <td colSpan={2} className={`px-3 py-1 text-right tabular-nums font-semibold ${group.balanceSide === 'Cr' ? 'text-danger' : 'text-success'}`}>
                             {fmtZMW(group.balance)} {group.balanceSide}
                           </td>
                           <td colSpan={2}></td>

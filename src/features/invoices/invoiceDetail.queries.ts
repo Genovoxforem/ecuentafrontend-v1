@@ -226,9 +226,10 @@ export function useInvoiceStandingOrders(id: string | undefined) {
 // --- Events/Agenda (read-only) -------------------------------------------
 
 // The Events/Agenda tab's badge: how many events the invoice has, from
-// compta/sales/api/agenda.php (a few hundred bytes). The tab itself reads
-// compta/facture/fapi/agenda.php below, which also has its "Created by /
-// Validated by / Creation date" block.
+// compta/facture/fapi/agenda.php (count). The tab reads the same endpoint below, which also has its "Created by /
+// Validated by / Creation date" block. Since 11 Nov 2026 it reads the events stored under 'invoice' as well as 'facture' (invoice 22: 0 -> 2), so the old fallback
+// to the classic session answer compta/sales/api/agenda.php is gone.
+
 export function useInvoiceAgendaCount(id: string | undefined) {
   return useQuery<number>({
     queryKey: ['invoices', 'detail', id, 'agendaCount'],

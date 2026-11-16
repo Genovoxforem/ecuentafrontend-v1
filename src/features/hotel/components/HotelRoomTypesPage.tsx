@@ -17,8 +17,16 @@ const fieldCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg tex
 // error surfaced honestly.
 export function HotelRoomTypesPage() {
   const confirm = useConfirm()
-  const { data: settings } = useHotelSettingsBundle()
-  const { data: roomTypes } = useHotelRoomTypes()
+  const { data: settings, error: settingsError, isError: settingsFailed, refetch: refetchSettings } = useHotelSettingsBundle()
+  const { data: roomTypes, error: roomTypesError, isError: roomTypesFailed, refetch: refetchRoomTypes } = useHotelRoomTypes()
+  // A failed load must not read as "no room types": the row says why and offers a retry.
+  const isError = settingsFailed || roomTypesFailed
+  const failure = settingsFailed ? settingsError : roomTypesError
+  const errorText = failure instanceof Error ? failure.message : 'Failed to load.'
+  const retry = () => {
+    if (settingsFailed) refetchSettings()
+    if (roomTypesFailed) refetchRoomTypes()
+  }
   const { data: token } = useHotelToken()
   const { data: vatRates } = useHotelVatRates()
   const { data: units } = useHotelUnits()
@@ -169,7 +177,16 @@ export function HotelRoomTypesPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredCustom.length === 0 && filteredReference.length === 0 ? (
+            {isError && filteredCustom.length === 0 && filteredReference.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-4 text-danger">
+                  {errorText}{' '}
+                  <button type="button" onClick={retry} className="underline">
+                    Retry
+                  </button>
+                </td>
+              </tr>
+            ) : filteredCustom.length === 0 && filteredReference.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-4 text-text-faint italic">
                   No room types found.

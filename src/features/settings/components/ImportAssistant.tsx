@@ -1,40 +1,20 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { FileInput, Plus } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { ROUTES } from '../../../routes'
+import { LegacyErrorCard, LegacyLoadingCard } from '../../products/components/LegacyReportStates'
+import { useAllImportDatasets, useImportFormatNames } from '../importAssistant.data'
 import { SetupShell } from './SetupShell'
 
-// Static setup overview, not the operational Customer/Vendor import wizard.
-// The operational wizard now uses the imports/fapi JSON endpoints; this
-// overview remains a design-only representation of the legacy import menu.
-const IMPORTABLE_DATASETS = [
-  { module: 'Users & Groups', dataset: 'Users (Employees Or Not) And Properties' },
-  { module: 'Members', dataset: 'Members' },
-  { module: 'Third Parties', dataset: 'Third-Parties And Their Properties' },
-  { module: 'Third Parties', dataset: 'Third-Parties Additional Contacts/Addresses And Attributes' },
-  { module: 'Third Parties', dataset: 'Third-Parties Bank Accounts' },
-  { module: 'Third Parties', dataset: 'Third-Parties Sales Representatives (Assign Sales Representatives/Users To Companies)' },
-  { module: 'Quotations', dataset: 'Quotations' },
-  { module: 'Quotations', dataset: 'Proposal Line' },
-  { module: 'Sales Orders', dataset: 'Sales Orders' },
-  { module: 'Sales Orders', dataset: 'Order Details' },
-  { module: 'Vendors', dataset: 'Purchase Orders' },
-  { module: 'Vendors', dataset: 'PO Lines' },
-  { module: 'Vendors', dataset: 'Supplier Invoice' },
-  { module: 'Vendors', dataset: 'Supplier Invoice Lines' },
-  { module: 'Projects Or Leads', dataset: 'Tasks Of Projects' },
-  { module: 'Resources', dataset: 'Resources' },
-  { module: 'Tags/Categories', dataset: 'Links Between Products/Services And Tags/Categories' },
-  { module: 'Tags/Categories', dataset: 'Links Between Vendors And Tags/Categories' },
-  { module: 'Tags/Categories', dataset: 'Links Between Customers/Prospects And Tags/Categories' },
-  { module: 'Tags/Categories', dataset: 'Links Between Members And Tags/Categories' },
-  { module: 'Tags/Categories', dataset: 'Links Between Contacts/Addresses And Tags/Categories' },
-  { module: 'Tags/Categories', dataset: 'Links Between Projects And Tags/Categories' },
-]
-
+// Setup > Import (the classic imports/index.php and imports/import.php?step=1). Both lists come from imports/fapi (importAssistant.data.ts): the
+// dataset table is the classic "Module/Application | Importable dataset" table, and a dataset opens step 2 in the import wizard the app already
+// has (customers/ImportCustomersWizard, which takes the dataset in its URL).
 export function ImportAssistant() {
   const [searchParams] = useSearchParams()
   const [step, setStep] = useState<'list' | 'new'>(searchParams.get('step') === 'new' ? 'new' : 'list')
+  const datasets = useAllImportDatasets()
+  const formats = useImportFormatNames(datasets.data?.[0]?.code)
 
   if (step === 'new') {
     return (
@@ -48,20 +28,30 @@ export function ImportAssistant() {
           </>
         }
       >
-        <Card className="!h-auto !p-0 overflow-hidden">
-          <div className="grid grid-cols-[1fr_1fr_60px] px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
-            <span>Module/Application</span>
-            <span>Importable Dataset</span>
-            <span />
-          </div>
-          {IMPORTABLE_DATASETS.map((row) => (
-            <div key={row.dataset} className="grid grid-cols-[1fr_1fr_60px] px-4 py-3 border-b border-border last:border-0 items-center">
-              <span className="text-sm font-semibold text-text!">{row.module}</span>
-              <span className="text-sm text-brand">{row.dataset}</span>
-              <input type="radio" disabled title="No real API exists for this wizard" className="text-brand focus:ring-brand/30 justify-self-end" />
+        {datasets.isLoading && <LegacyLoadingCard label="Loading the importable datasets…" />}
+        {datasets.isError && <LegacyErrorCard title="Couldn't load the importable datasets" message={datasets.error instanceof Error ? datasets.error.message : 'Unknown error.'} onRetry={() => void datasets.refetch()} />}
+        {datasets.data && (
+          <Card className="!h-auto !p-0 overflow-hidden">
+            <div className="grid grid-cols-[1fr_2fr] px-4 py-2.5 border-b border-border text-sm font-semibold text-text!">
+              <span>Module/Application</span>
+              <span>Importable Dataset</span>
             </div>
-          ))}
-        </Card>
+            {datasets.data.map((d) => (
+              <div key={d.code} className="grid grid-cols-[1fr_2fr] px-4 py-3 border-b border-border last:border-0 items-center">
+                <span className="text-sm font-semibold text-text!">{d.module}</span>
+                {d.permitted ? (
+                  <Link to={`${ROUTES.importCustomers}?dataset=${encodeURIComponent(d.code)}&step=2`} className="text-sm text-brand hover:underline">
+                    {d.label}
+                  </Link>
+                ) : (
+                  <span className="text-sm text-text-faint" title="You do not have the right to import this dataset">
+                    {d.label}
+                  </span>
+                )}
+              </div>
+            ))}
+          </Card>
+        )}
       </SetupShell>
     )
   }
@@ -81,17 +71,25 @@ export function ImportAssistant() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-text-faint uppercase tracking-wide border-b border-border">
-              <th className="font-medium py-2">Import Model</th>
-              <th className="font-medium py-2">Dataset</th>
-              <th className="font-medium py-2">Import</th>
+              <th className="font-medium py-2">Available Formats</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={3} className="py-4 text-text-faint italic">
-                No real API exists to list saved import models here — this page has no JSON equivalent, only a classic Dolibarr admin wizard.
-              </td>
-            </tr>
+            {formats.isLoading && (
+              <tr>
+                <td className="py-3 text-text-faint italic">Loading…</td>
+              </tr>
+            )}
+            {(formats.data ?? []).map((name) => (
+              <tr key={name} className="border-b border-border last:border-0">
+                <td className="py-2 text-text!">{name}</td>
+              </tr>
+            ))}
+            {formats.isError && (
+              <tr>
+                <td className="py-3 text-danger">The formats could not be read.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </Card>

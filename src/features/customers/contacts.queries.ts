@@ -74,7 +74,12 @@ export interface NewContactInput {
   phonePerso?: string
   fax?: string
   countryId?: string
+  stateId?: string
   isPrivate?: boolean
+  // Personal data, accepted by contact/fapi/create.php (civility code from meta.php, birthday as YYYY-MM-DD, social handles by network code).
+  civility?: string
+  birthday?: string
+  socialNetworks?: Record<string, string>
 }
 
 /**
@@ -100,9 +105,15 @@ export function useCreateContact() {
         phone_perso: input.phonePerso || '',
         fax: input.fax || '',
         country_id: input.countryId ? Number(input.countryId) : undefined,
+        ...(input.stateId ? { state_id: Number(input.stateId) } : {}),
         priv: input.isPrivate ? 1 : 0,
         socid: input.companyId ? Number(input.companyId) : undefined,
+        ...(input.civility ? { civility_code: input.civility } : {}),
+        ...(input.birthday ? { birthday: input.birthday } : {}),
       }
+      // Only the handles that were typed are sent (an empty one would be stored as an empty handle).
+      const handles = Object.fromEntries(Object.entries(input.socialNetworks ?? {}).filter(([, v]) => v.trim() !== '').map(([k, v]) => [k, v.trim()]))
+      if (Object.keys(handles).length > 0) payload.socialnetworks = handles
       const result = await createContact(payload)
       return { id: result.id }
     },

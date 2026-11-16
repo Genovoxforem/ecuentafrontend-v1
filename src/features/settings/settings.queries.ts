@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/axios'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
+import { fapiGet } from '../../api/fapiEnvelope'
 
 interface GeneralSettings {
   app_name: string
@@ -40,29 +40,21 @@ export interface CompanyAccountDetails {
   tpin: string
   branchCode: string
   country: string
+  // The company time zone (core/fapi/company.php timezone = MAIN_SERVER_TZ). /api/general/ always answers "UTC" (BUG-69).
+  timezone: string
 }
 
-function readAccountDetail(doc: Document, label: string): string {
-  const labelElement = Array.from(doc.querySelectorAll('.row > .col-6.text-start > label.text-muted'))
-    .find((element) => element.textContent?.trim().toLowerCase() === label.toLowerCase())
-  const valueElement = labelElement?.parentElement?.nextElementSibling
-  return valueElement?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+// core/fapi/company.php carries the company's TPIN, branch code and country (key-authenticated JSON); /api/general/ omits
+// them, and the company time zone. The classic account summary (admin/company.php) is no longer read.
+async function fetchCompanyAccountDetails(): Promise<CompanyAccountDetails> {
+  const d = await fapiGet<{ tpin?: string; branch_code?: string; country?: { name?: string } | null; timezone?: string }>('/core/fapi/company.php')
+  return { tpin: d.tpin ?? '', branchCode: d.branch_code ?? '', country: d.country?.name ?? '', timezone: d.timezone ?? '' }
 }
 
-// /api/general/ currently omits the company tax and branch identifiers. The
-// legacy page's account summary renders these same values for the signed-in
-// entity, so read that summary only where the account panel needs them.
 export function useCompanyAccountDetails() {
   return useQuery({
     queryKey: ['settings', 'companyAccountDetails'],
-    queryFn: async (): Promise<CompanyAccountDetails> => {
-      const doc = await fetchLegacyDocument('/admin/company.php')
-      return {
-        tpin: readAccountDetail(doc, 'TPIN'),
-        branchCode: readAccountDetail(doc, 'Branch Code'),
-        country: readAccountDetail(doc, 'Country'),
-      }
-    },
+    queryFn: fetchCompanyAccountDetails,
     staleTime: 1000 * 60 * 10,
     retry: false,
   })

@@ -1,24 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLegacyText } from '../../shared/legacyHtmlFetch'
-import { stripTags } from '../../utils/text'
-import { parseReportTable } from '../../shared/legacyReportTableParser'
+import { fapiGet } from '../../api/fapiEnvelope'
 
-// Via adherents/ajax/ajax_adherents_list.php — a JSON DataTables handler
-// with a permission check (restrictedArea($user, 'adherent')).
-//
-// Two sibling JSON endpoints exist (members-sidebar-list-ajax.php,
-// member_types-sidebar-list-ajax.php) but are NOT used here — they have no
-// permission checks at all, a PII leak (member names/logins/status
-// readable by any authenticated user regardless of module rights).
-// Reported, not fixed, per frontend-only scope.
-//
-// Response rows are POSITIONAL arrays whose column set depends on the
-// endpoint's own server-side "checked" column config — from the PHP's
-// $arrayfields defaults and the row-building order: ref, firstname,
-// lastname, company, login, morphy, type, email, datefin (end of
-// subscription), statut. MAIN_SHOW_TECHNICAL_ID (which would prepend a raw
-// id column) is assumed unset.
-
+// The members list is adherents/fapi/list.php (fapi only). The classic ajax_adherents_list.php handler and the list.php scrape are no longer read; the fapi
+// row has no login, so the Login column stays empty (master report AN-164).
 export interface MemberRow {
   ref: string
   firstname: string
@@ -29,49 +13,72 @@ export interface MemberRow {
   email: string
   endOfSubscription: string
   status: string
+  // Physical / Moral, as the list prints the nature of the member.
+  nature: string
+  // -1 draft, 0 terminated (resiliated), 1 validated; the list filters on it.
+  statusCode: number
 }
-interface RawMemberListResponse {
-  draw: number
-  recordsTotal: number
-  recordsFiltered: number
-  data: string[][]
-}
-
-function mapRows(data: RawMemberListResponse): MemberRow[] {
-  return data.data.map((cells) => ({
-    ref: stripTags(cells[0] ?? ''),
-    firstname: cells[1] ?? '',
-    lastname: cells[2] ?? '',
-    company: cells[3] ?? '',
-    login: cells[4] ?? '',
-    type: stripTags(cells[6] ?? ''),
-    email: stripTags(cells[7] ?? ''),
-    endOfSubscription: stripTags(cells[8] ?? ''),
-    status: stripTags(cells[9] ?? ''),
-  }))
+// The status code is read back from the words of the API status label when the row has no numeric status.
+function statusCodeOf(label: string): number {
+  const s = label.toLowerCase()
+  if (s.includes('draft')) return -1
+  if (s.includes('resiliat') || s.includes('terminat')) return 0
+  return 1
 }
 
-// Fetches every member. Prefers the JSON handler above; some deployed
-// backends (e.g. demo.ecuenta.online) don't ship that file and answer 404, so
-// the same rows are then scraped from adherents/list.php, whose <table
-// id="example"> prints every member with the same 10 columns in the same
-// order (ref, firstname, lastname, company, login, nature, type, email, end of
-// subscription, status).
-async function fetchAllMembers(): Promise<{ rows: MemberRow[]; total: number }> {
-  const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
-  const res = await fetch('/adherents/ajax/ajax_adherents_list.php', { method: 'POST', credentials: 'same-origin', body })
-  if (res.ok) {
-    const data: RawMemberListResponse = await res.json()
-    return { rows: mapRows(data), total: data.recordsTotal }
+// adherents/fapi/list.php: the members as JSON, read page by page. It has no login column, so Login stays empty.
+interface FapiMember {
+  ref?: string
+  firstname?: string
+  lastname?: string
+  company?: string
+  type?: { label?: string } | null
+  email?: string
+  subscription_end?: string
+  status_label?: string
+  nature?: string
+  status?: number
+}
+
+// adherents/fapi/list.php answers status_label "Validated (waiting subscription)" for every validated member, whether or not a subscription was
+// paid. The classic list prints "Up to date" for a validated member whose subscription end is still ahead and "Validated" for one with no
+// subscription (checked on newecuenta, 6 Nov 2026, with two throwaway members: end 11/05/2027 -> "Up to date", no end date -> "Validated").
+// A validated member whose end date has passed was not seen, so that one keeps the API's label.
+export function listStatus(m: { status?: number | string; status_label?: string; subscription_end?: string | null }): string {
+  const label = m.status_label ?? ''
+  if (Number(m.status) !== 1) return label
+  if (!m.subscription_end) return 'Validated'
+  const end = new Date(m.subscription_end).getTime()
+  return !Number.isNaN(end) && end + 86_399_000 >= Date.now() ? 'Up to date' : label
+}
+
+async function fetchAllMembersFapi(): Promise<{ rows: MemberRow[]; total: number }> {
+  const rows: MemberRow[] = []
+  let total = 0
+  for (let page = 1; ; page++) {
+    const d = await fapiGet<{ items?: FapiMember[]; pagination?: { total?: number; pages?: number } }>('/adherents/fapi/list.php', { page, limit: 100 })
+    for (const m of d.items ?? [])
+      rows.push({
+        ref: m.ref ?? '',
+        firstname: m.firstname ?? '',
+        lastname: m.lastname ?? '',
+        company: m.company ?? '',
+        login: '',
+        type: m.type?.label ?? '',
+        email: m.email ?? '',
+        endOfSubscription: m.subscription_end ?? '',
+        status: listStatus(m),
+        nature: m.nature === 'phy' ? 'Physical' : m.nature === 'mor' ? 'Moral' : (m.nature ?? ''),
+        statusCode: typeof m.status === 'number' ? m.status : statusCodeOf(m.status_label ?? ''),
+      })
+    total = Number(d.pagination?.total) || rows.length
+    if (page >= (Number(d.pagination?.pages) || 0)) break
   }
-  if (res.status !== 404) throw new Error(`Legacy backend returned ${res.status}.`)
-  const table = parseReportTable(await fetchLegacyText('/adherents/list.php'), 'table#example')
-  const rows = mapRows({ draw: 1, recordsTotal: table.rows.length, recordsFiltered: table.rows.length, data: table.rows })
-  return { rows, total: rows.length }
+  return { rows, total }
 }
 
-function useAllMembers() {
-  return useQuery({ queryKey: ['members', 'all'], queryFn: fetchAllMembers })
+export function useAllMembers() {
+  return useQuery({ queryKey: ['members', 'all'], queryFn: fetchAllMembersFapi })
 }
 
 export function useMembersList(page: number, length: number) {
@@ -124,10 +131,11 @@ function categorize(row: MemberRow): 'draft' | 'resiliated' | 'upToDate' | 'outO
   const s = row.status.toLowerCase()
   if (s.includes('draft')) return 'draft'
   if (s.includes('resiliat')) return 'resiliated'
-  if (row.endOfSubscription) {
-    const end = new Date(row.endOfSubscription)
-    if (!Number.isNaN(end.getTime()) && end.getTime() < Date.now()) return 'outOfDate'
-  }
+  // The classic Members area counts a validated member with no subscription in "Out-of-date" (two throwaway members, 6 Nov 2026: the one
+  // with a subscription ending in 2027 was Up-to-date 1, the one without any was Out-of-date 1).
+  if (!row.endOfSubscription) return 'outOfDate'
+  const end = new Date(row.endOfSubscription)
+  if (!Number.isNaN(end.getTime()) && end.getTime() + 86_399_000 < Date.now()) return 'outOfDate'
   return 'upToDate'
 }
 

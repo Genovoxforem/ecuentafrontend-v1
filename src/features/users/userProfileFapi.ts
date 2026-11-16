@@ -94,9 +94,13 @@ export const loadUserNotify = async (id: string) => mapUserNotify(await fapiGet<
 export interface FapiUserPermissions {
   can_edit: boolean
   nb_rights: number
+  // Since 11 Nov 2026 the canonical count (granted direct or inherited over the same filtered rights set), identical in user.php and permissions.php; nb_direct / nb_inherited split it.
+  nb_granted?: number
+  nb_direct?: number
+  nb_inherited?: number
   modules: UserPermissions['modules']
 }
-export const mapUserPermissions = (d: FapiUserPermissions): UserPermissions => ({ canEdit: d.can_edit, nbRights: d.nb_rights, modules: d.modules })
+export const mapUserPermissions = (d: FapiUserPermissions): UserPermissions => ({ canEdit: d.can_edit, nbRights: d.nb_granted ?? d.nb_rights, modules: d.modules })
 export const loadUserPermissions = async (id: string) => mapUserPermissions(await fapiGet<FapiUserPermissions>('/userprofile/fapi/permissions.php', { id }))
 
 // ---- Activities: activities.php ----------------------------------------------------------------------------------------------------------------------

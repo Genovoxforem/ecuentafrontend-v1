@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { Package } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Package, UploadCloud } from 'lucide-react'
+import { ROUTES } from '../../../routes'
 import { useUnuploadedProductsList, type UnuploadedProductRow } from '../zraLists.queries'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
+import { UploadProductsDialog } from './UploadProductsDialog'
 import { ListHeader, ListPagination, SearchBox, EmptyRow } from './ZraListChrome'
 
 // "Queued For Offline Sync" is an expected, informational state (not an
@@ -57,18 +60,41 @@ function sortValue(row: UnuploadedProductRow, key: SortKey): string | number {
 
 // POST product/allproducts_ajax.php?zrastatus=unupload data (see
 // zraLists.queries.ts) — llx_product WHERE p.zracode != '000' OR p.zracode
-// IS NULL, matching the "Un-uploaded Products/services" page. The "Upload
-// Products" action itself is not wired — only the list is.
+// IS NULL, matching the "Un-uploaded Products/services" page. "Upload Products" sends the ticked rows to ZRA through product/fapi/zra.php?action=register_many
+// (a preview first, then the confirmed upload; see UploadProductsDialog).
 export function UnuploadProductsList() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[2])
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [uploading, setUploading] = useState(false)
 
   const { data, isLoading, isError, error } = useUnuploadedProductsList({ page, perPage, search })
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const { sorted: sortedRows, sort, toggleSort } = useSortableRows<UnuploadedProductRow, SortKey>(rows, sortValue)
+
+  const pageIds = rows.map((r) => r.id).filter((id): id is number => !!id)
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  function toggleOne(id: number) {
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function togglePage() {
+    setSelected((cur) => {
+      const next = new Set(cur)
+      for (const id of pageIds) {
+        if (allPageSelected) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
+  }
 
   function getExportData() {
     return {
@@ -111,6 +137,15 @@ export function UnuploadProductsList() {
               entries per page
             </label>
             <TableExportButtons title="Un-uploaded Products-services" getExportData={getExportData} />
+            <button
+              type="button"
+              disabled={selected.size === 0}
+              title={selected.size === 0 ? 'Tick the products to upload' : undefined}
+              onClick={() => setUploading(true)}
+              className="flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            >
+              <UploadCloud size={14} /> Upload Products{selected.size > 0 ? ` (${selected.size})` : ''}
+            </button>
           </div>
           <div className="w-full sm:w-80">
             <SearchBox
@@ -130,6 +165,9 @@ export function UnuploadProductsList() {
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <TheadRow>
+              <th className="w-10 px-3 py-2">
+                <input type="checkbox" aria-label="Select the products on this page" checked={allPageSelected} disabled={pageIds.length === 0} onChange={togglePage} />
+              </th>
               {COLUMNS.map((col) => (
                 <Th key={col.key} sortKey={col.key} sort={sort} onSort={toggleSort}>
                   {col.label}
@@ -139,7 +177,7 @@ export function UnuploadProductsList() {
           </thead>
           <tbody>
             <EmptyRow
-              colSpan={COLUMN_LABELS.length}
+              colSpan={COLUMN_LABELS.length + 1}
               isLoading={isLoading}
               isError={isError}
               error={error}
@@ -150,15 +188,18 @@ export function UnuploadProductsList() {
             {sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-border hover:bg-surface-hover">
                 <td className="px-3 py-3">
+                  <input type="checkbox" aria-label={`Select ${row.name}`} checked={!!row.id && selected.has(row.id)} disabled={!row.id} onChange={() => toggleOne(row.id)} />
+                </td>
+                <td className="px-3 py-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="shrink-0 w-8 h-8 rounded-lg grid place-items-center bg-warning-bg text-warning-fg">
                       <Package size={15} />
                     </span>
                     <div className="min-w-0">
-                      {row.productUrl ? (
-                        <a href={row.productUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium truncate block">
+                      {row.id ? (
+                        <Link to={ROUTES.productDetail.replace(':id', String(row.id))} className="text-brand hover:underline font-medium truncate block">
                           {row.name}
-                        </a>
+                        </Link>
                       ) : (
                         <p className="text-text! font-medium truncate">{row.name}</p>
                       )}
@@ -178,6 +219,16 @@ export function UnuploadProductsList() {
           </tbody>
         </table>
       </div>
+
+      {uploading && (
+        <UploadProductsDialog
+          ids={[...selected]}
+          onClose={() => {
+            setUploading(false)
+            setSelected(new Set())
+          }}
+        />
+      )}
 
       <div className="-mx-6 -mb-6">
 

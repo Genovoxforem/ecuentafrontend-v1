@@ -1,4 +1,4 @@
-import { X, Package, Tag, ShoppingCart, Warehouse, Ruler, Shapes, Link2, ChartPie, FileText, StickyNote, Paperclip, CalendarClock, Percent } from 'lucide-react'
+import { X, Package, Tag, ShoppingCart, Warehouse, Ruler, Shapes, Link2, ChartPie, FileText, StickyNote, Paperclip, CalendarClock } from 'lucide-react'
 import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/dashboard/DashboardKit'
 
 // Matches legacy's primary/overflow tab split (product/card.php's own
@@ -11,8 +11,9 @@ import { Card, ICON_STYLES, type IconColor } from '../../../shared/components/da
 // Statistics, Invoice Stats, Notes, Documents, Events. Each label maps to
 // the same underlying data/component (e.g. variant_api.php uses the same
 // ProductCombination class as "Product Combinations").
-// "Margins" has no equivalent tab in that reference (selling-vs-buying
-// margin isn't one of its 12 tabs), so it's kept, appended at the end.
+// The reference has no "Margins" tab, so there is none here either (removed 13 Nov 2026).
+// tabs.json also hides three tabs by product flag (condition status / status_buy / is_stockable);
+// visibleProductTabs below applies the same rules.
 const TABS = [
   { label: 'Product Card', icon: Package },
   { label: 'Selling Prices', icon: Tag },
@@ -26,9 +27,20 @@ const TABS = [
   { label: 'Notes', icon: StickyNote },
   { label: 'Documents', icon: Paperclip },
   { label: 'Events', icon: CalendarClock },
-  { label: 'Margins', icon: Percent },
 ] as const
 type Tab = (typeof TABS)[number]['label']
+
+// productinfo/json/tabs.json (same on 5.10 and newecuenta): "Selling Prices" only when the product is for sale, "Supplier Prices" only when
+// it is for purchase, "Stock" only when it is stockable (a service is not). The "module" conditions of that file (fournisseur, stock, uom,
+// variants, subproduct, facture) are not applied: the app has no per-module switch for them.
+export function visibleProductTabs(p: { forSale: boolean; forPurchase: boolean; type: string }) {
+  return TABS.filter((t) => {
+    if (t.label === 'Selling Prices') return p.forSale
+    if (t.label === 'Supplier Prices') return p.forPurchase
+    if (t.label === 'Stock') return p.type !== 'service'
+    return true
+  })
+}
 
 function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return <th className={`font-medium px-3 py-2.5 whitespace-nowrap ${right ? 'text-right' : 'text-left'}`}>{children}</th>

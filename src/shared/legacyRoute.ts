@@ -25,9 +25,17 @@ const CARD_ROUTES: { path: string; params: string[]; route: string }[] = [
   { path: '/societe/card.php', params: ['socid', 'id'], route: ROUTES.customerDetail },
   { path: '/contact/card.php', params: ['id'], route: ROUTES.contactDetail },
   { path: '/product/card.php', params: ['id'], route: ROUTES.productDetail },
+  // The product's stock page (the Stock tab) - the link of a product in the stock movement lists.
+  { path: '/product/stock/product.php', params: ['id'], route: `${ROUTES.productDetail}?tab=Stock` },
   // Ecuenta's own product page (same ids as product/card.php).
   { path: '/productinfo/index.php', params: ['id'], route: ROUTES.productDetail },
   { path: '/projet/card.php', params: ['id'], route: ROUTES.projectDetail },
+  // The Fixed Asset card of the new asset pages (asset/view.php?id=N).
+  { path: '/asset/view.php', params: ['id'], route: ROUTES.fixedAssetDetail },
+  // Installment Sales: the plan, the payment form and the receipt open by plan / receipt id.
+  { path: '/installment/details.php', params: ['id'], route: ROUTES.installmentDetail },
+  { path: '/installment/payment.php', params: ['id'], route: ROUTES.installmentPay },
+  { path: '/installment/receipt.php', params: ['id'], route: ROUTES.installmentReceiptDetail },
   { path: '/expensereport/card.php', params: ['id'], route: ROUTES.expenseReportDetail },
   // Ecuenta's own expense module page for the same reports.
   { path: '/expense/card.php', params: ['id'], route: ROUTES.expenseCard },
@@ -35,6 +43,10 @@ const CARD_ROUTES: { path: string; params: string[]; route: string }[] = [
   { path: '/userprofile/index.php', params: ['id'], route: ROUTES.userDetail },
   { path: '/product/stock/card.php', params: ['id'], route: ROUTES.warehouseDetail },
   { path: '/product/inventory/card.php', params: ['id'], route: ROUTES.inventoryDetail },
+  // Bank account card, one bank entry (rowid) and one account of the chart of accounts (the links of the Reports Center bank and ledger tables).
+  { path: '/compta/bank/card.php', params: ['id'], route: ROUTES.bankingAccountDetail },
+  { path: '/compta/bank/line.php', params: ['rowid', 'id'], route: ROUTES.bankingEntryDetail },
+  { path: '/accountancy/admin/card.php', params: ['id'], route: ROUTES.ledgerAccountCard },
 ].sort((a, b) => b.path.length - a.path.length)
 
 // Backend list / setup pages that have a native React page, keyed by the page's
@@ -72,14 +84,41 @@ const LIST_ROUTES: { path: string; when?: { param: string; value: string }; rout
   { path: '/product/stock/list.php', route: ROUTES.warehouseList },
   { path: '/custom/zra/zraindex.php', route: ROUTES.zra },
   { path: '/takeposnew/index.php', route: '/pos' },
+  { path: '/custom/pharmacy/app.php', route: ROUTES.pharmacyDashboard },
   { path: '/compta/facture/invoicetemplate_list.php', route: ROUTES.invoiceTemplates },
   { path: '/compta/paiement/list.php', route: ROUTES.paymentsList },
   { path: '/custom/zra/rebate_list.php', route: ROUTES.rebateInvoiceList },
   { path: '/custom/zra/rebate_create.php', route: ROUTES.rebateInvoiceCreate },
+  { path: '/custom/zra/debitnote_list.php', route: ROUTES.zraDebitNotes },
+  { path: '/compta/facture/card-wizard.php', route: ROUTES.zraCommercialInvoice },
   { path: '/categories/index.php', when: { param: 'type', value: '2' }, route: ROUTES.customerTags },
   { path: '/categories/index.php', when: { param: 'type', value: 'customer' }, route: ROUTES.customerTags },
   { path: '/categories/index.php', when: { param: 'type', value: '4' }, route: ROUTES.contactTags },
   { path: '/categories/index.php', when: { param: 'type', value: 'contact' }, route: ROUTES.contactTags },
+  // Fixed Asset (the new asset pages): the menu's "Assets" and "Asset list" both open assets.php, "Setup" and "Asset types" both open setup/types.php.
+  { path: '/asset/assets.php', route: ROUTES.fixedAssetList },
+  { path: '/asset/new.php', route: ROUTES.fixedAssetNew },
+  { path: '/asset/depreciation.php', route: ROUTES.fixedAssetDepreciation },
+  { path: '/asset/reports.php', route: ROUTES.fixedAssetReports },
+  { path: '/asset/setup/types.php', route: ROUTES.fixedAssetTypes },
+  { path: '/asset/setup/categories.php', route: ROUTES.fixedAssetCategory },
+  { path: '/asset/setup/groups.php', route: ROUTES.fixedAssetGroup },
+  { path: '/asset/setup/insurers.php', route: ROUTES.fixedAssetInsuranceCompany },
+  // Installment Sales. The menu's "Installment Plans" entry is settings.php with leftmenu=installment_plans (the plan templates tab).
+  { path: '/installment/dashboard.php', route: ROUTES.installmentDashboard },
+  { path: '/installment/list.php', route: ROUTES.installmentList },
+  { path: '/installment/create.php', route: ROUTES.installmentNew },
+  { path: '/installment/payments.php', route: ROUTES.installmentPayments },
+  { path: '/installment/receipts.php', route: ROUTES.installmentReceipts },
+  { path: '/installment/reports.php', route: ROUTES.installmentReports },
+  { path: '/installment/settings.php', when: { param: 'leftmenu', value: 'installment_plans' }, route: `${ROUTES.installmentSettings}?tab=plans` },
+  { path: '/installment/settings.php', route: ROUTES.installmentSettings },
+  // The previous asset module's pages, which the new asset pages' "Classic view" button opens.
+  { path: '/asset_old/list.php', route: ROUTES.fixedAssetClassicList },
+  { path: '/asset_old/type.php', route: ROUTES.fixedAssetClassicTypes },
+  { path: '/asset_old/listcategory.php', route: ROUTES.fixedAssetClassicCategory },
+  { path: '/custom/crm/assetgroup.php', route: ROUTES.fixedAssetClassicGroup },
+  { path: '/custom/crm/assetinccompany.php', route: ROUTES.fixedAssetClassicInsurance },
   // Kitchen: the dashboard, the beverage orders (the same page with type=supplement) and the kitchen orders.
   { path: '/kitchen/dashboard.php', route: ROUTES.kitchenDashboard },
   { path: '/kitchen/ordermanagement.php', when: { param: 'type', value: 'supplement' }, route: ROUTES.kitchenBeverageOrders },

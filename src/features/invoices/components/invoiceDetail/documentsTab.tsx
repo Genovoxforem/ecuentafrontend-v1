@@ -4,6 +4,7 @@ import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useSalesInvoiceDocuments, useUploadSalesDocument, useDeleteSalesDocument, useAddSalesDocumentLink, useDeleteSalesDocumentLink, useLinkableObjects, useLinkSalesObject, useUnlinkSalesObject, LINKABLE_OBJECT_TYPES } from '../../salesInvoiceTabs.queries'
 import { EmptyState, TabTitle, inputCls, parseMarginRows, selectCls } from './InvoiceDetailShared'
+import { useSalesInvoice } from '../../salesInvoice.queries'
 
 // compta/sales/api/documents.php-backed tab (see sales/js/documents.js,
 // DocumentsTab.render()): this tab has NO Generate PDF form of its own.
@@ -13,6 +14,8 @@ import { EmptyState, TabTitle, inputCls, parseMarginRows, selectCls } from './In
 // renders them — dead code on the classic page too.
 export function DocumentsTab({ id }: { id: string | undefined }) {
   const { data, isLoading, isError, error, refetch } = useSalesInvoiceDocuments(id)
+  // The invoice's own margin rows (already loaded by the page), used when the documents answer carries none.
+  const { data: invoice } = useSalesInvoice(id)
   const upload = useUploadSalesDocument(id)
   const deleteDoc = useDeleteSalesDocument(id)
   const addLink = useAddSalesDocumentLink(id)
@@ -29,7 +32,9 @@ export function DocumentsTab({ id }: { id: string | undefined }) {
   if (isLoading) return <LegacyLoadingCard label="Loading linked files…" />
   if (isError || !data) return <LegacyErrorCard title="Couldn't load linked files" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
-  const documentsMarginRows = data.margin.enabled ? parseMarginRows(data.margin.margin_info) : []
+  const ownRows = data.margin.enabled ? parseMarginRows(data.margin.margin_info) : []
+  const invoiceRows = invoice?.margin.enabled ? (invoice.margin.rows ?? parseMarginRows(invoice.margin.margin_info)) : []
+  const documentsMarginRows = ownRows.length > 0 ? ownRows : invoiceRows
 
   return (
     <div className="space-y-3">
@@ -55,7 +60,7 @@ export function DocumentsTab({ id }: { id: string | undefined }) {
         </div>
       </Card>
 
-      {data.margin.enabled && documentsMarginRows.length > 0 && (
+      {documentsMarginRows.length > 0 && (
         <Card className="!h-auto !p-0 overflow-hidden">
           <p className="text-sm font-semibold text-text! px-4 pt-4 pb-2">Margin Details</p>
           <table className="w-full text-sm">

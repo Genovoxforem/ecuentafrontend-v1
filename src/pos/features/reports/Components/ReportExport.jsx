@@ -185,6 +185,7 @@ export const buildReportPdfHtml = ({ entries, totals, startIso, endIso, terminal
 export const exportReportPDF = ({ entries, totals, startIso, endIso, terminal, searchTerm }) => {
     const printWindow = window.open("", "_blank", "width=1000,height=700");
     if (!printWindow) return false;
+    printWindow.opener = null; // BUG-112: keep the reference to write the report, cut the link back to the app
     printWindow.document.write(buildReportPdfHtml({ entries, totals, startIso, endIso, terminal, searchTerm }));
     printWindow.document.close();
     printWindow.focus();

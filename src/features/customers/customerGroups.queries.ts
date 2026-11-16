@@ -1,9 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
-import { api, fapi } from '../../api/axios'
+import { fapi } from '../../api/axios'
 
-// Customer groups (pricing groups) — /api/customer/group.php for legacy actions,
-// with fapi list/create/delete routes.
+// Customer groups (pricing groups) on societe/fapi/customer_group.php (fapi only; the old /api/customer/group.php answers 404 on newecuenta).
 //   GET    ?action=list[&search&page&limit]      groups
 //   GET    ?action=get&id=N                      one group + its prices[] + customers_assigned
 //   GET    ?action=products&id=N[&search&offset&limit]   the Product Price grid
@@ -12,7 +10,6 @@ import { api, fapi } from '../../api/axios'
 //   PUT    {action:'update', id, ...}            partial update (label included)
 //   DELETE ?action=delete&id=N                   delete + unassign customers
 // Authenticated with the stored X-API-Key (see api/axios.ts).
-const ENDPOINT = '/customer/group.php'
 const FAPI_ENDPOINT = '/societe/fapi/customer_group.php'
 
 export interface CustomerGroupListRow {
@@ -216,54 +213,23 @@ export function useCreateCustomerGroup() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: CustomerGroupInput) => {
-      if (input.discountMethod === 1) {
-        const body = new URLSearchParams({
-          action: 'create',
-          label: input.label,
-          description: input.description,
-          dis_method: String(input.discountMethod),
-          prod_discount: String(input.discount),
-          dis_type: String(input.discountType),
-        })
-
-        try {
-          const { data } = await fapi.post<ApiEnvelope & { id?: number; cust_group_id?: number }>(
-            `${FAPI_ENDPOINT}?action=create`,
-            body,
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
-          )
-          const id = data.id ?? data.cust_group_id
-          if (!data.success || !id) throw new Error(data.error || data.message || 'Failed to create customer group.')
-          return { id }
-        } catch (err) {
-          const isMissingRoute =
-            axios.isAxiosError(err) &&
-            err.response?.status === 404 &&
-            (typeof err.response.data !== 'object' || err.response.data === null)
-          if (!isMissingRoute) throw apiError(err, 'Failed to create customer group.')
-        }
-      }
-
-      if (input.discountMethod === 2) {
-        try {
-          const { data } = await fapi.post<ApiEnvelope & { id?: number; cust_group_id?: number }>(
-            `${FAPI_ENDPOINT}?action=create`,
-            { action: 'create', ...toPayload(input) },
-          )
-          const id = data.id ?? data.cust_group_id
-          if (!data.success || !id) throw new Error(data.error || data.message || 'Failed to create customer group.')
-          return { id }
-        } catch (err) {
-          const isMissingRoute =
-            axios.isAxiosError(err) &&
-            err.response?.status === 404 &&
-            (typeof err.response.data !== 'object' || err.response.data === null)
-          if (!isMissingRoute) throw apiError(err, 'Failed to create customer group.')
-        }
-      }
-
+      // societe/fapi/customer_group.php?action=create: a form body for the percentage method (1), JSON for the others.
       try {
-        const { data } = await api.post<ApiEnvelope & { id?: number; cust_group_id?: number }>(ENDPOINT, { action: 'create', ...toPayload(input) })
+        const { data } =
+          input.discountMethod === 1
+            ? await fapi.post<ApiEnvelope & { id?: number; cust_group_id?: number }>(
+                `${FAPI_ENDPOINT}?action=create`,
+                new URLSearchParams({
+                  action: 'create',
+                  label: input.label,
+                  description: input.description,
+                  dis_method: String(input.discountMethod),
+                  prod_discount: String(input.discount),
+                  dis_type: String(input.discountType),
+                }),
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+              )
+            : await fapi.post<ApiEnvelope & { id?: number; cust_group_id?: number }>(`${FAPI_ENDPOINT}?action=create`, { action: 'create', ...toPayload(input) })
         const id = data.id ?? data.cust_group_id
         if (!data.success || !id) throw new Error(data.error || data.message || 'Failed to create customer group.')
         return { id }

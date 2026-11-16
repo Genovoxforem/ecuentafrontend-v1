@@ -276,12 +276,11 @@ export function EventsTab({ id }: { id: string | undefined }) {
   if (isError && (isBackendUnavailable(error) || isBackendActionUnavailable(error))) return <BackendUnavailableCard feature="Events/Agenda" />
   if (isError) return <LegacyErrorCard title="Couldn't load events" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
 
-  // product/fapi/agenda.php answers one list; an event of type AC_PRODUCT_MODIFY is a recorded modification of the product, every other type is an
-  // event. That split into the classic tab's two cards comes from the type code and has not been compared with the classic tab on a product that has
-  // modifications (report row).
+  // product/fapi/agenda.php answers one list with an is_modification flag per row and an events_summary (counts + latest dates): the flag splits the
+  // rows into the two cards and the summary feeds the three tiles.
   const all = data?.events ?? []
-  const modifications = all.filter((e) => e.typeCode === 'AC_PRODUCT_MODIFY')
-  const events = all.filter((e) => e.typeCode !== 'AC_PRODUCT_MODIFY')
+  const modifications = all.filter((e) => e.isModification)
+  const events = all.filter((e) => !e.isModification)
   const statusTone: Record<string, 'success' | 'info'> = { success: 'success', info: 'info', warning: 'info', secondary: 'info' }
 
   const list = (rows: typeof all, empty: string) =>
@@ -314,9 +313,9 @@ export function EventsTab({ id }: { id: string | undefined }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricTile icon={CalendarClock} color="blue" label="Events" value={events.length} />
-        <MetricTile icon={History} color="green" label="Modifications" value={modifications.length} />
-        <MetricTile icon={Clock} color="amber" label="Latest Event" value={events[0]?.date || '-'} />
+        <MetricTile icon={CalendarClock} color="blue" label="Events" value={data?.summary.events ?? events.length} />
+        <MetricTile icon={History} color="green" label="Modifications" value={data?.summary.modifications ?? modifications.length} />
+        <MetricTile icon={Clock} color="amber" label="Latest Event" value={data?.summary.latestEventDate || '-'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

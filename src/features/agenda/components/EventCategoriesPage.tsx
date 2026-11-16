@@ -1,19 +1,11 @@
-import { Tags, ExternalLink } from 'lucide-react'
+import { Tags } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { useAgendaFilterOptions } from '../calendarApi.queries'
 
-// The category list itself is real, already-fetched data — the same
-// getFilters response the Agenda page's own filter panel uses (see
-// calendarApi.queries.ts) — so this reads it directly rather than
-// re-fetching or fabricating anything. Creating/renaming a category has no
-// JSON API on this backend though: that's the generic Dolibarr
-// categories/index.php?type=actioncomm controller (Categorie::TYPE_ACTIONCOMM,
-// confirmed in categories/class/categorie.class.php), a classic
-// server-rendered CRUD page with no json_encode anywhere in it — so editing
-// stays an honest link out instead of a fake "Add" button here.
-const LEGACY_CATEGORIES_URL = '/categories/index.php?type=actioncomm'
+// The category list is real data: the same getFilters response the Agenda page's own filter panel uses (calendarApi.queries.ts). Adding or
+// renaming a category has no JSON API: categories/fapi/list.php serves customer, supplier, contact, product, project, account, user and member
+// only (13 Nov 2026, "event" / "actioncomm" answer 422). The app never links to a backend .php page, so the action stays inert.
 
 export function EventCategoriesPage() {
   const { data, isLoading, isError, error, refetch } = useAgendaFilterOptions()
@@ -26,15 +18,15 @@ export function EventCategoriesPage() {
 
       <Card className="!h-auto !p-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2 p-4 border-b border-border">
-          <p className="text-xs text-text-faint">Real event/action categories from this backend. Adding or renaming one has no JSON API here — manage that in the legacy app.</p>
-          <a
-            href={stripBackendPrefix(LEGACY_CATEGORIES_URL)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 shrink-0 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
+          <p className="text-xs text-text-faint">Real event/action categories from this backend. Adding or renaming one has no JSON API on this backend yet.</p>
+          <button
+            type="button"
+            disabled
+            title="No JSON API exists to add or rename event categories"
+            className="flex items-center gap-1.5 shrink-0 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white opacity-60 cursor-not-allowed"
           >
-            Manage Categories <ExternalLink size={12} />
-          </a>
+            Add category
+          </button>
         </div>
         <div className="p-4">
           {isLoading ? (

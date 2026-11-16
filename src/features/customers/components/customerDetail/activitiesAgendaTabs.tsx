@@ -8,7 +8,7 @@ import { X, Users2, CalendarClock, Pencil, Plus, Bot, Phone, Eye, ListChecks, Hi
 import { Card } from '../../../../shared/components/dashboard/DashboardKit'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useCustomerActivities, useActivityDetail, useCustomerAgenda, type ActivityType, type ActivityItem, type AgendaDay } from '../../customerDetailTabs.queries'
-import { TabTitle } from './CustomerDetailShared'
+import { StickyTabHead, TabTitle } from './CustomerDetailShared'
 
 const ACTIVITY_STATUS_BADGE: Record<string, string> = {
   done: 'bg-success-bg text-success-fg',
@@ -300,6 +300,8 @@ export function AgendaTab({ socid, name = 'events' }: { socid: string | undefine
 
   return (
     <div className="space-y-3">
+      {/* the title row and the filters stay at the top while the timeline scrolls under them */}
+      <StickyTabHead>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TabTitle>Agenda</TabTitle>
         <div className="flex flex-wrap items-center gap-2">
@@ -379,6 +381,7 @@ export function AgendaTab({ socid, name = 'events' }: { socid: string | undefine
           {filtered ? ' match these filters' : ''}
         </p>
       </Card>
+      </StickyTabHead>
       <Card className="!h-auto">
         <AgendaTimelineList days={days} />
       </Card>

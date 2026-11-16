@@ -142,6 +142,7 @@ function ContactAddressTab({ contact }: { contact: ContactData }) {
     ['Fax', contact.fax],
     ['Email', contact.email],
     ['Address', address],
+    ['State/Province', contact.state ?? ''],
     ['Visibility', contact.priv ? 'Private' : 'Public'],
   ]
   return (

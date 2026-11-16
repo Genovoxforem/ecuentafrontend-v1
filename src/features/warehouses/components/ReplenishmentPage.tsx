@@ -31,6 +31,8 @@ const COLUMNS: { label: string; key?: SortKey; align?: 'right' }[] = [
   { label: 'Vendor SKU' },
 ]
 const COLUMN_LABELS = ['', ...COLUMNS.map((c) => c.label)]
+// The stock column names the figure the list is measured against: the classic page heads it "Virtual Stock" in virtual mode.
+const columnLabel = (col: { label: string; key?: SortKey }, mode: 'virtual' | 'physical') => (col.key === 'stock' && mode === 'virtual' ? 'Virtual Stock' : col.label)
 
 function sortValue(r: MissingStockRow, key: SortKey): string | number {
   switch (key) {
@@ -123,7 +125,7 @@ function MissingStocksTab({ onViewOrdersFor }: { onViewOrdersFor: (productId: nu
 
   function getExportData() {
     return {
-      headers: COLUMN_LABELS.slice(1),
+      headers: COLUMNS.map((c) => columnLabel(c, mode)),
       rows: sorted.map((r) => [
         r.ref,
         r.label,
@@ -235,7 +237,7 @@ function MissingStocksTab({ onViewOrdersFor }: { onViewOrdersFor: (productId: nu
                 <Th className="w-10" />
                 {COLUMNS.map((col) => (
                   <Th key={col.label} sortKey={col.key} sort={sort} onSort={toggleSort} align={col.align} className="whitespace-nowrap">
-                    {col.label}
+                    {columnLabel(col, mode)}
                   </Th>
                 ))}
               </TheadRow>

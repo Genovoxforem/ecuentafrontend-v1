@@ -1,6 +1,6 @@
-import { usePurchaseOrdersSummary } from '../purchaseOrders/purchaseOrders.queries'
-import { useSupplierProposalAreaSummary } from '../supplierProposals/supplierProposalArea.queries'
-import { useVendorInvoices } from '../vendorInvoices/vendorInvoices.queries'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchVendorSummary } from '../vendors/vendors.queries'
 
 export interface PurchaseStatCounts {
   purchaseInvoices: number
@@ -40,30 +40,52 @@ export interface PurchasesSummary {
 // placeholders. Purchase orders and supplier proposals are optional here: if their endpoints are missing the
 // cards show 0 and the rest of the page still renders. There is no ASYCUDA integration and no endpoint for
 // today's activity / status breakdown / top products, so those stay honest zeros/empty.
-export function usePurchasesSummary() {
-  const { data: purchaseOrders } = usePurchaseOrdersSummary()
-  const { data: supplierProposals } = useSupplierProposalAreaSummary()
-  const { data: allInvoices, isLoading: invoicesLoading, isError: invoicesIsError, error: invoicesError } = useVendorInvoices('all')
-  const { data: automaticInvoices } = useVendorInvoices('automatic')
+// The dashboard only shows counts, so each one is read from the `summary` block of a one-row list call (the same block
+// the full lists read their totals from) instead of downloading 100 rows of every list to count them. The vendor
+// count is the vendor summary's own total.
+async function fetchPurchaseCounts(queryClient: QueryClient) {
+  const [invoices, automatic, orders, proposals, vendors] = await Promise.allSettled([
+    fapiGet<{ summary?: { count?: number } }>('/fourn/facture/fapi/list.php', { view: 'all', limit: 1 }),
+    fapiGet<{ summary?: { count?: number } }>('/fourn/facture/fapi/list.php', { view: 'automatic', limit: 1 }),
+    fapiGet<{ summary?: { count?: number } }>('/fourn/commande/fapi/list.php', { limit: 1 }),
+    fapiGet<{ summary?: { total?: number } }>('/supplier_proposal/fapi/list.php', { limit: 1 }),
+    fetchVendorSummary(queryClient),
+  ])
+  // The invoice list is required; the rest show 0 when their endpoint is missing.
+  if (invoices.status === 'rejected') throw invoices.reason
+  const count = (r: PromiseSettledResult<{ summary?: { count?: number } }>) => (r.status === 'fulfilled' ? Number(r.value.summary?.count) || 0 : 0)
+  const vendorTotal = vendors.status === 'fulfilled' ? ((vendors.value as { total_vendors?: number; total?: number }).total_vendors ?? (vendors.value as { total?: number }).total) : 0
+  return {
+    purchaseInvoices: count(invoices),
+    automaticPurchases: count(automatic),
+    purchaseOrders: count(orders),
+    supplierProposals: proposals.status === 'fulfilled' ? Number(proposals.value.summary?.total) || 0 : 0,
+    vendors: Number(vendorTotal) || 0,
+  }
+}
 
-  if (invoicesLoading) {
+export function usePurchasesSummary() {
+  const queryClient = useQueryClient()
+  const { data: counts, isLoading, isError, error } = useQuery({ queryKey: ['purchases', 'dashboard-counts'], queryFn: () => fetchPurchaseCounts(queryClient), staleTime: 1000 * 60 })
+
+  if (isLoading) {
     return { data: undefined, isError: false, isLoading: true }
   }
-  if (invoicesIsError) {
-    return { data: undefined, isError: true, isLoading: false, error: invoicesError }
+  if (isError) {
+    return { data: undefined, isError: true, isLoading: false, error }
   }
-  if (!allInvoices) {
+  if (!counts) {
     return { data: undefined, isError: true, isLoading: false, error: new Error('Purchases dashboard data unexpectedly missing.') }
   }
 
   const summary: PurchasesSummary = {
     stats: {
-      purchaseInvoices: allInvoices.total,
-      supplierProposals: supplierProposals?.total ?? 0,
-      purchaseOrders: purchaseOrders?.totalOrders ?? 0,
-      vendors: allInvoices.summary.suppliers,
+      purchaseInvoices: counts.purchaseInvoices,
+      supplierProposals: counts.supplierProposals,
+      purchaseOrders: counts.purchaseOrders,
+      vendors: counts.vendors,
       asycudaDeclarations: 0,
-      automaticPurchases: automaticInvoices?.total ?? 0,
+      automaticPurchases: counts.automaticPurchases,
     },
     todaysPurchaseAmount: 0,
     todaysInvoiceCount: 0,

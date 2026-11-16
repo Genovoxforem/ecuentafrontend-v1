@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import type { NavItem, NavSection } from '../../features/navTypes'
+import { ROUTES } from '../../routes'
 import { resolveLegacyRoute } from '../legacyRoute'
 import { underConstructionPath } from './underConstruction'
 import type { AppMenuResponse, BackendMenuNode } from './appMenu.queries'
@@ -34,6 +35,7 @@ const MAINMENU_TO_INTERNAL_KEY: Record<string, string> = {
   payroll: 'payroll',
   kitchen: 'kitchen',
   asset: 'fixed-asset',
+  installment: 'installment',
   fixedasset: 'fixed-asset',
   generalledger: 'general-ledger',
   ticket: 'ticket',
@@ -66,8 +68,8 @@ for (const [k, v] of Object.entries(MAINMENU_TO_INTERNAL_KEY)) {
 // already-verified route, so an empty backend tree here means "the sidebar
 // has nothing to show," not "these pages don't exist" — worth falling back
 // to the hand-built list instead of leaving the section permanently empty.
-// Members/Reports are deliberately NOT in this set: their empty tree really
-// does mean no pages exist yet for them.
+// Reports is NOT in this set: its backend menu has no child rows (checked 11 Nov 2026 on newecuenta: only the top entry /reports/reportsindex.php; the categories exist only inside that PHP page), so its sidebar panel
+// shows what the backend returns - the "All Reports" link - and the categories live on the Reports Center page itself. Members is deliberately NOT in this set either.
 const FALLBACK_TO_LOCAL_NAV_KEYS = new Set(['expenses'])
 
 // Sections whose live backend rows are FLAT: every row has fk_menu=-1, so the
@@ -188,6 +190,12 @@ function mapNode(internalKey: string, node: BackendMenuNode, pathIndex: Map<stri
   return { label: node.titre, path: path ?? underConstructionPath(internalKey, node.titre) }
 }
 
+// The Reports panel lists the report categories; "All Reports" sits above them and opens the Reports Center page (every category and report on one page).
+export function withAllReportsLink(items: NavItem[]): NavItem[] {
+  if (items.some((i) => 'path' in i && i.path === ROUTES.reports)) return items.map((i) => (i.label === 'Reports Center' ? { ...i, label: 'All Reports' } : i))
+  return [{ label: 'All Reports', path: ROUTES.reports }, ...items]
+}
+
 export function buildNavSections(menu: AppMenuResponse, existingSections: NavSection[], fallbackIcon: LucideIcon): NavSection[] {
   const pathIndex = buildPathIndex(existingSections)
   const existingByKey = new Map(existingSections.map((s) => [s.key, s]))
@@ -225,7 +233,7 @@ export function buildNavSections(menu: AppMenuResponse, existingSections: NavSec
       key: internalKey,
       label: existing?.label ?? tm.title,
       icon: existing?.icon ?? fallbackIcon,
-      items,
+      items: internalKey === 'reports' ? withAllReportsLink(items) : items,
     }
   })
 }

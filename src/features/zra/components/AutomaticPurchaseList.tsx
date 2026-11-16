@@ -5,6 +5,7 @@ import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { ListHeader, ListPagination, SearchBox, EmptyRow } from './ZraListChrome'
 import { formatMoney } from '../../../utils/format'
+import { PurchaseItemsModal } from './PurchaseItemsModal'
 
 const PAGE_SIZE_OPTIONS = [10, 15, 25, 50, 100]
 
@@ -13,11 +14,12 @@ type SortKey = 'invoiceNo' | 'supplierName' | 'receiptType' | 'confirmationDate'
 const COLUMNS: { label: string; key: SortKey; align?: 'right' }[] = [
   { label: 'Invoice No', key: 'invoiceNo' },
   { label: 'Supplier Details', key: 'supplierName' },
-  { label: 'Receipt Type', key: 'receiptType' },
+  { label: 'Receipt Type Code', key: 'receiptType' },
   { label: 'Confirmation Date', key: 'confirmationDate' },
   { label: 'Total Amount', key: 'totalAmount', align: 'right' },
 ]
-const COLUMN_LABELS = COLUMNS.map((c) => c.label)
+// The classic table has a sixth, unsortable "Action" column with the View Invoice button.
+const COLUMN_LABELS = [...COLUMNS.map((c) => c.label), 'Action']
 
 function sortValue(row: AutomaticPurchaseRow, key: SortKey): string | number {
   switch (key) {
@@ -35,6 +37,7 @@ function sortValue(row: AutomaticPurchaseRow, key: SortKey): string | number {
 }
 
 export function AutomaticPurchaseList() {
+  const [viewing, setViewing] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[2])
   const [searchInput, setSearchInput] = useState('')
@@ -109,6 +112,7 @@ export function AutomaticPurchaseList() {
                   {col.label}
                 </Th>
               ))}
+              <th className="px-3 py-3 text-left text-xs font-semibold whitespace-nowrap">Action</th>
             </TheadRow>
           </thead>
           <tbody>
@@ -160,6 +164,16 @@ export function AutomaticPurchaseList() {
                     <span className="text-text-muted">Tax:</span> {formatMoney(row.taxAmount)}
                   </div>
                 </td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  <button
+                    type="button"
+                    disabled={row.id === null}
+                    onClick={() => row.id !== null && setViewing(row.id)}
+                    className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                  >
+                    View Invoice
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -173,6 +187,7 @@ export function AutomaticPurchaseList() {
 
 
       </div>
+      {viewing !== null && <PurchaseItemsModal invoiceId={viewing} onClose={() => setViewing(null)} />}
     </div>
   )
 }

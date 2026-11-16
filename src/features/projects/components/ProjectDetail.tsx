@@ -26,13 +26,15 @@ import {
   Wallet,
   CalendarDays,
   Eye,
+  CheckCircle2,
+  RotateCcw,
 } from 'lucide-react'
 import { ROUTES } from '../../../routes'
 import { Card, DetailMetricRow, DetailMetricTile, SectionHeading, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
 import { useTheme } from '../../../context/ThemeContext'
 import { Avatar } from '../../../shared/components/Avatar'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { useProjectsList, type ProjectRow } from '../projects.queries'
+import { useProject, type ProjectRow } from '../projects.queries'
 import { ProjectTasksTab } from './ProjectTasksTab'
 import { ProjectTimeSpentTab } from './ProjectTimeSpentTab'
 import { ProjectOverviewTab } from './ProjectOverviewTab'
@@ -93,7 +95,7 @@ const PROJECT_STATUS_TONE: Record<string, 'neutral' | 'success' | 'danger'> = {
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
   const [tab, setTab] = useState<TabKey>('project')
-  const { data, isLoading, isError, error, refetch } = useProjectsList('all')
+  const { data: project, isLoading, isError, error, refetch } = useProject(id)
   const { theme } = useTheme()
   const isBlueMetal = theme === 'blue-metal'
 
@@ -116,7 +118,7 @@ export function ProjectDetail() {
       el.removeEventListener('scroll', updateTabScrollState)
       window.removeEventListener('resize', updateTabScrollState)
     }
-  }, [updateTabScrollState, data])
+  }, [updateTabScrollState, project])
   function scrollTabs(direction: 1 | -1) {
     tabsScrollRef.current?.scrollBy({ left: direction * 220, behavior: 'smooth' })
   }
@@ -128,19 +130,10 @@ export function ProjectDetail() {
       </div>
     )
   }
-  if (isError || !data) {
+  if (isError || !project) {
     return (
       <div className="-m-6 flex-1 flex flex-col min-h-0 p-6">
         <LegacyErrorCard title="Couldn't load project" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
-      </div>
-    )
-  }
-
-  const project = data.items.find((p) => p.id === Number(id))
-  if (!project) {
-    return (
-      <div className="-m-6 flex-1 flex flex-col min-h-0 p-6">
-        <LegacyErrorCard title="Project not found" message={`No project with id ${id} in the first 25 rows the real backend returns (it hardcodes its own page size).`} onRetry={() => refetch()} />
       </div>
     )
   }
@@ -293,6 +286,17 @@ const dangerDisabledBtn = 'flex items-center gap-1.5 rounded-lg bg-danger px-4 p
 // Layout matches this app's own "Project Information" / "Description & Tags" mockup:
 // a wide info card with icon-led rows and the action bar at its bottom, a narrower
 // description card beside it, then the Linked Files / Latest Events tables below.
+// The classic card offers one state button: Validate on a draft, Close on an open project, ReOpen on a closed one (projet/card.php).
+// Disabled, like the other writes, until the backend has an endpoint for them.
+export function ProjectStateButton({ statusCode }: { statusCode: number }) {
+  const [icon, label] = statusCode === 0 ? [<CheckCircle2 key="i" size={14} />, 'Validate'] : statusCode === 2 ? [<RotateCcw key="i" size={14} />, 'ReOpen'] : [<X key="i" size={14} />, 'Close']
+  return (
+    <button type="button" disabled title="No real API available on this backend" className={primaryDisabledBtn}>
+      {icon} {label}
+    </button>
+  )
+}
+
 function ProjectTab({ project }: { project: ProjectRow }) {
   const [showEmailModal, setShowEmailModal] = useState(false)
   return (
@@ -311,9 +315,7 @@ function ProjectTab({ project }: { project: ProjectRow }) {
           <button type="button" disabled title="No real API available on this backend" className={primaryDisabledBtn}>
             <Pencil size={14} /> Modify
           </button>
-          <button type="button" disabled title="No real API available on this backend" className={primaryDisabledBtn}>
-            <X size={14} /> Close
-          </button>
+          <ProjectStateButton statusCode={project.statusCode} />
           <button type="button" disabled title="No real API available on this backend" className={primaryDisabledBtn}>
             <Copy size={14} /> Clone
           </button>

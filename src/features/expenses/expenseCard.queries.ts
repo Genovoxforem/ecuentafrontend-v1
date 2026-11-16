@@ -1,37 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { parseExpenseCard, type ExpenseCardPage } from './expenseCardParser'
+import type { ExpenseCardPage } from './expenseCard.types'
 import { postExpenseAction } from './expenses.queries'
-import { loadExpenseDocuments } from './expenseFapi'
+import { readExpenseCard, readExpenseDocuments } from './expenseJsonSource'
 
-// expense/card.php as a fragment (expense/api/expense_content.php?action=card&id=N).
+// The expense card, built from JSON (expenseJsonSource.ts readExpenseCard).
 export function useExpenseCard(id: string | undefined) {
   return useQuery({
     queryKey: ['expenses', 'card', id],
     enabled: Boolean(id),
-    queryFn: async (): Promise<ExpenseCardPage> => {
-      const res = await fetch(`/expense/api/expense_content.php?action=card&ajax=1&id=${encodeURIComponent(id ?? '')}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const body = await res.text()
-      if (looksLikeLegacyLoginPageText(body)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      let json: { success?: boolean; message?: string; html?: string }
-      try {
-        json = JSON.parse(body)
-      } catch {
-        throw new Error('The expense page did not answer as expected.')
-      }
-      if (!json.success) throw new Error(json.message || 'The expense could not be loaded.')
-      const card = parseExpenseCard(json.html ?? '')
-      if (!card) {
-        // The backend prints its own reason ("Expense not found", "Access denied") as an alert.
-        const reason = new DOMParser()
-          .parseFromString(json.html ?? '', 'text/html')
-          .querySelector('.alert')
-          ?.textContent?.trim()
-        throw new Error(reason || 'This expense could not be found.')
-      }
-      return card
-    },
+    queryFn: (): Promise<ExpenseCardPage> => readExpenseCard(id ?? ''),
   })
 }
 
@@ -117,7 +94,7 @@ export function useExpenseDocuments(id: string | undefined) {
     queryKey: ['expenses', 'documents', id],
     enabled: Boolean(id),
     // expense/fapi/documents.php lists the files; uploading and deleting stay on expense/api/documents.php (the fapi writers only answer a plan)
-    queryFn: (): Promise<ExpenseDocuments> => loadExpenseDocuments(id ?? ''),
+    queryFn: (): Promise<ExpenseDocuments> => readExpenseDocuments(id ?? ''),
   })
 }
 

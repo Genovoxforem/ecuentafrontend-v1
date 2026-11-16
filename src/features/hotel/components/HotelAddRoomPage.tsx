@@ -189,13 +189,8 @@ export function HotelAddRoomPage() {
       <Card className="!h-auto flex items-start gap-2 bg-danger-bg/40">
         <TriangleAlert size={15} className="text-danger-fg mt-0.5 shrink-0" />
         <p className="text-xs text-danger-fg">
-          Floor and Room Type below now load their real, live options straight from the real create_room.php page itself (Dolibarr's generic category
-          system — confirmed live these are genuinely selectable there, not fabricated). But this app's own write (<code className="font-mono">
-          useHotelSaveRoom</code>, the Hotel Suite's real <code className="font-mono">a=saveroom</code> action) still rejects every one of them the same
-          way — confirmed live with real ids from this exact list: <code className="font-mono">Could not create room product</code>. That action validates
-          against a different, separate table (the same broken one behind Room Type's own non-persisting "+" and failing "Add real room type"), so
-          creating a room here isn't possible yet regardless of which real Floor/Room Type is picked — only submitting through create_room.php's own real
-          form directly would use the ids these dropdowns now show.
+          Rooms are saved by the Hotel Suite backend (custom/hotel/api.php). If that backend is missing or refuses the room, the message it returns is shown
+          here when you save.
         </p>
       </Card>
 

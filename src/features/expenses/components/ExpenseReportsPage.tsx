@@ -23,7 +23,13 @@ const employeeColumns: ExpenseColumn<EmployeeRow>[] = [
   { key: 'ht', header: 'Total HT', align: 'right', sortValue: (r) => amount(r.ht), cell: (r) => <span className="tabular-nums">{money(r.ht)}</span> },
   { key: 'vat', header: 'VAT', align: 'right', sortValue: (r) => amount(r.vat), cell: (r) => <span className="tabular-nums">{money(r.vat)}</span> },
   { key: 'ttc', header: 'Total TTC', align: 'right', sortValue: (r) => amount(r.ttc), cell: (r) => <strong className="tabular-nums">{money(r.ttc)}</strong> },
-  { key: 'paid', header: 'Paid TTC', align: 'right', sortValue: (r) => amount(r.paid), cell: (r) => <span className="tabular-nums text-success-fg">{money(r.paid)}</span> },
+  {
+    key: 'paid',
+    header: 'Paid TTC',
+    align: 'right',
+    sortValue: (r) => amount(r.paid),
+    cell: (r) => <span className="tabular-nums text-success-fg">{money(r.paid)}</span>,
+  },
 ]
 const typeColumns: ExpenseColumn<TypeRow>[] = [
   { key: 'type', header: 'Type', sortValue: (r) => r.type, cell: (r) => r.type },
@@ -31,7 +37,7 @@ const typeColumns: ExpenseColumn<TypeRow>[] = [
   { key: 'ttc', header: 'Total TTC', align: 'right', sortValue: (r) => amount(r.ttc), cell: (r) => <strong className="tabular-nums">{money(r.ttc)}</strong> },
 ]
 
-// expense/reports.php: totals by employee and by expense type for a period (and department / branch).
+// expense/reports.php: totals by employee and by expense type for a period. The department and branch filters are left out: no JSON carries them.
 export function ExpenseReportsPage() {
   // Until Filter is pressed the page shows its own defaults: this year, January to December.
   const [applied, setApplied] = useState<ReportsFilters | null>(null)
@@ -48,7 +54,9 @@ export function ExpenseReportsPage() {
       </h2>
 
       {isLoading && <LegacyLoadingCard label="Loading the reports…" />}
-      {isError && <LegacyErrorCard title="Couldn't load the reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />}
+      {isError && (
+        <LegacyErrorCard title="Couldn't load the reports" message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => refetch()} />
+      )}
 
       {data && form && (
         <>
@@ -83,12 +91,6 @@ export function ExpenseReportsPage() {
                     </option>
                   ))}
                 </select>
-              </Field>
-              <Field label="Department" className="w-40">
-                <input value={form.dept} onChange={(e) => set('dept')(e.target.value)} className={`${controlCls} w-full`} />
-              </Field>
-              <Field label="Branch" className="w-40">
-                <input value={form.branch} onChange={(e) => set('branch')(e.target.value)} className={`${controlCls} w-full`} />
               </Field>
               <button type="submit" className="h-9 shrink-0 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-hover">
                 Filter

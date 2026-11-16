@@ -269,18 +269,20 @@ export function UomSettingsTab({ id }: { id: string | undefined }) {
         </div>
       </Card>
 
-      <Card className="!h-auto">
-        <SectionHeader icon={Tag} color="rose">
-          Lot/Batch Tracking
-        </SectionHeader>
-        <FieldRow label="Lot/Batch Tracking Enabled">
-          <span className={`inline-flex items-center gap-1.5 font-medium ${data.hasBatchTracking ? 'text-success' : 'text-text-muted'}`}>
-            {data.hasBatchTracking ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-            {data.hasBatchTracking ? 'Yes' : 'No'}
-          </span>
-        </FieldRow>
-        {data.canEdit && <BatchTrackingButton id={id!} enabled={data.hasBatchTracking} />}
-      </Card>
+      {!data.isService && (
+        <Card className="!h-auto">
+          <SectionHeader icon={Tag} color="rose">
+            Lot/Batch Tracking
+          </SectionHeader>
+          <FieldRow label="Lot/Batch Tracking Enabled">
+            <span className={`inline-flex items-center gap-1.5 font-medium ${data.batchModuleEnabled ? 'text-success' : 'text-text-muted'}`}>
+              {data.batchModuleEnabled ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+              {data.batchModuleEnabled ? 'Yes' : 'No'}
+            </span>
+          </FieldRow>
+          {data.canEdit && <BatchTrackingButton id={id!} enabled={data.hasBatchTracking} />}
+        </Card>
+      )}
     </div>
   )
 }

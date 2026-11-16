@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { legacyJsonBody, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fapi } from '../../api/axios'
+import { legacyJsonBody } from '../../shared/legacyHtmlFetch'
 
 // The classic Product Import Wizard (product/product_import_wizard.php) runs on
 // one JSON AJAX file, product/ajax/product_import_wizard.php (session cookie,
@@ -7,12 +9,18 @@ import { legacyJsonBody, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } f
 //   init                    warehouses, ZRA qty / packing units, VAT source codes
 //   parse_file              multipart import_file (.csv / .xlsx / .xls) -> staged rows
 //   commit                  payload {rows, warehouse_id, zra_sync} (+ saved_file) -> created / updated
-//   list_imports            files archived after earlier successful imports
-//   get_product_count       how many products exist
-//   download_sample         CSV template (a file, not JSON)
-//   export_current_products every product as a CSV in the import layout (a file)
+//   list_imports            files archived after earlier successful imports   (now imports/fapi/product_wizard.php?action=archives)
+//   get_product_count       how many products exist                          (now ?action=count)
+//   download_sample         CSV template (a file, not JSON)                  (now ?action=sample)
+//   export_current_products every product as a CSV in the import layout       (now ?action=export)
 // commit runs in one database transaction: one bad row rolls the whole import back.
+//
+// 12 Nov 2026: the five READS (init, list_imports, get_product_count and the two CSV downloads) are on the key-authenticated imports/fapi/product_wizard.php
+// (?action=init | archives | count | sample | export). Checked live against the classic answers: the same 1 warehouse, 86 + 142 units and 9 VAT codes, the same
+// archived file, 111 products, and a sample CSV of 977 bytes on both. parse_file and commit (the writes) have no fapi yet ("the legacy commit stays at
+// product/ajax/product_import_wizard.php" says the API document), so they still use the session cookie (BUG-95).
 const AJAX = '/product/ajax/product_import_wizard.php'
+const WIZARD = '/imports/fapi/product_wizard.php'
 
 // One staged row, keyed by the AJAX file's own field names (normalize_by_map).
 export const IMPORT_FIELDS = [
@@ -91,22 +99,28 @@ export function missingMandatory(rows: ImportRow[]): { row: number; fields: stri
 export function useImportInit() {
   return useQuery({
     queryKey: ['products', 'import', 'init'],
-    queryFn: () => postAction<ImportInitData>(form('init')),
+    queryFn: (): Promise<ImportInitData> => fapiGet<ImportInitData>(WIZARD, { action: 'init' }),
     staleTime: 1000 * 60 * 5,
   })
 }
 
+// archives: the files kept after earlier imports. The classic list printed the date as "2026-09-21 06:49:09"; the API answers it as ISO (UTC).
+export const archiveDate = (iso: string): string => iso.replace('T', ' ').replace(/(\.\d+)?Z$/, '')
+
 export function useImportHistory() {
   return useQuery({
     queryKey: ['products', 'import', 'history'],
-    queryFn: async () => (await postAction<{ files: { date: string; code: string; name: string }[] }>(form('list_imports'))).files ?? [],
+    queryFn: async () => {
+      const d = await fapiGet<{ files?: { date: string; code: string; name: string }[] }>(WIZARD, { action: 'archives' })
+      return (d.files ?? []).map((f) => ({ date: archiveDate(f.date), code: f.code, name: f.name }))
+    },
   })
 }
 
 export function useProductCount() {
   return useQuery({
     queryKey: ['products', 'import', 'count'],
-    queryFn: async () => (await postAction<{ count: number }>(form('get_product_count'))).count ?? 0,
+    queryFn: async () => Number((await fapiGet<{ count?: number }>(WIZARD, { action: 'count' })).count) || 0,
   })
 }
 
@@ -144,13 +158,11 @@ export function useCommitImport() {
   })
 }
 
-/** download_sample / export_current_products answer a CSV file; fetched and saved as a download. */
+/** The sample template and the current-products export answer a CSV file (imports/fapi/product_wizard.php ?action=sample | export, API key); saved as a download. */
 export async function downloadImportFile(action: 'download_sample' | 'export_current_products', fallbackName: string) {
-  const res = await fetch(`${AJAX}?action=${action}`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`The import wizard returned ${res.status}.`)
-  const blob = await res.blob()
-  if (blob.type.includes('text/html') && looksLikeLegacyLoginPageText(await blob.text())) throw new Error(NOT_SIGNED_IN_MESSAGE)
-  const name = /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName
+  const res = await fapi.get<Blob>(WIZARD, { params: { action: action === 'download_sample' ? 'sample' : 'export' }, responseType: 'blob' })
+  const blob = res.data
+  const name = /filename="?([^";]+)"?/.exec(String(res.headers['content-disposition'] ?? ''))?.[1] ?? fallbackName
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

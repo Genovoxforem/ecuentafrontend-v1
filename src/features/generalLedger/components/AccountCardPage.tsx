@@ -168,10 +168,10 @@ export function AccountCardPage() {
 
           {!editing && (
             <div className="flex items-center gap-3">
-              <button type="button" disabled={!formData} onClick={startEdit} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
+              <button type="button" disabled={!formData || !card.data.canModify} title={card.data.canModify ? undefined : 'Your account has no right to modify the chart of accounts'} onClick={startEdit} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
                 <Pencil size={14} /> Modify
               </button>
-              <button type="button" disabled={remove.isPending} onClick={doDelete} className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+              <button type="button" disabled={remove.isPending || !card.data.canDelete} title={card.data.canDelete ? undefined : 'Your account has no right to delete from the chart of accounts'} onClick={doDelete} className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
                 {remove.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
               </button>
             </div>

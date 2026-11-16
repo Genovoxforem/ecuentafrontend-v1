@@ -70,14 +70,14 @@ function DetailRow({
 }) {
   return (
     <div className="flex min-h-7 items-center justify-between gap-3 border-b border-border/60 py-1 last:border-0">
-      <span className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
+      <span className="flex shrink-0 items-center gap-2 text-[13px] text-text">
         <Icon size={13} className="shrink-0 text-brand" />
         {label}
       </span>
       <span className="flex min-w-0 max-w-[70%] items-center justify-end gap-1.5">
-        <span className="min-w-0 break-words whitespace-normal text-right text-xs font-semibold leading-tight text-text!">{value}</span>
+        <span className="min-w-0 break-words whitespace-normal text-right text-[13px] font-semibold leading-tight text-text!">{value}</span>
         {onCopy && value !== '-' && value !== 'Loading…' && (
-          <button type="button" onClick={onCopy} title={`Copy ${label}`} aria-label={`Copy ${label}`} className="shrink-0 rounded p-1 text-text-faint hover:bg-brand/10 hover:text-brand">
+          <button type="button" onClick={onCopy} title={`Copy ${label}`} aria-label={`Copy ${label}`} className="shrink-0 rounded p-1 text-text-muted hover:bg-brand/10 hover:text-brand">
             <Copy size={12} />
           </button>
         )}
@@ -117,7 +117,8 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
   const country = countryValue ? parseCountryLabel(countryValue) : companyDetailsLoading ? 'Loading…' : '-'
   const currencyCode = settings?.currency ?? ''
   const currencyLabel = `${CURRENCY_NAMES[currencyCode] ?? currencyCode} (${currencyCode})`
-  const timeZoneLabel = settings?.timezone || 'UTC'
+  // the company time zone from core/fapi/company.php; /api/general/ always says UTC (BUG-69)
+  const timeZoneLabel = companyDetails?.timezone || settings?.timezone || 'UTC'
   const dateLabel = now.toLocaleDateString('en-ZM', { dateStyle: 'medium', timeZone: timeZoneLabel })
   // Explicit timeZone here, not just the 'en-ZM' locale — locale only
   // changes formatting conventions (AM/PM style, separators), not which
@@ -134,7 +135,7 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
   }
 
   return (
-    <div className="absolute right-0 z-40 mt-1 max-h-[min(44rem,calc(100vh-5rem))] w-[min(94vw,30rem)] overflow-y-auto rounded-xl border border-brand/40 bg-surface shadow-2xl soft-scrollbar">
+    <div className="absolute right-0 z-40 mt-1 max-h-[min(44rem,calc(100vh-5rem))] w-[min(94vw,21rem)] overflow-y-auto rounded-xl border border-brand/40 bg-surface shadow-2xl soft-scrollbar">
       <div className="relative overflow-hidden rounded-t-xl border-b border-brand/20 bg-gradient-to-r from-brand/15 via-brand/[0.06] to-transparent">
         <div className="relative flex items-center justify-between gap-2.5 p-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -144,22 +145,22 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
             </span>
             <div className="min-w-0">
               <h2 className="truncate text-sm font-bold text-text!">{displayName}</h2>
-              <p className="mt-0.5 truncate text-[11px] text-text-muted">{user?.email || user?.login || 'Account profile'}</p>
+              <p className="mt-0.5 truncate text-[13px] text-text">{user?.email || user?.login || 'Account profile'}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand">
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2 py-0.5 text-[11.5px] font-semibold text-brand">
                   <BadgeCheck size={10} />
                   {user?.admin ? 'Administrator' : user?.job || 'User'}
                 </span>
-                {user?.login && <span className="rounded-full border border-border px-2 py-0.5 text-[9px] text-text-muted">@{user.login}</span>}
+                {user?.login && <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-text">@{user.login}</span>}
               </div>
             </div>
           </div>
           <div className="flex shrink-0 items-start gap-2">
             <div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex">
               <CalendarDays size={16} className="text-brand" />
-              <span className="text-[10px] leading-4 text-text-muted">{dateLabel}<br />{timeLabel} ({timeZoneLabel})</span>
+              <span className="text-[11.5px] leading-4 text-text">{dateLabel}<br />{timeLabel} ({timeZoneLabel})</span>
             </div>
-            <button type="button" onClick={onClose} title="Close account information" aria-label="Close account information" className="rounded-full border border-border p-1.5 text-text-faint hover:border-danger/50 hover:bg-danger/10 hover:text-danger">
+            <button type="button" onClick={onClose} title="Close account information" aria-label="Close account information" className="rounded-full border border-border p-1.5 text-text-muted hover:border-danger/50 hover:bg-danger/10 hover:text-danger">
               <X size={14} />
             </button>
           </div>
@@ -172,19 +173,19 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
           <Link
             to={ROUTES.userDetail.replace(':id', String(user.id))}
             onClick={onClose}
-            className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-brand/70 bg-gradient-to-r from-sky-500 to-blue-600 px-3 text-xs font-bold text-white shadow-[0_0_12px_rgba(22,139,255,0.3)] transition hover:brightness-110"
+            className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-brand/70 bg-gradient-to-r from-sky-500 to-blue-600 px-3 text-[13px] font-bold text-white shadow-[0_0_12px_rgba(22,139,255,0.3)] transition hover:brightness-110"
           >
             <User size={15} />
             My Account
             <ChevronRight size={14} className="ml-auto" />
           </Link>
         ) : (
-          <span className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-brand/40 bg-brand/10 px-3 text-xs font-semibold text-brand opacity-50">
+          <span className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-brand/40 bg-brand/10 px-3 text-[13px] font-semibold text-brand opacity-50">
             <User size={15} />
             My Account
           </span>
         )}
-        <button type="button" onClick={onLogout} className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-danger/60 bg-gradient-to-r from-rose-500 to-red-600 px-3 text-xs font-bold text-white shadow-[0_0_12px_rgba(239,68,68,0.25)] transition hover:brightness-110">
+        <button type="button" onClick={onLogout} className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-danger/60 bg-gradient-to-r from-rose-500 to-red-600 px-3 text-[13px] font-bold text-white shadow-[0_0_12px_rgba(239,68,68,0.25)] transition hover:brightness-110">
           <LogOut size={15} />
           Logout
           <ChevronRight size={14} className="ml-auto" />
@@ -192,7 +193,7 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
       </div>
 
       <section className="mx-2 my-2 rounded-lg border border-brand/25 bg-brand/[0.025] p-2.5">
-        <h3 className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-brand">
+        <h3 className="mb-1.5 flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-wide text-brand brightness-125">
           <User size={13} /> Account information
         </h3>
         <div className="rounded-md border border-border/80 bg-surface/70 px-2">
@@ -202,7 +203,7 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
       </section>
 
       <section className="mx-2 my-2 rounded-lg border border-brand/25 bg-brand/[0.025] p-2.5">
-        <h3 className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-brand">
+        <h3 className="mb-1.5 flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-wide text-brand brightness-125">
           <Building2 size={13} /> Company information
         </h3>
         <div className="rounded-md border border-border/80 bg-surface/70 px-2">
@@ -216,17 +217,17 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
         </div>
       </section>
       {(copiedField || copyError) && (
-        <p role="status" className={`mx-3 text-[10px] ${copyError ? 'text-danger' : 'text-success'}`}>
+        <p role="status" className={`mx-3 text-[11.5px] ${copyError ? 'text-danger' : 'text-success'}`}>
           {copyError ? 'Could not copy. Clipboard access is unavailable.' : <><Check size={11} className="mr-1 inline" />Copied to clipboard</>}
         </p>
       )}
 
       <div className="border-b border-border px-3 py-2">
-        <label className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-brand">
+        <label className="mb-1.5 flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-wide text-brand brightness-125">
           <RefreshCw size={13} /> Switch entity
         </label>
         <select
-          className="h-9 w-full rounded-md border border-brand/30 bg-input-bg px-3 text-xs font-medium text-text outline-none focus:ring-2 focus:ring-brand/30"
+          className="h-9 w-full rounded-md border border-brand/30 bg-input-bg px-3 text-[13px] font-medium text-text outline-none focus:ring-2 focus:ring-brand/30"
           value={settings?.entity != null ? String(settings.entity) : ''}
           onChange={(event) => {
             const picked = entities?.find((e) => String(e.id) === event.target.value)
@@ -270,8 +271,8 @@ export function AccountPanel({ user, onClose, onLogout }: { user: AuthUser | nul
           </span>
           <ChevronRight size={14} />
         </a>
-        <div className="flex items-start gap-2 text-sm text-text-muted py-1.5 px-2 -mx-2 rounded-md">
-          <Phone size={14} className="mt-0.5 shrink-0 text-text-faint" />
+        <div className="flex items-start gap-2 text-sm text-text py-1.5 px-2 -mx-2 rounded-md">
+          <Phone size={14} className="mt-0.5 shrink-0 text-text-muted" />
           <span>
             Talk to us (Mon - Fri &middot; 9:00 AM - 7:00 PM &middot; Toll Free)
             <br />

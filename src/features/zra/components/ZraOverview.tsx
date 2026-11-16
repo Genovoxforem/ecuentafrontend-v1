@@ -134,7 +134,7 @@ function YearFilter({ value, onChange }: { value: number | null; onChange: (year
       <select
         value={value ?? 'all'}
         onChange={(e) => onChange(e.target.value === 'all' ? null : Number(e.target.value))}
-        className="min-w-32 rounded-md border border-input-border bg-input-bg px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-text focus:outline-none focus:ring-2 focus:ring-brand/30"
+        className="min-w-32 rounded-md border border-input-border bg-input-bg px-2.5 py-0.5 text-sm font-normal normal-case tracking-normal text-text focus:outline-none focus:ring-2 focus:ring-brand/30"
       >
         <option value="all">All Years</option>
         {FILTER_YEARS.map((y) => (
@@ -193,16 +193,16 @@ function ZraStatusBox() {
   const tone = data ? (data.ok ? 'border-success/40 bg-success-bg text-success-fg' : 'border-warning/40 bg-warning-bg text-warning-fg') : isError ? 'border-danger/40 bg-danger-bg text-danger-fg' : 'border-border bg-surface text-text-faint'
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">ZRA Server Synchronization Status</p>
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      <p className="hidden text-[11px] font-bold uppercase tracking-wider text-text-muted 2xl:block">ZRA Server Synchronization Status</p>
       <div className="flex items-center gap-2">
-        <div className={`min-w-64 rounded-md border px-4 py-1.5 text-center text-sm font-medium leading-snug ${tone}`}>
+        <div className={`rounded-md border px-3 py-0.5 text-center text-sm font-medium leading-snug ${tone}`}>
           {data ? (
             <>
               {data.code ? `${data.code} - ` : ''}
               {data.message}
               {dataUpdatedAt > 0 && !isFetching && (
-                <span className="block text-[11px] font-normal text-success">
+                <span className="ml-2 hidden text-[11px] font-normal text-success xl:inline">
                   ✓ Live data - Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()} ({data.responseTimeMs}ms)
                 </span>
               )}
@@ -218,7 +218,7 @@ function ZraStatusBox() {
           onClick={() => refetch()}
           disabled={isFetching}
           title="Refresh ZRA Status"
-          className="grid h-9 w-9 place-items-center rounded-md border border-success/50 text-success hover:bg-success-bg disabled:opacity-50"
+          className="grid h-7 w-7 place-items-center rounded-md border border-success/50 text-success hover:bg-success-bg disabled:opacity-50"
         >
           <RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />
         </button>

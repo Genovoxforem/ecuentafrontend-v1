@@ -2,20 +2,18 @@ import { Landmark } from 'lucide-react'
 import { ROUTES } from '../../../../routes'
 import { saveSocialCharge } from '../../specialPaymentsSave'
 import { loadSocialChargeForm } from '../../specialMetaFapi'
-import { LegacyFormPage } from '../LegacyFormPage'
+import { JsonFormPage } from '../JsonFormPage'
 
 // compta/sociales/card.php?action=create — the real "New social/fiscal tax"
 // form; Add posts action=add and the backend redirects to the new tax.
 export function SocialFiscalTaxCreatePage() {
   return (
-    <LegacyFormPage
+    <JsonFormPage
       load={loadSocialChargeForm}
       save={saveSocialCharge}
       icon={Landmark}
       title="New Social/Fiscal Tax"
-      path="/compta/sociales/card.php"
-      query={{ action: 'create' }}
-      anchor="actioncode"
+      queryKey="/compta/sociales/card.php"
       submitLabel="Add"
       redirectTo={ROUTES.ledgerSocialFiscalTaxesList}
       fields={[

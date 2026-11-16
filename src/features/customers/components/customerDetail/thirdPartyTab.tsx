@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { X, Info, MapPin, Receipt, FileText, CalendarClock, ShoppingCart, Pencil, Check, Lock } from 'lucide-react'
 import { Card, type IconColor } from '../../../../shared/components/dashboard/DashboardKit'
 import { ROUTES } from '../../../../routes'
-import { formatDateTime, formatMoney } from '../../../../utils/format'
+import { formatServerDateTime, formatMoney } from '../../../../utils/format'
 import type { CustomerProfile, CustomerEditableFields } from '../../customerDetail.queries'
 import { useThirdPartyFormOptions } from '../../thirdPartyOptions.queries'
 import { InfoRow, type QuickSelectValues, SectionIcon, natureBadgeLabel } from './CustomerDetailShared'
@@ -295,7 +295,8 @@ export function ThirdPartyTab({
         <InfoRow label="Payment Bank Account" value={data.bankAccountLabel} />
         <InfoRow label="Relative Discount %" value={data.relativeDiscountPercent ? `${data.relativeDiscountPercent}%` : ''} />
         <InfoRow label="Global Discount" value={data.globalDiscount ? formatMoney(data.globalDiscount) : ''} />
-        <InfoRow label="Max Outstanding" value={data.maxOutstanding ? formatMoney(data.maxOutstanding) : ''} />
+        {/* The classic card prints the limit as 0 when none is set. */}
+        <InfoRow label="Max Outstanding" value={data.maxOutstanding ? formatMoney(data.maxOutstanding) : '0'} />
         <InfoRow label="Currency" locked={isEditing} value={data.currencyCode} />
         <InfoRow label="Incoterms" locked={isEditing} value={data.incotermsLabel} />
       </Card>
@@ -320,7 +321,7 @@ export function ThirdPartyTab({
             {data.status === 1 ? 'Active' : 'Closed'}
           </span>
         </div>
-        <InfoRow label="Creation Date" value={formatDateTime(data.dateCreation)} />
+        <InfoRow label="Creation Date" value={formatServerDateTime(data.dateCreation)} />
         <InfoRow label="Created By" value={data.createdBy} />
       </Card>
       </div>

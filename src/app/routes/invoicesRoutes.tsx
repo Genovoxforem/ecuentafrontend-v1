@@ -9,6 +9,7 @@ const AbandonedInvoicesModule = lazy(() => import('../../modules/invoices/Abando
 const InvoiceCreateModule = lazy(() => import('../../modules/invoices/InvoiceCreateModule').then((m) => ({ default: m.InvoiceCreateModule })))
 const QuickInvoiceCreateModule = lazy(() => import('../../modules/invoices/QuickInvoiceCreateModule').then((m) => ({ default: m.QuickInvoiceCreateModule })))
 const TemplateInvoicesModule = lazy(() => import('../../modules/invoices/TemplateInvoicesModule').then((m) => ({ default: m.TemplateInvoicesModule })))
+const PaymentCardModule = lazy(() => import('../../modules/invoices/PaymentCardModule').then((m) => ({ default: m.PaymentCardModule })))
 const PaymentsListModule = lazy(() => import('../../modules/invoices/PaymentsListModule').then((m) => ({ default: m.PaymentsListModule })))
 const PaymentsReportModule = lazy(() => import('../../modules/invoices/PaymentsReportModule').then((m) => ({ default: m.PaymentsReportModule })))
 const DuePaymentsModule = lazy(() => import('../../modules/invoices/DuePaymentsModule').then((m) => ({ default: m.DuePaymentsModule })))
@@ -73,6 +74,14 @@ export function invoicesRoutes() {
         element={
           <RouteBoundary>
             <PaymentsListModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.paymentCard}
+        element={
+          <RouteBoundary>
+            <PaymentCardModule />
           </RouteBoundary>
         }
       />

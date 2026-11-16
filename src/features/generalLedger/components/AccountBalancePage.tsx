@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Scale } from 'lucide-react'
 import { ROUTES } from '../../../routes'
-import { LegacyListPage } from './LegacyListPage'
+import { JsonListPage } from './JsonListPage'
 import { loadAccountBalance } from '../balanceFapi'
 import { useCreateFormOptions } from '../createTransactionFapi'
 
@@ -38,12 +38,11 @@ export function AccountBalancePage() {
   }
 
   return (
-    <LegacyListPage
+    <JsonListPage
       icon={Scale}
       title="Account Balance"
-      path="/accountancy/bookkeeping/balance.php"
+      queryKey="/accountancy/bookkeeping/balance.php"
       load={loadAccountBalance}
-      firstHeader={/^Accounting account/}
       fixedParams={{ ...splitDate('date_start', range.start ?? ''), ...splitDate('date_end', range.end ?? ''), journal, account_start: accounts.from, account_end: accounts.to }}
       linkFor={(header, _cell, row) => {
         const to = ledgerLink(row)

@@ -7,7 +7,7 @@ import { TableExportButtons } from '../../../shared/components/TableExportButton
 import { ROUTES } from '../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
 import { useExchangeList, type ExchangeFilters, type ExchangeRequest } from '../exchangeList.queries'
-import type { ExchangeRow } from '../exchangeListParser'
+import type { ExchangeRow } from '../exchangeList.types'
 
 const inputCls = 'h-9 w-full rounded-md border border-input-border bg-input-bg px-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
 const selectCls = 'h-9 px-2 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'

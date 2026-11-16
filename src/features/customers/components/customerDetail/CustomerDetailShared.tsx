@@ -24,6 +24,11 @@ export function TabTitle({ children, className = '' }: { children: React.ReactNo
   )
 }
 
+// A tab's title row (with its filters or summary tiles) that stays at the top while the rest of the tab scrolls under it.
+export function StickyTabHead({ children }: { children: React.ReactNode }) {
+  return <div className="sticky top-0 z-10 space-y-3 bg-surface pb-2 pt-1">{children}</div>
+}
+
 export function InfoRow({ label, value, locked = false }: { label: string; value: React.ReactNode; locked?: boolean }) {
   return (
     <div className={`flex items-baseline justify-between gap-4 py-1.5 border-b border-border last:border-0 ${locked ? 'opacity-60' : ''}`} title={locked ? 'Not editable here — use the full edit form' : undefined}>

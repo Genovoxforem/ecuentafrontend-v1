@@ -72,7 +72,16 @@ export interface Me {
   permissions: Record<string, Record<string, boolean>>
 }
 
-export async function fetchMe(): Promise<Me> {
+// One GET /user/ at a time: the app's start-up check runs twice in development (React StrictMode) and used to send it twice.
+let meInFlight: Promise<Me> | null = null
+export function fetchMe(): Promise<Me> {
+  meInFlight ??= loadMe().finally(() => {
+    meInFlight = null
+  })
+  return meInFlight
+}
+
+async function loadMe(): Promise<Me> {
   const { data } = await api.get<MeResponse>('/user/')
   if (!data.success || !data.user) {
     throw new Error(data.message ?? 'Failed to fetch user')

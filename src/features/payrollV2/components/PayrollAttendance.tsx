@@ -5,6 +5,7 @@ import { pv2Get } from '../payrollV2.api'
 import { useAttendance, useAttendanceEmployees, useAttendanceSheet, useMyAttendanceToday, usePayrollCommand, type AttendanceRow, type AttendanceSheetRow } from '../payrollV2.queries'
 import { EmptyRow, ErrorCard, LoadingRows, PanelCard, StatusBadge, TablePanel, Td, Th } from './PayrollV2Chrome'
 import { todayIso } from '../../../utils/dates'
+import { InBanner } from '../../../shared/components/layout/bannerSlot'
 
 const monthStart = () => `${todayIso().slice(0, 8)}01`
 const FIELD = 'rounded-md border border-input-border bg-input-bg px-3 py-2 text-sm text-text outline-none focus:ring-2 focus:ring-brand/30'
@@ -60,30 +61,31 @@ function MyToday() {
     command.mutate({ endpoint: 'attendance.php', action: verb }, { onSuccess: (msg) => setResult({ ok: true, text: msg }), onError: (err) => setResult({ ok: false, text: errorText(err) }) })
   }
   const r = record.data
+  // The signed-in user's own clock in / out sits in the page banner, not in a panel of its own.
   return (
-    <PanelCard title="My Attendance Today">
-      {record.isLoading ? (
-        <p className="text-sm text-text-faint">Loading…</p>
-      ) : r?.clock_in && r.clock_out ? (
-        <p className="text-sm text-text-muted">
-          You clocked in at {hhmm(r.clock_in)} and clocked out at {hhmm(r.clock_out)}.
-        </p>
-      ) : r?.clock_in ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-text-muted">Clocked in at {hhmm(r.clock_in)}.</p>
-          <button type="button" disabled={command.isPending} onClick={() => clock('clock_out')} className="inline-flex items-center gap-1.5 rounded-md bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60">
-            <LogOut size={15} /> Clock Out
+    <InBanner>
+      <div className="flex flex-wrap items-center gap-3">
+        {record.isLoading ? (
+          <span className="text-sm text-text-faint">Loading…</span>
+        ) : r?.clock_in && r.clock_out ? (
+          <span className="text-sm text-text-muted">
+            Clocked in at {hhmm(r.clock_in)}, out at {hhmm(r.clock_out)}.
+          </span>
+        ) : r?.clock_in ? (
+          <>
+            <span className="text-sm text-text-muted">Clocked in at {hhmm(r.clock_in)}.</span>
+            <button type="button" disabled={command.isPending} onClick={() => clock('clock_out')} className="inline-flex items-center gap-1.5 rounded-md border border-danger/50 px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-60">
+              <LogOut size={15} /> Clock Out
+            </button>
+          </>
+        ) : (
+          <button type="button" disabled={command.isPending} onClick={() => clock('clock_in')} className="inline-flex items-center gap-1.5 rounded-md border border-success/50 px-3 py-1.5 text-sm font-medium text-success hover:bg-success/10 disabled:opacity-60">
+            <LogIn size={15} /> Clock In
           </button>
-        </div>
-      ) : (
-        <button type="button" disabled={command.isPending} onClick={() => clock('clock_in')} className="inline-flex items-center gap-1.5 rounded-md bg-success px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60">
-          <LogIn size={15} /> Clock In
-        </button>
-      )}
-      <div className="mt-2">
+        )}
         <ResultLine result={result} />
       </div>
-    </PanelCard>
+    </InBanner>
   )
 }
 
@@ -165,7 +167,7 @@ async function readImportFile(file: File): Promise<Array<Record<string, string>>
   })
 }
 
-function BulkSheet() {
+function BulkSheet({ filters }: { filters: React.ReactNode }) {
   const command = usePayrollCommand()
   const confirm = useConfirm()
   const [date, setDate] = useState(todayIso())
@@ -273,6 +275,8 @@ function BulkSheet() {
           {busy === 'import' ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Import
         </button>
         <input ref={fileInput} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => doImport(e.target.files?.[0])} />
+        <span className="mx-1 h-6 w-px bg-border" />
+        {filters}
       </div>
       {sheet.isError && <p className="mt-2 text-sm text-danger">{errorText(sheet.error)}</p>}
       {lines.length > 0 && (
@@ -438,15 +442,14 @@ export function PayrollAttendance() {
       {log.isError && <ErrorCard error={log.error} onRetry={() => log.refetch()} />}
 
       <MyToday />
-      <BulkSheet />
-
-      <PanelCard title="Filters & Manual Entry">
+      <BulkSheet
+        filters={
         <form
           onSubmit={(e) => {
             e.preventDefault()
             setFilters(draft)
           }}
-          className="flex flex-wrap items-end gap-3"
+          className="contents"
         >
           <Field label="From">
             <input type="date" value={draft.start_date} onChange={(e) => setDraft({ ...draft, start_date: e.target.value })} className={FIELD} />
@@ -478,10 +481,11 @@ export function PayrollAttendance() {
             <Search size={14} /> Apply
           </button>
         </form>
-        <div className="mt-4 border-t border-border pt-4">
-          <h4 className="mb-3 text-sm font-semibold text-text">Manual Attendance Entry</h4>
-          <ManualEntry />
-        </div>
+        }
+      />
+
+      <PanelCard title="Manual Attendance Entry">
+        <ManualEntry />
       </PanelCard>
 
       <TablePanel title="Attendance Log">

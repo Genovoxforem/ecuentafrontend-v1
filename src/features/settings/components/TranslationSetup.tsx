@@ -205,7 +205,7 @@ function SearchTab({ fallbackLanguages, currentLanguage }: { fallbackLanguages: 
                 {data.rows.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-6 text-center text-text-faint italic">
-                      No translation matches.
+                      {data.noTerm ? 'Enter a key or a translation string to search.' : 'No translation matches.'}
                     </td>
                   </tr>
                 ) : (

@@ -19,7 +19,8 @@ import { SearchableSelect } from '../../../shared/components/forms/SearchableSel
 import { TableExportButtons } from '../../../shared/components/TableExportButtons'
 import { Th, TheadRow, useSortableRows } from '../../../shared/components/table/SortableTh'
 import { formatDate } from '../../../utils/format'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
+import { Link } from 'react-router-dom'
+import { ROUTES } from '../../../routes'
 import { useTaskActivityKanbanForm, useRunTaskActivityKanbanReport, useRunCombinedActivitiesReport, type TaskActivityType, type CombinedActivityRow } from '../taskActivity.queries'
 import { TASK_ACTIVITY_CUSTOMER_TYPES, type TaskActivityStats } from '../taskActivityParser'
 
@@ -36,12 +37,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const ACTIVITY_TYPE_LABELS: Record<TaskActivityType, string> = { task: 'Task', meeting: 'Meeting', calls: 'Call' }
 
-// task_activity-kanban.php's own <a href="/comm/action/card.php?action=create">
-// equivalent doesn't exist inline on either scraped report page, but the
-// standard Dolibarr agenda "add event" page does — same "open the legacy
-// create page" convention as this app's other create flows that have no
-// JSON API.
-const LEGACY_ADD_ACTIVITY_URL = '/comm/action/card.php?action=create'
+// "Add Activity" opens the React New Event form (the classic link goes to comm/action/card.php?action=create, the same event create page).
+const ADD_ACTIVITY_PATH = `${ROUTES.agenda}?new=1`
 
 function useDefaultMonthRange() {
   const now = new Date()
@@ -254,14 +251,9 @@ export function ActivitiesDetailPage() {
             </h3>
             <div className="flex items-center gap-2">
               <TableExportButtons title="Activities List" getExportData={getExportData} />
-              <a
-                href={stripBackendPrefix(LEGACY_ADD_ACTIVITY_URL)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-              >
+              <Link to={ADD_ACTIVITY_PATH} className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
                 <Plus size={14} /> Add Activity
-              </a>
+              </Link>
             </div>
           </div>
 
@@ -272,14 +264,9 @@ export function ActivitiesDetailPage() {
               </span>
               <p className="font-semibold text-text!">No Activities Found</p>
               <p className="text-sm text-text-faint max-w-xs">There is no task / activities details for the selected filters. Try changing the filters or date range.</p>
-              <a
-                href={stripBackendPrefix(LEGACY_ADD_ACTIVITY_URL)}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-              >
+              <Link to={ADD_ACTIVITY_PATH} className="mt-1 flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
                 <Plus size={14} /> Add New Activity
-              </a>
+              </Link>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -310,15 +297,9 @@ export function ActivitiesDetailPage() {
                       <td className="px-4 py-2.5 text-text-muted whitespace-nowrap">{row.status || '—'}</td>
                       <td className="px-4 py-2.5 text-center">
                         {row.thirdPartySocId ? (
-                          <a
-                            href={stripBackendPrefix(`/comm/card.php?socid=${row.thirdPartySocId}`)}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="View customer"
-                            className="inline-flex text-text-faint hover:text-brand"
-                          >
+                          <Link to={ROUTES.customerDetail.replace(':id', String(row.thirdPartySocId))} title="View customer" className="inline-flex text-text-faint hover:text-brand">
                             <ExternalLink size={14} />
-                          </a>
+                          </Link>
                         ) : (
                           <span className="text-text-faint">—</span>
                         )}

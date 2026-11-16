@@ -1,21 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
-import { bindKindOf, bindLines, loadBindLines } from './bindingFapi'
-import { parseBindLines } from './bindLinesParser'
+import { bindKindOf, bindLines, loadBindLines, writeKindOf } from './bindingFapi'
 
-// accountancy/customer/list.php and accountancy/supplier/list.php are the same
-// page (same form, same 13-cell rows) over invoice / vendor-invoice lines.
+// The lines still to bind (customer and vendor invoice lines) come from accountancy/fapi/binding_customer.php and binding_vendor.php
+// (action=to_dispatch, bindingFapi.ts); the paths below only name which of the two a page is for.
 export const CUSTOMER_BIND_PATH = '/accountancy/customer/list.php'
 export const VENDOR_BIND_PATH = '/accountancy/supplier/list.php'
 
 export function useBindLines(limit: number, page: number, path: string = CUSTOMER_BIND_PATH) {
   return useQuery({
     queryKey: ['generalLedger', 'bindLines', path, limit, page],
-    // Customer and vendor lines come from binding_customer.php / binding_vendor.php (action=to_dispatch); anything else is still the page.
     queryFn: async () => {
       const kind = bindKindOf(path)
-      if (kind) return loadBindLines(kind, limit, page)
-      return parseBindLines(await fetchLegacyDocument(path, new URLSearchParams({ limit: String(limit), page: String(page) })))
+      if (!kind) throw new Error(`No binding list is known for ${path}.`)
+      return loadBindLines(kind, limit, page)
     },
     staleTime: 0,
     placeholderData: (prev) => prev,
@@ -33,10 +30,7 @@ export interface BindInput {
   selections: { lineId: string; selectValue?: string; account: string }[]
 }
 
-// Same POST the real page's "Bind" + Confirm sends: token, action=ventil,
-// massaction=ventil, confirmmassaction, one toselect[]="<lineId>_0" per ticked
-// line and the chosen account as codeventil<lineId>. The result comes back as
-// a showToast("…", type) message in an inline script.
+// The messages a classic page prints as showToast("…", type) in an inline script (read by the pages that still post classic forms).
 export function toastMessages(html: string): { type: string; message: string }[] {
   return Array.from(html.matchAll(/showToast\("((?:[^"\\]|\\.)*)",\s*"(\w+)"/g)).map((m) => ({
     type: m[2],
@@ -53,37 +47,11 @@ export function toastMessages(html: string): { type: string; message: string }[]
 export function useBindSelectedLines(path: string = CUSTOMER_BIND_PATH) {
   const queryClient = useQueryClient()
   return useMutation({
+    // One POST to binding_customer.php / binding_vendor.php / binding_expensereport.php (action=bind): the ticked lines with their account.
     mutationFn: async (input: BindInput): Promise<string> => {
-      const kind = bindKindOf(path)
-      if (kind) return bindLines(kind, input.selections.map((s) => ({ lineId: s.lineId, account: s.account })))
-      const body = new URLSearchParams({
-        token: input.token,
-        action: 'ventil',
-        massaction: 'ventil',
-        confirmmassaction: 'Confirm',
-        formfilteraction: 'list',
-        limit: String(input.limit),
-        page: String(input.page),
-        sortfield: input.sortfield,
-        sortorder: input.sortorder,
-      })
-      for (const s of input.selections) {
-        body.append('toselect[]', s.selectValue ?? `${s.lineId}_0`)
-        body.set(`codeventil${s.lineId}`, s.account)
-      }
-      const res = await fetch(`${path}?limit=${input.limit}&page=${input.page}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const html = await res.text()
-      if (looksLikeLegacyLoginPageText(html)) throw new Error(NOT_SIGNED_IN_MESSAGE)
-      const msgs = toastMessages(html)
-      const err = msgs.find((m) => m.type === 'error')
-      if (err) throw new Error(err.message)
-      return msgs.map((m) => m.message).join('\n')
+      const kind = writeKindOf(path)
+      if (!kind) throw new Error(`No binding is known for ${path}.`)
+      return bindLines(kind, input.selections.map((s) => ({ lineId: s.lineId, account: s.account })))
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['generalLedger'] }),
   })

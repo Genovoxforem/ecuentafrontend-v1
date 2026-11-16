@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, X, Info, MapPin, Landmark, Receipt, FileText, StickyNote, Users2, CalendarClock, ShoppingCart, FileStack, Briefcase, Ticket, Wallet, Bell, Paperclip, Tags, BookOpen, BadgeDollarSign, Building2, Pencil, BadgeCheck, TriangleAlert, Mail, Phone, Truck, LoaderCircle, ChevronDown, Trash2, Globe } from 'lucide-react'
+import { ChevronLeft, X, Info, MapPin, Landmark, Receipt, FileText, StickyNote, Users2, CalendarClock, ShoppingCart, FileStack, Briefcase, Ticket, Wallet, Bell, Paperclip, Tags, BookOpen, BadgeDollarSign, Building2, Pencil, BadgeCheck, TriangleAlert, Mail, Phone, Truck, LoaderCircle, ChevronRight, Trash2, Globe } from 'lucide-react'
 import { Card, DetailMetricRow, DetailMetricTile, InfoChip, StatusPill } from '../../../shared/components/dashboard/DashboardKit'
 import { Avatar } from '../../../shared/components/Avatar'
 import { useConfirm } from '../../../shared/components/ConfirmDialog'
@@ -41,61 +41,48 @@ export { TransactionsTab } from './customerDetail/transactionsTab'
 // remaining tabs render an honest "not built yet" card rather than
 // fabricated content, same convention as the Dictionary Setup page.
 
-// The first seven tabs as pills and the rest under "More… (n)", like the legacy tab bar. The menu button lights up
-// (and names the tab) when one of its tabs is open.
-const PRIMARY_TABS = 7
-
+// Every tab sits in one row, the same underline tab bar as the order, invoice and product pages. When the window is narrower than the
+// tabs, left and right arrows scroll the row (and the open tab is scrolled into view).
 function TabBar({ tabs, active, onSelect }: { tabs: { key: TabKey; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; badge: number }[]; active: TabKey; onSelect: (k: TabKey) => void }) {
-  const primary = tabs.slice(0, PRIMARY_TABS)
-  const more = tabs.slice(PRIMARY_TABS)
-  const activeMore = more.find((t) => t.key === active)
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  const [edge, setEdge] = useState({ left: false, right: false })
+  const measure = () => {
+    const el = scroller.current
+    if (!el) return
+    setEdge({ left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 })
+  }
   useEffect(() => {
-    if (!open) return
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [open])
-  const pill = (on: boolean) => `flex items-center gap-1.5 shrink-0 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${on ? 'bg-brand text-white shadow-sm shadow-brand/25' : 'text-text-muted hover:text-text hover:bg-surface-hover'}`
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [tabs.length])
+  useEffect(() => {
+    scroller.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [active])
+  const scrollBy = (dir: -1 | 1) => scroller.current?.scrollBy?.({ left: dir * 280, behavior: 'smooth' })
+  const arrow = 'flex shrink-0 items-center justify-center w-8 self-stretch text-text-muted hover:text-brand hover:bg-surface-hover transition-colors'
   return (
-    <div className="border-t border-border px-2 py-1.5">
-      <div className="flex flex-wrap items-center gap-1 bg-surface rounded-2xl p-0.5">
-        {primary.map(({ key, label, icon: Icon, badge }) => (
-          <button key={key} type="button" onClick={() => onSelect(key)} className={pill(active === key)}>
-            <Icon size={12} className="shrink-0" /> {label}
-            {badge > 0 && <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold">{badge}</span>}
+    <div className="border-t border-border flex items-stretch">
+      <button type="button" aria-label="Scroll tabs left" onClick={() => scrollBy(-1)} disabled={!edge.left} className={`${arrow} ${edge.left ? '' : 'invisible'}`}>
+        <ChevronLeft size={16} />
+      </button>
+      <div ref={scroller} onScroll={measure} className="flex min-w-0 flex-1 items-center gap-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {tabs.map(({ key, label, icon: Icon, badge }) => (
+          <button
+            key={key}
+            type="button"
+            aria-current={active === key ? 'page' : undefined}
+            onClick={() => onSelect(key)}
+            className={`flex items-center gap-1.5 shrink-0 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${active === key ? 'border-brand text-brand' : 'border-transparent text-text-muted hover:text-text hover:border-border'}`}
+          >
+            <Icon size={14} className="shrink-0" /> {label}
+            {badge > 0 && <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-danger-bg text-danger-fg text-[10px] font-bold">{badge}</span>}
           </button>
         ))}
-        {more.length > 0 && (
-          <div ref={ref} className="relative">
-            <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open} className={pill(!!activeMore)}>
-              {activeMore ? activeMore.label : 'More…'} <span className="opacity-70">({more.length})</span> <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
-            {open && (
-              <div role="menu" className="absolute left-0 top-full z-30 mt-1 max-h-80 w-60 overflow-auto rounded-lg border border-border bg-surface p-1 shadow-lg">
-                {more.map(({ key, label, icon: Icon, badge }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      onSelect(key)
-                      setOpen(false)
-                    }}
-                    className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs ${active === key ? 'bg-brand/10 font-semibold text-brand' : 'text-text-muted hover:bg-surface-hover hover:text-text'}`}
-                  >
-                    <Icon size={12} className="shrink-0" /> {label}
-                    {badge > 0 && <span className="ml-auto rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white">{badge}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
+      <button type="button" aria-label="Scroll tabs right" onClick={() => scrollBy(1)} disabled={!edge.right} className={`${arrow} ${edge.right ? '' : 'invisible'}`}>
+        <ChevronRight size={16} />
+      </button>
     </div>
   )
 }

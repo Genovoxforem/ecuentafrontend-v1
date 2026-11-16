@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fapi } from '../../api/axios'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { requireJson } from '../salesOrders/orderApi'
-import type { DefaultAccountsPage } from './defaultAccountsParser'
+import type { DefaultAccountsPage } from './defaultAccounts.types'
 import { mapDefaultAccountsFapi, type FapiDefaultAccounts } from './defaultAccountsFapi'
 
 // accountancy/admin/accountjstree.php's own page does no server-side query at
@@ -43,15 +43,11 @@ export async function deleteCoaAccount(id: number): Promise<CoaSaveResult> {
   return data[0] ?? { status: 500 }
 }
 
+// coa.php?action=save is the key-authenticated replacement of the classic accountancy/admin/updatecoa.php: it takes the same fields (type=update | button-save-coa, label,
+// labelshort, account_parent, account_parent_name, account_number) and answers the same bare [{ status }] array with HTTP 200 (read live 12 Nov 2026: an unknown type answers
+// [{"status":500,"message":"Unknown save type. Use type=update or type=button-save-coa."}]). The create itself was NOT run on the live server (it writes).
 async function postUpdateCoa(params: URLSearchParams): Promise<CoaSaveResult> {
-  const res = await fetch('/accountancy/admin/updatecoa.php', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  })
-  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-  const data: CoaSaveResult[] = await res.json()
+  const data = requireJson(await fapi.post<CoaSaveResult[]>('/accountancy/fapi/coa.php', Object.fromEntries(params), { params: { action: 'save' } })).data
   return data[0] ?? { status: 500 }
 }
 
@@ -96,7 +92,7 @@ export function useCreateAccount() {
   return useMutation({
     mutationFn: async (input: NewAccountInput) => {
       // With an account number the account goes through coa.php?action=account_save. Without one the old page derived the number from the
-      // parent's, which the endpoint does not do, so that case still goes through updatecoa.php.
+      // parent's, which account_save does not do, so that case goes through coa.php?action=save (type=button-save-coa, the same request as the classic updatecoa.php).
       if (input.accountNumber.trim()) {
         await fapiPost('/accountancy/fapi/coa.php', { account_number: input.accountNumber.trim(), label: input.label, labelshort: input.labelshort, account_parent: input.accountParentId }, { action: 'account_save' })
         return { status: 200 as const }

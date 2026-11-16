@@ -6,7 +6,7 @@ import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { ROUTES } from '../../../../routes'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useBindAutomatically, useBindingIndex } from '../../bindingIndex.queries'
-import type { BindingCell, BindingSegment } from '../../bindingIndexParser'
+import type { BindingCell, BindingSegment } from '../../bindingIndex.types'
 
 const NUMERIC = /^-?[\d,]+(\.\d+)?$/
 

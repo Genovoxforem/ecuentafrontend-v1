@@ -23,6 +23,7 @@ const StripePayoutsModule = lazy(() => import('../../modules/banking/BankingDire
 const DirectDebitAreaModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitAreaModule })))
 const DirectDebitNewModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitNewModule })))
 const DirectDebitOrdersModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitOrdersModule })))
+const DirectDebitReceiptsModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitReceiptsModule })))
 const DirectDebitRequestsModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitRequestsModule })))
 const DirectDebitRejectsModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitRejectsModule })))
 const DirectDebitStatsModule = lazy(() => import('../../modules/banking/BankingDirectDebitModules').then((m) => ({ default: m.DirectDebitStatsModule })))
@@ -195,12 +196,20 @@ export function bankingRoutes() {
         path={ROUTES.bankingDirectDebitOrders}
         element={
           <RouteBoundary>
-            <DirectDebitOrdersModule />
+            <DirectDebitReceiptsModule />
           </RouteBoundary>
         }
       />
       <Route
         path={ROUTES.bankingDirectDebitLines}
+        element={
+          <RouteBoundary>
+            <DirectDebitOrdersModule />
+          </RouteBoundary>
+        }
+      />
+      <Route
+        path={ROUTES.bankingDirectDebitRequests}
         element={
           <RouteBoundary>
             <DirectDebitRequestsModule />

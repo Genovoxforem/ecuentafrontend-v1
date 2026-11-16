@@ -17,17 +17,37 @@ export function matchScore(path: string | undefined, location: Location): number
   if (!path) return 0
   const queryIndex = path.indexOf('?')
   const itemPathname = queryIndex < 0 ? path : path.slice(0, queryIndex)
-  if (itemPathname !== location.pathname) return 0
+  // every report page (/reports/<category>/<report>) belongs to the "Reports" entry
+  const pathname = location.pathname.startsWith('/reports/') ? '/reports' : location.pathname
+  if (itemPathname !== pathname) return 0
   if (queryIndex < 0) return 1
   return path.slice(queryIndex) === location.search ? 2 : 0
+}
+
+// The Reports menu has no tree of its own (the backend's Reports menu is empty, the Reports Center is its one landing page), so every report page
+// (/reports and /reports/<category>/<report>) belongs to it by address.
+export function reportsMenuHolds(sectionKey: string, pathname: string): boolean {
+  return sectionKey === 'reports' && (pathname === '/reports' || pathname.startsWith('/reports/'))
 }
 
 // The entry the user last clicked. Two entries can open the same page ("Product area" and "Services area"),
 // and the one that was clicked is the one that should stay lit, not whichever happens to be listed last.
 let lastClicked: { label: string; path: string } | null = null
+// The menu (section) that entry was clicked in. A page can be listed in two menus at once (for example a report entry and the ledger page it opens);
+// only the menu the user came from is the current one, not the first menu in the list that happens to hold the page.
+let lastClickedSection: string | null = null
 
-export function rememberNavClick(item: NavItem): void {
+export function rememberNavClick(item: NavItem, sectionKey?: string | null): void {
   lastClicked = item.path ? { label: item.label, path: item.path } : null
+  lastClickedSection = sectionKey ?? null
+}
+
+// Provided by each sidebar around a menu's own entries, so a click can say which menu it was made in.
+export const NavSectionKey = createContext<string | null>(null)
+
+// The ONE menu that is "current" out of the menus that hold the page: the one the user clicked in when it is among them, otherwise the first.
+export function pickCurrentSection<S extends { key: string }>(holding: S[]): S | undefined {
+  return holding.find((s) => s.key === lastClickedSection) ?? holding[0]
 }
 
 export function pickCurrentItem(items: NavItem[], location: Location): NavItem | null {

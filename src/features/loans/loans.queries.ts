@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fapiGet } from '../../api/fapiEnvelope'
 import { parseLegacyJson, fetchLegacyText, fetchLegacyDocument, looksLikeLegacyLoginPageText, NOT_SIGNED_IN_MESSAGE } from '../../shared/legacyHtmlFetch'
 import {
   parseLoanManagementListPage,
@@ -28,9 +29,10 @@ import {
 //    "loan customer" has no separate table: loans_customer.php IS
 //    Dolibarr's own societe/card.php.
 //
-// Loan Management's own list+create page (loanmanagementlist.php) is
-// scraped — see useLoanManagementForm/useCreateLoanManagement below.
-// Repayment schedules are not scraped.
+// Loan Management's list and product catalogue read custom/loanmanagement/fapi (list.php, form_options.php, products.php);
+// its create (loanmanagementlist.php POST) still goes to the classic page - see useCreateLoanManagement below.
+// fapi/repayments.php needs one loan id and fapi/customers.php lists only borrowers who hold a loan, so the Repayment and
+// Loan Customer pages (which list every unpaid instalment / every customer) are not moved to them.
 
 export interface LoanTypeRow {
   id: number
@@ -282,13 +284,90 @@ export function calculateLoanSchedule(input: LoanCalculatorInput): LoanCalculato
   return { payableAmount: payable, schedule }
 }
 
-// ── Loan Management list + New Loan form (loanmanagementlist.php) ──────────
+// ── Loan Management list + New Loan form ────────────────────────────────────
+// The rows come from custom/loanmanagement/fapi/list.php and the Loan Product / Borrower dropdowns from form_options.php
+// (key-authenticated JSON). Loan ID, Currency and Payment Type still come from the classic page, which is also what the
+// create POST goes to, so a missing legacy session only leaves those three empty; the list and the two dropdowns still load.
+// list.php has no contact number and gives the status as a number without a label, so Contact No is empty and the status
+// is shown as the number.
+interface FapiLoanItem {
+  id: number
+  loan_id: string
+  borrower?: { id?: number; name?: string } | null
+  product?: { id?: number; name?: string } | null
+  currency?: string
+  applied_amount?: number
+  release_date?: string
+  status?: number
+}
+interface FapiLoanFormOptions {
+  products?: Array<{ id: number; name: string }>
+  borrowers?: Array<{ id: number; name: string }>
+}
+const loanAmount = (n: number | undefined, currency: string | undefined) => (n === undefined ? '' : `${currency ? `${currency} ` : ''}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+
 export function useLoanManagementForm() {
   return useQuery({
     queryKey: ['loans', 'management', 'form'],
     queryFn: async (): Promise<LoanManagementForm> => {
-      return parseLoanManagementListPage(await fetchLegacyText('/custom/loanmanagement/loanmanagementlist.php'))
+      const [list, options, legacy] = await Promise.all([
+        fapiGet<{ items?: FapiLoanItem[] }>('/custom/loanmanagement/fapi/list.php', { limit: 100 }),
+        fapiGet<FapiLoanFormOptions>('/custom/loanmanagement/fapi/form_options.php'),
+        fetchLegacyText('/custom/loanmanagement/loanmanagementlist.php').then(parseLoanManagementListPage, () => null),
+      ])
+      return {
+        nextLoanId: legacy?.nextLoanId ?? '',
+        productOptions: (options.products ?? []).map((p) => ({ value: String(p.id), label: p.name })),
+        borrowerOptions: (options.borrowers ?? []).map((b) => ({ value: String(b.id), label: b.name })),
+        currencyOptions: legacy?.currencyOptions ?? [],
+        currencySelected: legacy?.currencySelected ?? '',
+        paymentTypeOptions: legacy?.paymentTypeOptions ?? [],
+        rows: (list.items ?? []).map((l) => ({
+          loanId: l.loan_id,
+          loanProduct: l.product?.name ?? '',
+          borrower: l.borrower?.name ?? '',
+          contactNo: '',
+          releaseDate: l.release_date ?? '',
+          appliedAmount: loanAmount(l.applied_amount, l.currency),
+          status: l.status === undefined ? '' : String(l.status),
+        })),
+      }
     },
+  })
+}
+
+// custom/loanmanagement/fapi/products.php: the loan product catalogue (Loan Product page).
+export interface LoanProductRow {
+  id: number
+  name: string
+  interestRate: number
+  interestType: string
+  term: number
+  termPeriod: string
+}
+interface FapiLoanProduct {
+  id: number
+  name: string
+  interest_rate?: number
+  interest_type?: string
+  term?: number
+  term_period?: string
+}
+export function useLoanProducts() {
+  return useQuery({
+    queryKey: ['loans', 'products'],
+    queryFn: async (): Promise<LoanProductRow[]> => {
+      const d = await fapiGet<{ items?: FapiLoanProduct[] }>('/custom/loanmanagement/fapi/products.php', { limit: 100 })
+      return (d.items ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        interestRate: Number(p.interest_rate) || 0,
+        interestType: p.interest_type ?? '',
+        term: Number(p.term) || 0,
+        termPeriod: p.term_period ?? '',
+      }))
+    },
+    staleTime: 1000 * 30,
   })
 }
 

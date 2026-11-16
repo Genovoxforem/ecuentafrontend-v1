@@ -1,8 +1,10 @@
+import { reportNamesForPath } from '../../../features/reports/reportsStructure'
 import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Home } from 'lucide-react'
 import type { NavItem, NavSection } from '../../../features/navTypes'
 import { ROUTES } from '../../../routes'
+import { pickCurrentSection, reportsMenuHolds } from './sidebarCurrent'
 
 // Walks a section's item tree depth-first and returns the chain of labels
 // from the section root down to whichever item's own path matches
@@ -27,6 +29,7 @@ function itemMatchesPath(item: NavItem, pathname: string): boolean {
 }
 
 function sectionContainsPath(section: NavSection, pathname: string): boolean {
+  if (reportsMenuHolds(section.key, pathname)) return true
   return section.items.some((item) => itemMatchesPath(item, pathname))
 }
 
@@ -107,6 +110,8 @@ function detailParentPath(routeKey: string, routePath: string): string | undefin
 }
 
 function resolvePath(pathname: string): string {
+  // a report page is found under the Reports entry
+  if (pathname.startsWith('/reports/')) return ROUTES.reports
   return PATH_ALIASES[pathname] ?? pathname
 }
 
@@ -120,26 +125,59 @@ export function isDetailPagePath(pathname: string): boolean {
   return DETAIL_ROUTES.some((route) => routeMatches(route.path, resolved))
 }
 
+// The sidebars match menu entries by the page's address, and a detail page (/projects/2, /customers/5...) is not a menu entry, so opening one by
+// its address lit Home. The same parent the breadcrumb names (the list the page is opened from) is used for the menu: the section and the list
+// entry stay lit. Any other address is returned unchanged.
+export function detailParentLocation<L extends { pathname: string; search: string }>(location: L): L {
+  const resolved = resolvePath(location.pathname)
+  if (STATIC_ROUTE_PATHS.has(resolved)) return location
+  const route = DETAIL_ROUTES.find((r) => routeMatches(r.path, resolved))
+  const parent = route ? detailParentPath(route.key, route.path) : undefined
+  return parent ? { ...location, pathname: resolvePath(parent), search: '' } : location
+}
+
 interface BreadcrumbTrail {
   sectionLabel: string
   sectionKey: string
   crumbs: string[]
 }
 
+// Each level is named once: a menu group that carries its section's name ("Products" section > "Products" group) or repeats the
+// crumb before it is dropped, so the trail reads "Products > Product List > Product Details".
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase()
+}
+function tidy(trail: BreadcrumbTrail | null): BreadcrumbTrail | null {
+  if (!trail) return trail
+  const crumbs: string[] = []
+  for (const crumb of trail.crumbs) {
+    const previous = crumbs.length ? crumbs[crumbs.length - 1] : trail.sectionLabel
+    if (!sameName(crumb, previous)) crumbs.push(crumb)
+  }
+  return { ...trail, crumbs }
+}
+
 export function buildBreadcrumb(sections: NavSection[], pathname: string): BreadcrumbTrail | null {
+  return tidy(buildTrail(sections, pathname))
+}
+
+function buildTrail(sections: NavSection[], pathname: string): BreadcrumbTrail | null {
   if (pathname === '/dashboard' || pathname === '/') {
     return { sectionLabel: 'Home', sectionKey: 'home', crumbs: ['Main Dashboard'] }
   }
   const resolved = resolvePath(pathname)
-  for (const section of sections) {
-    if (sectionContainsPath(section, resolved)) {
-      const chain = findBreadcrumbChain(section.items, resolved)
-      const pageTitle = ALIAS_PAGE_TITLES[pathname]
-      return {
-        sectionLabel: section.label,
-        sectionKey: section.key,
-        crumbs: pageTitle ? [...(chain ?? []), pageTitle] : (chain ?? []),
-      }
+  // Several menus can list the same page: the trail follows the menu the user clicked in (see pickCurrentSection), not the first one that holds it.
+  const holding = pickCurrentSection(sections.filter((section) => sectionContainsPath(section, resolved)))
+  if (holding) {
+    const chain = findBreadcrumbChain(holding.items, resolved)
+    const pageTitle = ALIAS_PAGE_TITLES[pathname]
+    // Reports > Reports Center > <category> > <report>
+    const report = reportNamesForPath(pathname)
+    if (report) return { sectionLabel: holding.label, sectionKey: holding.key, crumbs: [...(chain ?? []), report.category, report.report] }
+    return {
+      sectionLabel: holding.label,
+      sectionKey: holding.key,
+      crumbs: pageTitle ? [...(chain ?? []), pageTitle] : (chain ?? []),
     }
   }
 
@@ -148,8 +186,8 @@ export function buildBreadcrumb(sections: NavSection[], pathname: string): Bread
     const parentPath = detailParentPath(detailRoute.key, detailRoute.path)
     if (parentPath) {
       const resolvedParent = resolvePath(parentPath)
-      for (const section of sections) {
-        if (!sectionContainsPath(section, resolvedParent)) continue
+      const section = pickCurrentSection(sections.filter((s) => sectionContainsPath(s, resolvedParent)))
+      if (section) {
         const parentChain = findBreadcrumbChain(section.items, resolvedParent) ?? []
         return { sectionLabel: section.label, sectionKey: section.key, crumbs: [...parentChain, detailPageTitle(detailRoute.key)] }
       }

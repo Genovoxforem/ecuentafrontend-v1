@@ -1,6 +1,6 @@
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatMoney } from '../../utils/format'
-import type { BindingCell, BindingIndex } from './bindingIndexParser'
+import type { BindingCell, BindingIndex } from './bindingIndex.types'
 
 // The binding overviews on binding_customer.php / binding_vendor.php / binding_expensereport.php (23 Oct 2026): action=by_account_month is the
 // accounts-by-month table (each bound account, an "unbound" bucket and a total) and action=bind_auto applies each product's (or fee type's)

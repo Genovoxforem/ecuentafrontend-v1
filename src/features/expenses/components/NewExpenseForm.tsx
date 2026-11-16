@@ -37,7 +37,7 @@ function NowButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-function EntityPicker({ label, value, onChange, type }: { label: string; value: EntityOption | null; onChange: (v: EntityOption | null) => void; type: 'user' | 'customer' }) {
+function EntityPicker({ label, value, onChange, type }: { label: string; value: EntityOption | null; onChange: (v: EntityOption | null) => void; type: 'user' | 'customer' | 'vendor' }) {
   const [query, setQuery] = useState('')
   const { data: options } = useEntitySearch(type, query, query.length > 0)
   return (
@@ -89,7 +89,6 @@ export function NewExpenseForm() {
   const [authorPick, setAuthorPick] = useState<string | null>(null)
   const [expenseType, setExpenseType] = useState<ExpenseTypeTab>('internal')
   const [linkedEntity, setLinkedEntity] = useState<EntityOption | null>(null)
-  const [vendorId, setVendorId] = useState('-1')
   const [notePublic, setNotePublic] = useState('')
   const [notePrivate, setNotePrivate] = useState('')
   const [validatorId, setValidatorId] = useState('-1')
@@ -191,7 +190,7 @@ export function NewExpenseForm() {
     if (!authorId) throw new Error('Choose the user this expense is for.')
     if (expenseType === 'employee' && !linkedEntity) throw new Error('Select the employee.')
     if (expenseType === 'customer' && !linkedEntity) throw new Error('Select the customer.')
-    if (expenseType === 'vendor' && vendorId === '-1') throw new Error('Select the vendor.')
+    if (expenseType === 'vendor' && !linkedEntity) throw new Error('Select the vendor.')
     const id = await createDraft.mutateAsync({
       dateStart,
       dateEnd,
@@ -201,7 +200,7 @@ export function NewExpenseForm() {
       notePublic,
       notePrivate,
       expenseType,
-      socid: expenseType === 'customer' ? linkedEntity?.id : expenseType === 'vendor' ? Number(vendorId) : undefined,
+      socid: expenseType === 'customer' || expenseType === 'vendor' ? linkedEntity?.id : undefined,
       employeeId: expenseType === 'employee' ? linkedEntity?.id : undefined,
     })
     setSavedId(id)
@@ -290,7 +289,6 @@ export function NewExpenseForm() {
                         onClick={() => {
                           setExpenseType(t.value)
                           setLinkedEntity(null)
-                          setVendorId('-1')
                         }}
                         className={`rounded-md border px-4 py-1.5 text-sm font-medium ${expenseType === t.value ? 'border-brand bg-brand/15 text-brand' : 'border-input-border bg-input-bg text-text-muted hover:bg-surface-hover'}`}
                       >
@@ -298,26 +296,14 @@ export function NewExpenseForm() {
                       </button>
                     ))}
                   </div>
-                  {(expenseType === 'employee' || expenseType === 'customer') && (
+                  {(expenseType === 'employee' || expenseType === 'customer' || expenseType === 'vendor') && (
                     <div className="mt-3 max-w-sm">
                       <EntityPicker
-                        label={expenseType === 'employee' ? 'Employee' : 'Customer'}
+                        label={expenseType === 'employee' ? 'Employee' : expenseType === 'customer' ? 'Customer' : 'Vendor / Supplier'}
                         value={linkedEntity}
                         onChange={setLinkedEntity}
-                        type={expenseType === 'employee' ? 'user' : 'customer'}
+                        type={expenseType === 'employee' ? 'user' : expenseType === 'customer' ? 'customer' : 'vendor'}
                       />
-                    </div>
-                  )}
-                  {expenseType === 'vendor' && (
-                    <div className="mt-3 max-w-lg">
-                      <label className={labelCls}>Vendor / Supplier</label>
-                      <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={`${inputCls} w-full`}>
-                        {form.vendors.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
                     </div>
                   )}
                 </div>

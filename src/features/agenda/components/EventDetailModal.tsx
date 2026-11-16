@@ -1,7 +1,6 @@
-import { CalendarClock, X, ExternalLink } from 'lucide-react'
+import { CalendarClock, X } from 'lucide-react'
 import { useEventDetail } from '../calendarApi.queries'
 import { LegacyLoadingCard, LegacyErrorCard } from '../../products/components/LegacyReportStates'
-import { stripBackendPrefix } from '../../customers/customerDetailTabs.queries'
 import { Avatar } from '../../../shared/components/Avatar'
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -102,9 +101,7 @@ export function EventDetailModal({ eventId, onClose }: { eventId: number; onClos
 
         {data && (
           <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border shrink-0">
-            <a href={stripBackendPrefix(data.url)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-medium text-text-faint hover:text-brand">
-              Open in legacy app <ExternalLink size={12} />
-            </a>
+            <span />
             <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-md text-sm font-medium border border-border text-text-muted hover:bg-surface-hover">
               Close
             </button>

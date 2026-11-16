@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/axios'
 import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { formatDateTimeAmPm } from '../../utils/format'
+import { preferNewApi } from '../salesOrders/orderApi'
 
 export interface LanguageOption {
   code: string
@@ -34,17 +35,26 @@ interface LanguagesResponse {
   available_languages: string[]
 }
 
-// GET /api/languages/ — this app's own i18n/translation-strings endpoint
-// (see api/language/index.php), not a purpose-built "language dictionary"
-// API, but its available_languages array is a real, live list of every
-// locale the backend actually supports — used here as the New User form's
-// "Language default" options.
+// core/fapi/languages.php: every locale the backend supports with the label the backend prints for it
+// ("English (United States)", "French"), so the New User / third party / Display / PDF language lists show the classic
+// wording. The old GET /api/languages/ (api/language/index.php) answers bare codes only, which is why the fallback below
+// builds a label from the browser's Intl names.
+async function fetchLanguagesFapi(): Promise<LanguageOption[]> {
+  const d = await fapiGet<{ items?: LanguageOption[] }>('/core/fapi/languages.php')
+  return (d.items ?? []).map((l) => ({ code: l.code, label: l.label }))
+}
+
+async function fetchLanguagesLegacy(): Promise<LanguageOption[]> {
+  const { data } = await api.get<LanguagesResponse>('/languages/')
+  return data.available_languages.map((code) => ({ code, label: languageLabel(code) }))
+}
+
 export function useLanguageOptions() {
   return useQuery({
     queryKey: ['languages', 'options'],
     queryFn: async (): Promise<LanguageOption[]> => {
-      const { data } = await api.get<LanguagesResponse>('/languages/')
-      return data.available_languages.map((code) => ({ code, label: languageLabel(code) })).sort((a, b) => a.label.localeCompare(b.label))
+      const list = await preferNewApi('languages', fetchLanguagesFapi, fetchLanguagesLegacy)
+      return list.sort((a, b) => a.label.localeCompare(b.label))
     },
     staleTime: 1000 * 60 * 60,
   })
@@ -214,6 +224,10 @@ interface RawUserProfileUser {
   groups: string[]
   group_ids: number[]
   nb_rights: number
+  // the canonical rights count (same as the Permissions tab); absent on a server that predates it
+  nb_granted?: number
+  // set when the country was derived from the state (user has a state but no country and the states dictionary links to one)
+  country_derived_from_state?: boolean
   contact_phone: string
   device: string | null
   device_uid: string | null
@@ -423,7 +437,7 @@ export function useUserDetail(id: string | number | undefined) {
           photo: data.photo,
           groups: data.groups,
           groupIds: data.group_ids,
-          nbRights: data.nb_rights,
+          nbRights: data.nb_granted ?? data.nb_rights,
           socialLinks: data.social_links,
           timesheetDevice: data.timesheet_device,
           canEdit: envelope.can_edit,

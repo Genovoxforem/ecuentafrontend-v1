@@ -58,6 +58,10 @@ const BACKEND_OWNED_PATHS = [
   '/kitchen',
   '/adherents',
   '/asset',
+  // The previous asset module's own pages (asset_old/list.php, type.php, listcategory.php): what the new pages' "Classic view" button opens.
+  '/asset_old',
+  // Installment Sales (installment/*.php and installment/api/*.php); the app's own pages are /installments/..., a different segment.
+  '/installment',
 ] as const
 
 // Production deploys this build's dist/ output onto the backend's own
@@ -186,6 +190,31 @@ export default defineConfig({
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
     },
+    // One copy of React for every dependency: two copies in a dev tab show up as "Cannot read properties of null (reading 'useContext')"
+    // (seen on /asycuda-purchase-invoice, 16 Nov 2026, after Vite re-bundled its dependencies while the tab was open).
+    dedupe: ['react', 'react-dom'],
+  },
+  // Every runtime dependency is bundled when the dev server starts, so a page visited later cannot trigger a re-bundle (and a reload) in the middle of a session.
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+      'react-router-dom',
+      '@tanstack/react-query',
+      '@tanstack/react-query-devtools',
+      'axios',
+      'zustand',
+      'zustand/middleware',
+      'lucide-react',
+      '@phosphor-icons/react',
+      'recharts',
+      'exceljs',
+      'jsbarcode',
+      'qrcode',
+    ],
   },
   build: {
     rollupOptions: {
@@ -408,6 +437,8 @@ export default defineConfig({
       // /fixed-assets, so a plain /asset (singular) prefix is safe, but
       // anchored anyway.
       '^/asset(/|$)': proxyConfig(BACKEND_URL),
+      '^/asset_old(/|$)': proxyConfig(BACKEND_URL),
+      '^/installment(/|$)': proxyConfig(BACKEND_URL),
       // Real Purchase Invoice / Landed Cost Invoice / User dropdown options
       // for the Landed Cost create page (expensereport/landedcostbilled.php)
       // — see warehouseHtmlParser.ts's parseLandedCostFormOptions.

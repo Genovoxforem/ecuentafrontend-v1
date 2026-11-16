@@ -1,5 +1,5 @@
 import { useEffect, useState, useImperativeHandle, forwardRef } from 'react'
-import { LoaderCircle, CircleCheck } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import { RealToggle } from '../../settings/components/RealToggle'
 import { useReceiptSetup, useSaveReceiptSetup, useSetPrintMethod, type PrintMethod } from '../receiptSetup.queries'
 import type { TabHandle } from './tabHandle'
@@ -85,20 +85,19 @@ export const ReceiptSetupTab = forwardRef<TabHandle>(function ReceiptSetupTab(_p
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    {setup.activeMethod === m.key ? (
-                      <span className="inline-flex items-center gap-1 text-success text-xs font-medium">
-                        <CircleCheck size={13} /> Active
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={setMethod.isPending}
-                        onClick={() => setMethod.mutate({ token: setup.token, value: m.key as 'receiptprinter' | 'takeposconnector' }, { onSuccess: () => refetch() })}
-                        className="text-xs text-brand hover:underline disabled:opacity-50"
-                      >
-                        Set active
-                      </button>
-                    )}
+                    {/* The classic page shows a switch per method: the active one is on and has no link to turn it off; the others switch it on. */}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={setup.activeMethod === m.key}
+                      aria-label={`${m.name} print method`}
+                      title={setup.activeMethod === m.key ? 'Active print method' : `Use ${m.name}`}
+                      disabled={setMethod.isPending || setup.activeMethod === m.key || m.key === 'browser'}
+                      onClick={() => m.key !== 'browser' && setMethod.mutate({ token: setup.token, value: m.key }, { onSuccess: () => refetch() })}
+                      className={`h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-default ${setup.activeMethod === m.key ? 'bg-brand' : 'border border-border bg-surface-alt disabled:opacity-60'}`}
+                    >
+                      <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${setup.activeMethod === m.key ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -107,41 +106,38 @@ export const ReceiptSetupTab = forwardRef<TabHandle>(function ReceiptSetupTab(_p
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-text-muted">Group VAT by rate in tickets|receipts</span>
-        <RealToggle constName="TAKEPOS_TICKET_VAT_GROUPPED" initial={setup.vatGrouped} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-xs text-text-muted mb-1">Free text on invoices — Header</label>
-          <textarea value={header} onChange={(e) => setHeader(e.target.value)} rows={4} className={`${fieldCls} h-auto resize-y`} />
+      <div className="space-y-4">
+        <h3 className="font-semibold text-text!">Setup</h3>
+        <div className="space-y-1">
+          <span className="block text-xs text-text-muted">Group VAT by rate in tickets|receipts</span>
+          <RealToggle constName="TAKEPOS_TICKET_VAT_GROUPPED" initial={setup.vatGrouped} />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Free text on invoices — Footer</label>
-          <textarea value={footer} onChange={(e) => setFooter(e.target.value)} rows={4} className={`${fieldCls} h-auto resize-y`} />
+          <label className="mb-1 block text-xs text-text-muted">Free text on invoices - Header</label>
+          <textarea value={header} onChange={(e) => setHeader(e.target.value)} rows={3} className={`${fieldCls} h-auto resize-y`} />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-4">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Receipt Name</label>
+          <label className="mb-1 block text-xs text-text-muted">Free text on invoices - Footer</label>
+          <textarea value={footer} onChange={(e) => setFooter(e.target.value)} rows={3} className={`${fieldCls} h-auto resize-y`} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-text-muted">Receipt Name</label>
           <input value={receiptName} onChange={(e) => setReceiptName(e.target.value)} className={fieldCls} />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Print customer on tickets|receipts</label>
+          <label className="mb-1 block text-xs text-text-muted">Print customer on tickets|receipts</label>
           <select value={showCustomer} onChange={(e) => setShowCustomer(e.target.value as '0' | '1')} className={fieldCls}>
             {YES_NO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Print payment method on tickets|receipts</label>
+          <label className="mb-1 block text-xs text-text-muted">Print payment method on tickets|receipts</label>
           <select value={printPaymentMethod} onChange={(e) => setPrintPaymentMethod(e.target.value as '0' | '1')} className={fieldCls}>
             {YES_NO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Automatically print tickets|receipts</label>
+          <label className="mb-1 block text-xs text-text-muted">Automatically print tickets|receipts</label>
           <select value={autoPrintTickets} onChange={(e) => setAutoPrintTickets(e.target.value as '0' | '1')} className={fieldCls}>
             {YES_NO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>

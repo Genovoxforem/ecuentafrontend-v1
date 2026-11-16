@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
 import { stripTags } from '../../utils/text'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 
 // Via kitchen/order_ajax_list.php (JSON). "Kitchen order tracking" isn't a
 // dedicated feature with its own table — it's POS invoices (llx_facture
@@ -134,28 +134,40 @@ function parseOrderComplete(html: string): boolean {
   return /value="1"[^>]*selected/i.test(html)
 }
 
-// The filter lists are read from the backend's own Order Management page
-// (kitchen/ordermanagement.php, ?type=supplement for beverages) — its
-// #filterOrderStatus / #filterCompleted selects and its page title — rather
-// than being copied into the app.
+// The Order Status filter comes from kitchen/fapi/form_options.php (key-authenticated JSON, 6 Nov 2026); the classic Order Management page
+// (kitchen/ordermanagement.php, ?type=supplement for beverages) is the fallback for a backend without it. Read on newecuenta and compared with the classic
+// page: both give the same six statuses (pending, received, preparing, ready_to_serve, served, cancelled) but the API lists them as Pending, Preparing,
+// Ready To Serve, Served, Cancelled, Received (the classic page: Pending, Received, Preparing, Ready_to_serve, Served, Cancelled - its last-but-two label is a raw
+// key), and its answer is the same for the Beverage page. The endpoint also gives floors (1-4), tables (134), waiters (3) and kotstatus_in_use, which the
+// classic filter row does not have, so they are not used. The page title and the "Completed Status" (Yes / No) select are not in the answer: they are the
+// classic page's own words ("Kitchen Order Management" / "Beverage Order Management", "Select Order Status", "Completed Status", Yes = 1, No = 0).
 export interface KitchenFilterOptions {
   title: string
   orderStatus: { value: string; label: string }[] // first entry is the "Select Order Status" placeholder
   completed: { value: string; label: string }[] // first entry is the "Completed Status" placeholder
 }
 
+const KITCHEN_TITLES = { kitchen: 'Kitchen Order Management', beverage: 'Beverage Order Management' } as const
+
+export function kitchenOptionsFromFapi(d: { order_statuses?: Array<{ value: string; label: string }> }, kind: 'kitchen' | 'beverage'): KitchenFilterOptions {
+  const statuses = d.order_statuses ?? []
+  if (statuses.length === 0) throw new Error('The order filters were not found in the backend answer.')
+  return {
+    title: KITCHEN_TITLES[kind],
+    orderStatus: [{ value: '', label: 'Select Order Status' }, ...statuses.map((x) => ({ value: x.value, label: x.label }))],
+    completed: [
+      { value: '', label: 'Completed Status' },
+      { value: '1', label: 'Yes' },
+      { value: '0', label: 'No' },
+    ],
+  }
+}
+
 export function useKitchenFilterOptions(kind: 'kitchen' | 'beverage') {
   return useQuery({
     queryKey: ['kitchen', 'filterOptions', kind],
-    queryFn: async (): Promise<KitchenFilterOptions> => {
-      const doc = await fetchLegacyDocument('/kitchen/ordermanagement.php', kind === 'beverage' ? new URLSearchParams({ type: 'supplement' }) : undefined)
-      const options = (id: string) =>
-        Array.from(doc.querySelectorAll<HTMLOptionElement>(`select#${id} option`)).map((o) => ({ value: o.value, label: (o.textContent ?? '').trim() }))
-      const orderStatus = options('filterOrderStatus')
-      const completed = options('filterCompleted')
-      if (orderStatus.length === 0 || completed.length === 0) throw new Error('The order filters were not found on the backend page.')
-      return { title: (doc.title ?? '').trim(), orderStatus, completed }
-    },
+    // kitchen/fapi/form_options.php (the classic page is no longer read for the filter options)
+    queryFn: async (): Promise<KitchenFilterOptions> => kitchenOptionsFromFapi(await fapiGet<{ order_statuses?: Array<{ value: string; label: string }> }>('/kitchen/fapi/form_options.php'), kind),
     staleTime: 10 * 60_000,
   })
 }
@@ -170,66 +182,120 @@ export interface KitchenOrdersFilters {
   completed: string
 }
 
+async function fetchKitchenOrdersLegacy(kind: 'kitchen' | 'beverage', filters: KitchenOrdersFilters, page: number, perPage: number): Promise<{ items: KitchenOrderRow[]; total: number }> {
+  const body = new URLSearchParams({ draw: '1', start: String((page - 1) * perPage), length: String(perPage) })
+  if (kind === 'beverage') body.set('btype', 'supplement')
+  if (filters.date) body.set('filterDate', filters.date)
+  if (filters.token) body.set('filterToken', filters.token)
+  if (filters.thirdParty) body.set('filterThirdParty', filters.thirdParty)
+  if (filters.city) body.set('filterCity', filters.city)
+  if (filters.paymentType) body.set('filterPaymentType', filters.paymentType)
+  if (filters.orderStatus) body.set('filterOrderStatus', filters.orderStatus)
+  if (filters.completed) body.set('filterCompleted', filters.completed)
+  const res = await fetch('/kitchen/order_ajax_list.php', { method: 'POST', credentials: 'same-origin', body })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const data: RawKitchenListResponse = await res.json()
+  const items = data.aaData.map((r) => {
+    const counts = parseItemCounts(r.orderstatus)
+    return {
+      id: r.order_id,
+      ref: stripTags(r.cust_name),
+      date: r.currency,
+      customer: stripTags(r.typent_code),
+      city: r.contact || '',
+      tokenNo: r.tokenno || '',
+      paymentType: stripTags(r.cust_type) || '',
+      totalHt: r.tot_amount,
+      author: stripTags(r.author),
+      status: stripTags(r.status),
+      table: stripTags(r.tableno),
+      completed: parseOrderComplete(r.ordercomplete),
+      totalItems: counts.total,
+      pendingItems: counts.pending,
+      completedItems: counts.completed,
+      preparingItems: counts.preparing,
+    }
+  })
+  return { items, total: Number(data.iTotalDisplayRecords) || 0 }
+}
+
+// kitchen/fapi/orders.php: the kitchen queue as JSON (POS invoices with a kitchen status derived from each line's
+// kotstatus). It has no beverage filter, no payment type and no city filter, so the Beverage list and those two
+// filters stay on the older handler / are ignored on this path. The older handler answers an empty list on
+// newecuenta while this one returns the 19 real orders.
+interface FapiKitchenOrder {
+  id: number
+  ref?: string
+  token?: string
+  table?: { label?: string; floor?: string } | null
+  party?: { name?: string; town?: string } | null
+  waiter?: string
+  items?: { total?: number; served?: number; preparing?: number; pending?: number }
+  order_complete?: number
+  invoice_status?: number
+  paid?: number
+  total_ht?: number
+  date?: number
+}
+
+const INVOICE_STATUS = ['Draft', 'Not paid', 'Paid', 'Abandoned']
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+async function fetchKitchenOrdersFapi(filters: KitchenOrdersFilters, page: number, perPage: number): Promise<{ items: KitchenOrderRow[]; total: number }> {
+  const d = await fapiGet<{ items?: FapiKitchenOrder[]; pagination?: { total?: number } }>('/kitchen/fapi/orders.php', {
+    page,
+    limit: perPage,
+    date: filters.date || undefined,
+    token: filters.token || undefined,
+    search: filters.thirdParty || undefined,
+    order_status: filters.orderStatus || undefined,
+    completed: filters.completed || undefined,
+  })
+  const items = (d.items ?? []).map((o): KitchenOrderRow => {
+    const day = o.date ? new Date(o.date * 1000) : null
+    return {
+      id: o.id,
+      ref: o.ref ?? '',
+      date: day ? `${pad2(day.getUTCMonth() + 1)}/${pad2(day.getUTCDate())}/${day.getUTCFullYear()}` : '',
+      customer: o.party?.name ?? '',
+      city: o.party?.town ?? '',
+      tokenNo: o.token ?? '',
+      paymentType: '',
+      totalHt: String(o.total_ht ?? ''),
+      author: o.waiter ?? '',
+      status: o.paid ? 'Paid' : (INVOICE_STATUS[o.invoice_status ?? -1] ?? ''),
+      table: [o.table?.floor, o.table?.label].filter(Boolean).join(' '),
+      completed: o.order_complete === 1,
+      totalItems: o.items?.total ?? 0,
+      pendingItems: o.items?.pending ?? 0,
+      completedItems: o.items?.served ?? 0,
+      preparingItems: o.items?.preparing ?? 0,
+    }
+  })
+  return { items, total: Number(d.pagination?.total) || 0 }
+}
+
 export function useKitchenOrders(kind: 'kitchen' | 'beverage', filters: KitchenOrdersFilters, page: number, perPage: number) {
   return useQuery({
     queryKey: ['kitchen', 'orders', kind, filters, page, perPage],
-    queryFn: async (): Promise<{ items: KitchenOrderRow[]; total: number }> => {
-      const body = new URLSearchParams({ draw: '1', start: String((page - 1) * perPage), length: String(perPage) })
-      if (kind === 'beverage') body.set('btype', 'supplement')
-      if (filters.date) body.set('filterDate', filters.date)
-      if (filters.token) body.set('filterToken', filters.token)
-      if (filters.thirdParty) body.set('filterThirdParty', filters.thirdParty)
-      if (filters.city) body.set('filterCity', filters.city)
-      if (filters.paymentType) body.set('filterPaymentType', filters.paymentType)
-      if (filters.orderStatus) body.set('filterOrderStatus', filters.orderStatus)
-      if (filters.completed) body.set('filterCompleted', filters.completed)
-      const res = await fetch('/kitchen/order_ajax_list.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawKitchenListResponse = await res.json()
-      const items = data.aaData.map((r) => {
-        const counts = parseItemCounts(r.orderstatus)
-        return {
-          id: r.order_id,
-          ref: stripTags(r.cust_name),
-          date: r.currency,
-          customer: stripTags(r.typent_code),
-          city: r.contact || '',
-          tokenNo: r.tokenno || '',
-          paymentType: stripTags(r.cust_type) || '',
-          totalHt: r.tot_amount,
-          author: stripTags(r.author),
-          status: stripTags(r.status),
-          table: stripTags(r.tableno),
-          completed: parseOrderComplete(r.ordercomplete),
-          totalItems: counts.total,
-          pendingItems: counts.pending,
-          completedItems: counts.completed,
-          preparingItems: counts.preparing,
-        }
-      })
-      return { items, total: Number(data.iTotalDisplayRecords) || 0 }
-    },
+    queryFn: () =>
+      // Kitchen orders: kitchen/fapi/orders.php only. Beverage (supplement) orders still read the classic page: the fapi has no beverage switch (AN-167).
+      kind === 'kitchen' ? fetchKitchenOrdersFapi(filters, page, perPage) : fetchKitchenOrdersLegacy(kind, filters, page, perPage),
     placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   })
 }
 
-// Real via kitchen/order_status_change.php's order_complete branch — a
-// genuine JSON-returning mutation (unlike order_details.php's HTML-only
-// GET), confirmed by reading it directly: it re-checks the invoice is
-// actually paid server-side before allowing completion (rejects with
-// require_payment:true otherwise), and updates llx_facture.ordercomplete.
+// kitchen/fapi/order_status.php?action=complete (13 Nov 2026, #392; replaces the raw-SQL kitchen/order_status_change.php): sets facture.ordercomplete
+// through the ORM with a paid-invoice guard (an unpaid order is refused with 409 and a message, as the old handler refused it). The body needs order_id
+// (422 "order_id is required" read live); the name of the Yes/No field is not in the answers seen, so the value goes under both `complete` and
+// `order_complete`, the names the endpoint and the old handler use. Set / restore on a real order was reported by the backend (not run from this app).
+// The same file's ?action=set_status (line_id + status: pending, received, preparing, ready_to_serve, served) has no control on these screens.
 export function useSetKitchenOrderComplete() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ orderId, complete }: { orderId: number; complete: boolean }) => {
-      const body = new URLSearchParams({ order_complete: complete ? '1' : '0', order_id: String(orderId) })
-      const res = await fetch('/kitchen/order_status_change.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: { success: boolean; message: string; require_payment?: boolean } = await res.json()
-      if (!data.success) throw new Error(data.message || 'Could not update order completion status.')
-      return data
-    },
+    mutationFn: async ({ orderId, complete }: { orderId: number; complete: boolean }) =>
+      fapiPost('/kitchen/fapi/order_status.php', { order_id: orderId, complete: complete ? 1 : 0, order_complete: complete ? 1 : 0 }, { action: 'complete' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kitchen', 'orders'] })
     },

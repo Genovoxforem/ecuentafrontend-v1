@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { loadExpenseList, loadExpenseTypes, searchEntities } from './expenseFapi'
+import { readEntities, readExpenseList, readExpenseTypes, readListStats, type ExpenseListStats } from './expenseJsonSource'
 import type { ExpenseParty } from './expensePagesParser'
 
-// The expense module (expense/) is a custom SPA. Its reads now come from the key-authenticated expense/fapi (see expenseFapi.ts): the
-// dashboard, approvals, payments, the report list, the types and entity pickers, advances, reimbursements, repayments, recurring,
-// reports, analytics and budgets. The writes below still go to the module's own session endpoints, because the fapi writers
+// The expense module (expense/) is a custom SPA. Its reads come from the JSON endpoints it really serves (expenseJsonSource.ts): the report
+// list, the types and entity pickers, the summary and the documents. expense/fapi is not deployed anywhere checked, so it is not called. The writes below still go to the module's own session endpoints, because the fapi writers
 // (expense.php, lines.php, documents.php) only answer a plan ({executed: false, would_execute: [...]}) and write nothing: the New
 // Expense form (lines.php createDraft / saveCachedLines / submitForValidation), approve / refuse (expense.php changeStatus), the payment
 // (create_payment) and the advance / reimbursement / repayment / recurring creates. Those handlers were read directly (exact GETPOST
@@ -42,8 +41,8 @@ export interface ExpenseListFilters {
 export function useExpenseReportsList(filters: ExpenseListFilters, page: number, length: number) {
   return useQuery({
     queryKey: ['expenses', 'list', filters, page, length],
-    // expense/fapi/list.php: searched, sorted and paged by the backend, own + subordinates' reports unless the user may read all
-    queryFn: (): Promise<{ rows: ExpenseReportRow[]; total: number; filtered: number }> => loadExpenseList(filters, page, length),
+    // expense/ajax/expense_list.php: searched, sorted and paged by the backend, own + subordinates' reports unless the user may read all
+    queryFn: (): Promise<{ rows: ExpenseReportRow[]; total: number; filtered: number }> => readExpenseList(filters, page, length),
   })
 }
 
@@ -54,12 +53,12 @@ export interface ExpenseTypeOption {
 export function useExpenseTypes() {
   return useQuery({
     queryKey: ['expenses', 'types'],
-    queryFn: (): Promise<ExpenseTypeOption[]> => loadExpenseTypes(),
+    queryFn: (): Promise<ExpenseTypeOption[]> => readExpenseTypes(),
     staleTime: 1000 * 60 * 10,
   })
 }
 
-// expense/fapi/entity_search.php: the user / customer / vendor pickers of the Create, Advance and Reimbursement forms.
+// expense/ajax/entity_search.php: the user / customer / vendor pickers of the Create, Advance and Reimbursement forms.
 export interface EntityOption {
   id: number
   text: string
@@ -67,7 +66,7 @@ export interface EntityOption {
 export function useEntitySearch(type: 'user' | 'customer' | 'vendor', q: string, enabled = true) {
   return useQuery({
     queryKey: ['expenses', 'entitySearch', type, q],
-    queryFn: (): Promise<EntityOption[]> => searchEntities(type, q),
+    queryFn: (): Promise<EntityOption[]> => readEntities(type, q),
     enabled,
     staleTime: 30_000,
   })
@@ -271,4 +270,9 @@ export function useBankAccounts() {
     },
     staleTime: 1000 * 60 * 10,
   })
+}
+
+// The four tiles above the List (and the status chips of Approvals): counts and amounts over every report.
+export function useExpenseListStats() {
+  return useQuery({ queryKey: ['expenses', 'listStats'], queryFn: (): Promise<ExpenseListStats> => readListStats(), staleTime: 30_000 })
 }

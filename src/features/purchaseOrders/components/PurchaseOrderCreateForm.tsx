@@ -17,6 +17,7 @@ import { useCustomerDetail } from '../../customers/customerDetail.queries'
 import { useProductOptions } from '../../products/products.queries'
 import { useCustomerLookups } from '../../customers/thirdPartyOptions.queries'
 import { PO_BASE, usePurchaseOrderFormOptions } from '../purchaseOrderFapi'
+import { usePurchaseFormOptions } from '../../purchases/purchaseFormOptions.queries'
 
 // Purchase order create form on fourn/commande/fapi: form_options.php (dropdowns and the defaults resolved for the chosen
 // supplier), product_info.php (the supplier's price for a product) and create.php (header, lines and validation in one
@@ -76,12 +77,7 @@ interface DictionaryOption {
 // and needs the X-API-Key header that instance attaches — unlike
 // purchase_handler.php below, which is session-cookie authenticated only.
 function usePaymentTypes() {
-  return useQuery({
-    queryKey: ['purchase-forms', 'paymentModes'],
-    queryFn: async (): Promise<DictionaryOption[]> =>
-      (await fapiGet<{ payment_modes: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_modes.map((m) => ({ id: String(m.value), text: m.label })),
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePurchaseFormOptions((o): DictionaryOption[] => o.payment_modes.map((m) => ({ id: String(m.value), text: m.label })))
 }
 
 // GET /api/projects.php — same real, working endpoint (queries llx_projet
@@ -91,12 +87,7 @@ function usePaymentTypes() {
 
 // Payment Terms (llx_c_payment_term) from form_options.php.
 function usePurchasePaymentTerms() {
-  return useQuery({
-    queryKey: ['purchaseOrders', 'paymentTerms'],
-    queryFn: async (): Promise<DictionaryOption[]> =>
-      (await fapiGet<{ payment_terms: Array<{ value: number | string; label: string }> }>('/fourn/commande/fapi/form_options.php')).payment_terms.map((t) => ({ id: String(t.value), text: t.label })),
-    staleTime: 1000 * 60 * 10,
-  })
+  return usePurchaseFormOptions((o): DictionaryOption[] => o.payment_terms.map((t) => ({ id: String(t.value), text: t.label })))
 }
 
 // '1' = % off the line, '2' = a flat amount off the line — same convention
@@ -547,6 +538,7 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
               </select>
             </Field>
 
+            <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
               <span className="text-sm text-text">Currency</span>
               <select
@@ -586,6 +578,7 @@ export function PurchaseOrderCreateForm({ fixedCustomerId, backTo }: { fixedCust
             <Field label="Note (private)">
               <textarea value={notePrivate} onChange={(e) => setNotePrivate(e.target.value)} rows={2} className={inputClasses} />
             </Field>
+            </div>
           </div>
         </Card>
 

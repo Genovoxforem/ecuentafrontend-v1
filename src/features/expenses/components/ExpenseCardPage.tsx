@@ -45,7 +45,7 @@ import {
   useUploadExpenseDocument,
   type ExpenseStatusAction,
 } from '../expenseCard.queries'
-import type { ExpenseCardAction, ExpenseCardPage, ExpenseCardPerson } from '../expenseCardParser'
+import type { ExpenseCardAction, ExpenseCardPage, ExpenseCardPerson } from '../expenseCard.types'
 import { controlCls } from '../expenseTable'
 import { ExpensePayDialog } from './ExpensePayDialog'
 import { PrintPreviewDialog } from './PrintPreviewDialog'

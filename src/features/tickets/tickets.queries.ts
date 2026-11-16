@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchLegacyDocument, parseLegacyJson } from '../../shared/legacyHtmlFetch'
+import { fapiGet, fapiPost } from '../../api/fapiEnvelope'
 import { stripTags } from '../../utils/text'
 
 // The classic list's status filter (search_fk_status): "openall" (unread to
@@ -19,37 +19,45 @@ export const TICKET_STATUS_FILTERS: Array<{ value: string; label: string }> = [
   { value: '9', label: 'Deleted' },
 ]
 
-// Request types (c_ticket_type) — no JSON source, so read off the classic
-// list page's own filter <select id="filter_type">.
+// ticket/fapi/form_options.php (API #394, key-authenticated), read live on newecuenta on 10 Nov 2026: the dictionaries of the ticket forms and filters.
+//   { types [{code, label}] (7), severities [{code, label}] (4), categories [{code, label}] (2, "Ticket group"), statuses [{id, code, label}] (8),
+//     assignable_users [{id, login, name}] (5) }
+export interface TicketFormOptions {
+  types: Array<{ code: string; label: string }>
+  severities: Array<{ code: string; label: string }>
+  categories: Array<{ code: string; label: string }>
+  statuses: Array<{ id: number; code: string; label: string }>
+  assignable_users: Array<{ id: number; login: string; name: string }>
+}
+
+export function fetchTicketFormOptions(): Promise<TicketFormOptions> {
+  return fapiGet<TicketFormOptions>('/ticket/fapi/form_options.php')
+}
+
+export function useTicketFormOptions() {
+  return useQuery({ queryKey: ['tickets', 'form-options'], queryFn: fetchTicketFormOptions, staleTime: 1000 * 60 * 10 })
+}
+
+// Request types (c_ticket_type) of the list's type filter.
 export function useTicketTypeOptions() {
   return useQuery({
-    queryKey: ['tickets', 'type-options'],
-    queryFn: async (): Promise<Array<{ code: string; label: string }>> => {
-      const doc = await fetchLegacyDocument('/ticket/list.php')
-      return Array.from(doc.querySelectorAll('select#filter_type option'))
-        .map((o) => ({ code: o.getAttribute('value') ?? '', label: (o.textContent ?? '').trim() }))
-        .filter((o) => o.code)
-    },
+    queryKey: ['tickets', 'form-options'],
+    queryFn: fetchTicketFormOptions,
     staleTime: 1000 * 60 * 10,
+    select: (o) => o.types,
   })
 }
 
-// The classic list's quick status change (its Actions column): POST
-// ticket/ticket-status-change-ajax.php {track_id, new_status} → {success, message}.
+// ticket/fapi/status.php?action=set_status (API #396, POST {track_id, status}; status is an id 0,1,2,3,5,7,8,9 or a code): the list's quick status
+// change. A missing track_id or a bad status answers 422, an unknown ticket 404, a closed or cancelled ticket 409 (the message is shown as it comes).
+export async function setTicketStatus(trackId: string, status: number | string): Promise<{ track_id: string; ref: string; status: { id: number; label: string } }> {
+  return fapiPost('/ticket/fapi/status.php', { track_id: trackId, status }, { action: 'set_status' })
+}
+
 export function useChangeTicketStatus() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ trackId, status }: { trackId: string; status: number }) => {
-      const res = await fetch('/ticket/ticket-status-change-ajax.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: new URLSearchParams({ track_id: trackId, new_status: String(status) }),
-      })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data = await parseLegacyJson<{ success: boolean; message?: string }>(res)
-      if (!data.success) throw new Error(data.message || 'Could not change the status.')
-      return data
-    },
+    mutationFn: ({ trackId, status }: { trackId: string; status: number }) => setTicketStatus(trackId, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
   })
 }
@@ -104,6 +112,8 @@ export interface TicketRow {
   thirdPartySocid: string | null
   jobcards: string
   dateCreate: string
+  // YYYY-MM-DD of the creation date when the answer carries it in a form that can be read ('' otherwise): what the date-range filter compares.
+  createdDay?: string
   dateClose: string
   assignedTo: string
   assignedToUserId: string | null
@@ -185,57 +195,148 @@ function toMDY(iso: string): string {
   return `${m}/${d}/${y}`
 }
 
-export function useTicketsList(filters: TicketListFilters, page: number, length: number) {
-  return useQuery({
-    queryKey: ['tickets', 'list', filters, page, length],
-    queryFn: async (): Promise<{ rows: TicketRow[]; total: number; filtered: number }> => {
-      const body = new URLSearchParams({ draw: '1', start: String(page * length), length: String(length) })
-      if (filters.status) body.set('search_fk_status', filters.status)
-      if (filters.mine) body.set('mode', 'mine')
-      if (filters.dateFrom && filters.dateTo) body.set('datefilter', `${toMDY(filters.dateFrom)} - ${toMDY(filters.dateTo)}`)
-      if (filters.assignedToUserId) body.set('search_fk_user_assign', filters.assignedToUserId)
-      if (filters.createdByUserId) body.set('search_fk_user_create', filters.createdByUserId)
-      if (filters.search) body.set('search[value]', filters.search)
-      if (filters.typeCode) body.set('search_type_code', filters.typeCode)
-      if (filters.projectId) body.set('projectid', String(filters.projectId))
-      const res = await fetch('/ticket/ticket_list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawTicketListResponse = await res.json()
-      if (data.error) throw new Error(data.error)
-      return {
-        rows: data.aaData.map(mapTicketRow),
-        total: data.iTotalRecords,
-        filtered: data.iTotalDisplayRecords,
-      }
-    },
+// ticket/fapi/list.php (API #395, key-authenticated, read-only): the List and My Tickets of the Ticket menu. Read live on newecuenta on 10 Nov 2026
+// with the filters below; the instance has no tickets, so the row shape is the one the API doc gives (not seen with rows):
+//   ?status=open|closed|<id>&type_code&severity_code&category_code&assigned=<user id>&mine=1&search&page&limit
+//   item { id, ref, track_id, subject, type {code, label}, severity {code, label}, category_code, status {id, label}, progress, customer {id, name},
+//          assigned_to {id, name}, created_by {id, name}, date_create, date_read, date_close }
+// Not in the answer, so not filtered or shown from it: a date range, the author, the project, the linked job cards and the customer's town.
+// The date range and the author filter are applied here to the rows that were read; a list scoped to a project still reads the classic handler.
+interface FapiTicket {
+  id: number
+  ref: string
+  track_id: string
+  subject: string
+  type?: { code: string; label: string } | null
+  severity?: { code: string; label: string } | null
+  category_code?: string | null
+  status: { id: number; label: string }
+  progress?: number | null
+  customer?: { id: number; name: string } | null
+  assigned_to?: { id: number; name: string } | null
+  created_by?: { id: number; name: string } | null
+  date_create?: string | number | null
+  date_read?: string | number | null
+  date_close?: string | number | null
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+// A date of the answer as shown: epoch seconds become "YYYY-MM-DD HH:mm" (UTC), text is shown as it is.
+export function ticketDateText(v: string | number | null | undefined): string {
+  if (typeof v === 'number' && v > 0) {
+    const d = new Date(v * 1000)
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+  }
+  return typeof v === 'string' ? v : ''
+}
+
+const dayOf = (v: string | number | null | undefined) => /^(\d{4}-\d{2}-\d{2})/.exec(ticketDateText(v))?.[1] ?? ''
+
+export function mapFapiTicket(t: FapiTicket): TicketRow {
+  return {
+    id: t.id,
+    trackId: t.track_id,
+    statusCode: t.status.id,
+    ref: t.ref,
+    author: t.created_by?.name ?? '',
+    authorUserId: t.created_by ? String(t.created_by.id) : null,
+    subject: t.subject,
+    type: t.type?.label ?? '',
+    thirdParty: t.customer?.name ?? '',
+    thirdPartySubtitle: '',
+    thirdPartySocid: t.customer ? String(t.customer.id) : null,
+    jobcards: '',
+    dateCreate: ticketDateText(t.date_create),
+    createdDay: dayOf(t.date_create),
+    dateClose: ticketDateText(t.date_close),
+    assignedTo: t.assigned_to?.name ?? '',
+    assignedToUserId: t.assigned_to ? String(t.assigned_to.id) : null,
+    status: t.status.label,
+  }
+}
+
+// The list's status filter values as the API takes them: "Open (All)" and "Closed (All)" are its open / closed groups, a number is one status, "All"
+// sends no status.
+export function ticketStatusParam(value: string): string | undefined {
+  if (value === 'openall') return 'open'
+  if (value === 'closeall') return 'closed'
+  return value === '-1' || value === '' ? undefined : value
+}
+
+// Every page of the tickets (200 each, capped at 25 pages), the other pages read together.
+export async function loadFapiTickets(filters: Pick<TicketListFilters, 'status' | 'mine' | 'assignedToUserId' | 'search' | 'typeCode'>, signal?: AbortSignal): Promise<TicketRow[]> {
+  const read = (page: number) =>
+    fapiGet<{ items: FapiTicket[]; pagination?: { pages?: number } }>(
+      '/ticket/fapi/list.php',
+      {
+        status: ticketStatusParam(filters.status),
+        mine: filters.mine ? 1 : undefined,
+        assigned: filters.assignedToUserId || undefined,
+        search: filters.search || undefined,
+        type_code: filters.typeCode || undefined,
+        page,
+        limit: 200,
+      },
+      signal,
+    )
+  const first = await read(1)
+  const pages = Math.min(first.pagination?.pages ?? 1, 25)
+  const rest = await Promise.all(Array.from({ length: Math.max(pages - 1, 0) }, (_, i) => read(i + 2)))
+  return [...first.items, ...rest.flatMap((r) => r.items)].map(mapFapiTicket)
+}
+
+// The filters the API has no parameter for, applied to the rows that were read.
+export function narrowTickets(rows: TicketRow[], filters: Pick<TicketListFilters, 'dateFrom' | 'dateTo' | 'createdByUserId'>): TicketRow[] {
+  return rows.filter((r) => {
+    if (filters.createdByUserId && r.authorUserId !== filters.createdByUserId) return false
+    if (filters.dateFrom && (!r.createdDay || r.createdDay < filters.dateFrom)) return false
+    if (filters.dateTo && (!r.createdDay || r.createdDay > filters.dateTo)) return false
+    return true
   })
 }
 
-// There is no per-id JSON fetch anywhere on this backend (confirmed by
-// reading ticket/card.php directly — its own field values, beyond what
-// ticket_list_ajax.php already returns, only ever get rendered as classic
-// HTML) — so this reuses the same real list endpoint's own documented
-// length=-1 "fetch everything, filter client-side" mode (already the
-// established pattern for other lists in this app, e.g. Quotations) rather
-// than scraping card.php's rendered page. This genuinely returns fewer
-// fields than the classic page shows — see TicketDetail.tsx's own comment
-// for exactly which fields that leaves honestly unavailable (severity,
-// ticket group/category, progress %, tags, initial message, read-on date
-// are all SELECTed by ticket_list_ajax.php's own SQL and even joined to
-// their label tables, but never included in its JSON output — a backend
-// gap, not something scraping the classic page could fix without violating
-// the no-HTML-scraping rule).
+// The classic handler (session): only for a list scoped to a project, which ticket/fapi/list.php cannot filter. Every row in one request (length=-1).
+async function loadClassicTickets(filters: TicketListFilters): Promise<TicketRow[]> {
+  const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
+  if (filters.status) body.set('search_fk_status', filters.status)
+  if (filters.mine) body.set('mode', 'mine')
+  if (filters.dateFrom && filters.dateTo) body.set('datefilter', `${toMDY(filters.dateFrom)} - ${toMDY(filters.dateTo)}`)
+  if (filters.assignedToUserId) body.set('search_fk_user_assign', filters.assignedToUserId)
+  if (filters.createdByUserId) body.set('search_fk_user_create', filters.createdByUserId)
+  if (filters.search) body.set('search[value]', filters.search)
+  if (filters.typeCode) body.set('search_type_code', filters.typeCode)
+  if (filters.projectId) body.set('projectid', String(filters.projectId))
+  const res = await fetch('/ticket/ticket_list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
+  if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
+  const data: RawTicketListResponse = await res.json()
+  if (data.error) throw new Error(data.error)
+  return data.aaData.map(mapTicketRow)
+}
+
+export function useTicketsList(filters: TicketListFilters, page: number, length: number) {
+  const classic = Boolean(filters.projectId)
+  // The rows are read once per server-side filter; the date range, the author and the page are applied to them.
+  const { dateFrom, dateTo, createdByUserId, ...server } = filters
+  return useQuery({
+    queryKey: ['tickets', 'list', classic ? 'classic' : 'api', classic ? filters : server],
+    queryFn: ({ signal }) => (classic ? loadClassicTickets(filters) : loadFapiTickets(filters, signal)),
+    select: (all): { rows: TicketRow[]; total: number; filtered: number } => {
+      const rows = classic ? all : narrowTickets(all, { dateFrom, dateTo, createdByUserId })
+      return { rows: rows.slice(page * length, (page + 1) * length), total: all.length, filtered: rows.length }
+    },
+    staleTime: 1000 * 30,
+  })
+}
+
+// A ticket page reads the tickets of every status and picks its row: ticket/fapi has no read-one endpoint, and its list row carries the type, the
+// severity, the category code, the progress, the read date and the close date (TicketDetail shows what the row has).
 export function useTicketDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['tickets', 'detail', id],
     queryFn: async (): Promise<TicketRow | null> => {
-      const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
-      const res = await fetch('/ticket/ticket_list_ajax.php', { method: 'POST', credentials: 'same-origin', body })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawTicketListResponse = await res.json()
-      if (data.error) throw new Error(data.error)
-      const row = data.aaData.find((r) => String(r.rowid) === id)
-      return row ? mapTicketRow(row) : null
+      const rows = await loadFapiTickets({ status: '-1', mine: false })
+      return rows.find((r) => String(r.id) === id) ?? null
     },
     enabled: !!id,
   })

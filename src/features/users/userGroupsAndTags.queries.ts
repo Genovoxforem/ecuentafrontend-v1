@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { loadUserGroup, loadUserGroups } from './userGroupsFapi'
+import { loadTagRows } from '../customers/tagTree.data'
+import { addGroupMemberFapi, createGroupFapi, deleteGroupFapi, loadUserGroup, loadUserGroups, removeGroupMemberFapi, updateGroupFapi } from './userGroupsFapi'
 
 // Endpoints read from user/group/list.php, user/group/ajax_group.php, and
-// categories/tag-sidebarlist-ajax.php:
+// categories/fapi/list.php?type=user:
 //
 // - The group list and one group (members and permission matrix) come from user/group/fapi (userGroupsFapi.ts).
 // - user/group/ajax_group.php's create_group action is a complete JSON
@@ -41,17 +42,37 @@ export function useUserGroup(id: string | undefined) {
   })
 }
 
+// Creating a group is user/group/fapi/group.php?action=create (the classic user/group/ajax_group.php create_group fallback was removed 12 Nov 2026).
 export function useCreateUserGroup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (fields: { name: string; note: string }) => {
-      const body = new URLSearchParams({ action: 'create_group', name: fields.name, note: fields.note })
-      const res = await fetch('/user/group/ajax_group.php', { method: 'POST', credentials: 'same-origin', body })
-      const data: { ok: boolean; id?: number; name?: string; editUrl?: string; error?: string } = await res.json()
-      if (!data.ok) throw new Error(data.error ?? 'Failed to create group.')
-      return data
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users', 'groups', 'list'] }),
+    mutationFn: (fields: { name: string; note: string }) => createGroupFapi(fields.name, fields.note),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users', 'groups'] }),
+  })
+}
+
+export function useUpdateUserGroup(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (fields: { name: string; note: string }) => updateGroupFapi(id, fields.name.trim(), fields.note),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users', 'groups'] }),
+  })
+}
+
+export function useGroupMembership(id: number) {
+  const queryClient = useQueryClient()
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['users', 'groups'] })
+  return {
+    add: useMutation({ mutationFn: (userId: number) => addGroupMemberFapi(id, userId), onSuccess: refresh }),
+    remove: useMutation({ mutationFn: (userId: number) => removeGroupMemberFapi(id, userId), onSuccess: refresh }),
+  }
+}
+
+export function useDeleteUserGroup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => deleteGroupFapi(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users', 'groups'] }),
   })
 }
 
@@ -62,24 +83,12 @@ export interface UserTagRow {
   createdAt: string
 }
 
-interface RawTagListResponse {
-  recordsTotal: string
-  recordsFiltered: string
-  data: Array<{ rowid: string; nom: string; code_client: string | null; phone: string | null }>
-}
-
-// type_id=7 is Categorie::TYPE_USER's numeric id, matching the reference
-// page's own categories/index.php?type=7 URL exactly.
+// categories/fapi/list.php?type=user (Categorie::TYPE_USER = 7). The tags carry no creation date, so Created stays empty.
 export function useUserTagsList() {
   return useQuery({
     queryKey: ['users', 'tags', 'list'],
     queryFn: async (): Promise<UserTagRow[]> => {
-      const res = await fetch('/categories/tag-sidebarlist-ajax.php?draw=1&start=0&type_id=7', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const data: RawTagListResponse = await res.json()
-      return data.data
-        .map((r) => ({ id: Number(r.rowid), name: r.nom, color: r.code_client || '', createdAt: r.phone ?? '' }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+      return (await loadTagRows('user')).map((t) => ({ id: t.id, name: t.fullLabel, color: t.color, createdAt: '' })).sort((a, b) => a.name.localeCompare(b.name))
     },
     staleTime: 1000 * 30,
   })

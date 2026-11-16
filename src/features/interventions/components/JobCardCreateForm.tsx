@@ -9,8 +9,7 @@ import { SearchableSelect } from '../../../shared/components/forms/SearchableSel
 import { Avatar } from '../../../shared/components/Avatar'
 import { useCustomerOptions } from '../../customers/customerOptions'
 import { useCustomerDetail } from '../../customers/customerDetail.queries'
-import { useUsersSummary } from '../../users/users.queries'
-import { useCreateJobCard, useCreateAccessory, useJobCardAccessories, useJobCardProjectOptions, type JobCardLineInput } from '../jobCard.queries'
+import { useCreateJobCard, useCreateAccessory, useJobCardAccessories, useJobCardFormOptions, type JobCardLineInput } from '../jobCard.queries'
 
 interface DraftLine {
   key: number
@@ -38,8 +37,8 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
   const listLink = backTo ?? ROUTES.customerList
   const { data: customers, isLoading: customersLoading } = useCustomerOptions()
   const { data: fixedCustomer } = useCustomerDetail(fixedCustomerId)
-  const { data: projects } = useJobCardProjectOptions()
-  const { data: usersSummary, isLoading: usersLoading } = useUsersSummary()
+  const { data: formOptions, isLoading: usersLoading } = useJobCardFormOptions()
+  const projects = formOptions?.projects
   const createJobCard = useCreateJobCard()
   const createAccessory = useCreateAccessory()
   const { data: accessories = [], isError: accessoriesError } = useJobCardAccessories()
@@ -63,7 +62,7 @@ export function JobCardCreateForm({ fixedCustomerId, backTo }: { fixedCustomerId
   const [created, setCreated] = useState<{ id: number; ref: string } | null>(null)
 
   const customerOptions = (customers ?? []).map((c) => ({ value: c.id, label: c.name }))
-  const userOptions = (usersSummary?.users ?? []).filter((u) => u.status === 'Enabled').map((u) => ({ value: String(u.id), label: u.name || u.login }))
+  const userOptions = formOptions?.users ?? []
 
   function updateLine(key: number, patch: Partial<DraftLine>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))

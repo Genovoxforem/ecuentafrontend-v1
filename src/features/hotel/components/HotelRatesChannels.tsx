@@ -202,9 +202,6 @@ export function HotelRatesChannels() {
             <p className="text-sm font-medium text-text!">Booking Engine (website)</p>
             <p className="text-xs text-text-faint">Live · guest-facing · card / mobile money</p>
           </div>
-          <a href="/custom/hotel/public/index.php" target="_blank" rel="noopener" className="text-xs text-brand hover:underline">
-            Open site
-          </a>
         </div>
         {channels && channels.length === 0 ? (
           <p className="text-sm text-text-faint italic py-2">No OTA channels yet. Add Booking.com, Expedia, etc.</p>

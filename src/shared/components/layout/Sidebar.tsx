@@ -9,7 +9,8 @@ import { prefetchRoute } from '../../../app/routePrefetch'
 import { useTheme } from '../../../context/ThemeContext'
 import { getNavItemIcon, getNavItemIconTileClass } from '../../nav/getNavItemIcon'
 import { ROUTES } from '../../../routes'
-import { CurrentNavItem, navContains, pickCurrentItem, rememberNavClick } from './sidebarCurrent'
+import { detailParentLocation } from './Breadcrumb'
+import { CurrentNavItem, NavSectionKey, navContains, pickCurrentItem, pickCurrentSection, rememberNavClick, reportsMenuHolds } from './sidebarCurrent'
 
 // Kept as one pair so the rail's width and the collapsed flyout's left-offset
 // (which must butt up against the rail) can never drift out of sync.
@@ -69,6 +70,7 @@ function SidebarLeaf({ item, depth, navigate, location, blueMetal }: { item: Nav
   // (the reset effect's condition never became true) and never highlighted
   // as current even while actually on that exact filtered page.
   const current = useContext(CurrentNavItem)
+  const sectionKey = useContext(NavSectionKey)
   const isCurrent = isLink && item === current
   const ItemIcon = getNavItemIcon(item.label)
   const isImportantAsycudaImport = /import\s*\(\s*asycuda\s*\)/i.test(item.label)
@@ -86,7 +88,7 @@ function SidebarLeaf({ item, depth, navigate, location, blueMetal }: { item: Nav
         isLink
           ? () => {
               setLoading(true)
-              rememberNavClick(item)
+              rememberNavClick(item, sectionKey)
               navigate(item.path!)
             }
           : undefined
@@ -153,6 +155,7 @@ function SidebarNavItem({
 }) {
   // Read before the leaf early-return below: hooks must run in the same order on every render.
   const current = useContext(CurrentNavItem)
+  const sectionKey = useContext(NavSectionKey)
   if (!('items' in item) || !item.items) {
     return <SidebarLeaf item={item} depth={depth} navigate={navigate} location={location} blueMetal={blueMetal} />
   }
@@ -173,9 +176,10 @@ function SidebarNavItem({
   // Holiday Management/All Leave Request page). currentUrl mirrors
   // SidebarLeaf's own comment: compared with the search string included
   // since a group's path can carry one too.
-  const hasActiveDescendant = item.items.some((sub) => navContains(sub, current))
+  // Only the entry that was clicked is lit. A group that merely holds it (it is open, or the clicked entry is one of its children) is not: lighting both
+  // made it look as if two entries were selected, above all when a heading and its first child open the same page.
   const isCurrent = item === current
-  const isActive = isCurrent || hasActiveDescendant
+  const isActive = isCurrent
   const ItemIcon = getNavItemIcon(item.label)
   return (
     <div
@@ -204,7 +208,7 @@ function SidebarNavItem({
           type="button"
           onClick={() => {
             if (item.path) {
-              rememberNavClick(item)
+              rememberNavClick(item, sectionKey)
               navigate(item.path)
               if (!isPinned) toggleGroup(groupKey, parentKey)
             } else {
@@ -215,8 +219,8 @@ function SidebarNavItem({
           style={{ paddingLeft: `${depth * 1 + 0.5}rem` }}
           className={
             blueMetal
-              ? `flex-1 min-w-0 flex items-center gap-2 text-left py-2 rounded-md transition-colors ${depth === 0 ? 'text-[11px] font-bold uppercase tracking-wide' : 'text-sm font-semibold'} ${isActive ? 'bg-brand/12 text-brand shadow-sm ring-1 ring-brand/20' : isPinned ? 'text-brand' : 'text-text-muted hover:bg-brand/8 hover:text-brand'}`
-              : `flex-1 min-w-0 text-left py-2 rounded-md text-[13px] font-semibold transition-colors ${isCurrent || isPinned ? 'text-brand' : 'text-text-muted hover:text-text'}`
+              ? `flex-1 min-w-0 flex items-center gap-2 text-left py-2 rounded-md transition-colors ${depth === 0 ? 'text-[11px] font-bold uppercase tracking-wide' : 'text-sm font-semibold'} ${isActive ? 'bg-brand/12 text-brand shadow-sm ring-1 ring-brand/20' : 'text-text-muted hover:bg-brand/8 hover:text-brand'}`
+              : `flex-1 min-w-0 text-left py-2 rounded-md text-[13px] font-semibold transition-colors ${isCurrent ? 'text-brand' : 'text-text-muted hover:text-text'}`
           }
         >
           {blueMetal && (
@@ -273,7 +277,9 @@ function itemContainsPath(item: NavItem, location: Location): boolean {
 
 export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onClose?: () => void; onOpen?: () => void }) {
   const navigate = useNavigate()
-  const location = useLocation()
+  const realLocation = useLocation()
+  // A detail page is shown under the menu entry it is opened from (see detailParentLocation).
+  const location = useMemo(() => detailParentLocation(realLocation), [realLocation])
   const { theme } = useTheme()
   const { data: menu } = useAppMenu()
   const blueMetal = theme === 'blue-metal'
@@ -302,7 +308,16 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   const active = SECTIONS.find((s) => s.key === activeKey) ?? SECTIONS[0]
   const ActiveIcon = active.icon
   const visibleItems = useMemo(() => filterNavItems(active.items, blueMetal ? menuSearch : ''), [active.items, blueMetal, menuSearch])
-  const currentItem = useMemo(() => pickCurrentItem(visibleItems, location), [visibleItems, location])
+  // The one menu that is current when several list the same page; the other menus' panels show no highlight for it (see pickCurrentSection).
+  const currentSectionKey = useMemo(
+    () => pickCurrentSection(SECTIONS.filter((section) => reportsMenuHolds(section.key, location.pathname) || section.items.some((item) => itemContainsPath(item, location))))?.key,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [SECTIONS, location.pathname, location.search],
+  )
+  const currentItem = useMemo(
+    () => (currentSectionKey && active.key !== currentSectionKey ? null : pickCurrentItem(visibleItems, location)),
+    [visibleItems, location, currentSectionKey, active.key],
+  )
 
   // Sync activeKey to the current route's section — but ONLY when the route
   // changes (location.pathname) or the menu data loads (SECTIONS), never when
@@ -312,6 +327,14 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
   // section holds the current page — so the flyout panel never shows the
   // clicked section's children.
   useEffect(() => {
+    // Several menus can list the same page (a report entry and the ledger page it opens, a heading and its own first child…). The menu the user is in
+    // keeps the page, and when the page was reached from another menu that menu is the one shown; only a page reached by its address falls to the
+    // first menu that holds it. Without this the panel jumped to another menu and two menus looked current.
+    const holding = SECTIONS.filter((section) => reportsMenuHolds(section.key, location.pathname) || section.items.some((item) => itemContainsPath(item, location)))
+    if (holding.length > 0) {
+      setActiveKey((prev) => (holding.some((s) => s.key === prev) ? prev : (pickCurrentSection(holding) ?? holding[0]).key))
+      return
+    }
     // A ledger detail page (a transaction, an account card) is not a menu item of its own, but it
     // belongs to General Ledger — also when the page is opened by its address.
     const currentSection =
@@ -319,6 +342,9 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
       (location.pathname.startsWith('/ledger/') ? SECTIONS.find((section) => section.key === 'general-ledger') : undefined) ??
       // Same for an expense's own card (/expenses/card/:id), which is opened from the Expenses pages.
       (location.pathname.startsWith('/expenses/card/') ? SECTIONS.find((section) => section.key === 'expenses') : undefined) ??
+      // An asset's own card (/fixed-assets/view/:id) is opened from the asset lists and belongs to Fixed Asset.
+      (location.pathname.startsWith('/fixed-assets/') ? SECTIONS.find((section) => section.key === 'fixed-asset') : undefined) ??
+      (location.pathname.startsWith('/installments/') ? SECTIONS.find((section) => section.key === 'installment') : undefined) ??
       // Payroll V2's own tab screens (Templates, Shifts, Settings…) have no menu entry; they belong with its Dashboard.
       (location.pathname.startsWith(`${ROUTES.payrollV2Dashboard}/`)
         ? SECTIONS.find((section) => section.items.some((item) => itemContainsPath(item, { ...location, pathname: ROUTES.payrollV2Dashboard, search: '' })))
@@ -468,6 +494,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
           <div className="space-y-0.5">
             {active.items.length === 0 && <p className="px-2 py-2 text-xs italic text-text-muted">Nothing here yet.</p>}
             {active.items.length > 0 && visibleItems.length === 0 && <p className="px-2 py-2 text-xs text-text-faint">No matching menu items.</p>}
+            <NavSectionKey.Provider value={active.key}>
             <CurrentNavItem.Provider value={currentItem}>
             {visibleItems.map((item, i) => (
               <SidebarNavItem
@@ -486,6 +513,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
               />
             ))}
             </CurrentNavItem.Provider>
+            </NavSectionKey.Provider>
           </div>
         </div>
       </div>

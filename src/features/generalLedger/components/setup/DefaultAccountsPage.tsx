@@ -6,7 +6,7 @@ import { SearchableSelect } from '../../../../shared/components/forms/Searchable
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { useDefaultAccounts, useUpdateDefaultAccounts, useSetDefaultAccountsToReference } from '../../generalLedgerSetup.queries'
-import type { DefaultAccountOption } from '../../defaultAccountsParser'
+import type { DefaultAccountOption } from '../../defaultAccounts.types'
 
 // General Ledger > Setup > Default accounts (accountancy/admin/defaultaccounts.php): the
 // backend's own list of default accounts, with each field's stored account selected. Saving

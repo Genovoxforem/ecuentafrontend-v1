@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
+import { useAuth } from '../auth/AuthContext'
+import { readSessionCache, writeSessionCache } from '../../utils/sessionCache'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { fetchAllPages } from '../../api/fapiRow'
 
 // There is no /api/projects/ (api/projects/index.php) on the active backend
 // (a GET to it returns the legacy login page's HTML; only the unrelated
@@ -38,6 +40,14 @@ import axios from 'axios'
 
 export type ProjectListFilter = 'all' | 'openLeads' | 'openProjects'
 
+export interface ProjectOpportunity {
+  statusId: number
+  code: string
+  label: string
+  percent: number | null
+  amount: number | null
+}
+
 export interface ProjectRow {
   id: number
   ref: string
@@ -50,147 +60,139 @@ export interface ProjectRow {
   visibility: string | null
   budgetAmount: string | null
   creationDate: string | null
-}
-
-interface RawProjectListRow {
-  rowid: string
-  ref: string
-  title: string
-  fk_statut: string
-  nom: string | null
-}
-
-interface ProjectsAjaxResponse {
-  recordsTotal: string | number
-  data: RawProjectListRow[]
+  // From the project card only (projet/fapi/projects.php?id=): not in a list row.
+  description?: string
+  usage?: { opportunity: boolean; task: boolean; billTime: boolean }
+  // The opportunity of a lead (null: the project does not follow one). Also in a list row.
+  opportunity?: ProjectOpportunity | null
 }
 
 const STATUS_LABELS: Record<number, ProjectRow['statusLabel']> = { 0: 'Draft', 1: 'Open', 2: 'Closed' }
-const STATUS_CODES_BY_LABEL: Record<string, number> = { draft: 0, open: 1, validated: 1, closed: 2 }
 
-function textOf(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+// projet/fapi/projects.php (key-authenticated JSON, 5 Nov 2026). Checked on newecuenta the same day against the classic projet/list.php
+// and projet/card.php, with four throwaway projects (a lead, one without an opportunity, a Won and a Lost one; all deleted again):
+//  - a list row has id, ref, title, third_party, status (0 draft, 1 open, 2 closed), opportunity {status_id, code, label, amount, percent},
+//    budget_amount, public, date_start / date_end / date_creation (Unix seconds, UTC) and creator. The classic list prints the same as
+//    Start date, End date (blank when none), Visibility ("Project contacts" / "Everybody"), Budget ("1,000.00", blank when 0) and
+//    Creat. date ("11/05/2026 10:44 AM", UTC).
+//  - its filter=open_leads / open_projects leave out draft projects (the classic lists include them) and open_projects includes a Lost
+//    opportunity (the classic list does not), so the three lists are cut here from the full list with the classic rule instead:
+//    Open Leads = has an opportunity that is not Won or Lost, Open Projects = no opportunity or a Won one, neither = closed projects.
+//    That gave exactly the classic lists with the projects draft, open, and after one was closed.
+interface FapiProjectOpportunity {
+  status_id: number
+  code: string
+  label: string
+  amount: number | null
+  percent: number | null
+}
+interface FapiProject {
+  id: number
+  ref: string
+  title: string
+  description?: string
+  third_party?: { id?: number; name?: string } | null
+  status?: number
+  opportunity?: FapiProjectOpportunity | null
+  budget_amount?: number | null
+  public?: boolean
+  usage_flags?: { opportunity?: number; task?: number; bill_time?: number }
+  date_start?: number | null
+  date_end?: number | null
+  date_creation?: number | null
+}
+const FAPI_PAD = (n: number) => String(n).padStart(2, '0')
+// Dates print as the classic list does, in UTC ("11/05/2026"; the stored dates are midnight UTC).
+const projectDate = (v: number | null | undefined): string | null => {
+  if (typeof v !== 'number') return null
+  const d = new Date(v * 1000)
+  return `${FAPI_PAD(d.getUTCMonth() + 1)}/${FAPI_PAD(d.getUTCDate())}/${d.getUTCFullYear()}`
+}
+const projectDateTime = (v: number | null | undefined): string | null => {
+  if (typeof v !== 'number') return null
+  const d = new Date(v * 1000)
+  const h = d.getUTCHours()
+  return `${projectDate(v)} ${FAPI_PAD(h % 12 || 12)}:${FAPI_PAD(d.getUTCMinutes())} ${h < 12 ? 'AM' : 'PM'}`
 }
 
-// projet/list.php's own table has a distinctive id="example" — a much safer
-// anchor than searching for the first <thead>/<tbody> on the page, since a
-// shared "Cash Position" finance widget elsewhere on this same page layout
-// has its own <thead>/<tbody> earlier in the document.
-// Column order (Ref/Project label/Start date/End date/Visibility/Budget/
-// Creat. date/Status) matches this install's own configured arrayfields,
-// not Dolibarr's generic default.
-function parseProjectListRows(html: string): Omit<ProjectRow, 'thirdPartyName'>[] {
-  const tableStart = html.indexOf('<table id="example"')
-  if (tableStart === -1) return []
-  const tbodyStart = html.indexOf('<tbody>', tableStart)
-  const tbodyEnd = html.indexOf('</tbody>', tbodyStart)
-  if (tbodyStart === -1 || tbodyEnd === -1) return []
-  const tbodyHtml = html.slice(tbodyStart, tbodyEnd)
-
-  const rows: Omit<ProjectRow, 'thirdPartyName'>[] = []
-  const rowRe = /<tr>([\s\S]*?)<\/tr>/g
-  let m: RegExpExecArray | null
-  while ((m = rowRe.exec(tbodyHtml))) {
-    const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/g
-    const cells: string[] = []
-    let c: RegExpExecArray | null
-    while ((c = cellRe.exec(m[1]))) cells.push(c[1])
-    if (cells.length < 8) continue
-
-    const idMatch = cells[0].match(/[?&]id=(\d+)/)
-    const ref = textOf(cells[0])
-    if (!idMatch || !ref) continue
-
-    const statusText = (cells[7].match(/title="([^"]*)"/)?.[1] ?? textOf(cells[7])).trim()
-    const statusCode = STATUS_CODES_BY_LABEL[statusText.toLowerCase()] ?? -1
-    const statusLabel = STATUS_LABELS[statusCode] ?? 'Unknown'
-
-    rows.push({
-      id: Number(idMatch[1]),
-      ref,
-      title: textOf(cells[1]),
-      statusCode,
-      statusLabel,
-      startDate: textOf(cells[2]) || null,
-      endDate: textOf(cells[3]) || null,
-      visibility: textOf(cells[4]) || null,
-      budgetAmount: textOf(cells[5]) || null,
-      creationDate: textOf(cells[6]) || null,
-    })
+function mapFapiProject(p: FapiProject): ProjectRow {
+  const statusCode = p.status ?? -1
+  const o = p.opportunity
+  return {
+    id: p.id,
+    ref: p.ref,
+    title: p.title,
+    thirdPartyName: p.third_party?.name ?? null,
+    statusCode,
+    statusLabel: STATUS_LABELS[statusCode] ?? 'Unknown',
+    startDate: projectDate(p.date_start),
+    endDate: projectDate(p.date_end),
+    visibility: p.public === undefined ? null : p.public ? 'Everybody' : 'Project contacts',
+    budgetAmount: p.budget_amount ? p.budget_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null,
+    creationDate: projectDateTime(p.date_creation),
+    opportunity: o ? { statusId: o.status_id, code: o.code, label: o.label, percent: o.percent, amount: o.amount } : null,
+    ...(p.description !== undefined ? { description: p.description } : {}),
+    ...(p.usage_flags ? { usage: { opportunity: !!p.usage_flags.opportunity, task: !!p.usage_flags.task, billTime: !!p.usage_flags.bill_time } } : {}),
   }
-  return rows
 }
 
-function buildListUrl(filter: ProjectListFilter): string {
-  const params = new URLSearchParams({ limit: '500' })
-  if (filter === 'openLeads') {
-    params.set('search_opp_status', 'openedopp')
-    params.set('search_status', '99')
-  } else if (filter === 'openProjects') {
-    params.set('search_opp_status', 'notopenedopp')
-    params.set('search_status', '99')
-  }
-  return `/projet/list.php?${params.toString()}`
+// The classic filters (search_opp_status=openedopp / notopenedopp with search_status=99, i.e. not closed).
+export function matchesProjectFilter(p: ProjectRow, filter: ProjectListFilter): boolean {
+  if (filter === 'all') return true
+  if (p.statusCode === 2) return false
+  const code = p.opportunity?.code
+  return filter === 'openLeads' ? !!code && code !== 'WON' && code !== 'LOST' : !code || code === 'WON'
 }
 
-async function fetchThirdPartyByRef(): Promise<Map<string, string>> {
-  const body = new URLSearchParams({ draw: '1', start: '0', length: '-1' })
-  const { data } = await axios.post<ProjectsAjaxResponse>('/projet/projects-list-ajax.php', body)
-  const map = new Map<string, string>()
-  for (const r of data.data ?? []) {
-    if (r.nom) map.set(r.ref, r.nom)
-  }
-  return map
+async function fetchProjectsFapi(filter: ProjectListFilter): Promise<{ items: ProjectRow[]; total: number }> {
+  const rows = await fetchAllPages<FapiProject>((page) =>
+    fapiGet<{ items?: FapiProject[]; pagination?: { pages?: number } }>('/projet/fapi/projects.php', { action: 'list', filter: 'all', limit: 500, page }),
+  )
+  const items = rows.map(mapFapiProject).filter((p) => matchesProjectFilter(p, filter))
+  return { items, total: items.length }
 }
 
 export function useProjectsList(filter: ProjectListFilter) {
   return useQuery({
     queryKey: ['projects', 'list', filter],
-    queryFn: async (): Promise<{ items: ProjectRow[]; total: number }> => {
-      const [html, thirdParties] = await Promise.all([
-        fetch(buildListUrl(filter), { credentials: 'same-origin' }).then((res) => {
-          if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-          return res.text()
-        }),
-        fetchThirdPartyByRef(),
-      ])
-      const items = parseProjectListRows(html).map((r) => ({ ...r, thirdPartyName: thirdParties.get(r.ref) ?? null }))
-      return { items, total: items.length }
-    },
+    queryFn: () => fetchProjectsFapi(filter),
     staleTime: 1000 * 30,
   })
 }
 
-// The navbar's "Today New Leads" pill: how many open leads were created today,
-// counted from the same real open-leads list the Open Leads page shows (newest
-// first). Dates there are printed MM/DD/YYYY hh:mm AM.
-//
-// It reads the whole 500-row legacy open-leads page (about 240 KB of server-built HTML, 1.5 to 2.4 s) and the navbar mounts on
-// every page, so it is only requested a few seconds after the page opens, once the page's own data has had the connection.
-function useReadyAfter(ms: number) {
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    const timer = window.setTimeout(() => setReady(true), ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
-  return ready
+// One project: the card of projet/fapi/projects.php?id= (description, usage flags and the opportunity too). An unknown id is a JSON 404
+// ("Project not found or not visible").
+export function useProject(id: string | undefined) {
+  return useQuery({
+    queryKey: ['projects', 'detail', id],
+    queryFn: async () => mapFapiProject((await fapiGet<{ project: FapiProject }>('/projet/fapi/projects.php', { id })).project),
+    enabled: !!id,
+    staleTime: 1000 * 30,
+  })
 }
 
+// The navbar's "Today New Leads" pill: projects.php?action=count&filter=open_leads&created=today, no list download. Since 11 Nov 2026 the backend counts drafts
+// too (open = not closed, opportunity not Won / Lost). Tested live on newecuenta on 12 Nov 2026 with throwaway projects, all deleted again: the count equals the rows of
+// the classic Open Leads list (projet/list.php?search_opp_status=openedopp&search_status=99) in every state - draft lead 1, a Won lead and a project without an
+// opportunity not counted, the lead validated still 1, closed 0. "Today" is the server's day.
+async function countTodayLeadsFapi(): Promise<number> {
+  const d = await fapiGet<{ count?: number }>('/projet/fapi/projects.php', { action: 'count', filter: 'open_leads', created: 'today' })
+  return Number(d.count) || 0
+}
+
+// Asked once per sign-in and kept for the browser session (per user and per day): a reload or another tab does not ask again.
 export function useTodayNewLeadsCount() {
-  const ready = useReadyAfter(6000)
+  const { user } = useAuth()
+  const cacheKey = `todayNewLeads:${user?.id}:${new Date().toDateString()}`
   return useQuery({
-    enabled: ready,
-    queryKey: ['projects', 'todayNewLeads'],
+    queryKey: ['projects', 'todayNewLeads', user?.id],
+    initialData: () => readSessionCache<number>(cacheKey),
     queryFn: async (): Promise<number> => {
-      const res = await fetch(`${buildListUrl('openLeads')}&sortfield=p.datec&sortorder=desc`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Legacy backend returned ${res.status}.`)
-      const now = new Date()
-      const pad = (n: number) => String(n).padStart(2, '0')
-      const today = `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()}`
-      return parseProjectListRows(await res.text()).filter((r) => r.creationDate?.startsWith(today)).length
+      const count = await countTodayLeadsFapi()
+      writeSessionCache(cacheKey, count)
+      return count
     },
-    staleTime: 1000 * 60 * 5,
-    refetchInterval: 1000 * 60 * 10,
+    staleTime: Infinity,
     retry: false,
   })
 }

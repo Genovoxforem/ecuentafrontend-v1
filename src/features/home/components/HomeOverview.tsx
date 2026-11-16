@@ -398,10 +398,10 @@ function AnalyticsCard({ side, tab }: { side: DashSide; tab: 'sales' | 'purchase
   )
 }
 
-function Last7Card({ rows, tab, currency }: { rows: DashInvoiceRow[]; tab: 'sales' | 'purchase'; currency: string }) {
+function Last7Card({ rows, tab, currency, title }: { rows: DashInvoiceRow[]; tab: 'sales' | 'purchase'; currency: string; title?: string }) {
   const text = SIDE_TEXT[tab]
   return (
-    <GlassCard className="lg:col-span-7" header={<CardHeader icon={Receipt} title={text.last7} />} action={<ViewAll to={text.list} />}>
+    <GlassCard className="lg:col-span-7" header={<CardHeader icon={Receipt} title={title || text.last7} />} action={<ViewAll to={text.list} />}>
       {rows.length === 0 ? (
         <EmptyState icon={Inbox} title={text.empty[0]} text={text.empty[1]} />
       ) : (
@@ -707,7 +707,7 @@ export function HomeOverview({ username, dashboard }: { username: string; dashbo
             <AnalyticsCard key={tab} side={side} tab={tab} />
           </div>
           <div className="grid flex-1 grid-cols-1 lg:grid-cols-12 gap-4">
-            <Last7Card rows={side.last7} tab={tab} currency={currency} />
+            <Last7Card rows={side.last7} tab={tab} currency={currency} title={side.lastTitle} />
             <CountryCard side={side} tab={tab} currency={currency} />
           </div>
         </div>

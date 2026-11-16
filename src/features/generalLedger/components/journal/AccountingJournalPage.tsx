@@ -7,7 +7,7 @@ import { StickyListLayout, ScrollCard, STICKY_THEAD, STICKY_TFOOT } from '../../
 import { LegacyLoadingCard, LegacyErrorCard } from '../../../products/components/LegacyReportStates'
 import { useConfirm } from '../../../../shared/components/ConfirmDialog'
 import { useAccountingJournal, useWriteBookkeeping, downloadJournalCsv, type JournalConfig, type JournalFilters } from '../../accountingJournal.queries'
-import type { JournalWarning } from '../../accountingJournalParser'
+import type { JournalWarning } from '../../accountingJournal.types'
 import { toIso, toUs } from '../../../../utils/dates'
 
 const inputCls = 'h-9 px-3 rounded-md border border-input-border bg-input-bg text-text text-sm outline-none focus:ring-2 focus:ring-brand/30'

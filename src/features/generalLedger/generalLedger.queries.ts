@@ -287,7 +287,7 @@ export function useSubledgerReport(filters: LedgerFilters) {
 // action=delmouv&mvt_num=X) — matches the real page's own trash-icon
 // action per row (see ledgerReport.ts's LedgerRow comment). A bare GET
 // that deletes that one movement server-side immediately, same convention
-// as useDeleteDictRow in dolibarrDict.queries.ts.
+// as the dictionary lists once used.
 export function useDeleteLedgerEntry() {
   const queryClient = useQueryClient()
   return useMutation({

@@ -29,6 +29,8 @@ export interface AdvanceRow {
 }
 export interface AdvancesPage {
   canCreate: boolean
+  // The "Ledger Account" of the create form: read only, configured under Accounting > Default accounts (code is posted as account_code).
+  ledgerAccount: { code: string; label: string } | null
   employees: FormOption[]
   banks: FormOption[]
   rows: AdvanceRow[]
@@ -102,6 +104,19 @@ export interface RecurringRow {
   n: string
   templateId: string
   ref: string
+  // The line under the ref ("Employee · 50.00"), the report's type and who it is for, and the amount the schedule books.
+  refNote: string
+  type: string
+  party: string
+  amount: string
+  lastRun: string
+  // The schedule's own id and the values its Edit button loads into the form (the row's data-* attributes).
+  rid: string
+  edit: { tpl: string; freq: string; auto: string; amount: string } | null
+  // Which of Pause / Resume / Delete the row offers.
+  canPause: boolean
+  canResume: boolean
+  canDelete: boolean
   frequency: string
   start: string
   end: string
@@ -136,4 +151,29 @@ export interface AnalyticsPage {
   employees: { label: string; amount: number }[]
   types: { label: string; amount: number }[]
   departments: { label: string; amount: number }[]
+}
+
+// ── Budgets ──────────────────────────────────────────────────────────────────────────────────────────
+export interface BudgetRow {
+  id: number
+  label: string
+  period: string
+  budget: string
+  used: string
+  department: string
+  branch: string
+  pct: number
+  tone: Tone
+}
+export interface BudgetsPage {
+  year: string
+  rows: BudgetRow[]
+}
+export interface NewBudgetInput {
+  label: string
+  amount: string
+  year: string
+  month: string
+  department: string
+  branch: string
 }

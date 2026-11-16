@@ -1,15 +1,13 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { fetchLegacyDocument } from '../../shared/legacyHtmlFetch'
-import { parseBindExpenseLines } from './bindExpenseLinesParser'
+import { loadBindExpenseLines } from './bindingFapi'
 
 export const EXPENSE_BIND_PATH = '/accountancy/expensereport/list.php'
 
-// Binding itself reuses the customer/vendor mass action (useBindSelectedLines
-// in bindLines.queries.ts): same form, same ventil POST.
+// The lines come from accountancy/fapi/binding_expensereport.php (see bindingFapi.ts). Binding itself is useBindSelectedLines in bindLines.queries.ts.
 export function useBindExpenseLines(limit: number, page: number) {
   return useQuery({
     queryKey: ['generalLedger', 'bindLines', EXPENSE_BIND_PATH, limit, page],
-    queryFn: async () => parseBindExpenseLines(await fetchLegacyDocument(EXPENSE_BIND_PATH, new URLSearchParams({ limit: String(limit), page: String(page) }))),
+    queryFn: () => loadBindExpenseLines(limit, page),
     staleTime: 0,
     placeholderData: keepPreviousData,
   })

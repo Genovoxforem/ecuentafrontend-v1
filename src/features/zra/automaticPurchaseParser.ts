@@ -13,7 +13,7 @@ function cellText(html: string): string {
 }
 
 function afterLabel(text: string, label: string): string {
-  const m = text.match(new RegExp(label + ':\\s*([^|]*?)(?:\\s*(?:Item Count|Branch|Payment Type|Remark):|$)', 'i'))
+  const m = text.match(new RegExp(label + ':\\s*([^|]*?)(?:\\s*(?:Item Count|Branch|Payment Type|Remark|Tax Amount):|$)', 'i'))
   return m ? m[1].trim() : ''
 }
 
