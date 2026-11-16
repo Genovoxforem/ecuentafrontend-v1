@@ -30,8 +30,13 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = getStoredToken()
   if (token) {
+    // Authorization is always allowed by backend CORS preflight for /api/*.
     config.headers['Authorization'] = token
-    config.headers['X-API-Key'] = token
+    // X-API-Key is blocked by backend CORS Access-Control-Allow-Headers on cross-origin
+    // production deployments — only send it on same-origin (local dev / Vite proxy).
+    if (!crossOrigin) {
+      config.headers['X-API-Key'] = token
+    }
   }
   return config
 })
@@ -54,7 +59,8 @@ fapi.interceptors.request.use((config) => {
 
 // Configure default axios for direct calls across the app
 axios.interceptors.request.use((config) => {
-  if (isCrossOriginDeployment() && config.url && config.url.startsWith('/') && !/^https?:\/\//i.test(config.url)) {
+  const isCrossOrigin = isCrossOriginDeployment()
+  if (isCrossOrigin && config.url && config.url.startsWith('/') && !/^https?:\/\//i.test(config.url)) {
     const isCoreApi = config.url.startsWith('/api/') || config.url === '/api'
     config.url = `${getBackendUrl()}${config.url}`
     config.withCredentials = !isCoreApi
@@ -62,7 +68,8 @@ axios.interceptors.request.use((config) => {
   const token = getStoredToken()
   if (token) {
     if (!config.headers['Authorization']) config.headers['Authorization'] = token
-    if (!config.headers['X-API-Key']) config.headers['X-API-Key'] = token
+    // X-API-Key blocked by backend CORS preflight on cross-origin — only send same-origin
+    if (!isCrossOrigin && !config.headers['X-API-Key']) config.headers['X-API-Key'] = token
   }
   return config
 })
