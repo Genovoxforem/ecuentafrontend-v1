@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { fapiGet } from '../../api/fapiEnvelope'
 
-// The members list is adherents/fapi/list.php (fapi only). The classic ajax_adherents_list.php handler and the list.php scrape are no longer read; the fapi
-// row has no login, so the Login column stays empty (master report AN-164).
+// The members list is adherents/fapi/list.php (fapi only). The classic ajax_adherents_list.php handler and the list.php scrape are no longer read;
+// items gain login (AN-164).
 export interface MemberRow {
   ref: string
   firstname: string
@@ -26,12 +26,13 @@ function statusCodeOf(label: string): number {
   return 1
 }
 
-// adherents/fapi/list.php: the members as JSON, read page by page. It has no login column, so Login stays empty.
+// adherents/fapi/list.php: the members as JSON, read page by page. Items carry login (AN-164).
 interface FapiMember {
   ref?: string
   firstname?: string
   lastname?: string
   company?: string
+  login?: string
   type?: { label?: string } | null
   email?: string
   subscription_end?: string
@@ -63,7 +64,7 @@ async function fetchAllMembersFapi(): Promise<{ rows: MemberRow[]; total: number
         firstname: m.firstname ?? '',
         lastname: m.lastname ?? '',
         company: m.company ?? '',
-        login: '',
+        login: m.login ?? '',
         type: m.type?.label ?? '',
         email: m.email ?? '',
         endOfSubscription: m.subscription_end ?? '',

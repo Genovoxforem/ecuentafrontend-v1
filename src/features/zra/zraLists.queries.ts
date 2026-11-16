@@ -1,7 +1,9 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import axios from 'axios'
+import { fapiGet } from '../../api/fapiEnvelope'
+import { preferNewApi } from '../salesOrders/orderApi'
 import { parseVendorInvoiceListRow, type RawVendorInvoiceListRow } from '../vendorInvoices/vendorInvoiceListParser'
-import { parsePendingSalesRow, type RawPendingSalesRow } from './pendingSalesParser'
+import { parsePendingSalesRow, type RawPendingSalesRow, type PendingSalesRow } from './pendingSalesParser'
 import { parseAutomaticPurchaseRow, type RawAutomaticPurchaseRow } from './automaticPurchaseParser'
 import { parseUnuploadedProductRow, type RawUnuploadedProductRow } from './unuploadedProductsParser'
 
@@ -102,26 +104,155 @@ export function usePendingPurchasesList(params: ListParams) {
   })
 }
 
-// compta/facture/invoice_ajax_list.php?invtype=pending — real, same
-// zra_upload_error filter, confirmed by reading that file directly. See
-// pendingSalesParser.ts for the (oddly-named) column mapping.
+export interface FapiSalesItem {
+  id: number
+  ref: string
+  ref_client?: string | null
+  type_label?: string | null
+  customer?: {
+    id?: number
+    name?: string
+    tpin?: string
+  } | null
+  total_ht?: number | string
+  total_ttc?: number | string
+  invoice_status?: number
+  paid?: number
+  due_date?: number | string | null
+  city?: string | null
+  payment_type?: string | null
+  payment_terms?: string | null
+  author?: string | null
+  date?: string | number | null
+  date_invoice?: string | number | null
+  invoice_date?: string | number | null
+  status_label?: string | null
+  currency?: string | null
+  zra?: {
+    code?: string | number | null
+    state?: string | null
+  } | null
+}
+
+export interface FapiSalesListResponse {
+  items?: FapiSalesItem[]
+  pagination?: {
+    page?: number
+    limit?: number
+    total?: number
+    pages?: number
+  }
+  totals?: unknown
+}
+
+function formatDateValue(val: number | string | null | undefined): string | null {
+  if (val == null || val === '' || val === '-') return null
+  if (typeof val === 'number') {
+    const d = new Date(val < 1e11 ? val * 1000 : val)
+    if (Number.isNaN(d.getTime())) return null
+    const iso = d.toISOString().slice(0, 10)
+    const [y, m, day] = iso.split('-')
+    return `${m}/${day}/${y}`
+  }
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(val)
+  if (isoMatch) return `${isoMatch[2]}/${isoMatch[3]}/${isoMatch[1]}`
+  return val
+}
+
+function initialsOfName(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return ''
+  return ((words[0]?.[0] ?? '') + (words[1]?.[0] ?? words[0]?.[1] ?? '')).toUpperCase()
+}
+
+export function fapiSalesToPendingRow(item: FapiSalesItem): PendingSalesRow {
+  const ht = Number(item.total_ht) || 0
+  const ttc = Number(item.total_ttc) || 0
+  const vat = Math.round((ttc - ht) * 100) / 100
+  const zraCode = item.zra?.code != null ? String(item.zra.code) : ''
+  const zraState = item.zra?.state ?? ''
+  const zraMessage = zraState ? (zraCode ? `${zraState} (${zraCode})` : zraState) : zraCode
+  const zraSucceeded = zraState.toLowerCase() === 'success' || zraCode === '000'
+
+  const status =
+    item.status_label ||
+    (item.paid === 1 || item.invoice_status === 2
+      ? 'Paid'
+      : item.invoice_status === 0
+        ? 'Draft'
+        : item.invoice_status === 1
+          ? 'Not paid'
+          : item.type_label || '')
+
+  const invDate = formatDateValue(item.date ?? item.invoice_date ?? item.date_invoice) ?? ''
+
+  return {
+    id: item.id ?? null,
+    ref: item.ref ?? '',
+    refNote: item.ref_client ? `ref: ${item.ref_client}` : '',
+    refHref: item.id ? `/compta/facture/card.php?id=${item.id}` : null,
+    refTip: null,
+    invoiceDate: invDate,
+    dueDate: formatDateValue(item.due_date),
+    thirdParty: item.customer?.name ?? '',
+    thirdPartyHref: item.customer?.id ? `/societe/card.php?socid=${item.customer.id}` : null,
+    thirdPartyInitials: initialsOfName(item.customer?.name ?? ''),
+    thirdPartyCode: item.customer?.tpin ? `TPIN: ${item.customer.tpin}` : '',
+    thirdPartyTip: null,
+    city: item.city || null,
+    paymentType: item.payment_type || null,
+    paymentTerms: item.payment_terms || null,
+    amountExclTax: ht,
+    vat,
+    amountInclTax: ttc,
+    author: item.author ?? '',
+    authorHref: null,
+    authorInitials: initialsOfName(item.author ?? ''),
+    authorTip: null,
+    status,
+    currency: item.currency ?? 'ZMW',
+    zraSucceeded,
+    zraStatusMessage: zraMessage,
+    zraRefreshRef: item.ref ?? null,
+  }
+}
+
+// custom/zra/fapi/sales_list.php — JSON list of pending sales invoices (AN-172: carries due_date, city,
+// payment_type, payment_terms and author). Falls back to compta/facture/invoice_ajax_list.php when unrouted.
 export type { PendingSalesRow as PendingSalesInvoiceRow } from './pendingSalesParser'
 export function usePendingSalesList(params: ListParams) {
   return useQuery({
     queryKey: ['zra', 'pending-sales', params],
     queryFn: async () => {
-      const body = new URLSearchParams({
-        draw: '1',
-        start: String((params.page - 1) * params.perPage),
-        length: String(params.perPage),
-        invtype: 'pending',
-        // Newest invoice date first, as the classic list opens (column 2 = Invoice Date).
-        'order[0][column]': '2',
-        'order[0][dir]': 'desc',
-      })
-      if (params.search) body.set('search[value]', params.search)
-      const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords?: number; aaData: RawPendingSalesRow[] }>('/compta/facture/invoice_ajax_list.php', body)
-      return { items: (data.aaData ?? []).map(parsePendingSalesRow), total: Number(data.iTotalDisplayRecords ?? data.iTotalRecords) || 0 }
+      return preferNewApi(
+        'zra-pending-sales-list',
+        async () => {
+          const d = await fapiGet<FapiSalesListResponse>('/custom/zra/fapi/sales_list.php', {
+            page: params.page,
+            limit: params.perPage,
+            search: params.search || undefined,
+          })
+          const items: PendingSalesRow[] = (d.items ?? []).map(fapiSalesToPendingRow)
+          return { items, total: Number(d.pagination?.total) || items.length }
+        },
+        async () => {
+          const body = new URLSearchParams({
+            draw: '1',
+            start: String((params.page - 1) * params.perPage),
+            length: String(params.perPage),
+            invtype: 'pending',
+            // Newest invoice date first, as the classic list opens (column 2 = Invoice Date).
+            'order[0][column]': '2',
+            'order[0][dir]': 'desc',
+          })
+          if (params.search) body.set('search[value]', params.search)
+          const { data } = await axios.post<{ iTotalRecords: number; iTotalDisplayRecords?: number; aaData: RawPendingSalesRow[] }>(
+            '/compta/facture/invoice_ajax_list.php',
+            body,
+          )
+          return { items: (data.aaData ?? []).map(parsePendingSalesRow), total: Number(data.iTotalDisplayRecords ?? data.iTotalRecords) || 0 }
+        },
+      )
     },
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,

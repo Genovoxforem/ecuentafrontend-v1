@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getBackendUrl, isCrossOriginDeployment } from './backends'
 
 const TOKEN_STORAGE_KEY = 'ecuenta_token'
 
@@ -14,24 +15,16 @@ export function setStoredToken(token: string | null) {
   }
 }
 
-// Relative path only — never an absolute backend URL here, in dev or prod.
-//
-// Dev: Vite's dev-server proxy (vite.config.ts, driven by the same
-// backends.ts this would otherwise duplicate) forwards "/api/*" same-origin
-// to the backend selected by VITE_BACKEND_URL.
-//
-// Prod: this build is deployed onto the backend's own origin (e.g. the
-// dist/ output served from https://demo1.ecuenta.online alongside its
-// existing PHP/api/* routes — see deploy/vhost-frontend.conf.example for
-// the reverse-proxy variant if the frontend instead lives on its own
-// domain), so "/api" already resolves to the real backend with zero
-// cross-origin request involved. Either way every request stays
-// same-origin with the page, which is what avoids CORS entirely: the
-// backend's incomplete CORS headers block the authenticated follow-up
-// calls when requests are cross-origin.
+// In same-origin deployments or local dev (with Vite proxy), relative paths are used.
+// In cross-origin deployments (e.g. frontend hosted on separate domain like cPanel),
+// requests point directly to the configured VITE_BACKEND_URL with CORS credentials.
+const crossOrigin = isCrossOriginDeployment()
+const backendBase = crossOrigin ? getBackendUrl() : ''
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: crossOrigin ? `${backendBase}/api` : '/api',
   timeout: 15000,
+  withCredentials: true,
 })
 
 api.interceptors.request.use((config) => {
@@ -43,19 +36,29 @@ api.interceptors.request.use((config) => {
 })
 
 // fapi axios instance — for module-level fapi endpoints (e.g. /societe/fapi/*,
-// /contact/fapi/*, /compta/facture/fapi/*). These are bearer-token-authenticated
-// JSON API adapters that wrap the existing Dolibarr business classes. Uses an
-// empty baseURL so the full path (e.g. /societe/fapi/list.php) is resolved
-// same-origin via the Vite dev proxy (which already proxies /societe/*) or
-// directly in production (same-origin deployment).
+// /contact/fapi/*, /compta/facture/fapi/*).
 export const fapi = axios.create({
-  baseURL: '',
+  baseURL: backendBase,
   timeout: 15000,
+  withCredentials: true,
 })
 
 fapi.interceptors.request.use((config) => {
   const token = getStoredToken()
   if (token) {
+    config.headers['X-API-Key'] = token
+  }
+  return config
+})
+
+// Configure default axios for direct calls across the app
+axios.interceptors.request.use((config) => {
+  if (isCrossOriginDeployment() && config.url && config.url.startsWith('/') && !/^https?:\/\//i.test(config.url)) {
+    config.url = `${getBackendUrl()}${config.url}`
+    config.withCredentials = true
+  }
+  const token = getStoredToken()
+  if (token && !config.headers['X-API-Key']) {
     config.headers['X-API-Key'] = token
   }
   return config

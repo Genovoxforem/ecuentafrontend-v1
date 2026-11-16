@@ -170,95 +170,8 @@ function proxyConfig(target: string): ProxyOptions {
   }
 }
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    htaccessPlugin(),
-    // Generates dist/stats.html on every build — open it in a browser to
-    // see a treemap of every chunk and its modules. Only runs in build
-    // mode (dev server ignores it).
-    visualizer({
-      filename: 'dist/stats.html',
-      gzipSize: true,
-      brotliSize: true,
-      template: 'treemap',
-    }),
-  ],
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
-    // One copy of React for every dependency: two copies in a dev tab show up as "Cannot read properties of null (reading 'useContext')"
-    // (seen on /asycuda-purchase-invoice, 16 Nov 2026, after Vite re-bundled its dependencies while the tab was open).
-    dedupe: ['react', 'react-dom'],
-  },
-  // Every runtime dependency is bundled when the dev server starts, so a page visited later cannot trigger a re-bundle (and a reload) in the middle of a session.
-  optimizeDeps: {
-    include: [
-      'react',
-      'react-dom',
-      'react-dom/client',
-      'react/jsx-runtime',
-      'react/jsx-dev-runtime',
-      'react-router-dom',
-      '@tanstack/react-query',
-      '@tanstack/react-query-devtools',
-      'axios',
-      'zustand',
-      'zustand/middleware',
-      'lucide-react',
-      '@phosphor-icons/react',
-      'recharts',
-      'exceljs',
-      'jsbarcode',
-      'qrcode',
-    ],
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        // Splits heavy vendor libraries into their own chunks so they're
-        // loaded once and cached across route navigations, instead of being
-        // bundled into whichever route chunk first imports them. recharts
-        // (~57 KB) is only needed on dashboard/statistics pages, exceljs
-        // (~250 KB) only on export pages, qrcode+jsbarcode only on
-        // product/barcode pages. Without this, a user visiting /customers
-        // could download exceljs bundled into a shared chunk they never use.
-        //
-        // Rolldown (this project's bundler as of Vite 8) dropped Rollup's
-        // object-form manualChunks — codeSplitting.groups is its replacement.
-        codeSplitting: {
-          groups: [
-            // React gets its own chunk, ahead of the charts group. Left out, rolldown placed React inside vendor-charts (it is a
-            // shared dependency of recharts), so the whole 420 KB charts chunk was part of the first load of every page.
-            { name: 'vendor-react', test: /node_modules\/(react|react-dom|scheduler|react-is)\//, priority: 20 },
-            { name: 'vendor-charts', test: /node_modules\/recharts/ },
-            { name: 'vendor-excel', test: /node_modules\/exceljs/ },
-            { name: 'vendor-barcode', test: /node_modules\/(jsbarcode|qrcode)/ },
-            // One chunk for the icons: left alone, every lucide icon became its own tiny file and index.html preloaded 116 of them
-            // (126 of the 142 preloaded files were under 2.5 KB), a request each before the first page could draw.
-            { name: 'vendor-icons', test: /node_modules\/lucide-react/ },
-          ],
-        },
-      },
-    },
-  },
-  server: {
-    // Local dev only: forwards the app's relative "/api" and "/custom/*"
-    // calls to the backend configured via VITE_BACKEND_URL in .env.local
-    // (see .env.example) — that's the one place to change to
-    // switch backends now. Requests stay same-origin from the browser's
-    // point of view (it only ever talks to this dev server), so this is
-    // also what avoids CORS.
-    //
-    // "/takeposnew" and "/takepos" are POS's own legacy, session-cookie-based
-    // endpoints (src/pos/features/tables|reports|cart/services/*.php calls) —
-    // they need the same same-origin treatment as /api, or the DOLSESSID
-    // cookie Dolibarr sets on them never gets sent back.
-    proxy: {
-      '/api': proxyConfig(BACKEND_URL),
+const devProxy: Record<string, ProxyOptions> = {
+  '/api': proxyConfig(BACKEND_URL),
       // Regex, not a plain string: Vite/http-proxy-middleware matches plain
       // string keys by simple prefix, so a bare '/custom' also swallowed the
       // app's own /customers, /customers/create, /customers/:id,
@@ -472,6 +385,73 @@ export default defineConfig({
       // /hotel/..., plus bookingDashboard at /hotel-dashboard), so a plain
       // prefix is safe, but anchored anyway to match the rest of this list.
       '^/booking(/|$)': proxyConfig(BACKEND_URL),
+}
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    htaccessPlugin(),
+    // Generates dist/stats.html on every build — open it in a browser to
+    // see a treemap of every chunk and its modules. Only runs in build
+    // mode (dev server ignores it).
+    visualizer({
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+      template: 'treemap',
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, './src'),
     },
+    // One copy of React for every dependency: two copies in a dev tab show up as "Cannot read properties of null (reading 'useContext')"
+    // (seen on /asycuda-purchase-invoice, 16 Nov 2026, after Vite re-bundled its dependencies while the tab was open).
+    dedupe: ['react', 'react-dom'],
+  },
+  // Every runtime dependency is bundled when the dev server starts, so a page visited later cannot trigger a re-bundle (and a reload) in the middle of a session.
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+      'react-router-dom',
+      '@tanstack/react-query',
+      '@tanstack/react-query-devtools',
+      'axios',
+      'zustand',
+      'zustand/middleware',
+      'lucide-react',
+      '@phosphor-icons/react',
+      'recharts',
+      'exceljs',
+      'jsbarcode',
+      'qrcode',
+    ],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'vendor-react', test: /node_modules\/(react|react-dom|scheduler|react-is)\//, priority: 20 },
+            { name: 'vendor-charts', test: /node_modules\/recharts/ },
+            { name: 'vendor-excel', test: /node_modules\/exceljs/ },
+            { name: 'vendor-barcode', test: /node_modules\/(jsbarcode|qrcode)/ },
+            { name: 'vendor-icons', test: /node_modules\/lucide-react/ },
+          ],
+        },
+      },
+    },
+  },
+  server: {
+    proxy: devProxy,
+  },
+  preview: {
+    proxy: devProxy,
   },
 })

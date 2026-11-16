@@ -288,8 +288,7 @@ export function calculateLoanSchedule(input: LoanCalculatorInput): LoanCalculato
 // The rows come from custom/loanmanagement/fapi/list.php and the Loan Product / Borrower dropdowns from form_options.php
 // (key-authenticated JSON). Loan ID, Currency and Payment Type still come from the classic page, which is also what the
 // create POST goes to, so a missing legacy session only leaves those three empty; the list and the two dropdowns still load.
-// list.php has no contact number and gives the status as a number without a label, so Contact No is empty and the status
-// is shown as the number.
+// list.php items carry contact_no (AN-166); status is given as a number without a label, so status is shown as the number.
 interface FapiLoanItem {
   id: number
   loan_id: string
@@ -299,6 +298,7 @@ interface FapiLoanItem {
   applied_amount?: number
   release_date?: string
   status?: number
+  contact_no?: string | null
 }
 interface FapiLoanFormOptions {
   products?: Array<{ id: number; name: string }>
@@ -326,7 +326,7 @@ export function useLoanManagementForm() {
           loanId: l.loan_id,
           loanProduct: l.product?.name ?? '',
           borrower: l.borrower?.name ?? '',
-          contactNo: '',
+          contactNo: l.contact_no ?? '',
           releaseDate: l.release_date ?? '',
           appliedAmount: loanAmount(l.applied_amount, l.currency),
           status: l.status === undefined ? '' : String(l.status),

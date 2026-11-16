@@ -62,7 +62,8 @@ function initials(name: string) {
 // has no React counterpart yet, so refs are shown as text, never as a backend link.
 export function JobCardsList() {
   const { data, isLoading, isError, error, refetch } = useJobCards()
-  const { data: stats } = useJobCardStats()
+  const { data: statsFallback } = useJobCardStats()
+  const stats = data?.stats ?? statsFallback
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
   const [page, setPage] = useState(1)

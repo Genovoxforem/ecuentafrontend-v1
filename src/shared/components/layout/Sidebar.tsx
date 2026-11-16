@@ -460,7 +460,7 @@ export function Sidebar({ open = true, onClose, onOpen }: { open?: boolean; onCl
         <div className="soft-scrollbar w-64 h-full overflow-y-auto overflow-x-hidden px-4 pb-5">
           <div className={`sticky top-0 z-10 bg-surface ${blueMetal ? 'px-2 pt-4' : 'pt-4'}`}>
             <h2 className="mb-3 px-1 text-sm font-bold tracking-[0.18em] text-text-muted">MENU</h2>
-            <div className="flex items-center gap-3 border-b border-border pb-3">
+            <div className="flex items-center gap-3">
               {blueMetal ? (
                 <>
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-brand shadow-sm">
