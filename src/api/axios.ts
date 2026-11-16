@@ -30,10 +30,10 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = getStoredToken()
   if (token) {
-    config.headers['X-API-Key'] = token
-    if (!config.headers['Authorization']) {
-      config.headers['Authorization'] = token
-    }
+    // /api/* backend only allows 'Authorization' in Access-Control-Allow-Headers.
+    // Adding X-API-Key here causes preflight (OPTIONS) to fail with a wildcard CORS
+    // response — do NOT add X-API-Key for core /api/ routes.
+    config.headers['Authorization'] = token
   }
   return config
 })
@@ -60,10 +60,20 @@ axios.interceptors.request.use((config) => {
     const isCoreApi = config.url.startsWith('/api/') || config.url === '/api'
     config.url = `${getBackendUrl()}${config.url}`
     config.withCredentials = !isCoreApi
-  }
-  const token = getStoredToken()
-  if (token && !config.headers['X-API-Key']) {
-    config.headers['X-API-Key'] = token
+    const token = getStoredToken()
+    if (token) {
+      if (isCoreApi) {
+        // /api/* only permits Authorization in preflight Allow-Headers — no X-API-Key
+        if (!config.headers['Authorization']) config.headers['Authorization'] = token
+      } else {
+        if (!config.headers['X-API-Key']) config.headers['X-API-Key'] = token
+      }
+    }
+  } else {
+    const token = getStoredToken()
+    if (token && !config.headers['X-API-Key']) {
+      config.headers['X-API-Key'] = token
+    }
   }
   return config
 })

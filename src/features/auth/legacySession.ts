@@ -30,10 +30,17 @@
 //
 // Never throws — the legacy session is optional. Every consumer already
 // falls back gracefully when it's missing (see getReportsInRange).
+import { isCrossOriginDeployment } from '../../api/backends'
+
 const LOGIN_PATH = '/index.php'
 const TOKEN_FIELD_RE = /name=["']token["']\s+value=["']([^"']*)["']/i
 
 export async function establishLegacySession(login: string, password: string): Promise<void> {
+  // On cross-origin deployments (e.g. cPanel frontend domain), skip legacy session bootstrap
+  // because index.php does not provide CORS headers and browsers do not store cross-origin cookies.
+  if (isCrossOriginDeployment()) {
+    return
+  }
   try {
     const pageResponse = await fetch(LOGIN_PATH, { credentials: 'same-origin' })
     const html = await pageResponse.text()
