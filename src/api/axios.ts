@@ -24,13 +24,16 @@ const backendBase = crossOrigin ? getBackendUrl() : ''
 export const api = axios.create({
   baseURL: crossOrigin ? `${backendBase}/api` : '/api',
   timeout: 15000,
-  withCredentials: true,
+  withCredentials: false,
 })
 
 api.interceptors.request.use((config) => {
   const token = getStoredToken()
   if (token) {
     config.headers['X-API-Key'] = token
+    if (!config.headers['Authorization']) {
+      config.headers['Authorization'] = token
+    }
   }
   return config
 })
@@ -54,8 +57,9 @@ fapi.interceptors.request.use((config) => {
 // Configure default axios for direct calls across the app
 axios.interceptors.request.use((config) => {
   if (isCrossOriginDeployment() && config.url && config.url.startsWith('/') && !/^https?:\/\//i.test(config.url)) {
+    const isCoreApi = config.url.startsWith('/api/') || config.url === '/api'
     config.url = `${getBackendUrl()}${config.url}`
-    config.withCredentials = true
+    config.withCredentials = !isCoreApi
   }
   const token = getStoredToken()
   if (token && !config.headers['X-API-Key']) {

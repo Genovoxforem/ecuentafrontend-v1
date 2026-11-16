@@ -12,16 +12,18 @@ if (isCrossOriginDeployment()) {
   const backendUrl = getBackendUrl()
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     if (typeof input === 'string' && input.startsWith('/') && !input.startsWith('/assets/') && !input.endsWith('.html')) {
+      const isCoreApi = input.startsWith('/api/') || input === '/api'
       return originalFetch(`${backendUrl}${input}`, {
         ...init,
-        credentials: init?.credentials ?? 'include',
+        credentials: init?.credentials ?? (isCoreApi ? 'omit' : 'include'),
       })
     }
     if (input instanceof URL && input.pathname.startsWith('/') && input.origin === window.location.origin) {
+      const isCoreApi = input.pathname.startsWith('/api/') || input.pathname === '/api'
       const fullUrl = `${backendUrl}${input.pathname}${input.search}${input.hash}`
       return originalFetch(fullUrl, {
         ...init,
-        credentials: init?.credentials ?? 'include',
+        credentials: init?.credentials ?? (isCoreApi ? 'omit' : 'include'),
       })
     }
     return originalFetch(input, init)
