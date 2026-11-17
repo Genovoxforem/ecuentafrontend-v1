@@ -40,6 +40,8 @@ export interface CompanyAccountDetails {
   tpin: string
   branchCode: string
   country: string
+  // The dictionary id of the country (239 = Zambia on newecuenta): what the Company page's Country select holds.
+  countryId: number | null
   // The company time zone (core/fapi/company.php timezone = MAIN_SERVER_TZ). /api/general/ always answers "UTC" (BUG-69).
   timezone: string
 }
@@ -47,8 +49,8 @@ export interface CompanyAccountDetails {
 // core/fapi/company.php carries the company's TPIN, branch code and country (key-authenticated JSON); /api/general/ omits
 // them, and the company time zone. The classic account summary (admin/company.php) is no longer read.
 async function fetchCompanyAccountDetails(): Promise<CompanyAccountDetails> {
-  const d = await fapiGet<{ tpin?: string; branch_code?: string; country?: { name?: string } | null; timezone?: string }>('/core/fapi/company.php')
-  return { tpin: d.tpin ?? '', branchCode: d.branch_code ?? '', country: d.country?.name ?? '', timezone: d.timezone ?? '' }
+  const d = await fapiGet<{ tpin?: string; branch_code?: string; country?: { id?: number; name?: string } | null; timezone?: string }>('/core/fapi/company.php')
+  return { tpin: d.tpin ?? '', branchCode: d.branch_code ?? '', country: d.country?.name ?? '', countryId: d.country?.id ?? null, timezone: d.timezone ?? '' }
 }
 
 export function useCompanyAccountDetails() {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, Loader2, X } from 'lucide-react'
 import { Card } from '../../../shared/components/dashboard/DashboardKit'
+import { BannerNote } from '../../../shared/components/layout/bannerSlot'
 import { ROUTES } from '../../../routes'
 import { CLASSIC_VIEWS, type ClassicAssetView } from '../assetClassicView.data'
 import { inputClasses } from '../../../shared/components/forms/FormField'
@@ -60,14 +61,15 @@ export function AssetKpi({ label, value, note, tone }: { label: string; value: R
   )
 }
 
-export function PageHeading({ icon: Icon, title, children, action }: { icon: ComponentType<{ size?: number; className?: string }>; title: string; children?: ReactNode; action?: ReactNode }) {
+// inBanner: the description line is drawn inside the page banner (BannerNote) instead of under the title.
+export function PageHeading({ icon: Icon, title, children, action, inBanner }: { icon: ComponentType<{ size?: number; className?: string }>; title: string; children?: ReactNode; action?: ReactNode; inBanner?: boolean }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="flex items-center gap-2 text-lg font-bold text-text!">
           <Icon size={20} className="text-brand" /> {title}
         </h2>
-        {children && <p className="mt-0.5 text-sm text-text-muted">{children}</p>}
+        {children && (inBanner ? <BannerNote>{children}</BannerNote> : <p className="mt-0.5 text-sm text-text-muted">{children}</p>)}
       </div>
       {action}
     </div>

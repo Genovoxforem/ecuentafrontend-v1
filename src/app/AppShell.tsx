@@ -90,7 +90,7 @@ export function AppShell({ children }: AppShellProps) {
             items means the page's `-m-6` only pulls it to the top edge of
             the scroll container (negating its padding), never into the
             breadcrumb row above. */}
-        <main className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-hidden bg-surface border-t border-border ${usesBlueLayout(theme) ? 'blue-theme-shell m-6' : ''}`}>
+        <main className={`flex min-h-0 min-w-0 flex-col flex-1 overflow-hidden bg-surface ${usesBlueLayout(theme) ? 'blue-theme-shell m-6' : ''}`}>
           {/* In the blue-metal theme the banner below carries the breadcrumb itself
               (see PageBanner.tsx) — this row would just repeat it above a second time. */}
           {showBreadcrumb && !usesBlueLayout(theme) && (

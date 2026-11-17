@@ -1567,7 +1567,7 @@ html[data-theme='light'] .modern-sb-light {
   background-color: #ffffff;
 }
 html[data-theme='light'] aside:not(.pos-app aside) {
-  border-right: 1px solid #e5eaf1;
+  border-right: none;
 }
 
 /* Icon chips: flat tinted tiles instead of glossy blue gradients. */
@@ -1751,7 +1751,7 @@ html[data-theme='light'] .blue-theme-shell {
 html[data-theme='light'] nav.h-\[67px\] {
   height: 60px;
   background-color: #ffffff;
-  border-bottom: 1px solid #dfe5ed;
+  border-bottom: none;
 }
 html[data-theme='light'] nav :is(button, a) > svg,
 html[data-theme='light'] aside:not(.pos-app aside) :is(button, a) svg {
@@ -2376,4 +2376,21 @@ html:is([data-theme='blue-metal'], [data-theme='light'], [data-theme='dark']) #r
   border-color: transparent !important;
   background: var(--kpi) !important;
   color: #fff !important;
+}
+
+/* The one-line page description drawn inside the banner (BannerNote): light type on the dark banners, slate on the light one. */
+html[data-theme='light'] .blue-theme-banner .banner-note {
+  color: #475569;
+  border-color: rgba(71, 85, 105, 0.35);
+}
+
+/* A single auto-pager sits in the page footer, like the footer of the lists that page themselves: at the bottom of the page when the
+   content is short, and stuck to the bottom edge while a long page scrolls. The -1.5rem offsets cancel the page's p-6. */
+.auto-pager--footer {
+  position: sticky;
+  bottom: -1.5rem;
+  z-index: 5;
+  flex-shrink: 0;
+  margin-top: auto;
+  margin-bottom: -1.5rem;
 }

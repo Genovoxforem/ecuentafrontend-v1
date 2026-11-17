@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Folder, Search } from 'lucide-react'
+import { Folder, LayoutGrid, Search } from 'lucide-react'
 import { REPORT_CATEGORIES, reportPath } from '../../features/reports/reportsStructure'
 
 // The "Reports Center" laid out as the classic page (custom/reports/reportsindex.php): the title and a search box, the categories in a list on the left, and
@@ -42,6 +42,18 @@ export function ReportsModule() {
             </div>
           </div>
           <ul className="soft-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+            {/* "All Reports" first, under the search: shows every category's reports; lit while no category is picked. */}
+            <li>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                aria-pressed={selected === null}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-semibold ${selected === null ? 'bg-brand/10 text-brand' : 'text-text hover:bg-surface-hover'}`}
+              >
+                <LayoutGrid size={16} className="shrink-0 text-text-faint" />
+                All Reports
+              </button>
+            </li>
             {REPORT_CATEGORIES.map((cat) => {
               const Icon = cat.icon
               const active = selected === cat.key

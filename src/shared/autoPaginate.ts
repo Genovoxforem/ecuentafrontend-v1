@@ -13,6 +13,8 @@ interface PagerState {
   count: number
 }
 const states = new WeakMap<HTMLTableElement, PagerState>()
+// The table each bar pages, so a bar moved to the page footer can be removed when its table is gone.
+const barTable = new WeakMap<HTMLElement, HTMLTableElement>()
 
 function dataRows(table: HTMLTableElement): HTMLTableRowElement[] {
   const body = table.tBodies[0]
@@ -128,8 +130,34 @@ function attach(table: HTMLTableElement) {
   bar.className = 'auto-pager'
   const state: PagerState = existing ?? { page: 1, size: 10, bar, count: 0 }
   states.set(table, state)
+  barTable.set(bar, table)
   host.insertAdjacentElement('afterend', bar)
   render(table, state)
+}
+
+// A table inside a dialog or overlay keeps its pager next to it; every other pager goes to the page footer.
+const inOverlay = (table: HTMLTableElement) => !!table.closest('[role="dialog"], [aria-modal="true"], .fixed, [data-no-autopage]')
+
+// Same place as the footer of the lists that page themselves (ListPagination): the bar sits at the bottom of the page and stays
+// in view while the page scrolls. With more than one pager on a page, each stays under its own table so it is clear which it belongs to.
+function placeBars(root: HTMLElement) {
+  const bars = Array.from(root.querySelectorAll<HTMLElement>('.auto-pager'))
+  for (const bar of bars) {
+    const table = barTable.get(bar)
+    if (!table || !table.isConnected) bar.remove()
+  }
+  const live = Array.from(root.querySelectorAll<HTMLElement>('.auto-pager'))
+  const footer = live.length === 1 && !inOverlay(barTable.get(live[0])!) ? live[0] : null
+  for (const bar of live) {
+    const table = barTable.get(bar)!
+    if (bar === footer) {
+      bar.classList.add('auto-pager--footer')
+      if (bar.parentElement !== root || root.lastElementChild !== bar) root.appendChild(bar)
+    } else if (bar.classList.contains('auto-pager--footer') || bar.parentElement === root) {
+      bar.classList.remove('auto-pager--footer')
+      table.parentElement?.insertAdjacentElement('afterend', bar)
+    }
+  }
 }
 
 export function installAutoPagination(root: HTMLElement): () => void {
@@ -137,6 +165,7 @@ export function installAutoPagination(root: HTMLElement): () => void {
   const run = () => {
     frame = 0
     root.querySelectorAll('table').forEach((t) => attach(t as HTMLTableElement))
+    placeBars(root)
   }
   const schedule = (records: MutationRecord[]) => {
     if (records.every((r) => (r.target as HTMLElement).closest?.('.auto-pager'))) return

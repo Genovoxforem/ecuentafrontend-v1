@@ -148,7 +148,7 @@ export function Navbar({ sidebarOpen, onToggleSidebar, onLogout }: { sidebarOpen
 
   return (
     <nav
-      className={`relative h-[67px] pr-6 ${darkModern ? 'dark' : `flex items-center justify-between gap-4 bg-rail-bg ${lightSurface ? 'border-b border-slate-200' : ''}`}`}
+      className={`relative h-[67px] pr-6 ${darkModern ? 'dark' : 'flex items-center justify-between gap-4 bg-rail-bg'}`}
     >
       {darkModern && (
         <>
