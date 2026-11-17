@@ -220,9 +220,8 @@ async function fetchKitchenOrdersLegacy(kind: 'kitchen' | 'beverage', filters: K
 }
 
 // kitchen/fapi/orders.php: the kitchen queue as JSON (POS invoices with a kitchen status derived from each line's
-// kotstatus). It has no beverage filter, no payment type and no city filter, so the Beverage list and those two
-// filters stay on the older handler / are ignored on this path. The older handler answers an empty list on
-// newecuenta while this one returns the 19 real orders.
+// kotstatus). Items carry payment_type (c_paiement label) and city (customer town) since 17 Nov 2026 (AN-167, 6cccd1a0).
+// Beverage filter (kind=beverage) and per-order lines[] remain classic/open on AN-167.
 interface FapiKitchenOrder {
   id: number
   ref?: string
@@ -236,6 +235,8 @@ interface FapiKitchenOrder {
   paid?: number
   total_ht?: number
   date?: number
+  payment_type?: string
+  city?: string
 }
 
 const INVOICE_STATUS = ['Draft', 'Not paid', 'Paid', 'Abandoned']
@@ -258,9 +259,9 @@ async function fetchKitchenOrdersFapi(filters: KitchenOrdersFilters, page: numbe
       ref: o.ref ?? '',
       date: day ? `${pad2(day.getUTCMonth() + 1)}/${pad2(day.getUTCDate())}/${day.getUTCFullYear()}` : '',
       customer: o.party?.name ?? '',
-      city: o.party?.town ?? '',
+      city: o.city || o.party?.town || '',
       tokenNo: o.token ?? '',
-      paymentType: '',
+      paymentType: o.payment_type ?? '',
       totalHt: String(o.total_ht ?? ''),
       author: o.waiter ?? '',
       status: o.paid ? 'Paid' : (INVOICE_STATUS[o.invoice_status ?? -1] ?? ''),

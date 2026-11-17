@@ -575,6 +575,7 @@ export interface FapiAccountOptions {
   default_country: { id: number; code: string }
   currency_default: string
   zra_enabled?: number | boolean
+  zra_banks?: Array<{ code: string; label: string }>
 }
 
 // The currency symbol comes as a list of character codes ("[75,77]"): the classic list prints it after the name, e.g. "Bosnia ... Marka (KM)".
@@ -594,8 +595,9 @@ const decodeEntities = (s: string) => {
   return el.value
 }
 
-// The ZRA banks of the classic New Financial Account form (select zra_bank_code: 16 banks, read on newecuenta on 12 Nov 2026 by GET). form_options only answers zra_enabled, not the
-// list, and account.php?action=create answers 422 "ZRA bank is required for non-cash accounts" without one, so the list is kept here (master report: ask for it in form_options).
+// The ZRA banks of the classic New Financial Account form (select zra_bank_code: 16 banks, read on newecuenta on 12 Nov 2026 by GET).
+// compta/bank/fapi/account.php?action=form_options now returns zra_banks: [{code, label}] from the llx_c_zra_banks dictionary (AN-208, 17 Nov 2026).
+// The hard-coded list is kept as a fallback for backends without the field.
 export const ZRA_BANKS: BankAccountFormOption[] = [
   ['ABB', 'AB Bank Zambia Limited'], ['BBZ', 'Absa Bank Zambia Plc'], ['ACZ', 'Access Bank Zambia Limited'], ['BOC', 'Bank of China (Zambia) Limited'], ['BOZ', 'Bank of Zambia'],
   ['CIT', 'Citibank Zambia Limited'], ['ECO', 'Ecobank Zambia Limited'], ['FAB', 'First Alliance Bank Limited'], ['FCB', 'First Capital Bank Zambia'], ['FNB', 'First National Bank Zambia Limited'],
@@ -606,7 +608,12 @@ export const ZRA_BANKS: BankAccountFormOption[] = [
 export const mapAccountOptions = (d: FapiAccountOptions): BankAccountFormContext => ({
   token: '',
   zraEnabled: !!d.zra_enabled,
-  zraBanks: ZRA_BANKS,
+  zraBanks: Array.isArray(d.zra_banks) && d.zra_banks.length > 0
+    ? d.zra_banks.map((b) => ({
+        value: b.code,
+        label: b.label.includes(`(${b.code})`) ? b.label : `${b.label} (${b.code})`,
+      }))
+    : ZRA_BANKS,
   currencies: d.currencies.map((c) => ({ value: c.code, label: `${c.label} (${symbolOf(c)})` })),
   // English names since 11 Nov 2026 ("Zambie" -> "Zambia"); the names come HTML-escaped ("&Aring;land Islands")
   countries: d.countries.map((c) => ({ value: String(c.id), label: decodeEntities(c.label) })),
